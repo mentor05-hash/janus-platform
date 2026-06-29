@@ -70,6 +70,7 @@ model booking {
   buffer_after       Int?                 @default(10) @db.SmallInt
   status             booking_status       @default(new)
   room_id            String?              @db.Uuid
+  meeting_url        String?
   attachments        Json?
   content            String?
   charged_credits    Int?                 @default(0)

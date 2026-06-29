@@ -4,7 +4,9 @@ import {
   ForbiddenException,
   HttpException,
   HttpStatus,
+  Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -26,6 +28,8 @@ import { evaluatePenalty } from '../pricing-policy/domain/penalty';
 import { PricingService } from '../pricing-policy/pricing.service';
 import { AdminPolicyService } from '../pricing-policy/admin-policy.service';
 import { BlockService } from '../report/block.service';
+import { ZOOM_PROVIDER } from '../zoom/zoom.types';
+import type { ZoomProvider } from '../zoom/zoom.types';
 import { BookingCreateDto, QuoteDto, ReverseProposeDto } from './dto/booking.dto';
 import { canTransition, shouldRefundOnTransition } from './domain/state-machine';
 import { canProposeReverse } from './domain/reverse';
@@ -39,7 +43,10 @@ export class BookingService {
     private readonly credit: CreditService,
     private readonly blocks: BlockService,
     private readonly adminPolicy: AdminPolicyService,
+    @Inject(ZOOM_PROVIDER) private readonly zoom: ZoomProvider,
   ) {}
+
+  private readonly logger = new Logger(BookingService.name);
 
   /**
    * §5-8 기능 열기/닫기(FeatureAvailability) + 카테고리×방식(CategoryModePolicy) 게이트.
@@ -310,6 +317,7 @@ export class BookingService {
         if (!outcome.ok) throw new ShortfallError(outcome.shortfall);
         await tx.booking.update({ where: { id }, data: { status: BookingStatus.CONFIRMED } });
       });
+      await this.issueMeetingUrlIfZoom(id); // §9·§10 zoom 입장 URL
       return { id, status: BookingStatus.CONFIRMED, chargedCredits: credits };
     } catch (e) {
       if (e instanceof ShortfallError) {
@@ -424,6 +432,7 @@ export class BookingService {
       return true;
     });
     if (!applied) throw new ConflictException('이미 처리된 예약입니다.');
+    if (to === BookingStatus.CONFIRMED) await this.issueMeetingUrlIfZoom(id); // §9·§10 zoom 입장 URL
     return { id, status: to, refunded: refund ? b.charged_credits : 0 };
   }
 
@@ -500,6 +509,25 @@ export class BookingService {
     }
   }
 
+  /**
+   * zoom 예약 확정 시 입장 URL 발급(§9·§10). 트랜잭션 외부에서 호출(외부 호출이 DB tx 를 늘리지 않도록).
+   * 이미 발급됐으면(idempotent) 생략. 발급 실패는 확정을 막지 않고 로그만(추후 재발급 가능).
+   */
+  private async issueMeetingUrlIfZoom(bookingId: string) {
+    const b = await this.prisma.booking.findUnique({ where: { id: bookingId } });
+    if (!b || b.mode !== ConsultMode.ZOOM || b.meeting_url) return;
+    try {
+      const { joinUrl } = await this.zoom.issueJoinUrl({
+        bookingId: b.id,
+        startAt: b.start_at,
+        endAt: b.end_at,
+      });
+      await this.prisma.booking.update({ where: { id: b.id }, data: { meeting_url: joinUrl } });
+    } catch (e) {
+      this.logger.warn(`입장 URL 발급 실패(booking=${bookingId}): ${(e as Error).message}`);
+    }
+  }
+
   private async requireTeacher(teacherId: string) {
     const t = await this.prisma.teacher_profile.findUnique({ where: { account_id: teacherId } });
     if (!t) throw new NotFoundException('선생님을 찾을 수 없습니다.');
@@ -519,6 +547,7 @@ export class BookingService {
     end_at: Date | null;
     status: string;
     charged_credits: number | null;
+    meeting_url?: string | null;
   }) {
     return {
       id: b.id,
@@ -533,6 +562,7 @@ export class BookingService {
       end: b.end_at?.toISOString() ?? null,
       status: b.status,
       chargedCredits: b.charged_credits ?? 0,
+      meetingUrl: b.meeting_url ?? null,
     };
   }
 }
