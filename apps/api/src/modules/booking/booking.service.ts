@@ -127,6 +127,9 @@ export class BookingService {
         if (!stillBookable) {
           throw new ConflictException('선택한 시간은 예약할 수 없습니다(휴게/근무/체류 위반).');
         }
+        if (dto.mode === ConsultMode.ZOOM) {
+          await this.assertZoomCapacity(tx, teacher.center_id, dto.date, startAt, endAt);
+        }
         const b = await tx.booking.create({
           data: {
             student_id: studentId,
@@ -235,6 +238,9 @@ export class BookingService {
         const stillBookable = await this.availability.assertBookable(user.id, dto.date, startMin, endMin, dto.studentId);
         if (!stillBookable) {
           throw new ConflictException('제안하려는 시간은 예약할 수 없습니다(휴게/근무 위반).');
+        }
+        if (dto.mode === ConsultMode.ZOOM) {
+          await this.assertZoomCapacity(tx, teacher.center_id, dto.date, startAt, endAt);
         }
         const b = await tx.booking.create({
           data: {
@@ -435,6 +441,36 @@ export class BookingService {
     const key = `${teacherId}:${date}`;
     // $executeRaw 사용: void 반환 컬럼 역직렬화 회피(락은 실행 시 획득).
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`;
+  }
+
+  /**
+   * 줌 동시 진행 한도(§5-8, ZoomPolicy.concurrent_limit) — 센터 단위.
+   * 같은 센터에서 요청 시간대와 겹치는 진행 예정 줌 예약 수가 한도 이상이면 차단.
+   * 센터:날짜 advisory 락으로 교차-선생님 동시 생성까지 직렬화.
+   */
+  private async assertZoomCapacity(
+    tx: Prisma.TransactionClient,
+    centerId: string | null,
+    date: string,
+    startAt: Date,
+    endAt: Date,
+  ) {
+    if (!centerId) return;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`zoom:${centerId}:${date}`}))`;
+    const zp = await tx.zoom_policy.findUnique({ where: { center_id: centerId } });
+    const limit = zp?.concurrent_limit ?? 6;
+    const overlapping = await tx.booking.count({
+      where: {
+        center_id: centerId,
+        mode: ConsultMode.ZOOM,
+        status: { in: [BookingStatus.NEW, BookingStatus.CONFIRMED] },
+        start_at: { lt: endAt },
+        end_at: { gt: startAt },
+      },
+    });
+    if (overlapping >= limit) {
+      throw new ConflictException(`동시 진행 가능한 줌 상담 수(${limit})를 초과했습니다.`);
+    }
   }
 
   private async requireTeacher(teacherId: string) {
