@@ -74,6 +74,7 @@ export class BookingService {
     if (minutes <= 0) throw new BadRequestException('slotEnd 는 slotStart 보다 커야 합니다.');
     const teacher = await this.requireTeacher(dto.teacherId);
     const studentId = user.role === AccountRole.STUDENT ? user.id : undefined;
+    if (studentId) await this.requireStudent(studentId); // 미등록 승인계정 견적 시 500 방지
 
     const valid = await this.availability.assertBookable(
       dto.teacherId,
@@ -100,6 +101,7 @@ export class BookingService {
     const minutes = (dto.slotEnd - dto.slotStart) * SLOT_GRANULARITY_MINUTES;
     if (minutes <= 0) throw new BadRequestException('slotEnd 는 slotStart 보다 커야 합니다.');
 
+    await this.requireStudent(studentId); // 회원등록(프로필) 선행 — 미등록 승인계정 500 방지
     await this.assertNotPenaltyRestricted(studentId); // §5-7 가중 제한
     const blocked = await this.blocks.blockedTeacherIds(studentId);
     if (blocked.includes(dto.teacherId)) {
@@ -532,6 +534,16 @@ export class BookingService {
     const t = await this.prisma.teacher_profile.findUnique({ where: { account_id: teacherId } });
     if (!t) throw new NotFoundException('선생님을 찾을 수 없습니다.');
     return t;
+  }
+
+  /**
+   * 학생 등록(프로필) 확인. 회원가입+승인만 된(프로필 미생성) 계정의 예약 시
+   * FK 위반으로 500 나는 것을 방지하고, 역방향(역상담)과 동일하게 명확한 404 로 응답.
+   */
+  private async requireStudent(studentId: string) {
+    const s = await this.prisma.student_profile.findUnique({ where: { account_id: studentId } });
+    if (!s) throw new NotFoundException('학생 등록(프로필)이 완료되지 않았습니다. 회원등록 후 이용하세요.');
+    return s;
   }
 
   private toBookingDto(b: {
