@@ -16,11 +16,11 @@ export class OpsService {
     const weekAgo = new Date(now.getTime() - 7 * 86_400_000);
 
     const [activeUsers, totalBookings, doneTotal, weeklyConsult, confirmedUpcoming] = await Promise.all([
-      this.prisma.account.count({ where: { status: 'approved' as never, ...(centerId ? { center_id: centerId } : {}) } }),
+      this.prisma.account.count({ where: { status: 'approved', ...(centerId ? { center_id: centerId } : {}) } }),
       this.prisma.booking.count({ where: centerWhere }),
-      this.prisma.booking.count({ where: { ...centerWhere, status: BookingStatus.DONE as never } }),
-      this.prisma.booking.count({ where: { ...centerWhere, status: BookingStatus.DONE as never, start_at: { gte: weekAgo } } }),
-      this.prisma.booking.count({ where: { ...centerWhere, status: BookingStatus.CONFIRMED as never } }),
+      this.prisma.booking.count({ where: { ...centerWhere, status: BookingStatus.DONE } }),
+      this.prisma.booking.count({ where: { ...centerWhere, status: BookingStatus.DONE, start_at: { gte: weekAgo } } }),
+      this.prisma.booking.count({ where: { ...centerWhere, status: BookingStatus.CONFIRMED } }),
     ]);
 
     const matchRate = totalBookings === 0 ? 0 : Math.round((doneTotal / totalBookings) * 1000) / 10;

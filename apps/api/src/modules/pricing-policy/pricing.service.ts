@@ -50,12 +50,12 @@ export class PricingService {
   private async getPolicy(mode: ConsultMode, centerId?: string | null) {
     if (centerId) {
       const centerPolicy = await this.prisma.pricing_policy.findFirst({
-        where: { center_id: centerId, mode: mode as never, enabled: true },
+        where: { center_id: centerId, mode: mode, enabled: true },
       });
       if (centerPolicy) return centerPolicy;
     }
     const base = await this.prisma.pricing_policy.findFirst({
-      where: { center_id: null, mode: mode as never, enabled: true },
+      where: { center_id: null, mode: mode, enabled: true },
     });
     if (!base) throw new NotFoundException(`요금정책(${mode})이 설정되어 있지 않습니다.`);
     return base;

@@ -168,7 +168,7 @@ export class CreditService {
     let split: SpendSplit | null = null;
     if (ref.refId) {
       const spend = await tx.credit_transaction.findFirst({
-        where: { account_id: acct.id, type: CreditTxnType.SPEND as never, ref_id: ref.refId },
+        where: { account_id: acct.id, type: CreditTxnType.SPEND, ref_id: ref.refId },
         orderBy: { created_at: 'desc' },
       });
       split = (spend?.meta as unknown as SpendSplit) ?? null;

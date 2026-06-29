@@ -54,14 +54,14 @@ export class EvaluationService {
         ? lp?.classify_fit_limit ?? CLASSIFY_LIMITS.fit
         : lp?.classify_unfit_limit ?? CLASSIFY_LIMITS.unfit;
     const count = await this.prisma.teacher_list_entry.count({
-      where: { student_id: student.id, list_kind: dto.listKind as never },
+      where: { student_id: student.id, list_kind: dto.listKind },
     });
     if (!canAddWithinLimit(count, limit)) {
       throw new ConflictException(`${dto.listKind} 분류 한도(${limit})를 초과했습니다.`);
     }
 
     await this.prisma.teacher_list_entry.create({
-      data: { student_id: student.id, teacher_id: dto.teacherId, list_kind: dto.listKind as never },
+      data: { student_id: student.id, teacher_id: dto.teacherId, list_kind: dto.listKind },
     });
     return { teacherId: dto.teacherId, listKind: dto.listKind };
   }
@@ -119,12 +119,12 @@ export class EvaluationService {
     // total_consult(완료 상담 수)는 덮어쓰지 않음(M5) — 평점·등급만 갱신.
     await tx.teacher_profile.update({
       where: { account_id: teacherId },
-      data: { rating, grade: grade as never },
+      data: { rating, grade: grade },
     });
     await tx.teacher_grade.upsert({
       where: { teacher_id: teacherId },
-      update: { grade: grade as never },
-      create: { teacher_id: teacherId, grade: grade as never },
+      update: { grade: grade },
+      create: { teacher_id: teacherId, grade: grade },
     });
     return { teacherId, rating, grade, reviewCount: reviews.length };
   }

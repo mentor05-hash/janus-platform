@@ -59,8 +59,8 @@ export class PayrollService {
     }
 
     const [doneCount, upcomingCount, qnaAcceptedCount] = await Promise.all([
-      this.prisma.booking.count({ where: { teacher_id: teacherId, status: BookingStatus.DONE as never } }),
-      this.prisma.booking.count({ where: { teacher_id: teacherId, status: BookingStatus.CONFIRMED as never } }),
+      this.prisma.booking.count({ where: { teacher_id: teacherId, status: BookingStatus.DONE } }),
+      this.prisma.booking.count({ where: { teacher_id: teacherId, status: BookingStatus.CONFIRMED } }),
       // 채택되어 급여 적격(pay_eligible)인 Q&A 답변만 합산(§3.1 연동)
       this.prisma.qna_answer.count({ where: { teacher_id: teacherId, pay_eligible: true } }),
     ]);

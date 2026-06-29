@@ -109,14 +109,14 @@ export class BookingService {
             student_id: studentId,
             teacher_id: dto.teacherId,
             center_id: teacher.center_id,
-            consult_type: consultTypeToPrisma(dto.consultType) as never,
+            consult_type: consultTypeToPrisma(dto.consultType),
             sub_type: dto.subType ?? null,
-            mode: dto.mode as never,
-            session_mode: dto.sessionMode ? (sessionModeToPrisma(dto.sessionMode) as never) : null,
+            mode: dto.mode,
+            session_mode: dto.sessionMode ? (sessionModeToPrisma(dto.sessionMode)) : null,
             direction: 'student',
             start_at: startAt,
             end_at: endAt,
-            status: BookingStatus.NEW as never,
+            status: BookingStatus.NEW,
             charged_credits: credits,
             origin: '직접',
             content: dto.content ?? null,
@@ -158,12 +158,12 @@ export class BookingService {
   }
 
   /** GET /bookings — 역할별 목록. */
-  async list(user: AuthUser, role?: 'student' | 'teacher', status?: string) {
+  async list(user: AuthUser, role?: 'student' | 'teacher', status?: BookingStatus) {
     const asTeacher = role === 'teacher' || user.role === AccountRole.TEACHER;
     const where: Prisma.bookingWhereInput = asTeacher
       ? { teacher_id: user.id }
       : { student_id: user.id };
-    if (status) where.status = status as never;
+    if (status) where.status = status;
     const rows = await this.prisma.booking.findMany({
       where,
       orderBy: { start_at: 'desc' },
@@ -189,7 +189,7 @@ export class BookingService {
       where: {
         teacher_id: user.id,
         student_id: dto.studentId,
-        status: { in: [BookingStatus.CONFIRMED, BookingStatus.DONE] as never },
+        status: { in: [BookingStatus.CONFIRMED, BookingStatus.DONE] },
       },
     });
     if (!canProposeReverse(prior)) {
@@ -217,12 +217,12 @@ export class BookingService {
             student_id: dto.studentId,
             teacher_id: user.id,
             center_id: teacher.center_id,
-            consult_type: consultTypeToPrisma(dto.consultType) as never,
-            mode: dto.mode as never,
+            consult_type: consultTypeToPrisma(dto.consultType),
+            mode: dto.mode,
             direction: 'reverse',
             start_at: startAt,
             end_at: endAt,
-            status: BookingStatus.NEW as never,
+            status: BookingStatus.NEW,
             charged_credits: q.credits,
             origin: '역상담',
             content: dto.content ?? null,
@@ -262,7 +262,7 @@ export class BookingService {
 
     if (action === 'reject') {
       await this.prisma.$transaction(async (tx) => {
-        await tx.booking.update({ where: { id }, data: { status: BookingStatus.REJECTED as never } });
+        await tx.booking.update({ where: { id }, data: { status: BookingStatus.REJECTED } });
         await tx.time_slot.deleteMany({ where: { booking_id: id } });
       });
       return { id, status: BookingStatus.REJECTED };
@@ -278,7 +278,7 @@ export class BookingService {
           description: '역상담 수락 크레딧 차감',
         });
         if (!outcome.ok) throw new ShortfallError(outcome.shortfall);
-        await tx.booking.update({ where: { id }, data: { status: BookingStatus.CONFIRMED as never } });
+        await tx.booking.update({ where: { id }, data: { status: BookingStatus.CONFIRMED } });
       });
       return { id, status: BookingStatus.CONFIRMED, chargedCredits: credits };
     } catch (e) {
@@ -354,8 +354,8 @@ export class BookingService {
     // → 이중 취소/이중 환원·이벤트 중복 방지.
     const applied = await this.prisma.$transaction(async (tx) => {
       const upd = await tx.booking.updateMany({
-        where: { id, status: from as never },
-        data: { status: to as never },
+        where: { id, status: from },
+        data: { status: to },
       });
       if (upd.count !== 1) return false; // 다른 트랜잭션이 이미 전이시킴
       if (to === BookingStatus.CANCELLED || to === BookingStatus.REJECTED) {

@@ -51,7 +51,7 @@ export class QnaService {
             student_id: student.id,
             subject: dto.subject ?? null,
             difficulty: dto.difficulty ?? null,
-            scope: dto.scope as never,
+            scope: dto.scope,
             assigned_teacher_id: dto.scope === 'assigned' ? dto.assignedTeacherId! : null,
             body: dto.body,
             status: 'open',
@@ -87,7 +87,7 @@ export class QnaService {
     }
     if (user.role === AccountRole.TEACHER) {
       return this.prisma.qna_post.findMany({
-        where: { OR: [{ scope: 'open' as never, status: 'open' }, { assigned_teacher_id: user.id }] },
+        where: { OR: [{ scope: 'open', status: 'open' }, { assigned_teacher_id: user.id }] },
         orderBy: { created_at: 'desc' },
       });
     }
@@ -108,7 +108,7 @@ export class QnaService {
     if (post.status !== 'open') throw new BadRequestException('마감된 질문입니다.');
 
     const unfit = await this.prisma.teacher_list_entry.findFirst({
-      where: { student_id: post.student_id, teacher_id: teacher.id, list_kind: 'unfit' as never },
+      where: { student_id: post.student_id, teacher_id: teacher.id, list_kind: 'unfit' },
     });
     const verdict = canAnswerQuestion({
       scope: post.scope as QnaScope,

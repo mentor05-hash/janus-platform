@@ -8,7 +8,7 @@ import {
   Matches,
   Min,
 } from 'class-validator';
-import { CancelRoute, ConsultMode, ConsultType, SessionMode } from '../../../config/enums';
+import { BookingStatus, CancelRoute, ConsultMode, ConsultType, SessionMode } from '../../../config/enums';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -79,7 +79,7 @@ export class BookingListQueryDto {
 
   @IsOptional()
   @IsIn(['new', 'confirmed', 'done', 'cancelled', 'rejected', 'noshow'])
-  status?: string;
+  status?: BookingStatus;
 }
 
 /** 역상담 제안 (POST /bookings/reverse). 선생님 → 학생, 첫 상담 한정. */

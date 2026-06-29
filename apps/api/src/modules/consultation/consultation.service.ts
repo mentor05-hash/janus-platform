@@ -46,7 +46,7 @@ export class ConsultationService {
       homework: dto.homework ?? null,
       future_dir: dto.futureDir ?? null,
       guardian_visible: dto.guardianVisible ?? true,
-      save_state: dto.saveState as never,
+      save_state: dto.saveState,
       author_id: user.id,
       updated_at: new Date(),
     };
@@ -73,7 +73,7 @@ export class ConsultationService {
       where: {
         student_id: studentId,
         // 학생·보호자에게는 final 만 공개(draft 비공개)
-        ...(isGuardianOrStudent ? { save_state: NoteSaveState.FINAL as never } : {}),
+        ...(isGuardianOrStudent ? { save_state: NoteSaveState.FINAL } : {}),
         ...(user.role === AccountRole.GUARDIAN ? { guardian_visible: true } : {}),
         // 교사는 본인이 담당한(작성 주체인) 예약의 기록만 — 타 교사 학생 메모 차단(§5-5/§5-10)
         ...(user.role === AccountRole.TEACHER ? { teacher_id: user.id } : {}),

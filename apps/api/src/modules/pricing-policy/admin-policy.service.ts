@@ -41,7 +41,7 @@ export class AdminPolicyService {
     // HQ → 전사 기본(center_id NULL), 센터 관리자 → 자기 센터 override
     const targetCenter = this.isHq(actor) ? null : this.requireCenter(actor);
     const existing = await this.prisma.pricing_policy.findFirst({
-      where: { center_id: targetCenter, mode: dto.mode as never },
+      where: { center_id: targetCenter, mode: dto.mode },
     });
     // 문항 ≥ 일반 검증(DB CHECK 와 정합)
     const item = dto.boardItemFee ?? existing?.board_item_fee ?? null;
@@ -62,7 +62,7 @@ export class AdminPolicyService {
     };
     return existing
       ? this.prisma.pricing_policy.update({ where: { id: existing.id }, data })
-      : this.prisma.pricing_policy.create({ data: { center_id: targetCenter, mode: dto.mode as never, paid: true, ...data } });
+      : this.prisma.pricing_policy.create({ data: { center_id: targetCenter, mode: dto.mode, paid: true, ...data } });
   }
 
   // ── 한도(센터) ── HQ 는 센터 미소속이라 기본값만 반환(편집은 센터 관리자)

@@ -60,8 +60,8 @@ export class CancellationService {
     // updateMany where status=from 으로 동시 취소를 한 번만 적용(이중 환원·이벤트 중복 방지).
     const event = await this.prisma.$transaction(async (tx) => {
       const upd = await tx.booking.updateMany({
-        where: { id: bookingId, status: from as never },
-        data: { status: BookingStatus.CANCELLED as never },
+        where: { id: bookingId, status: from },
+        data: { status: BookingStatus.CANCELLED },
       });
       if (upd.count !== 1) {
         throw new ConflictException('이미 처리된 예약입니다.');
@@ -77,7 +77,7 @@ export class CancellationService {
         data: {
           booking_id: bookingId,
           reason: dto.reason ?? null,
-          route: dto.route as never,
+          route: dto.route,
           notify_targets: plan.notifyTargets,
           channels: ALL_CHANNELS,
           credit_refunded: refundAmount,

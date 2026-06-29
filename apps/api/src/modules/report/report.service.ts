@@ -67,7 +67,7 @@ export class ReportService {
     }
     // 조건부 전이(동시 처리 1회만 적용 — 비원자성 가드)
     const upd = await this.prisma.report.updateMany({
-      where: { id, status: from as never },
+      where: { id, status: from },
       data: { status: dto.status, ...(dto.action ? { action: dto.action } : {}) },
     });
     if (upd.count !== 1) throw new ConflictException('이미 처리된 신고입니다.');
