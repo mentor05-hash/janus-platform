@@ -39,9 +39,12 @@ export class AutopayService {
       const plan = sub.subscription_plan;
       const nextAt = computeNextBilling(plan.billing_cycle as BillingCycle, due_at);
 
-      // 선점: 다음 결제일로 조건부 이월(다른 실행이 이미 처리했으면 count 0 → skip)
+      // 선점: 아직 '도래(<= now)' 상태일 때만 다음 결제일로 조건부 이월.
+      // 정확한 timestamp 일치(= due_at) 대신 lte 비교 → DB측 now() 등으로 들어온
+      // 마이크로초 값이 JS Date(ms) 왕복에서 어긋나도 안전(결제 누락 방지). 동시 실행은
+      // 이미 미래로 이월된 행을 lte 로 거르므로 중복 청구 없음(§7).
       const claim = await this.prisma.student_subscription.updateMany({
-        where: { id: sub.id, next_billing_at: due_at, status: 'active' },
+        where: { id: sub.id, status: 'active', next_billing_at: { not: null, lte: now } },
         data: { next_billing_at: nextAt },
       });
       if (claim.count !== 1) continue;
