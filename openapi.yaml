@@ -256,10 +256,12 @@ paths:
           application/json:
             schema:
               type: object
+              required: [teacherId, date, mode, slotStart, slotEnd]
               properties:
                 teacherId: { type: string, format: uuid }
+                date: { type: string, format: date, description: 'KST 기준 예약 날짜(YYYY-MM-DD)' }
                 mode: { type: string }
-                slotStart: { type: integer }
+                slotStart: { type: integer, description: '10분 슬롯 인덱스(KST 자정 기준 분/10)' }
                 slotEnd: { type: integer }
       responses:
         '200':
@@ -584,14 +586,15 @@ components:
         preBookHorizonDays: { type: integer, default: 30 }
     BookingCreate:
       type: object
-      required: [teacherId, consultType, mode]
+      required: [teacherId, date, consultType, mode, slotStart, slotEnd]
       properties:
         teacherId: { type: string, format: uuid }
+        date: { type: string, format: date, description: 'KST 기준 예약 날짜(YYYY-MM-DD)' }
         consultType: { type: string, enum: [담임, 교과, 입시, 심리] }
         subType: { type: string }
         mode: { type: string, enum: [board, chat, zoom, hand, offline] }
         sessionMode: { type: string, enum: [상담, 질문] }
-        slotStart: { type: integer }
+        slotStart: { type: integer, description: '10분 슬롯 인덱스(KST 자정 기준 분/10)' }
         slotEnd: { type: integer }
         content: { type: string }
         boardQType: { type: string, enum: [item, general] }

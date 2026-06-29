@@ -737,10 +737,16 @@ export interface paths {
                 content: {
                     "application/json": {
                         /** Format: uuid */
-                        teacherId?: string;
-                        mode?: string;
-                        slotStart?: number;
-                        slotEnd?: number;
+                        teacherId: string;
+                        /**
+                         * Format: date
+                         * @description KST 기준 예약 날짜(YYYY-MM-DD)
+                         */
+                        date: string;
+                        mode: string;
+                        /** @description 10분 슬롯 인덱스(KST 자정 기준 분/10) */
+                        slotStart: number;
+                        slotEnd: number;
                     };
                 };
             };
@@ -1750,6 +1756,11 @@ export interface components {
         BookingCreate: {
             /** Format: uuid */
             teacherId: string;
+            /**
+             * Format: date
+             * @description KST 기준 예약 날짜(YYYY-MM-DD)
+             */
+            date: string;
             /** @enum {string} */
             consultType: "담임" | "교과" | "입시" | "심리";
             subType?: string;
@@ -1757,8 +1768,9 @@ export interface components {
             mode: "board" | "chat" | "zoom" | "hand" | "offline";
             /** @enum {string} */
             sessionMode?: "상담" | "질문";
-            slotStart?: number;
-            slotEnd?: number;
+            /** @description 10분 슬롯 인덱스(KST 자정 기준 분/10) */
+            slotStart: number;
+            slotEnd: number;
             content?: string;
             /** @enum {string} */
             boardQType?: "item" | "general";
