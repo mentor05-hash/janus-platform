@@ -332,7 +332,9 @@ export class BookingService {
       throw new BadRequestException(`허용되지 않는 상태 전이: ${from} → ${to}`);
     }
 
-    const refund = shouldRefundOnTransition(from, to) && (b.charged_credits ?? 0) > 0;
+    // 역상담 제안(reverse + NEW)은 크레딧이 아직 소비되지 않았으므로 환원 금지(무료 발급 방지).
+    const consumed = !(b.direction === 'reverse' && from === BookingStatus.NEW);
+    const refund = shouldRefundOnTransition(from, to) && (b.charged_credits ?? 0) > 0 && consumed;
     await this.prisma.$transaction(async (tx) => {
       await tx.booking.update({ where: { id }, data: { status: to as never } });
       if (to === BookingStatus.CANCELLED || to === BookingStatus.REJECTED) {

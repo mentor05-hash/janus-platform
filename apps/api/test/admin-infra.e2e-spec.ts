@@ -52,6 +52,11 @@ describe('2.4b 줌·상담실·차단·가중제한 통합', () => {
     await app.close();
   });
 
+  it('근무표 IDOR 차단: 비소유 교사는 타 교사 근무표 수정 불가(S1 회귀)', async () => {
+    const other: any = { id: '00000000-0000-4000-8000-0000000000a1', role: 'teacher' };
+    await expect(availability.putWorkSchedule(TEACHER, {}, other)).rejects.toThrow();
+  });
+
   it('줌 정책 설정/조회', async () => {
     await infra.setZoomPolicy({ concurrentLimit: 10 }, admin);
     const zp: any = await infra.getZoomPolicy(admin);

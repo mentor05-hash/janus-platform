@@ -48,7 +48,9 @@ export class CancellationService {
     }
 
     const plan = planTeacherCancellation(dto.route);
-    const refundAmount = plan.refund ? (booking.charged_credits ?? 0) : 0;
+    // 역상담 제안(reverse + NEW)은 미차감 상태 → 환원 금지(무료 발급 방지).
+    const consumed = !(booking.direction === 'reverse' && from === BookingStatus.NEW);
+    const refundAmount = plan.refund && consumed ? (booking.charged_credits ?? 0) : 0;
 
     // 대체후보 탐색(substitute/priority) — 알림/이벤트 기록용
     const substitutes = plan.needsSubstitutes ? await this.findSubstitutes(booking) : [];

@@ -35,10 +35,14 @@ export class AvailabilityController {
     return this.availability.getWorkSchedule(id);
   }
 
-  /** PUT /teachers/{id}/work-schedule — 본인 또는 관리자/HR. */
+  /** PUT /teachers/{id}/work-schedule — 본인 또는 관리자/HR(소유권 검사). */
   @Put(':id/work-schedule')
   @Roles('teacher', 'admin', 'hr')
-  putWorkSchedule(@Param('id', ParseUUIDPipe) id: string, @Body() dto: WorkScheduleDto) {
-    return this.availability.putWorkSchedule(id, dto);
+  putWorkSchedule(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: WorkScheduleDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.availability.putWorkSchedule(id, dto, user);
   }
 }

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Put } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { ConsultationService } from './consultation.service';
@@ -8,8 +8,8 @@ import { NoteDto } from './dto/note.dto';
 export class ConsultationController {
   constructor(private readonly consultation: ConsultationService) {}
 
-  /** POST /bookings/{id}/note — 상담 기록 저장(담당 선생님). */
-  @Post('bookings/:id/note')
+  /** PUT /bookings/{id}/note — 상담 기록 저장/갱신(담당 선생님, upsert). */
+  @Put('bookings/:id/note')
   saveNote(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: NoteDto,

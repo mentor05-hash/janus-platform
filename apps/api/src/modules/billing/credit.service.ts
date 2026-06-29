@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreditTxnType } from '../../config/enums';
@@ -16,7 +17,10 @@ export interface ConsumeOutcome {
  */
 @Injectable()
 export class CreditService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) {}
 
   async getAccount(studentId: string) {
     const acct = await this.prisma.credit_account.findUnique({ where: { student_id: studentId } });
@@ -40,8 +44,14 @@ export class CreditService {
     });
   }
 
-  /** 충전(모의 PG). 구매 크레딧 증가 + charge 트랜잭션 기록. */
+  /** 충전(모의 PG). 구매 크레딧 증가 + charge 트랜잭션 기록.
+   *  무검증 mock 충전은 prod 에서 차단 — 실 PG(PgProvider) 연동 전 무료 크레딧 발급 방지. */
   async charge(studentId: string, amount: number) {
+    const env = this.config.get<string>('NODE_ENV');
+    const pg = this.config.get<string>('PG_PROVIDER') ?? 'mock';
+    if (env === 'prod' && pg === 'mock') {
+      throw new ForbiddenException('실 결제 연동(PG_PROVIDER) 전에는 충전할 수 없습니다.');
+    }
     return this.prisma.$transaction(async (tx) => {
       const acct = await this.lockAccount(tx, studentId);
       const balance = acct.purchased_balance + acct.granted_balance + amount;

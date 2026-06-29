@@ -31,8 +31,9 @@ export class BillingController {
     return this.credit.listTransactions(user.id);
   }
 
-  /** POST /payments/charge — 모의 PG 충전(구매 크레딧 증가). */
+  /** POST /payments/charge — 모의 PG 충전(학생 본인 구매 크레딧). prod+mock 차단. */
   @Post('payments/charge')
+  @Roles('student')
   charge(@CurrentUser() user: AuthUser, @Body() dto: ChargeDto) {
     return this.credit.charge(user.id, dto.amount);
   }

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import {
   hhmmToMin,
@@ -137,7 +137,17 @@ export class AvailabilityService {
     return ws ?? { teacher_id: teacherId, recurring_template: {}, weekly_overrides: [] };
   }
 
-  async putWorkSchedule(teacherId: string, dto: { recurringTemplate?: unknown; weeklyOverrides?: unknown; preBookHorizonDays?: number }) {
+  async putWorkSchedule(
+    teacherId: string,
+    dto: { recurringTemplate?: unknown; weeklyOverrides?: unknown; preBookHorizonDays?: number },
+    actor: { id: string; role: string },
+  ) {
+    // 소유권(§5-10/인가): 본인 또는 관리자/HR 만 수정 가능 (IDOR 방지)
+    const isSelf = actor.role === 'teacher' && actor.id === teacherId;
+    const isAdmin = actor.role === 'admin' || actor.role === 'hr';
+    if (!isSelf && !isAdmin) {
+      throw new ForbiddenException('본인 또는 관리자만 근무표를 수정할 수 있습니다.');
+    }
     const existing = await this.prisma.work_schedule.findFirst({ where: { teacher_id: teacherId } });
     const data = {
       recurring_template: (dto.recurringTemplate ?? {}) as object,

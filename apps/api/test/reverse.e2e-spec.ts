@@ -97,4 +97,17 @@ describe('2.5 역상담 통합', () => {
     expect(res.status).toBe('rejected');
     expect(await prisma.time_slot.count({ where: { booking_id: b.id } })).toBe(0);
   });
+
+  it('역상담 제안(NEW)을 일반 취소해도 환원 없음(미차감, H3 회귀)', async () => {
+    const before = await credit.getAccount(STU_R2); // 미충전 → 0
+    const b: any = await booking.proposeReverse(
+      { studentId: STU_R2, date: DATE, consultType: '교과' as any, mode: 'zoom' as any, slotStart: 100, slotEnd: 103 } as any,
+      teacherUser,
+    );
+    const res: any = await booking.cancel(b.id, userR2);
+    expect(res.status).toBe('cancelled');
+    expect(res.refunded).toBe(0); // 미차감 → 환원 0
+    const after = await credit.getAccount(STU_R2);
+    expect(after.total).toBe(before.total); // 무료 크레딧 발급 없음
+  });
 });
