@@ -19,9 +19,10 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json --runInBand",
     "migration:apply": "prisma db execute --file migrations/0001_init.sql --schema prisma/schema.prisma",
+    "migrate:all": "node scripts/apply-migrations.mjs",
     "prisma:pull": "prisma db pull",
     "prisma:generate": "prisma generate",
-    "db:init": "npm run migration:apply && npm run prisma:pull && npm run prisma:generate",
+    "db:init": "npm run migrate:all && npm run prisma:generate",
     "seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {

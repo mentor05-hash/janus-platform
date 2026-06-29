@@ -1,0 +1,79 @@
+name: CI
+
+# CLAUDE.md §10 — CI 에서 빌드/검증. 컨테이너 이미지·배포는 클라우드 대상 확정 후(배포 전환).
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-build-unit:
+    name: Lint · Build · Unit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install
+        run: npm ci
+        working-directory: .
+      - name: Prisma generate
+        run: npm run prisma:generate
+      - name: Lint (비차단 — 빌드/tsc 가 게이트)
+        run: npx eslint "src/**/*.ts"
+        continue-on-error: true
+      - name: Build
+        run: npm run build
+      - name: Unit tests
+        run: npm test
+
+  e2e:
+    name: E2E (postgres)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: itall
+          POSTGRES_PASSWORD: itall_local_pw
+          POSTGRES_DB: itall
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U itall -d itall"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://itall:itall_local_pw@localhost:5432/itall
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci_test_secret
+      JWT_REFRESH_SECRET: ci_test_refresh_secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install
+        run: npm ci
+        working-directory: .
+      - name: Prisma generate
+        run: npm run prisma:generate
+      - name: Apply migrations (fresh DB)
+        run: npm run migrate:all
+      - name: Seed
+        run: npm run seed
+      - name: E2E tests
+        run: npm run test:e2e
