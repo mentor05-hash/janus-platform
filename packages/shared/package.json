@@ -1,0 +1,11 @@
+{
+  "name": "@itall/shared",
+  "version": "0.0.1",
+  "private": true,
+  "description": "공유 타입(OpenAPI 생성) · 디자인 토큰",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "gen": "openapi-typescript ../../openapi.yaml -o ./src/api-types.ts"
+  }
+}

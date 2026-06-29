@@ -1,0 +1,36 @@
+# 잇올 멘토링 — 로컬 개발 인프라 (Phase 0)
+# 클라우드 이식 시: 이 compose 대신 관리형 PostgreSQL/Redis로 교체(코드 변경 없음).
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: itall_pg
+    environment:
+      POSTGRES_USER: itall
+      POSTGRES_PASSWORD: itall_local_pw   # 로컬 전용. prod는 시크릿 매니저
+      POSTGRES_DB: itall
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U itall -d itall"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: itall_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
+  redisdata:

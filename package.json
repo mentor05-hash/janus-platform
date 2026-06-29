@@ -1,0 +1,26 @@
+{
+  "name": "itall-mentoring",
+  "version": "0.0.1",
+  "private": true,
+  "description": "잇올 1:1 멘토링 플랫폼 — 모노레포 루트",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20",
+    "npm": ">=10"
+  },
+  "scripts": {
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
+    "infra:ps": "docker compose ps",
+    "api:dev": "npm run start:dev --workspace apps/api",
+    "api:build": "npm run build --workspace apps/api",
+    "api:seed": "npm run seed --workspace apps/api",
+    "gen:types": "openapi-typescript ./openapi.yaml -o ./packages/shared/src/api-types.ts"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.4.0"
+  }
+}

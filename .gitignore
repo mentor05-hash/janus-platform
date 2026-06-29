@@ -1,0 +1,34 @@
+# ── dependencies ──
+node_modules/
+.pnp
+.pnp.js
+
+# ── build output ──
+dist/
+build/
+*.tsbuildinfo
+
+# ── env / secrets (§5-10 민감정보: 절대 커밋 금지) ──
+.env
+.env.*
+!.env.example
+
+# ── prisma 생성물 ──
+apps/api/prisma/generated/
+
+# ── 첨부/업로드(StorageProvider local) ──
+uploads/
+apps/api/uploads/
+
+# ── 로그 / 캐시 ──
+*.log
+npm-debug.log*
+.npm/
+coverage/
+.cache/
+
+# ── OS / editor ──
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json

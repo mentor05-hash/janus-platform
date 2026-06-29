@@ -1,0 +1,646 @@
+openapi: 3.0.3
+info:
+  title: 잇올 1:1 멘토링 플랫폼 API
+  description: >
+    선생님–학생 1:1 멘토링/상담 예약 플랫폼 REST API (초안).
+    근거: 통합 스펙 v2.5 · ERD-API 초안 · 스택 NestJS+PostgreSQL.
+    민감정보(인적사항·상담내용·결제·급여)는 권한별 마스킹.
+  version: 0.1.0
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+tags:
+  - name: Auth
+  - name: HR
+  - name: Subscription & Payment
+  - name: Teachers & Search
+  - name: Availability
+  - name: Booking & Match
+  - name: Consultation Note
+  - name: Credits & Guardian
+  - name: Classification & Review
+  - name: Admin Policy
+  - name: Payroll & Notification
+
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      security: []
+      summary: 로그인(센터 선택 포함)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [loginId, password]
+              properties:
+                loginId: { type: string }
+                password: { type: string, format: password }
+                centerId: { type: string, format: uuid }
+      responses:
+        '200':
+          description: 토큰 발급
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken: { type: string }
+                  refreshToken: { type: string }
+        '401': { $ref: '#/components/responses/Error' }
+  /auth/signup:
+    post:
+      tags: [Auth]
+      security: []
+      summary: 자가가입(승인 대기)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SignupInput' }
+      responses:
+        '201': { description: 가입 신청됨(status=pending) }
+  /me:
+    get:
+      tags: [Auth]
+      summary: 내 프로필·권한
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+
+  /hr/students:
+    get:
+      tags: [HR]
+      summary: 학생 목록
+      parameters:
+        - { name: status, in: query, schema: { type: string } }
+        - { $ref: '#/components/parameters/Page' }
+      responses:
+        '200': { description: ok }
+    post:
+      tags: [HR]
+      summary: 학생 등록
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SignupInput' }
+      responses:
+        '201': { description: created }
+  /hr/students/{id}/approve:
+    patch:
+      tags: [HR]
+      summary: 가입 승인
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      responses:
+        '200': { description: approved }
+  /hr/membership-grades:
+    get:
+      tags: [HR]
+      summary: 회원 등급·주간 부여량 조회
+      responses: { '200': { description: ok } }
+    put:
+      tags: [HR]
+      summary: 회원 등급·주간 부여량 설정
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: array
+              items: { $ref: '#/components/schemas/MembershipGrade' }
+      responses: { '200': { description: saved } }
+
+  /subscription/plans:
+    get:
+      tags: [Subscription & Payment]
+      summary: 구독 플랜(월/분기/년)
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/SubscriptionPlan' }
+  /payments/charge:
+    post:
+      tags: [Subscription & Payment]
+      summary: 크레딧 충전(PG)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, method]
+              properties:
+                studentId: { type: string, format: uuid }
+                amount: { type: integer }
+                method: { type: string, enum: [card, voucher] }
+      responses: { '200': { description: charged } }
+  /payments/history:
+    get:
+      tags: [Subscription & Payment]
+      summary: 결제·크레딧 전체 내역
+      parameters:
+        - { name: studentId, in: query, schema: { type: string, format: uuid } }
+      responses: { '200': { description: ok } }
+
+  /teachers:
+    get:
+      tags: [Teachers & Search]
+      summary: 상담 유형/세부 기준 선생님 검색
+      parameters:
+        - { name: consultType, in: query, schema: { type: string, enum: [담임, 교과, 입시, 심리] } }
+        - { name: subType, in: query, schema: { type: string } }
+        - { name: mode, in: query, schema: { type: string, enum: [board, chat, zoom, hand, offline] } }
+        - { name: sort, in: query, schema: { type: string, enum: [fav, rating] } }
+        - { $ref: '#/components/parameters/Page' }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/TeacherSummary' }
+  /teachers/{id}:
+    get:
+      tags: [Teachers & Search]
+      summary: 선생님 상세
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TeacherSummary' }
+  /teachers/{id}/slots:
+    get:
+      tags: [Availability]
+      summary: 가용 슬롯(버퍼·체류·근무 반영)
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { name: date, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: 10분 슬롯 상태 배열
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Slot' }
+  /teachers/{id}/work-schedule:
+    get:
+      tags: [Availability]
+      summary: 근무 일정 조회(주 반복+주별 오버라이드)
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      responses: { '200': { description: ok } }
+    put:
+      tags: [Availability]
+      summary: 근무 일정 설정
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WorkSchedule' }
+      responses: { '200': { description: saved } }
+  /teachers/{id}/offline-availability:
+    put:
+      tags: [Availability]
+      summary: 오프라인 가능 센터·시간 설정
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      responses: { '200': { description: saved } }
+  /admin/feature-availability:
+    get:
+      tags: [Admin Policy]
+      summary: 기능 열기/닫기 조회
+      responses: { '200': { description: ok } }
+    put:
+      tags: [Admin Policy]
+      summary: 카테고리·방식·게시판 열기/닫기(전사+센터)
+      responses: { '200': { description: saved } }
+
+  /match/auto:
+    post:
+      tags: [Booking & Match]
+      summary: 30분 자동매칭(7일 내·오프라인 풀·상담실 확인)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [consultType, mode]
+              properties:
+                consultType: { type: string }
+                subType: { type: string }
+                mode: { type: string, enum: [online, offline, any] }
+                stayTime: { type: object }
+      responses:
+        '200':
+          description: 배정 후보
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Booking' }
+        '409': { description: 7일 내 가용 자리 없음 }
+  /bookings/quote:
+    post:
+      tags: [Booking & Match]
+      summary: 시간대 요금 계산(방식·등급·할증·버퍼 검증)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                teacherId: { type: string, format: uuid }
+                mode: { type: string }
+                slotStart: { type: integer }
+                slotEnd: { type: integer }
+      responses:
+        '200':
+          description: 요금·유효성
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  minutes: { type: integer }
+                  credits: { type: integer }
+                  valid: { type: boolean }
+                  message: { type: string }
+  /bookings:
+    get:
+      tags: [Booking & Match]
+      summary: 예약 목록(예정/완료)
+      parameters:
+        - { name: role, in: query, schema: { type: string, enum: [student, teacher] } }
+        - { name: status, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Booking' }
+    post:
+      tags: [Booking & Match]
+      summary: 예약 생성
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BookingCreate' }
+      responses:
+        '201':
+          description: created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Booking' }
+        '402': { description: 크레딧 부족 → 결제요청 유도 }
+  /bookings/reverse:
+    post:
+      tags: [Booking & Match]
+      summary: 역상담 신청(선생님→학생, 첫 상담)
+      responses: { '201': { description: created } }
+  /bookings/{id}/accept:
+    patch:
+      tags: [Booking & Match]
+      summary: 수락(양방향)
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      responses: { '200': { description: ok } }
+  /bookings/{id}/reject:
+    patch:
+      tags: [Booking & Match]
+      summary: 거절(사유 포함)
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      responses: { '200': { description: ok } }
+  /bookings/{id}/confirm:
+    patch:
+      tags: [Booking & Match]
+      summary: 확인(new→confirmed)
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      responses: { '200': { description: ok } }
+  /bookings/{id}/complete:
+    patch:
+      tags: [Booking & Match]
+      summary: 진행 완료(confirmed→done) — 상담 기록 final 필요
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      responses:
+        '200': { description: ok }
+        '409': { description: 상담 기록 미작성 }
+  /bookings/{id}/cancel:
+    patch:
+      tags: [Booking & Match]
+      summary: 취소(선생님 사유 → CancellationEvent·알림·크레딧 환원)
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+                route: { type: string, enum: [substitute, priority, admin_manual, rebook_notice] }
+      responses: { '200': { description: cancelled } }
+
+  /bookings/{id}/note:
+    put:
+      tags: [Consultation Note]
+      summary: 상담 기록 작성(draft 임시저장 / final 최종저장·완료·공개)
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConsultationNote' }
+      responses: { '200': { description: saved } }
+  /students/{id}/notes:
+    get:
+      tags: [Consultation Note]
+      summary: 학생 누적 상담 기록(권한별 공개·센터 내 타 선생님 포함)
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ConsultationNote' }
+  /me/notes:
+    get:
+      tags: [Consultation Note]
+      summary: 학생 본인 공개 항목(핵심요약·숙제·향후방향)
+      responses: { '200': { description: ok } }
+
+  /credits/account:
+    get:
+      tags: [Credits & Guardian]
+      summary: 잔여(구매/주간 부여·만료)
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreditAccount' }
+  /credits/transactions:
+    get:
+      tags: [Credits & Guardian]
+      summary: 크레딧 내역
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/CreditTransaction' }
+  /guardian/children:
+    get:
+      tags: [Credits & Guardian]
+      summary: 연결 자녀 대시보드
+      responses: { '200': { description: ok } }
+  /guardian/links:
+    post:
+      tags: [Credits & Guardian]
+      summary: 자녀 연결(초대코드/신청)
+      responses: { '201': { description: linked } }
+  /payment-requests:
+    post:
+      tags: [Credits & Guardian]
+      summary: 결제요청 생성(학생 수동/자동)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                neededCredits: { type: integer }
+                origin: { type: string, enum: [manual, auto] }
+      responses: { '201': { description: created } }
+  /payment-requests/{id}/respond:
+    patch:
+      tags: [Credits & Guardian]
+      summary: 보호자 충전으로 응답
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      responses: { '200': { description: ok } }
+
+  /me/teacher-lists:
+    get:
+      tags: [Classification & Review]
+      summary: 맞는/맞지 않는 분류 조회
+      responses: { '200': { description: ok } }
+    post:
+      tags: [Classification & Review]
+      summary: 분류 추가(한도 검증)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                teacherId: { type: string, format: uuid }
+                list: { type: string, enum: [fit, unfit] }
+      responses:
+        '200': { description: ok }
+        '409': { description: 한도 초과 }
+  /bookings/{id}/review:
+    post:
+      tags: [Classification & Review]
+      summary: 완료 확인·별점·후기·미진행 신고
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Review' }
+      responses: { '201': { description: created } }
+
+  /admin/pricing:
+    get:
+      tags: [Admin Policy]
+      summary: 요금 정책 조회
+      responses: { '200': { description: ok } }
+    put:
+      tags: [Admin Policy]
+      summary: 방식별 요금·게시판 건당·점유료·유료컨설팅(문항≥일반 검증)
+      responses:
+        '200': { description: saved }
+        '422': { description: 문항 < 일반 위반 }
+  /admin/dashboard:
+    get:
+      tags: [Admin Policy]
+      summary: 운영 통계(KPI·등급분포·추이)
+      parameters:
+        - { name: period, in: query, schema: { type: string, enum: [month, quarter] } }
+      responses: { '200': { description: ok } }
+
+  /teachers/{id}/payroll:
+    get:
+      tags: [Payroll & Notification]
+      summary: 예상급여(확정+예상·산정 내역)
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { name: cycle, in: query, schema: { type: string } }
+      responses: { '200': { description: ok } }
+  /notifications:
+    get:
+      tags: [Payroll & Notification]
+      summary: 알림 목록(앱)
+      responses: { '200': { description: ok } }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, default: 1 }
+  responses:
+    Error:
+      description: 오류
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+    SignupInput:
+      type: object
+      required: [loginId, password, name, role]
+      properties:
+        loginId: { type: string }
+        password: { type: string, format: password }
+        name: { type: string }
+        role: { type: string, enum: [student, teacher, guardian] }
+        centerId: { type: string, format: uuid }
+    Account:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        role: { type: string, enum: [student, teacher, admin, hr, guardian] }
+        name: { type: string }
+        centerId: { type: string, format: uuid }
+        status: { type: string, enum: [pending, approved, inactive] }
+    MembershipGrade:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        tier: { type: integer }
+        weeklyCredits: { type: integer }
+    SubscriptionPlan:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        price: { type: integer }
+        billingCycle: { type: string, enum: [monthly, quarterly, yearly] }
+        payer: { type: string, enum: [guardian, student] }
+        gradeId: { type: string, format: uuid }
+    TeacherSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        subjects: { type: array, items: { type: string } }
+        grade: { type: string, enum: [S, A, B] }
+        rating: { type: number }
+        center: { type: string }
+        soonest: { type: string }
+        classification: { type: string, enum: [fit, unfit, none] }
+    Slot:
+      type: object
+      properties:
+        time: { type: string }
+        index: { type: integer }
+        status: { type: string, enum: [avail, selected, booked, rest, off, blocked] }
+        label: { type: string }
+    WorkSchedule:
+      type: object
+      properties:
+        recurringTemplate: { type: object }
+        weeklyOverrides: { type: array, items: { type: object } }
+        preBookHorizonDays: { type: integer, default: 30 }
+    BookingCreate:
+      type: object
+      required: [teacherId, consultType, mode]
+      properties:
+        teacherId: { type: string, format: uuid }
+        consultType: { type: string, enum: [담임, 교과, 입시, 심리] }
+        subType: { type: string }
+        mode: { type: string, enum: [board, chat, zoom, hand, offline] }
+        sessionMode: { type: string, enum: [상담, 질문] }
+        slotStart: { type: integer }
+        slotEnd: { type: integer }
+        content: { type: string }
+        boardQType: { type: string, enum: [item, general] }
+        boardScope: { type: string, enum: [assigned, open] }
+    Booking:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        studentId: { type: string, format: uuid }
+        teacherId: { type: string, format: uuid }
+        consultType: { type: string }
+        subType: { type: string }
+        mode: { type: string }
+        direction: { type: string, enum: [student, reverse] }
+        start: { type: string, format: date-time }
+        end: { type: string, format: date-time }
+        status: { type: string, enum: [new, confirmed, done, cancelled, rejected, noshow] }
+        chargedCredits: { type: integer }
+    ConsultationNote:
+      type: object
+      properties:
+        bookingId: { type: string, format: uuid }
+        coreSummary: { type: string, description: 공개 }
+        memo: { type: string, description: 내부 }
+        homework: { type: string, description: 공개 }
+        futureDir: { type: string, description: 공개 }
+        guardianVisible: { type: boolean }
+        saveState: { type: string, enum: [draft, final] }
+    CreditAccount:
+      type: object
+      properties:
+        purchasedBalance: { type: integer }
+        grantedBalance: { type: integer }
+        grantExpireAt: { type: string, format: date-time }
+    CreditTransaction:
+      type: object
+      properties:
+        type: { type: string, enum: [charge, spend, weekly_grant, weekly_expire, refund] }
+        amount: { type: integer }
+        balance: { type: integer }
+        description: { type: string }
+        createdAt: { type: string, format: date-time }
+    Review:
+      type: object
+      properties:
+        ratingAttitude: { type: integer, minimum: 1, maximum: 5 }
+        ratingContent: { type: integer, minimum: 1, maximum: 5 }
+        ratingSkill: { type: integer, minimum: 1, maximum: 5 }
+        ratingAgain: { type: integer, minimum: 1, maximum: 5 }
+        text: { type: string }
+        doneConfirmed: { type: boolean }
+        reported: { type: boolean }
