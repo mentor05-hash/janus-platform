@@ -24,6 +24,7 @@ import { OpsModule } from './modules/ops/ops.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { QnaModule } from './modules/qna/qna.module';
 import { ReportModule } from './modules/report/report.module';
+import { StorageModule } from './modules/storage/storage.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { ReportModule } from './modules/report/report.module';
     NotificationModule,
     QnaModule,
     ReportModule,
+    StorageModule,
   ],
   providers: [
     // 전역 인증·인가 (CLAUDE.md §7). @Public() 은 통과, @Roles() 로 역할 제한.

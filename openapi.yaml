@@ -866,6 +866,50 @@ paths:
       parameters:
         - { name: teacherId, in: path, required: true, schema: { type: string, format: uuid } }
       responses: { '200': { description: ok } }
+  /files:
+    post:
+      tags: [Storage]
+      summary: 파일 업로드(multipart) — StorageProvider(로컬디스크/S3) 저장 + 소유권 기록
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '201':
+          description: uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id: { type: string, format: uuid }
+                      filename: { type: string }
+                      contentType: { type: string }
+                      size: { type: integer }
+                      url: { type: string }
+        '400': { $ref: '#/components/responses/Error' }
+  /files/{id}:
+    get:
+      tags: [Storage]
+      summary: 파일 다운로드(원본 바이트) — 소유자·관리자만
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: file bytes
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
 
 components:
   securitySchemes:
