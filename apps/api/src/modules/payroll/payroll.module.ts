@@ -1,9 +1,14 @@
 import { Module } from '@nestjs/common';
+import { PayrollController } from './payroll.controller';
+import { PayrollService } from './payroll.service';
 
 /**
  * Payroll 바운디드 컨텍스트 (CLAUDE.md §3).
- * 예상급여·정산
- * Phase 1+ 에서 controllers/providers/엔티티 서비스 채움.
+ * 예상급여(확정분+예상분). 단가는 payroll_policy 또는 ENV(O20).
  */
-@Module({})
+@Module({
+  controllers: [PayrollController],
+  providers: [PayrollService],
+  exports: [PayrollService],
+})
 export class PayrollModule {}
