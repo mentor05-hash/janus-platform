@@ -417,26 +417,66 @@ paths:
   /guardian/links:
     post:
       tags: [Credits & Guardian]
-      summary: 자녀 연결(초대코드/신청)
-      responses: { '201': { description: linked } }
-  /payment-requests:
-    post:
-      tags: [Credits & Guardian]
-      summary: 결제요청 생성(학생 수동/자동)
+      summary: 자녀 연결 신청(학생 로그인ID 기준, pending)
       requestBody:
+        required: true
         content:
           application/json:
             schema:
               type: object
+              required: [studentLoginId]
+              properties:
+                studentLoginId: { type: string }
+                relation: { type: string, description: '부/모/기타' }
+      responses: { '201': { description: linked } }
+  /guardian/links/{id}/respond:
+    patch:
+      tags: [Credits & Guardian]
+      summary: 연결 신청 승인/거절/해제(학생 본인·관리자)
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [approve, reject, revoke] }
+      responses: { '200': { description: ok } }
+  /payment-requests:
+    get:
+      tags: [Credits & Guardian]
+      summary: 결제요청 목록(역할별)
+      responses: { '200': { description: ok } }
+    post:
+      tags: [Credits & Guardian]
+      summary: 결제요청 생성 — 학생 직접/보호자 대납/관리자 발행(역할로 경로 결정)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [neededCredits]
               properties:
                 neededCredits: { type: integer }
-                origin: { type: string, enum: [manual, auto] }
+                studentId: { type: string, format: uuid, description: '보호자 대납·관리자 발행 시 대상 학생' }
       responses: { '201': { description: created } }
   /payment-requests/{id}/respond:
     patch:
       tags: [Credits & Guardian]
-      summary: 보호자 충전으로 응답
+      summary: 결제요청 응답 — 결제(대납) 또는 거절
       parameters: [ { $ref: '#/components/parameters/Id' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [pay, reject] }
       responses: { '200': { description: ok } }
 
   /me/teacher-lists:

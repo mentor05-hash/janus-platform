@@ -1335,7 +1335,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 자녀 연결(초대코드/신청) */
+        /** 자녀 연결 신청(학생 로그인ID 기준, pending) */
         post: {
             parameters: {
                 query?: never;
@@ -1343,7 +1343,15 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        studentLoginId: string;
+                        /** @description 부/모/기타 */
+                        relation?: string;
+                    };
+                };
+            };
             responses: {
                 /** @description linked */
                 201: {
@@ -1360,7 +1368,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/payment-requests": {
+    "/guardian/links/{id}/respond": {
         parameters: {
             query?: never;
             header?: never;
@@ -1369,7 +1377,68 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 결제요청 생성(학생 수동/자동) */
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** 연결 신청 승인/거절/해제(학생 본인·관리자) */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        action: "approve" | "reject" | "revoke";
+                    };
+                };
+            };
+            responses: {
+                /** @description ok */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/payment-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 결제요청 목록(역할별) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ok */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /** 결제요청 생성 — 학생 직접/보호자 대납/관리자 발행(역할로 경로 결정) */
         post: {
             parameters: {
                 query?: never;
@@ -1377,12 +1446,15 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
-                        neededCredits?: number;
-                        /** @enum {string} */
-                        origin?: "manual" | "auto";
+                        neededCredits: number;
+                        /**
+                         * Format: uuid
+                         * @description 보호자 대납·관리자 발행 시 대상 학생
+                         */
+                        studentId?: string;
                     };
                 };
             };
@@ -1415,7 +1487,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** 보호자 충전으로 응답 */
+        /** 결제요청 응답 — 결제(대납) 또는 거절 */
         patch: {
             parameters: {
                 query?: never;
@@ -1425,7 +1497,14 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        action: "pay" | "reject";
+                    };
+                };
+            };
             responses: {
                 /** @description ok */
                 200: {
