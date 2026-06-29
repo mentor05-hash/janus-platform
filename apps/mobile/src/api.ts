@@ -69,6 +69,7 @@ export const api = {
   get: <T>(p: string) => request<T>('GET', p),
   post: <T>(p: string, b?: unknown) => request<T>('POST', p, b),
   patch: <T>(p: string, b?: unknown) => request<T>('PATCH', p, b),
+  me: () => request<Me>('GET', '/me'),
   login: async (loginId: string, password: string) => {
     const d = await raw<Tokens>('POST', '/auth/login', { loginId, password }, false);
     await setTokens(d.accessToken, d.refreshToken);
@@ -77,6 +78,32 @@ export const api = {
 };
 
 // ── 뷰 타입 ──
+export interface Me {
+  id: string;
+  role: 'student' | 'teacher' | 'admin' | 'hr' | 'guardian';
+  name: string;
+}
+export interface Child {
+  linkId: string;
+  studentId: string;
+  name: string | null;
+  relation: string | null;
+}
+export interface Note {
+  bookingId: string;
+  coreSummary: string | null;
+  homework: string | null;
+  futureDir: string | null;
+  saveState: 'draft' | 'final';
+}
+export interface PaymentRequest {
+  id: string;
+  student_id: string;
+  needed_credits: number;
+  status: 'open' | 'done' | 'rejected' | 'expired';
+  origin: string;
+  created_at: string;
+}
 export interface Teacher {
   id: string;
   name: string;
