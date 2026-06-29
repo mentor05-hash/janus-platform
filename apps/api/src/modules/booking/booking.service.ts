@@ -23,6 +23,7 @@ import { AvailabilityService } from '../availability/availability.service';
 import { CreditService } from '../billing/credit.service';
 import { evaluatePenalty } from '../pricing-policy/domain/penalty';
 import { PricingService } from '../pricing-policy/pricing.service';
+import { BlockService } from '../report/block.service';
 import { BookingCreateDto, QuoteDto, ReverseProposeDto } from './dto/booking.dto';
 import { canTransition, shouldRefundOnTransition } from './domain/state-machine';
 import { canProposeReverse } from './domain/reverse';
@@ -40,6 +41,7 @@ export class BookingService {
     private readonly availability: AvailabilityService,
     private readonly pricing: PricingService,
     private readonly credit: CreditService,
+    private readonly blocks: BlockService,
   ) {}
 
   /** POST /bookings/quote — 요금·유효성(§5-1 버퍼 재검증 + §5-2 요금). */
@@ -75,6 +77,10 @@ export class BookingService {
     if (minutes <= 0) throw new BadRequestException('slotEnd 는 slotStart 보다 커야 합니다.');
 
     await this.assertNotPenaltyRestricted(studentId); // §5-7 가중 제한
+    const blocked = await this.blocks.blockedTeacherIds(studentId);
+    if (blocked.includes(dto.teacherId)) {
+      throw new ForbiddenException('차단한 선생님에게는 예약할 수 없습니다.');
+    }
     const teacher = await this.requireTeacher(dto.teacherId);
     const startMin = dto.slotStart * SLOT_GRANULARITY_MINUTES;
     const endMin = dto.slotEnd * SLOT_GRANULARITY_MINUTES;

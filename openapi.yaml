@@ -23,6 +23,7 @@ tags:
   - name: Admin Policy
   - name: Payroll & Notification
   - name: Online Q&A
+  - name: Report & Block
 
 paths:
   /auth/login:
@@ -781,6 +782,68 @@ paths:
       tags: [Online Q&A]
       summary: Q&A 답변 채택(질문 학생) — 급여 적격(pay_eligible)
       parameters: [ { $ref: '#/components/parameters/Id' } ]
+      responses: { '200': { description: ok } }
+
+  /reports:
+    get:
+      tags: [Report & Block]
+      summary: 신고 목록(관리자/HR)
+      responses: { '200': { description: ok } }
+    post:
+      tags: [Report & Block]
+      summary: 신고 등록(인증 사용자) — LlmProvider AI 1차 검토 첨부
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [targetType, reason]
+              properties:
+                targetType: { type: string, description: 'teacher/student/booking/qna' }
+                targetId: { type: string, format: uuid }
+                reason: { type: string }
+      responses: { '201': { description: created } }
+  /reports/{id}:
+    patch:
+      tags: [Report & Block]
+      summary: 신고 처리(관리자/HR) — 상태머신 received→reviewing→resolved/dismissed
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [reviewing, resolved, dismissed] }
+                action: { type: string }
+      responses: { '200': { description: ok } }
+  /teacher-blocks:
+    get:
+      tags: [Report & Block]
+      summary: 내 차단 교사 목록(학생)
+      responses: { '200': { description: ok } }
+    post:
+      tags: [Report & Block]
+      summary: 교사 차단(학생) — 매칭·예약에서 제외
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [teacherId]
+              properties:
+                teacherId: { type: string, format: uuid }
+      responses: { '201': { description: blocked } }
+  /teacher-blocks/{teacherId}:
+    delete:
+      tags: [Report & Block]
+      summary: 차단 해제(학생)
+      parameters:
+        - { name: teacherId, in: path, required: true, schema: { type: string, format: uuid } }
       responses: { '200': { description: ok } }
 
 components:

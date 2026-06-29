@@ -4,6 +4,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { kstDateString } from '../../common/time/kst';
 import { ConsultMode } from '../../config/enums';
 import { AvailabilityService } from '../availability/availability.service';
+import { BlockService } from '../report/block.service';
 import { MatchAutoDto } from './dto/match.dto';
 
 const MATCH_MINUTES = 30;
@@ -19,6 +20,7 @@ export class MatchingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly availability: AvailabilityService,
+    private readonly blocks: BlockService,
   ) {}
 
   async autoMatch(dto: MatchAutoDto, user: AuthUser, now = new Date()) {
@@ -26,8 +28,12 @@ export class MatchingService {
     if (!student) throw new NotFoundException('학생 프로필이 없습니다.');
 
     const mode: ConsultMode = dto.mode === 'offline' ? ConsultMode.OFFLINE : ConsultMode.ZOOM;
+    const blocked = await this.blocks.blockedTeacherIds(user.id); // 차단 교사 제외(§ 신고·차단)
     const teachers = await this.prisma.teacher_profile.findMany({
-      where: student.center_id ? { center_id: student.center_id } : {},
+      where: {
+        ...(student.center_id ? { center_id: student.center_id } : {}),
+        ...(blocked.length ? { account_id: { notIn: blocked } } : {}),
+      },
       select: { account_id: true },
     });
 
