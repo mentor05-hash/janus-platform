@@ -8,6 +8,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
+import { ShortfallError } from '../../common/errors/shortfall.error';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccountRole } from '../../config/enums';
 import { CreditService } from '../billing/credit.service';
@@ -32,8 +33,10 @@ export class QnaService {
     if (student.role !== AccountRole.STUDENT) {
       throw new ForbiddenException('학생만 질문을 등록할 수 있습니다.');
     }
-    if (dto.scope === 'assigned' && !dto.assignedTeacherId) {
-      throw new BadRequestException('지정 질문은 assignedTeacherId 가 필요합니다.');
+    if (dto.scope === 'assigned') {
+      if (!dto.assignedTeacherId) throw new BadRequestException('지정 질문은 assignedTeacherId 가 필요합니다.');
+      const t = await this.prisma.teacher_profile.findUnique({ where: { account_id: dto.assignedTeacherId } });
+      if (!t) throw new NotFoundException('지정한 선생님을 찾을 수 없습니다.'); // 과금 전 검증
     }
     const sp = await this.prisma.student_profile.findUnique({ where: { account_id: student.id } });
     if (!sp) throw new NotFoundException('학생 프로필이 없습니다.');
@@ -142,11 +145,5 @@ export class QnaService {
       await tx.qna_answer.update({ where: { id: answerId }, data: { accepted: true, pay_eligible: true } });
     });
     return { id: answerId, accepted: true, payEligible: true };
-  }
-}
-
-class ShortfallError extends Error {
-  constructor(public readonly shortfall: number) {
-    super('INSUFFICIENT_CREDITS');
   }
 }

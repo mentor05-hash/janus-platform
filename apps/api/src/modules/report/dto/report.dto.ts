@@ -2,7 +2,9 @@ import { IsIn, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator'
 
 /** POST /reports — 신고 등록. */
 export class CreateReportDto {
-  @IsString() @IsNotEmpty() targetType!: string; // teacher / student / booking / qna ...
+  @IsIn(['teacher', 'student', 'booking', 'qna'])
+  targetType!: string;
+
   @IsOptional() @IsUUID() targetId?: string;
   @IsString() @IsNotEmpty() reason!: string;
 }

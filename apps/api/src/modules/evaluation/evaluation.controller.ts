@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -18,6 +18,7 @@ export class EvaluationController {
 
   /** POST /me/teacher-lists — 분류 추가(학생, §5-9 한쪽만·한도). */
   @Post('me/teacher-lists')
+  @HttpCode(200)
   @Roles('student')
   classify(@Body() dto: ClassifyDto, @CurrentUser() user: AuthUser) {
     return this.evaluation.classify(user, dto);

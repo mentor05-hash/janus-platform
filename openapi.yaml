@@ -726,10 +726,9 @@ paths:
   /teachers/{id}/payroll:
     get:
       tags: [Payroll & Notification]
-      summary: 예상급여(확정+예상·산정 내역)
+      summary: 예상급여(확정+예상+Q&A+인센티브 산정 내역)
       parameters:
         - { $ref: '#/components/parameters/Id' }
-        - { name: cycle, in: query, schema: { type: string } }
       responses: { '200': { description: ok } }
   /teachers/{id}/payroll/settle:
     post:

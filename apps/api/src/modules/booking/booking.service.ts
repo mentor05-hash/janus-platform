@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
+import { ShortfallError } from '../../common/errors/shortfall.error';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { utcFromKst } from '../../common/time/kst';
 import { SLOT_GRANULARITY_MINUTES } from '../../config/constants';
@@ -27,12 +28,6 @@ import { BlockService } from '../report/block.service';
 import { BookingCreateDto, QuoteDto, ReverseProposeDto } from './dto/booking.dto';
 import { canTransition, shouldRefundOnTransition } from './domain/state-machine';
 import { canProposeReverse } from './domain/reverse';
-
-class ShortfallError extends Error {
-  constructor(public readonly shortfall: number) {
-    super('INSUFFICIENT_CREDITS');
-  }
-}
 
 @Injectable()
 export class BookingService {

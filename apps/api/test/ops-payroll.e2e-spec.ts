@@ -103,6 +103,11 @@ describe('2.6 운영·예상급여 통합', () => {
     expect(r.confirmedAmount).toBe(115_000);
     const row = await prisma.payroll_estimate.findUnique({ where: { id: r.id } });
     expect(row!.confirmed_amount).toBe(115_000);
+
+    // fix-7 멱등: 같은 기간 재정산해도 중복 행 없음
+    await payroll.settle(TEACHER_P, adminUser);
+    const count = await prisma.payroll_estimate.count({ where: { teacher_id: TEACHER_P } });
+    expect(count).toBe(1);
   });
 
   it('운영 대시보드: {data, meta} 규약 + 집계', async () => {

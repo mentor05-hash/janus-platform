@@ -67,6 +67,15 @@ describe('3.1 온라인 Q&A 통합', () => {
     expect(p!.status).toBe('resolved');
   });
 
+  it('지정 질문: 존재하지 않는 교사면 과금 전 거부(fix-7)', async () => {
+    const before = await credit.getAccount(STU_Q);
+    await expect(
+      qna.createQuestion(studentUser, { scope: 'assigned', assignedTeacherId: '00000000-0000-4000-8000-0000000000ff', body: 'x' }),
+    ).rejects.toThrow();
+    const after = await credit.getAccount(STU_Q);
+    expect(after.total).toBe(before.total); // 과금 없음
+  });
+
   it('Q&A 목록(H2): 보호자 등 비운영 역할은 조회 불가', async () => {
     const guardian: any = { id: '00000000-0000-4000-8000-0000000000a5', role: 'guardian', centerId: CENTER };
     await expect(qna.listPosts(guardian)).rejects.toThrow();

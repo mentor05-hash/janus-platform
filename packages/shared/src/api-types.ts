@@ -2258,12 +2258,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 예상급여(확정+예상·산정 내역) */
+        /** 예상급여(확정+예상+Q&A+인센티브 산정 내역) */
         get: {
             parameters: {
-                query?: {
-                    cycle?: string;
-                };
+                query?: never;
                 header?: never;
                 path: {
                     id: components["parameters"]["Id"];

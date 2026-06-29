@@ -31,17 +31,21 @@ export class PayrollService {
     const est = await this.compute(teacherId, actor);
     const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     const periodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
-    const row = await this.prisma.payroll_estimate.create({
-      data: {
-        teacher_id: teacherId,
-        cycle: 'monthly',
-        confirmed_amount: est.confirmedAmount,
-        expected_amount: est.expectedAmount,
-        breakdown: est.breakdown as object,
-        period_start: periodStart,
-        period_end: periodEnd,
-      },
+    const data = {
+      cycle: 'monthly',
+      confirmed_amount: est.confirmedAmount,
+      expected_amount: est.expectedAmount,
+      breakdown: est.breakdown as object,
+      period_start: periodStart,
+      period_end: periodEnd,
+    };
+    // 멱등: 같은 교사·기간 정산은 갱신(중복 행 방지)
+    const existing = await this.prisma.payroll_estimate.findFirst({
+      where: { teacher_id: teacherId, cycle: 'monthly', period_start: periodStart },
     });
+    const row = existing
+      ? await this.prisma.payroll_estimate.update({ where: { id: existing.id }, data })
+      : await this.prisma.payroll_estimate.create({ data: { teacher_id: teacherId, ...data } });
     return { id: row.id, ...est };
   }
 
@@ -67,7 +71,7 @@ export class PayrollService {
         ...(teacher.teacher_category ? { teacher_category: teacher.teacher_category } : {}),
       },
     });
-    const rates = this.resolveRates(policy);
+    const rates = this.resolveRates(policy, teacher.grade);
     const base = computePayroll({ doneCount, upcomingCount, qnaAcceptedCount }, rates);
 
     const rating = teacher.rating == null ? 0 : Number(teacher.rating);
@@ -85,13 +89,17 @@ export class PayrollService {
     };
   }
 
-  /** payroll_policy 우선, 없으면 ENV 기본값(미결정 단가 O20). */
-  private resolveRates(policy: { per_case_rate: number | null; qna_rate: number | null } | null): PayrollRates {
+  /** payroll_policy 우선(등급 수당은 grade_allowance 맵에서 교사 등급으로 조회), 없으면 ENV. */
+  private resolveRates(
+    policy: { per_case_rate: number | null; qna_rate: number | null; grade_allowance: unknown } | null,
+    grade: string,
+  ): PayrollRates {
     const envNum = (key: string, fallback: number) => Number(this.config.get(key) ?? fallback);
+    const gradeMap = (policy?.grade_allowance as Record<string, number> | null) ?? null;
     return {
       perCaseRate: policy?.per_case_rate ?? envNum('PAYROLL_PER_CASE_RATE', 30_000),
       qnaRate: policy?.qna_rate ?? envNum('PAYROLL_QNA_RATE', 5_000),
-      gradeAllowance: envNum('PAYROLL_GRADE_ALLOWANCE', 0),
+      gradeAllowance: gradeMap?.[grade] ?? envNum('PAYROLL_GRADE_ALLOWANCE', 0),
     };
   }
 }
