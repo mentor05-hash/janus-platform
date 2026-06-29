@@ -2289,6 +2289,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/teachers/{id}/payroll/settle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 급여 확정 정산 기록(관리자/HR) — 확정+예상+Q&A+인센티브 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description settled */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/notifications": {
         parameters: {
             query?: never;

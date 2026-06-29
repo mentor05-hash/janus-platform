@@ -24,6 +24,7 @@ describe('2.6 운영·예상급여 통합', () => {
   let payroll: PayrollService;
   let ops: OpsService;
   const bookingIds: string[] = [];
+  let qnaPostId: string | undefined;
 
   beforeAll(async () => {
     const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -48,6 +49,9 @@ describe('2.6 운영·예상급여 통합', () => {
   });
 
   afterAll(async () => {
+    await prisma.payroll_estimate.deleteMany({ where: { teacher_id: TEACHER_P } });
+    if (qnaPostId) await prisma.qna_post.deleteMany({ where: { id: qnaPostId } }); // cascade answer
+    await prisma.payroll_policy.deleteMany({ where: { center_id: CENTER } });
     await prisma.time_slot.deleteMany({ where: { booking_id: { in: bookingIds } } });
     await prisma.booking.deleteMany({ where: { id: { in: bookingIds } } });
     await prisma.account.deleteMany({ where: { id: TEACHER_P } });
@@ -62,6 +66,37 @@ describe('2.6 운영·예상급여 통합', () => {
 
   it('급여 권한 가드: 타인(학생)은 조회 불가', async () => {
     await expect(payroll.estimate(TEACHER_P, studentUser)).rejects.toThrow();
+  });
+
+  it('3.4 Q&A 적격(pay_eligible) + 자동 인센티브 합산', async () => {
+    await prisma.payroll_policy.create({
+      data: {
+        center_id: CENTER,
+        per_case_rate: 30_000,
+        qna_rate: 5_000,
+        auto_incentive: { on: true, minCases: 1, amount: 50_000 } as any,
+      },
+    });
+    const post = await prisma.qna_post.create({
+      data: { student_id: STUDENT, scope: 'open' as any, body: 'q', status: 'resolved' },
+    });
+    qnaPostId = post.id;
+    await prisma.qna_answer.create({
+      data: { post_id: post.id, teacher_id: TEACHER_P, body: 'a', accepted: true, pay_eligible: true },
+    });
+
+    const r: any = await payroll.estimate(TEACHER_P, teacherUser);
+    expect(r.breakdown.qnaAccepted).toBe(1);
+    expect(r.incentive).toBe(50_000);
+    expect(r.confirmedAmount).toBe(2 * 30_000 + 1 * 5_000 + 50_000); // 115,000
+  });
+
+  it('3.4 확정 정산 기록(payroll_estimate)', async () => {
+    const r: any = await payroll.settle(TEACHER_P, adminUser);
+    expect(r.id).toBeDefined();
+    expect(r.confirmedAmount).toBe(115_000);
+    const row = await prisma.payroll_estimate.findUnique({ where: { id: r.id } });
+    expect(row!.confirmed_amount).toBe(115_000);
   });
 
   it('운영 대시보드: {data, meta} 규약 + 집계', async () => {

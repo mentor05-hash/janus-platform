@@ -27,6 +27,25 @@ export interface PayrollEstimate {
   };
 }
 
+/** 자동 인센티브 정책(payroll_policy.auto_incentive). */
+export interface IncentivePolicy {
+  on: boolean;
+  minCases?: number; // 최소 완료 상담 수
+  minRating?: number; // 최소 평점
+  amount: number;
+}
+
+/** 조건 충족 시 인센티브 금액, 아니면 0. */
+export function computeIncentive(
+  stats: { doneCount: number; rating?: number },
+  policy?: IncentivePolicy | null,
+): number {
+  if (!policy || !policy.on) return 0;
+  if (policy.minCases != null && stats.doneCount < policy.minCases) return 0;
+  if (policy.minRating != null && (stats.rating ?? 0) < policy.minRating) return 0;
+  return policy.amount ?? 0;
+}
+
 export function computePayroll(input: PayrollInput, rates: PayrollRates): PayrollEstimate {
   const confirmedAmount =
     input.doneCount * rates.perCaseRate +

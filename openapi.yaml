@@ -731,6 +731,12 @@ paths:
         - { $ref: '#/components/parameters/Id' }
         - { name: cycle, in: query, schema: { type: string } }
       responses: { '200': { description: ok } }
+  /teachers/{id}/payroll/settle:
+    post:
+      tags: [Payroll & Notification]
+      summary: 급여 확정 정산 기록(관리자/HR) — 확정+예상+Q&A+인센티브
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      responses: { '201': { description: settled } }
   /notifications:
     get:
       tags: [Payroll & Notification]
