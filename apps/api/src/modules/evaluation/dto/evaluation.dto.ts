@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 
 /** POST /me/teacher-lists — 분류(fit/unfit). */
 export class ClassifyDto {
@@ -18,4 +18,8 @@ export class ReviewDto {
   @Type(() => Number) @IsInt() @Min(1) @Max(5) ratingAgain!: number;
 
   @IsOptional() @IsString() text?: string;
+
+  /** 완료 확인 / 미진행(no-show) 신고 — 스펙 Review 정합. */
+  @IsOptional() @IsBoolean() doneConfirmed?: boolean;
+  @IsOptional() @IsBoolean() reported?: boolean;
 }

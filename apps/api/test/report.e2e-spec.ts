@@ -69,6 +69,24 @@ describe('3.3 신고·차단·AI 검토 통합', () => {
     expect(r.aiFlagged).toBe(false);
   });
 
+  it('M2/M3: AI 결과 별도 보존 + 센터 스코프', async () => {
+    const r: any = await reports.create(studentUser, { targetType: 'teacher', reason: '폭언 신고' });
+    reportIds.push(r.id);
+    const row: any = await prisma.report.findUnique({ where: { id: r.id } });
+    expect(row.ai_review).toBeTruthy(); // AI 결과는 ai_review 컬럼에 보존
+    expect(row.center_id).toBe(CENTER); // 신고자 센터로 스코프
+
+    // 타 센터 관리자는 처리 불가
+    const otherAdmin: any = { id: adminUser.id, role: 'admin', centerId: '00000000-0000-4000-8000-0000000000c2' };
+    await expect(reports.handle(r.id, { status: 'reviewing' }, otherAdmin)).rejects.toThrow();
+
+    // 처리 후에도 AI 결과 보존(action 과 분리)
+    await reports.handle(r.id, { status: 'resolved', action: '경고 조치' }, adminUser);
+    const row2: any = await prisma.report.findUnique({ where: { id: r.id } });
+    expect(row2.ai_review).toBeTruthy();
+    expect(row2.action).toBe('경고 조치');
+  });
+
   it('교사 차단 → 예약 차단', async () => {
     await blocks.block(studentUser, TEACHER);
     expect(await blocks.blockedTeacherIds(STU_B)).toContain(TEACHER);

@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CLASSIFY_LIMITS } from '../../config/constants';
@@ -85,37 +86,42 @@ export class EvaluationService {
     const dup = await this.prisma.review.findUnique({ where: { booking_id: bookingId } });
     if (dup) throw new ConflictException('이미 평가한 상담입니다.');
 
-    await this.prisma.review.create({
-      data: {
-        booking_id: bookingId,
-        student_id: booking.student_id,
-        teacher_id: booking.teacher_id,
-        rating_attitude: dto.ratingAttitude,
-        rating_content: dto.ratingContent,
-        rating_skill: dto.ratingSkill,
-        rating_again: dto.ratingAgain,
-        text: dto.text ?? null,
-        done_confirmed: true,
-      },
+    // 리뷰 생성 + 재집계를 한 트랜잭션에서, teacher_profile 행잠금으로 직렬화(M1 lost-update 방지).
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT account_id FROM teacher_profile WHERE account_id = ${booking.teacher_id}::uuid FOR UPDATE`;
+      await tx.review.create({
+        data: {
+          booking_id: bookingId,
+          student_id: booking.student_id,
+          teacher_id: booking.teacher_id,
+          rating_attitude: dto.ratingAttitude,
+          rating_content: dto.ratingContent,
+          rating_skill: dto.ratingSkill,
+          rating_again: dto.ratingAgain,
+          text: dto.text ?? null,
+          done_confirmed: dto.doneConfirmed ?? true,
+          reported: dto.reported ?? false,
+        },
+      });
+      return this.recomputeTeacher(tx, booking.teacher_id);
     });
-
-    return this.recomputeTeacher(booking.teacher_id);
   }
 
-  /** 교사 전체 리뷰로 평점·등급 재산정. */
-  private async recomputeTeacher(teacherId: string) {
-    const reviews = await this.prisma.review.findMany({ where: { teacher_id: teacherId } });
+  /** 교사 전체 리뷰로 평점·등급 재산정(트랜잭션 내). */
+  private async recomputeTeacher(tx: Prisma.TransactionClient, teacherId: string) {
+    const reviews = await tx.review.findMany({ where: { teacher_id: teacherId } });
     const overalls = reviews.map((r) =>
       averageRating([r.rating_attitude, r.rating_content, r.rating_skill, r.rating_again]),
     );
     const rating = averageRating(overalls);
     const grade = computeGrade(rating, reviews.length);
 
-    await this.prisma.teacher_profile.update({
+    // total_consult(완료 상담 수)는 덮어쓰지 않음(M5) — 평점·등급만 갱신.
+    await tx.teacher_profile.update({
       where: { account_id: teacherId },
-      data: { rating, grade: grade as never, total_consult: reviews.length },
+      data: { rating, grade: grade as never },
     });
-    await this.prisma.teacher_grade.upsert({
+    await tx.teacher_grade.upsert({
       where: { teacher_id: teacherId },
       update: { grade: grade as never },
       create: { teacher_id: teacherId, grade: grade as never },

@@ -409,6 +409,8 @@ model report {
   reason      String?
   status      String?  @default("received")
   action      String?
+  center_id   String?  @db.Uuid // 센터 스코프(0003)
+  ai_review   Json? // AI 1차 검토 결과 보존(0003)
   created_at  DateTime @default(now()) @db.Timestamptz(6)
 }
 

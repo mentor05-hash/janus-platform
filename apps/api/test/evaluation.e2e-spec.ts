@@ -74,10 +74,41 @@ describe('3.2 평가·분류·랭킹 통합', () => {
     expect(Number(tp!.rating)).toBe(4.3);
     expect(tp!.grade).toBe('A');
 
+    // M4: reported/doneConfirmed 영속
+    const savedReview = await prisma.review.findUnique({ where: { booking_id: b.id } });
+    expect(savedReview!.done_confirmed).toBe(true);
+    expect(savedReview!.reported).toBe(false);
+
     // 중복 평가 차단
     await expect(
       evalService.review(b.id, { ratingAttitude: 1, ratingContent: 1, ratingSkill: 1, ratingAgain: 1 }, studentUser),
     ).rejects.toThrow();
+  });
+
+  it('M1: 동시 리뷰 lost-update 없음(트랜잭션+행잠금)', async () => {
+    // 새 완료 예약 2건(서로 다른 평점) 동시 평가
+    const mk = async (status = 'done') =>
+      (await prisma.booking.create({
+        data: { student_id: STU_E, teacher_id: TEA_E, center_id: CENTER, consult_type: 'subject' as any, mode: 'zoom' as any, status: status as any },
+      })).id;
+    const b1 = await mk();
+    const b2 = await mk();
+    await Promise.all([
+      evalService.review(b1, { ratingAttitude: 5, ratingContent: 5, ratingSkill: 5, ratingAgain: 5 }, studentUser),
+      evalService.review(b2, { ratingAttitude: 3, ratingContent: 3, ratingSkill: 3, ratingAgain: 3, reported: true }, studentUser),
+    ]);
+    // 교사 평점은 전체 리뷰 평균을 반영해야 함(어느 리뷰도 유실되지 않음)
+    const all = await prisma.review.findMany({ where: { teacher_id: TEA_E } });
+    const overalls = all.map((r) => {
+      const v = [r.rating_attitude!, r.rating_content!, r.rating_skill!, r.rating_again!];
+      return Math.round((v.reduce((a, c) => a + c, 0) / v.length) * 10) / 10;
+    });
+    const expected = Math.round((overalls.reduce((a, c) => a + c, 0) / overalls.length) * 10) / 10;
+    const tp = await prisma.teacher_profile.findUnique({ where: { account_id: TEA_E } });
+    expect(Number(tp!.rating)).toBe(expected);
+    // reported 플래그 영속
+    const r2 = await prisma.review.findUnique({ where: { booking_id: b2 } });
+    expect(r2!.reported).toBe(true);
   });
 
   it('리뷰: 비완료 상담은 평가 불가', async () => {
