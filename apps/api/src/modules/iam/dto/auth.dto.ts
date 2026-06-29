@@ -36,3 +36,9 @@ export class SignupDto {
   @IsUUID()
   centerId?: string;
 }
+
+export class RefreshDto {
+  @IsString()
+  @IsNotEmpty()
+  refreshToken!: string;
+}

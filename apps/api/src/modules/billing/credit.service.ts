@@ -121,28 +121,37 @@ export class CreditService {
     return { ok: true, shortfall: 0, spent: amount };
   }
 
-  /** 취소 환원(§5-6). 구매분으로 환원 + refund 트랜잭션. */
+  /** 취소 환원(§5-6) — 진행 중인 트랜잭션 내에서 실행(예약 취소와 원자적). */
+  async refundWithin(
+    tx: Prisma.TransactionClient,
+    studentId: string,
+    amount: number,
+    ref: { refType: string; refId?: string },
+  ) {
+    if (amount <= 0) return;
+    const acct = await this.lockAccount(tx, studentId);
+    const balance = acct.purchased_balance + acct.granted_balance + amount;
+    await tx.credit_account.update({
+      where: { id: acct.id },
+      data: { purchased_balance: { increment: amount } },
+    });
+    await tx.credit_transaction.create({
+      data: {
+        account_id: acct.id,
+        type: CreditTxnType.REFUND,
+        amount,
+        balance,
+        description: '예약 취소 환원',
+        ref_type: ref.refType,
+        ref_id: ref.refId ?? null,
+      },
+    });
+  }
+
+  /** 취소 환원(독립 트랜잭션 래퍼). */
   async refund(studentId: string, amount: number, ref: { refType: string; refId?: string }) {
     if (amount <= 0) return;
-    return this.prisma.$transaction(async (tx) => {
-      const acct = await this.lockAccount(tx, studentId);
-      const balance = acct.purchased_balance + acct.granted_balance + amount;
-      await tx.credit_account.update({
-        where: { id: acct.id },
-        data: { purchased_balance: { increment: amount } },
-      });
-      await tx.credit_transaction.create({
-        data: {
-          account_id: acct.id,
-          type: CreditTxnType.REFUND,
-          amount,
-          balance,
-          description: '예약 취소 환원',
-          ref_type: ref.refType,
-          ref_id: ref.refId ?? null,
-        },
-      });
-    });
+    return this.prisma.$transaction((tx) => this.refundWithin(tx, studentId, amount, ref));
   }
 
   /** 잔액 부족 시 결제요청 생성(§5-6 / 결제요청 경로). */

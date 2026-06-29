@@ -52,6 +52,24 @@ export class AuthService {
     return { id: account.id, status: account.status };
   }
 
+  async refresh(refreshToken: string) {
+    let payload: JwtPayload;
+    try {
+      payload = await this.jwt.verifyAsync<JwtPayload>(refreshToken, {
+        secret: this.config.get<string>('JWT_REFRESH_SECRET'),
+      });
+    } catch {
+      throw new UnauthorizedException('유효하지 않은 refresh 토큰입니다.');
+    }
+    if (payload.typ !== 'refresh') throw new UnauthorizedException('refresh 토큰이 아닙니다.');
+    const account = await this.prisma.account.findUnique({ where: { id: payload.sub } });
+    if (!account) throw new UnauthorizedException();
+    if (account.status !== AccountStatus.APPROVED) {
+      throw new ForbiddenException('비활성 계정입니다.');
+    }
+    return this.issueTokens(account);
+  }
+
   async me(accountId: string) {
     const account = await this.prisma.account.findUnique({
       where: { id: accountId },

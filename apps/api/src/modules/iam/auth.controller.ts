@@ -3,7 +3,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { AuthService } from './auth.service';
-import { LoginDto, SignupDto } from './dto/auth.dto';
+import { LoginDto, RefreshDto, SignupDto } from './dto/auth.dto';
 
 @Controller()
 export class AuthController {
@@ -20,6 +20,13 @@ export class AuthController {
   @Post('auth/signup')
   signup(@Body() dto: SignupDto) {
     return this.auth.signup(dto);
+  }
+
+  @Public()
+  @Post('auth/refresh')
+  @HttpCode(200)
+  refresh(@Body() dto: RefreshDto) {
+    return this.auth.refresh(dto.refreshToken);
   }
 
   @Get('me')

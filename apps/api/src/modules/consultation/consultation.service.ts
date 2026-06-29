@@ -75,6 +75,8 @@ export class ConsultationService {
         // 학생·보호자에게는 final 만 공개(draft 비공개)
         ...(isGuardianOrStudent ? { save_state: NoteSaveState.FINAL as never } : {}),
         ...(user.role === AccountRole.GUARDIAN ? { guardian_visible: true } : {}),
+        // 교사는 본인이 담당한(작성 주체인) 예약의 기록만 — 타 교사 학생 메모 차단(§5-5/§5-10)
+        ...(user.role === AccountRole.TEACHER ? { teacher_id: user.id } : {}),
       },
       orderBy: { created_at: 'desc' },
     });
@@ -102,7 +104,7 @@ export class ConsultationService {
   private async assertStudentAccess(studentId: string, user: AuthUser) {
     if (user.role === AccountRole.ADMIN || user.role === AccountRole.HR) return;
     if (user.role === AccountRole.STUDENT && user.id === studentId) return;
-    if (user.role === AccountRole.TEACHER) return; // 담당 여부는 목록 자체로 제한됨
+    if (user.role === AccountRole.TEACHER) return; // 행 자체를 teacher_id 로 제한(listForStudent)
     if (user.role === AccountRole.GUARDIAN) {
       await this.assertGuardianLink(user.id, studentId);
       return;

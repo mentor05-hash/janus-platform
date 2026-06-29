@@ -219,10 +219,14 @@ export class BookingService {
       if (to === BookingStatus.CANCELLED || to === BookingStatus.REJECTED) {
         await tx.time_slot.deleteMany({ where: { booking_id: id } }); // 슬롯 해제
       }
+      // §5-6 환원을 상태변경과 동일 트랜잭션으로 — 취소/환원 불일치 방지
+      if (refund) {
+        await this.credit.refundWithin(tx, b.student_id, b.charged_credits!, {
+          refType: 'booking',
+          refId: id,
+        });
+      }
     });
-    if (refund) {
-      await this.credit.refund(b.student_id, b.charged_credits!, { refType: 'booking', refId: id });
-    }
     return { id, status: to, refunded: refund ? b.charged_credits : 0 };
   }
 

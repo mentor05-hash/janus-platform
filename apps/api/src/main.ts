@@ -7,6 +7,14 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // CORS: web(React)·mobile(RN) 클라이언트 오리진 허용(ENV 분기, §10 설정 외부화)
+  const corsOrigins = process.env.CORS_ORIGINS;
+  app.enableCors({
+    origin: corsOrigins ? corsOrigins.split(',').map((o) => o.trim()) : true,
+    credentials: true,
+  });
+  app.enableShutdownHooks(); // 컨테이너 SIGTERM 시 Prisma onModuleDestroy 보장(§10)
+
   const prefix = process.env.API_PREFIX ?? '/api/v1';
   app.setGlobalPrefix(prefix.replace(/^\//, '')); // setGlobalPrefix 는 선행 슬래시 없이
 

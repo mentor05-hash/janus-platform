@@ -31,6 +31,10 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
+  CORS_ORIGINS?: string;
+
+  @IsOptional()
+  @IsString()
   PORT?: string;
 
   @IsOptional()
