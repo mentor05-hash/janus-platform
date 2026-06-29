@@ -97,6 +97,12 @@ export class BookingService {
 
     try {
       const booking = await this.prisma.$transaction(async (tx) => {
+        await this.lockTeacherDate(tx, dto.teacherId, dto.date);
+        // 락 확보 후 재검증(§5-1 TOCTOU 방지) — 직렬화되어 권위 있는 판정
+        const stillBookable = await this.availability.assertBookable(dto.teacherId, dto.date, startMin, endMin, studentId);
+        if (!stillBookable) {
+          throw new ConflictException('선택한 시간은 예약할 수 없습니다(휴게/근무/체류 위반).');
+        }
         const b = await tx.booking.create({
           data: {
             student_id: studentId,
@@ -200,6 +206,11 @@ export class BookingService {
 
     try {
       const booking = await this.prisma.$transaction(async (tx) => {
+        await this.lockTeacherDate(tx, user.id, dto.date);
+        const stillBookable = await this.availability.assertBookable(user.id, dto.date, startMin, endMin, dto.studentId);
+        if (!stillBookable) {
+          throw new ConflictException('제안하려는 시간은 예약할 수 없습니다(휴게/근무 위반).');
+        }
         const b = await tx.booking.create({
           data: {
             student_id: dto.studentId,
@@ -335,19 +346,26 @@ export class BookingService {
     // 역상담 제안(reverse + NEW)은 크레딧이 아직 소비되지 않았으므로 환원 금지(무료 발급 방지).
     const consumed = !(b.direction === 'reverse' && from === BookingStatus.NEW);
     const refund = shouldRefundOnTransition(from, to) && (b.charged_credits ?? 0) > 0 && consumed;
-    await this.prisma.$transaction(async (tx) => {
-      await tx.booking.update({ where: { id }, data: { status: to as never } });
+    // 조건부 상태 전이(§7): updateMany where status=from 으로 동시 전이를 한 번만 적용
+    // → 이중 취소/이중 환원·이벤트 중복 방지.
+    const applied = await this.prisma.$transaction(async (tx) => {
+      const upd = await tx.booking.updateMany({
+        where: { id, status: from as never },
+        data: { status: to as never },
+      });
+      if (upd.count !== 1) return false; // 다른 트랜잭션이 이미 전이시킴
       if (to === BookingStatus.CANCELLED || to === BookingStatus.REJECTED) {
         await tx.time_slot.deleteMany({ where: { booking_id: id } }); // 슬롯 해제
       }
-      // §5-6 환원을 상태변경과 동일 트랜잭션으로 — 취소/환원 불일치 방지
       if (refund) {
         await this.credit.refundWithin(tx, b.student_id, b.charged_credits!, {
           refType: 'booking',
           refId: id,
         });
       }
+      return true;
     });
+    if (!applied) throw new ConflictException('이미 처리된 예약입니다.');
     return { id, status: to, refunded: refund ? b.charged_credits : 0 };
   }
 
@@ -373,6 +391,16 @@ export class BookingService {
 
   private sessionSlotIndices(start: number, end: number): number[] {
     return Array.from({ length: end - start }, (_, k) => start + k);
+  }
+
+  /**
+   * (teacher, date) 단위 advisory xact lock — §5-1 휴게버퍼 TOCTOU 방지.
+   * 락 확보 후 버퍼 재검증을 직렬화해 동시 인접 예약을 차단한다(트랜잭션 종료 시 자동 해제).
+   */
+  private async lockTeacherDate(tx: Prisma.TransactionClient, teacherId: string, date: string) {
+    const key = `${teacherId}:${date}`;
+    // $executeRaw 사용: void 반환 컬럼 역직렬화 회피(락은 실행 시 획득).
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`;
   }
 
   private async requireTeacher(teacherId: string) {

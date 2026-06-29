@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -55,9 +56,16 @@ export class CancellationService {
     // 대체후보 탐색(substitute/priority) — 알림/이벤트 기록용
     const substitutes = plan.needsSubstitutes ? await this.findSubstitutes(booking) : [];
 
-    // ── 원자적 처리(§7): 상태변경 · 슬롯해제 · 환원 · 이벤트기록 ──
+    // ── 원자적 처리(§7): 조건부 상태변경 · 슬롯해제 · 환원 · 이벤트기록 ──
+    // updateMany where status=from 으로 동시 취소를 한 번만 적용(이중 환원·이벤트 중복 방지).
     const event = await this.prisma.$transaction(async (tx) => {
-      await tx.booking.update({ where: { id: bookingId }, data: { status: BookingStatus.CANCELLED as never } });
+      const upd = await tx.booking.updateMany({
+        where: { id: bookingId, status: from as never },
+        data: { status: BookingStatus.CANCELLED as never },
+      });
+      if (upd.count !== 1) {
+        throw new ConflictException('이미 처리된 예약입니다.');
+      }
       await tx.time_slot.deleteMany({ where: { booking_id: bookingId } });
       if (refundAmount > 0) {
         await this.credit.refundWithin(tx, booking.student_id, refundAmount, {
