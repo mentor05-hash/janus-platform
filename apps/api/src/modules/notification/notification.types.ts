@@ -16,3 +16,16 @@ export interface NotifyMessage {
 export interface NotificationProvider {
   send(msg: NotifyMessage): Promise<void>;
 }
+
+/**
+ * 채널 게이트웨이 — 채널별 실제 발송 seam(§10). 로컬은 stub(앱=성공, SMS·알림톡=미구성 실패),
+ * 클라우드는 실 채널 구현으로 교체. 발송 성공 여부를 반환해 outbox 재시도에 사용.
+ */
+export const CHANNEL_GATEWAY = Symbol('CHANNEL_GATEWAY');
+
+export type DeliveryStatus = 'sent' | 'failed';
+export type DeliveryMap = Partial<Record<NotifyChannel, DeliveryStatus>>;
+
+export interface ChannelGateway {
+  deliver(channel: NotifyChannel, msg: NotifyMessage): Promise<boolean>;
+}
