@@ -23,4 +23,28 @@ describe('가중 제한(§5-7)', () => {
     );
     expect(r.restricted).toBe(false);
   });
+
+  it('restrictMinutes 경과 시 제한 자동 해제(일시 제한)', () => {
+    const stats = { cancelCount: 0, noshowCount: 2, rejectCount: 0 };
+    const since = 1_000_000_000_000;
+    // 창 이내(30분 중 10분 경과) → 제한 유지
+    const within = evaluatePenalty(stats, T, { restrictMinutes: 30, penaltySinceMs: since, nowMs: since + 10 * 60_000 });
+    expect(within.restricted).toBe(true);
+    expect(within.lifted).toBe(false);
+    // 창 경과(30분 초과) → 해제
+    const after = evaluatePenalty(stats, T, { restrictMinutes: 30, penaltySinceMs: since, nowMs: since + 31 * 60_000 });
+    expect(after.restricted).toBe(false);
+    expect(after.lifted).toBe(true);
+    expect(after.rankingWeightDown).toBe(0);
+  });
+
+  it('restrictMinutes=null(무기한)이면 창 해제 없음', () => {
+    const r = evaluatePenalty(
+      { cancelCount: 0, noshowCount: 2, rejectCount: 0 },
+      T,
+      { restrictMinutes: null, penaltySinceMs: 1_000, nowMs: 9_999_999_999 },
+    );
+    expect(r.restricted).toBe(true);
+    expect(r.lifted).toBe(false);
+  });
 });

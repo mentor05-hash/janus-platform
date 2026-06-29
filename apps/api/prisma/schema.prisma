@@ -466,6 +466,8 @@ model student_profile {
   done_count             Int?                    @default(0)
   rejected_count         Int?                    @default(0)
   noshow_count           Int?                    @default(0)
+  same_day_cancel_count  Int?                    @default(0)
+  penalty_since          DateTime?               @db.Timestamptz(6)
   last_consult_at        DateTime?               @db.Timestamptz(6)
   last_homeroom_at       DateTime?               @db.Timestamptz(6)
   board_question         board_question[]

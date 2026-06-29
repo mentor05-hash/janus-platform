@@ -11,7 +11,7 @@ import { Prisma } from '@prisma/client';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { ShortfallError } from '../../common/errors/shortfall.error';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { utcFromKst } from '../../common/time/kst';
+import { kstDateString, utcFromKst } from '../../common/time/kst';
 import { SLOT_GRANULARITY_MINUTES } from '../../config/constants';
 import { AccountRole, BookingStatus, ConsultMode, ConsultType, TeacherGrade } from '../../config/enums';
 import {
@@ -391,11 +391,29 @@ export class BookingService {
       if (to === BookingStatus.CANCELLED || to === BookingStatus.REJECTED) {
         await tx.time_slot.deleteMany({ where: { booking_id: id } }); // 슬롯 해제
       }
-      // §5-7 가중 제한 카운터 누적(noshow/reject) — 이후 신규 신청 제한 판정에 사용.
+      // §5-7 가중 제한 카운터 누적 + 오펜스 시각(penalty_since) 기록 — restrict_minutes 해제 기준.
+      const now = new Date();
       if (to === BookingStatus.NOSHOW) {
-        await tx.student_profile.update({ where: { account_id: b.student_id }, data: { noshow_count: { increment: 1 } } });
+        await tx.student_profile.update({
+          where: { account_id: b.student_id },
+          data: { noshow_count: { increment: 1 }, penalty_since: now },
+        });
       } else if (to === BookingStatus.REJECTED) {
-        await tx.student_profile.update({ where: { account_id: b.student_id }, data: { rejected_count: { increment: 1 } } });
+        await tx.student_profile.update({
+          where: { account_id: b.student_id },
+          data: { rejected_count: { increment: 1 }, penalty_since: now },
+        });
+      } else if (
+        to === BookingStatus.CANCELLED &&
+        user.role === AccountRole.STUDENT &&
+        b.start_at != null &&
+        kstDateString(b.start_at) === kstDateString(now)
+      ) {
+        // 당일취소(§5-7) — 학생 본인이 세션 당일 취소한 경우만 가중.
+        await tx.student_profile.update({
+          where: { account_id: b.student_id },
+          data: { same_day_cancel_count: { increment: 1 }, penalty_since: now },
+        });
       }
       if (refund) {
         await this.credit.refundWithin(tx, b.student_id, b.charged_credits!, {
@@ -416,12 +434,21 @@ export class BookingService {
     const pp = await this.prisma.penalty_policy.findUnique({ where: { center_id: sp.center_id } });
     if (!pp) return;
     const result = evaluatePenalty(
-      { cancelCount: 0, noshowCount: sp.noshow_count ?? 0, rejectCount: sp.rejected_count ?? 0 },
+      {
+        cancelCount: sp.same_day_cancel_count ?? 0,
+        noshowCount: sp.noshow_count ?? 0,
+        rejectCount: sp.rejected_count ?? 0,
+      },
       {
         cancelThreshold: pp.cancel_threshold,
         noshowThreshold: pp.noshow_threshold,
         rejectThreshold: pp.reject_threshold,
         rankingWeightDown: pp.ranking_weight_down == null ? null : Number(pp.ranking_weight_down),
+      },
+      {
+        restrictMinutes: pp.restrict_minutes,
+        penaltySinceMs: sp.penalty_since ? sp.penalty_since.getTime() : null,
+        nowMs: Date.now(),
       },
     );
     if (result.restricted) {
