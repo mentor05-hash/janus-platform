@@ -67,6 +67,11 @@ describe('3.1 온라인 Q&A 통합', () => {
     expect(p!.status).toBe('resolved');
   });
 
+  it('Q&A 목록(H2): 보호자 등 비운영 역할은 조회 불가', async () => {
+    const guardian: any = { id: '00000000-0000-4000-8000-0000000000a5', role: 'guardian', centerId: CENTER };
+    await expect(qna.listPosts(guardian)).rejects.toThrow();
+  });
+
   it('§5-9: unfit 분류 교사는 공개 질문 답변 불가', async () => {
     await prisma.teacher_list_entry.create({
       data: { student_id: STU_Q, teacher_id: TEACHER, list_kind: 'unfit' as any },

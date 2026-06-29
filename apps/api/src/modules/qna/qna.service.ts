@@ -88,7 +88,11 @@ export class QnaService {
         orderBy: { created_at: 'desc' },
       });
     }
-    return this.prisma.qna_post.findMany({ orderBy: { created_at: 'desc' }, take: 200 });
+    // 운영(관리자/HR)만 전체 조회. 그 외(보호자 등)는 차단(§5-10 누출 방지).
+    if (user.role === AccountRole.ADMIN || user.role === AccountRole.HR) {
+      return this.prisma.qna_post.findMany({ orderBy: { created_at: 'desc' }, take: 200 });
+    }
+    throw new ForbiddenException('Q&A 목록 조회 권한이 없습니다.');
   }
 
   /** 답변(교사) — 지정/공개 권한 게이트(§5-9). */

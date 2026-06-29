@@ -68,6 +68,12 @@ describe('2.6 운영·예상급여 통합', () => {
     await expect(payroll.estimate(TEACHER_P, studentUser)).rejects.toThrow();
   });
 
+  it('급여 센터 스코프(H1): 타 센터 관리자는 조회/정산 불가', async () => {
+    const otherAdmin: any = { id: '00000000-0000-4000-8000-0000000000a3', role: 'admin', centerId: '00000000-0000-4000-8000-0000000000c2' };
+    await expect(payroll.estimate(TEACHER_P, otherAdmin)).rejects.toThrow();
+    await expect(payroll.settle(TEACHER_P, otherAdmin)).rejects.toThrow();
+  });
+
   it('3.4 Q&A 적격(pay_eligible) + 자동 인센티브 합산', async () => {
     await prisma.payroll_policy.create({
       data: {

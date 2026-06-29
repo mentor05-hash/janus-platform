@@ -20,7 +20,7 @@ export class PayrollService {
     const isSelf = actor.role === AccountRole.TEACHER && actor.id === teacherId;
     const isAdmin = actor.role === AccountRole.ADMIN || actor.role === AccountRole.HR;
     if (!isSelf && !isAdmin) throw new ForbiddenException('급여 조회 권한이 없습니다.');
-    return this.compute(teacherId);
+    return this.compute(teacherId, actor);
   }
 
   /** 확정 정산: 산정 결과를 payroll_estimate 에 기록(관리자/HR). */
@@ -28,7 +28,7 @@ export class PayrollService {
     if (actor.role !== AccountRole.ADMIN && actor.role !== AccountRole.HR) {
       throw new ForbiddenException('관리자만 정산을 확정할 수 있습니다.');
     }
-    const est = await this.compute(teacherId);
+    const est = await this.compute(teacherId, actor);
     const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
     const periodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0));
     const row = await this.prisma.payroll_estimate.create({
@@ -45,9 +45,14 @@ export class PayrollService {
     return { id: row.id, ...est };
   }
 
-  private async compute(teacherId: string) {
+  private async compute(teacherId: string, actor: AuthUser) {
     const teacher = await this.prisma.teacher_profile.findUnique({ where: { account_id: teacherId } });
     if (!teacher) throw new NotFoundException('선생님을 찾을 수 없습니다.');
+    // 관리자/HR 은 자기 센터 교사만(타 센터 급여 열람·정산 방지, S4)
+    const isAdmin = actor.role === AccountRole.ADMIN || actor.role === AccountRole.HR;
+    if (isAdmin && actor.centerId && teacher.center_id !== actor.centerId) {
+      throw new ForbiddenException('다른 센터 교사의 급여는 조회/정산할 수 없습니다.');
+    }
 
     const [doneCount, upcomingCount, qnaAcceptedCount] = await Promise.all([
       this.prisma.booking.count({ where: { teacher_id: teacherId, status: BookingStatus.DONE as never } }),
