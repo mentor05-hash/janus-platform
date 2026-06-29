@@ -117,6 +117,59 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Account' }
 
+  /admin/member-types:
+    get:
+      tags: [HR & People]
+      summary: 회원 분류 목록(선생님·학생 유형) — 관리자/HR
+      parameters:
+        - { name: kind, in: query, schema: { type: string, enum: [teacher, student] } }
+      responses: { '200': { description: ok } }
+    post:
+      tags: [HR & People]
+      summary: 회원 분류 추가(본사 이상 L2) — 확장 가능
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, code, label]
+              properties:
+                kind: { type: string, enum: [teacher, student] }
+                code: { type: string }
+                label: { type: string }
+                sortOrder: { type: integer }
+      responses:
+        '201': { description: created }
+        '403': { $ref: '#/components/responses/Error' }
+  /admin/member-types/{id}:
+    delete:
+      tags: [HR & People]
+      summary: 회원 분류 비활성(본사 이상 L2)
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '200': { description: ok }, '403': { $ref: '#/components/responses/Error' } }
+  /admin/teachers/{id}/type:
+    patch:
+      tags: [HR & People]
+      summary: 선생님 분류 배정(관리자/HR)
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [typeCode], properties: { typeCode: { type: string } } }
+      responses: { '200': { description: ok } }
+  /admin/students/{id}/type:
+    patch:
+      tags: [HR & People]
+      summary: 학생 분류 배정(관리자/HR)
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [typeCode], properties: { typeCode: { type: string } } }
+      responses: { '200': { description: ok } }
   /hr/students:
     get:
       tags: [HR]

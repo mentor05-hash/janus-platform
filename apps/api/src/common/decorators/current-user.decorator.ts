@@ -7,6 +7,7 @@ export interface AuthUser {
   role: AccountRole;
   centerId: string | null;
   loginId: string;
+  permLevel?: string | null; // 관리자 권한레벨 L1/L2/L3 (§iam) — staff 만
 }
 
 /** 컨트롤러에서 현재 사용자 추출: foo(@CurrentUser() user: AuthUser) */

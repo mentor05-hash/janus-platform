@@ -3,6 +3,8 @@ import { NotificationModule } from '../notification/notification.module';
 import { GuardianController } from './guardian.controller';
 import { GuardianService } from './guardian.service';
 import { HrController } from './hr.controller';
+import { MemberTypeController } from './member-type.controller';
+import { MemberTypeService } from './member-type.service';
 import { PeopleService } from './people.service';
 import { TeachersController } from './teachers.controller';
 
@@ -12,8 +14,8 @@ import { TeachersController } from './teachers.controller';
  */
 @Module({
   imports: [NotificationModule],
-  controllers: [TeachersController, HrController, GuardianController],
-  providers: [PeopleService, GuardianService],
+  controllers: [TeachersController, HrController, GuardianController, MemberTypeController],
+  providers: [PeopleService, GuardianService, MemberTypeService],
   exports: [PeopleService, GuardianService],
 })
 export class PeopleModule {}

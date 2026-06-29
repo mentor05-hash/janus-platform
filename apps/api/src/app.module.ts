@@ -7,6 +7,7 @@ import { CacheModule } from './common/cache/cache.module';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
+import { PermLevelGuard } from './common/guards/perm-level.guard';
 import { RateLimitGuard } from './common/ratelimit/rate-limit.guard';
 import { HealthModule } from './health/health.module';
 
@@ -62,6 +63,7 @@ import { StorageModule } from './modules/storage/storage.module';
     { provide: APP_GUARD, useClass: RateLimitGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: PermLevelGuard },
   ],
 })
 export class AppModule {}

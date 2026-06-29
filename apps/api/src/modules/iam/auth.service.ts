@@ -13,6 +13,7 @@ import type { CacheProvider } from '../../common/cache/cache.types';
 import { Inject } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccountRole, AccountStatus } from '../../config/enums';
+import { permTier } from '../../config/perm';
 import { JwtPayload } from './strategies/jwt.strategy';
 import { LoginDto, SignupDto } from './dto/auth.dto';
 
@@ -97,15 +98,20 @@ export class AuthService {
       select: { id: true, role: true, center_id: true, login_id: true, name: true, status: true },
     });
     if (!account) throw new UnauthorizedException();
-    return account;
+    const staff = await this.prisma.staff_profile.findUnique({ where: { account_id: accountId }, select: { perm_level: true } });
+    const tier = permTier(staff?.perm_level);
+    return { ...account, permLevel: staff?.perm_level ?? null, adminTier: tier };
   }
 
   private async issueTokens(account: { id: string; role: string; center_id: string | null; login_id: string }) {
+    // 관리자/직원 권한레벨(L1/L2/L3) — staff_profile 에서 로드해 토큰에 포함(§iam).
+    const staff = await this.prisma.staff_profile.findUnique({ where: { account_id: account.id }, select: { perm_level: true } });
     const base = {
       sub: account.id,
       role: account.role as AccountRole,
       centerId: account.center_id,
       loginId: account.login_id,
+      permLevel: staff?.perm_level ?? null,
     };
     const accessToken = await this.jwt.signAsync(
       { ...base, typ: 'access' } satisfies JwtPayload,

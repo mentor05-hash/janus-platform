@@ -42,6 +42,7 @@ const ID = {
   acHr: '00000000-0000-4000-8000-0000000000a4',
   acGuardian: '00000000-0000-4000-8000-0000000000a5',
   acHq: '00000000-0000-4000-8000-0000000000a6',
+  acMaster: '00000000-0000-4000-8000-0000000000a7',
   planStd: '00000000-0000-4000-8000-0000000000b2',
   planPrem: '00000000-0000-4000-8000-0000000000b3',
   planVip: '00000000-0000-4000-8000-0000000000b4',
@@ -175,7 +176,8 @@ async function main() {
        ON CONFLICT (account_id) DO NOTHING`,
       [ID.acGuardian],
     );
-    // 본사(HQ) 슈퍼관리자 — admin + 센터 미소속(center_id NULL) + perm L3. 전사 정책·전역 권한.
+    // 관리자 계층(§iam): L1 마스터 / L2 본사 / L3 센터. 역할은 admin, perm_level 로 계층.
+    // 본사(HQ) — admin + 센터 미소속(center_id NULL) + L2.
     await client.query(
       `INSERT INTO account (id, role, center_id, login_id, pw_hash, name, status)
        VALUES ($1,'admin',NULL,'hq01',$2,'본사관리자','approved')
@@ -184,8 +186,20 @@ async function main() {
     );
     await client.query(
       `INSERT INTO staff_profile (account_id, staff_role, center_id, perm_level)
-       VALUES ($1,'본사',NULL,'L3') ON CONFLICT (account_id) DO NOTHING`,
+       VALUES ($1,'본사',NULL,'L2') ON CONFLICT (account_id) DO UPDATE SET perm_level='L2', center_id=NULL, staff_role='본사'`,
       [ID.acHq],
+    );
+    // 마스터 — 전역 최상위(L1).
+    await client.query(
+      `INSERT INTO account (id, role, center_id, login_id, pw_hash, name, status)
+       VALUES ($1,'admin',NULL,'master01',$2,'마스터관리자','approved')
+       ON CONFLICT (id) DO UPDATE SET pw_hash = EXCLUDED.pw_hash, center_id = NULL, status='approved'`,
+      [ID.acMaster, DUMMY_PW_HASH],
+    );
+    await client.query(
+      `INSERT INTO staff_profile (account_id, staff_role, center_id, perm_level)
+       VALUES ($1,'마스터',NULL,'L1') ON CONFLICT (account_id) DO UPDATE SET perm_level='L1', center_id=NULL, staff_role='마스터'`,
+      [ID.acMaster],
     );
     // 크레딧 계좌(학생) — 잔액 0
     await client.query(

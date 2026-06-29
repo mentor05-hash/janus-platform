@@ -12,6 +12,7 @@ export interface JwtPayload {
   loginId: string;
   typ: 'access' | 'refresh';
   jti?: string; // refresh 토큰 식별자 — 서버측 회전/무효화(§10)
+  permLevel?: string | null; // 관리자 권한레벨(§iam)
 }
 
 @Injectable()
@@ -33,6 +34,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       role: payload.role,
       centerId: payload.centerId,
       loginId: payload.loginId,
+      permLevel: payload.permLevel ?? null,
     };
   }
 }
