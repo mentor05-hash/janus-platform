@@ -6,7 +6,7 @@ import { IsIn, IsNotEmpty, IsOptional, IsString, validateSync } from 'class-vali
  * 미결정 단가/키는 IsOptional — 어댑터가 mock 일 때 비어 있어도 동작.
  */
 export class EnvironmentVariables {
-  @IsIn(['local', 'staging', 'prod'])
+  @IsIn(['local', 'staging', 'prod', 'test'])
   NODE_ENV!: string;
 
   @IsString()

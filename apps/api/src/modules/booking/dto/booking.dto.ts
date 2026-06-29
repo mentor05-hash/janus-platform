@@ -8,7 +8,7 @@ import {
   Matches,
   Min,
 } from 'class-validator';
-import { ConsultMode, ConsultType, SessionMode } from '../../../config/enums';
+import { CancelRoute, ConsultMode, ConsultType, SessionMode } from '../../../config/enums';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -69,4 +69,15 @@ export class BookingCreateDto {
   @IsOptional()
   @IsString()
   content?: string;
+}
+
+/** 취소 (POST /bookings/{id}/cancel). 선생님이 route 를 주면 사유 취소 4경로(§5-6). */
+export class CancelDto {
+  @IsOptional()
+  @IsString()
+  reason?: string;
+
+  @IsOptional()
+  @IsIn(['substitute', 'priority', 'admin_manual', 'rebook_notice'])
+  route?: CancelRoute;
 }

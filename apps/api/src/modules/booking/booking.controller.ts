@@ -11,11 +11,16 @@ import {
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { BookingService } from './booking.service';
-import { BookingCreateDto, QuoteDto } from './dto/booking.dto';
+import { CancellationService } from './cancellation.service';
+import { BookingCreateDto, CancelDto, QuoteDto } from './dto/booking.dto';
+import { AccountRole } from '../../config/enums';
 
 @Controller('bookings')
 export class BookingController {
-  constructor(private readonly booking: BookingService) {}
+  constructor(
+    private readonly booking: BookingService,
+    private readonly cancellation: CancellationService,
+  ) {}
 
   @Post('quote')
   @HttpCode(200)
@@ -61,9 +66,17 @@ export class BookingController {
     return this.booking.complete(id, user);
   }
 
+  /** 취소. 선생님이 route 를 주면 사유 취소 4경로(§5-6: 이벤트·알림·환원·슬롯해제). */
   @Post(':id/cancel')
   @HttpCode(200)
-  cancel(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  cancel(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+    @Body() dto: CancelDto,
+  ) {
+    if (user.role === AccountRole.TEACHER && dto?.route) {
+      return this.cancellation.teacherCancel(id, { reason: dto.reason, route: dto.route }, user);
+    }
     return this.booking.cancel(id, user);
   }
 
