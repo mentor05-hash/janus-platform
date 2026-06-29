@@ -3,6 +3,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { NotificationController } from './notification.controller';
 import { NotificationService } from './notification.service';
 import { NotificationOutboxService } from './notification-outbox.service';
+import { NotifyService } from './notify.service';
 import { OutboxNotificationProvider } from './providers/outbox-notification.provider';
 import { StubChannelGateway } from './providers/stub-channel-gateway';
 import { CHANNEL_GATEWAY, NOTIFICATION_PROVIDER } from './notification.types';
@@ -18,6 +19,7 @@ import type { ChannelGateway } from './notification.types';
   providers: [
     NotificationService,
     NotificationOutboxService,
+    NotifyService,
     { provide: CHANNEL_GATEWAY, useClass: StubChannelGateway },
     {
       provide: NOTIFICATION_PROVIDER,
@@ -26,6 +28,6 @@ import type { ChannelGateway } from './notification.types';
         new OutboxNotificationProvider(prisma, gateway),
     },
   ],
-  exports: [NOTIFICATION_PROVIDER],
+  exports: [NOTIFICATION_PROVIDER, NotifyService],
 })
 export class NotificationModule {}

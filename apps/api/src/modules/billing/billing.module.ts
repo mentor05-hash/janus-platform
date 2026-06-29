@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { NotificationModule } from '../notification/notification.module';
 import { BillingController } from './billing.controller';
 import { CreditService } from './credit.service';
 import { PaymentRequestController } from './payment-request.controller';
@@ -16,6 +17,7 @@ import { PG_PROVIDER } from './pg/pg.types';
  * PgProvider 어댑터는 ENV PG_PROVIDER 로 선택(mock 기본). booking 이 소비에 의존.
  */
 @Module({
+  imports: [NotificationModule],
   controllers: [BillingController, PaymentRequestController],
   providers: [
     CreditService,

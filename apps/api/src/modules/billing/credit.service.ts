@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreditTxnType } from '../../config/enums';
+import { NotifyService } from '../notification/notify.service';
 import { consumeCredits, GrantLot } from './domain/credit-consume';
 import { planRefund, SpendSplit } from './domain/credit-refund';
 
@@ -21,6 +22,7 @@ export class CreditService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly notify: NotifyService,
   ) {}
 
   async getAccount(studentId: string) {
@@ -222,7 +224,7 @@ export class CreditService {
     const guardianLink = await this.prisma.guardian_student_link.findFirst({
       where: { student_id: studentId, status: 'approved' },
     });
-    return this.prisma.payment_request.create({
+    const pr = await this.prisma.payment_request.create({
       data: {
         student_id: studentId,
         guardian_id: guardianLink?.guardian_id ?? null,
@@ -234,6 +236,13 @@ export class CreditService {
       },
       select: { id: true, needed_credits: true, status: true },
     });
+    // 충전(결제) 요청 → 보호자(없으면 학생 본인) 알림
+    await this.notify.notify(guardianLink?.guardian_id ?? studentId, 'payment_requested', {
+      requestId: pr.id,
+      studentId,
+      neededCredits,
+    });
+    return pr;
   }
 
   /** credit_account 행 잠금(§7 동시성). */

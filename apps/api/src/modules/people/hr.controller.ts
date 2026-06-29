@@ -12,6 +12,7 @@ import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccountStatus } from '../../config/enums';
+import { NotifyService } from '../notification/notify.service';
 
 /**
  * HR 등록/승인 (CLAUDE.md §3 people). L2/L3 권한.
@@ -20,7 +21,10 @@ import { AccountStatus } from '../../config/enums';
 @Controller('hr')
 @Roles('hr', 'admin')
 export class HrController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notify: NotifyService,
+  ) {}
 
   /** GET /hr/students — 자기 센터 학생 계정. */
   @Get('students')
@@ -40,10 +44,13 @@ export class HrController {
     if (user.centerId && target.center_id !== user.centerId) {
       throw new ForbiddenException('다른 센터의 학생은 승인할 수 없습니다.');
     }
-    return this.prisma.account.update({
+    const updated = await this.prisma.account.update({
       where: { id },
       data: { status: AccountStatus.APPROVED },
       select: { id: true, status: true },
     });
+    // 계정 승인 → 학생 알림(활성화 안내)
+    await this.notify.notify(id, 'account_approved', {});
+    return updated;
   }
 }

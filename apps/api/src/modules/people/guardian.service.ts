@@ -7,6 +7,7 @@ import {
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccountRole } from '../../config/enums';
+import { NotifyService } from '../notification/notify.service';
 import { canLinkTransition, GuardianLinkStatus } from './domain/guardian-link';
 import { GuardianLinkRequestDto, GuardianLinkRespondDto } from './dto/guardian.dto';
 
@@ -16,7 +17,10 @@ import { GuardianLinkRequestDto, GuardianLinkRespondDto } from './dto/guardian.d
  */
 @Injectable()
 export class GuardianService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notify: NotifyService,
+  ) {}
 
   /** 보호자가 자녀 연결 신청(학생 로그인ID 기준). */
   async requestLink(guardian: AuthUser, dto: GuardianLinkRequestDto) {
@@ -39,7 +43,7 @@ export class GuardianService {
     if (existing) {
       throw new BadRequestException(`이미 연결 신청이 존재합니다(status=${existing.status}).`);
     }
-    return this.prisma.guardian_student_link.create({
+    const link = await this.prisma.guardian_student_link.create({
       data: {
         guardian_id: guardian.id,
         student_id: studentAccount.id,
@@ -49,6 +53,9 @@ export class GuardianService {
       },
       select: { id: true, student_id: true, status: true },
     });
+    // 보호자 연결 신청 → 학생에게 승인 요청 알림
+    await this.notify.notify(studentAccount.id, 'guardian_link_requested', { linkId: link.id, guardianId: guardian.id });
+    return link;
   }
 
   /** 보호자의 승인된 자녀 목록(대시보드). */
@@ -90,6 +97,8 @@ export class GuardianService {
       data: { status: to },
       select: { id: true, status: true },
     });
+    // 연결 신청 응답 → 신청한 보호자에게 알림(승인/거절/해제)
+    await this.notify.notify(link.guardian_id, 'guardian_link_responded', { linkId, status: to, studentId: link.student_id });
     return updated;
   }
 }

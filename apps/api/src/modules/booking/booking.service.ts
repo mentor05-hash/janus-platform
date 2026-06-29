@@ -28,6 +28,7 @@ import { evaluatePenalty } from '../pricing-policy/domain/penalty';
 import { PricingService } from '../pricing-policy/pricing.service';
 import { AdminPolicyService } from '../pricing-policy/admin-policy.service';
 import { BlockService } from '../report/block.service';
+import { NotifyService } from '../notification/notify.service';
 import { ZOOM_PROVIDER } from '../zoom/zoom.types';
 import type { ZoomProvider } from '../zoom/zoom.types';
 import { BookingCreateDto, QuoteDto, ReverseProposeDto } from './dto/booking.dto';
@@ -44,6 +45,7 @@ export class BookingService {
     private readonly blocks: BlockService,
     private readonly adminPolicy: AdminPolicyService,
     @Inject(ZOOM_PROVIDER) private readonly zoom: ZoomProvider,
+    private readonly notify: NotifyService,
   ) {}
 
   private readonly logger = new Logger(BookingService.name);
@@ -182,6 +184,8 @@ export class BookingService {
         });
         return b;
       });
+      // 상담 신청 들어옴 → 선생님 알림
+      await this.notify.notify(dto.teacherId, 'booking_requested', { bookingId: booking.id, studentId, date: dto.date });
       return this.toBookingDto(booking);
     } catch (e) {
       if (e instanceof ShortfallError) {
@@ -284,6 +288,8 @@ export class BookingService {
         });
         return b;
       });
+      // 역상담 제안 → 학생 알림
+      await this.notify.notify(dto.studentId, 'reverse_proposed', { bookingId: booking.id, teacherId: user.id, date: dto.date });
       return this.toBookingDto(booking);
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
@@ -310,6 +316,8 @@ export class BookingService {
         await tx.booking.update({ where: { id }, data: { status: BookingStatus.REJECTED } });
         await tx.time_slot.deleteMany({ where: { booking_id: id } });
       });
+      // 역상담 거절 → 제안한 선생님 알림
+      await this.notify.notify(b.teacher_id, 'reverse_rejected', { bookingId: id, studentId: user.id });
       return { id, status: BookingStatus.REJECTED };
     }
 
@@ -326,6 +334,8 @@ export class BookingService {
         await tx.booking.update({ where: { id }, data: { status: BookingStatus.CONFIRMED } });
       });
       await this.issueMeetingUrlIfZoom(id); // §9·§10 zoom 입장 URL
+      // 역상담 수락 → 제안한 선생님 알림
+      await this.notify.notify(b.teacher_id, 'reverse_accepted', { bookingId: id, studentId: user.id });
       return { id, status: BookingStatus.CONFIRMED, chargedCredits: credits };
     } catch (e) {
       if (e instanceof ShortfallError) {
@@ -441,6 +451,10 @@ export class BookingService {
     });
     if (!applied) throw new ConflictException('이미 처리된 예약입니다.');
     if (to === BookingStatus.CONFIRMED) await this.issueMeetingUrlIfZoom(id); // §9·§10 zoom 입장 URL
+    // 상태 변화 → 학생 알림(승인/거절/노쇼). 학생 본인 취소는 알림 생략.
+    if (to === BookingStatus.CONFIRMED) await this.notify.notify(b.student_id, 'booking_confirmed', { bookingId: id });
+    else if (to === BookingStatus.REJECTED) await this.notify.notify(b.student_id, 'booking_rejected', { bookingId: id });
+    else if (to === BookingStatus.NOSHOW) await this.notify.notify(b.student_id, 'booking_noshow', { bookingId: id });
     return { id, status: to, refunded: refund ? b.charged_credits : 0 };
   }
 

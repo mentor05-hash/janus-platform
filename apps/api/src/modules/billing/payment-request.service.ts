@@ -8,6 +8,7 @@ import {
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccountRole } from '../../config/enums';
+import { NotifyService } from '../notification/notify.service';
 import { CreditService } from './credit.service';
 import { canPayRequest, resolveCreatePath } from './domain/payment-request';
 import { CreatePaymentRequestDto, RespondPaymentRequestDto } from './dto/payment-request.dto';
@@ -21,6 +22,7 @@ export class PaymentRequestService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly credit: CreditService,
+    private readonly notify: NotifyService,
   ) {}
 
   /** 결제요청 생성. 경로는 호출자 역할로 결정. */
@@ -52,6 +54,11 @@ export class PaymentRequestService {
       },
       select: { id: true, student_id: true, needed_credits: true, status: true, origin: true },
     });
+    // 학생 직접 충전 신청 → 연결된 보호자에게 알림(보호자 반응 유도)
+    if (path === 'student_self') {
+      const link = await this.prisma.guardian_student_link.findFirst({ where: { student_id: studentId, status: 'approved' } });
+      await this.notify.notify(link?.guardian_id, 'payment_requested', { requestId: req.id, studentId, neededCredits: dto.neededCredits });
+    }
     return { ...req, path };
   }
 
@@ -110,6 +117,8 @@ export class PaymentRequestService {
         data: { status: 'rejected' },
       });
       if (upd.count !== 1) throw new ConflictException('이미 처리된 결제요청입니다.');
+      // 결제요청 거절 → 학생 알림
+      await this.notify.notify(req.student_id, 'payment_responded', { requestId: id, status: 'rejected' });
       return { id, status: 'rejected' };
     }
 
@@ -123,6 +132,8 @@ export class PaymentRequestService {
       if (upd.count !== 1) throw new ConflictException('이미 처리된 결제요청입니다.');
       await this.credit.chargeWithin(tx, req.student_id, req.needed_credits);
     });
+    // 결제 완료(보호자 대납 등) → 학생 알림(충전됨)
+    await this.notify.notify(req.student_id, 'payment_responded', { requestId: id, status: 'done', chargedCredits: req.needed_credits });
     return { id, status: 'done', chargedCredits: req.needed_credits };
   }
 
