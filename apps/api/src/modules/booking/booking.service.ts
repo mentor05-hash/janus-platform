@@ -56,7 +56,7 @@ export class BookingService {
       dto.slotEnd * SLOT_GRANULARITY_MINUTES,
       studentId,
     );
-    const q = await this.pricing.quoteSession(dto.mode, minutes, teacher.grade as TeacherGrade);
+    const q = await this.pricing.quoteSession(dto.mode, minutes, teacher.grade as TeacherGrade, teacher.center_id);
     return {
       minutes,
       credits: q.credits,
@@ -90,7 +90,7 @@ export class BookingService {
       throw new ConflictException('선택한 시간은 예약할 수 없습니다(휴게/근무/체류 위반).');
     }
 
-    const q = await this.pricing.quoteSession(dto.mode, minutes, teacher.grade as TeacherGrade);
+    const q = await this.pricing.quoteSession(dto.mode, minutes, teacher.grade as TeacherGrade, teacher.center_id);
     const credits = q.credits;
     const startAt = utcFromKst(dto.date, startMin);
     const endAt = utcFromKst(dto.date, endMin);
@@ -200,7 +200,7 @@ export class BookingService {
     const bookable = await this.availability.assertBookable(user.id, dto.date, startMin, endMin, dto.studentId);
     if (!bookable) throw new ConflictException('제안하려는 시간은 예약할 수 없습니다(휴게/근무 위반).');
 
-    const q = await this.pricing.quoteSession(dto.mode, minutes, teacher.grade as TeacherGrade);
+    const q = await this.pricing.quoteSession(dto.mode, minutes, teacher.grade as TeacherGrade, teacher.center_id);
     const startAt = utcFromKst(dto.date, startMin);
     const endAt = utcFromKst(dto.date, endMin);
 
@@ -337,6 +337,9 @@ export class BookingService {
       throw new ForbiddenException('본인 예약이 아닙니다.');
     if (user.role === AccountRole.TEACHER && b.teacher_id !== user.id)
       throw new ForbiddenException('본인 예약이 아닙니다.');
+    // 관리자는 자기 센터 예약만(타 센터 무단 조작 방지, S4)
+    if (user.role === AccountRole.ADMIN && b.center_id && user.centerId && b.center_id !== user.centerId)
+      throw new ForbiddenException('다른 센터의 예약은 처리할 수 없습니다.');
 
     const from = b.status as BookingStatus;
     if (!canTransition(from, to)) {

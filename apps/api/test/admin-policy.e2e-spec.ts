@@ -37,10 +37,14 @@ describe('2.4a 관리자 정책(요금·한도·기능토글) 통합', () => {
     await app.close();
   });
 
-  it('요금 변경이 quote 에 즉시 반영', async () => {
+  it('요금 변경이 quote 에 즉시 반영(센터 override)', async () => {
     await policy.updatePricing({ mode: 'hand' as any, perHour: 40_000 }, admin);
-    const q = await pricing.quoteSession('hand' as any, 30, 'A' as any);
+    // 센터 스코프: 해당 센터 컨텍스트로 견적해야 override 반영
+    const q = await pricing.quoteSession('hand' as any, 30, 'A' as any, CENTER);
     expect(q.credits).toBe(20_000); // round(40000×30/60)
+    // 다른 센터(없음)/전사 fallback 은 기본 단가 유지
+    const base = await pricing.quoteSession('hand' as any, 30, 'A' as any, null);
+    expect(base.credits).toBe(18_000); // 전사 기본 36000 → 18000
   });
 
   it('기능 토글: 전사 우선 — 전사 닫힘이 센터 열림을 덮음', async () => {

@@ -19,8 +19,8 @@ export class AdminPolicyController {
   constructor(private readonly policy: AdminPolicyService) {}
 
   @Get('pricing')
-  getPricing() {
-    return this.policy.getPricing();
+  getPricing(@CurrentUser() user: AuthUser) {
+    return this.policy.getPricing(user);
   }
 
   @Put('pricing')

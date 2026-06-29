@@ -25,27 +25,39 @@ export interface BoardQuote {
 export class PricingService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** 시간제 세션(zoom/chat/hand/offline) 요금. S급은 정책 할증율 적용. */
-  async quoteSession(mode: ConsultMode, minutes: number, grade: TeacherGrade): Promise<SessionQuote> {
+  /** 시간제 세션(zoom/chat/hand/offline) 요금. 센터 정책 우선·전사 fallback. S급은 할증율 적용. */
+  async quoteSession(
+    mode: ConsultMode,
+    minutes: number,
+    grade: TeacherGrade,
+    centerId?: string | null,
+  ): Promise<SessionQuote> {
     if (minutes <= 0) throw new BadRequestException('상담 시간이 올바르지 않습니다.');
-    const policy = await this.getPolicy(mode);
+    const policy = await this.getPolicy(mode, centerId);
     const surchargePct = grade === TeacherGrade.S ? policy.surcharge_pct : 0;
     const credits = computeSessionCost(policy.per_hour, minutes, surchargePct);
     return { mode, minutes, perHour: policy.per_hour, surchargePct, credits };
   }
 
   /** 게시판 건당 요금(문항 ≥ 일반). */
-  async quoteBoard(qType: 'item' | 'general'): Promise<BoardQuote> {
-    const policy = await this.getPolicy('board' as ConsultMode);
+  async quoteBoard(qType: 'item' | 'general', centerId?: string | null): Promise<BoardQuote> {
+    const policy = await this.getPolicy('board' as ConsultMode, centerId);
     const credits = (qType === 'item' ? policy.board_item_fee : policy.board_general_fee) ?? 0;
     return { mode: 'board', qType, credits };
   }
 
-  private async getPolicy(mode: ConsultMode) {
-    const policy = await this.prisma.pricing_policy.findFirst({
+  /** 센터 전용 정책(center_id=centerId) 우선, 없으면 전사 기본(center_id=null). */
+  private async getPolicy(mode: ConsultMode, centerId?: string | null) {
+    if (centerId) {
+      const centerPolicy = await this.prisma.pricing_policy.findFirst({
+        where: { center_id: centerId, mode: mode as never, enabled: true },
+      });
+      if (centerPolicy) return centerPolicy;
+    }
+    const base = await this.prisma.pricing_policy.findFirst({
       where: { center_id: null, mode: mode as never, enabled: true },
     });
-    if (!policy) throw new NotFoundException(`요금정책(${mode})이 설정되어 있지 않습니다.`);
-    return policy;
+    if (!base) throw new NotFoundException(`요금정책(${mode})이 설정되어 있지 않습니다.`);
+    return base;
   }
 }

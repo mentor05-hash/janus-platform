@@ -63,6 +63,31 @@ paths:
             schema: { $ref: '#/components/schemas/SignupInput' }
       responses:
         '201': { description: 가입 신청됨(status=pending) }
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      security: []
+      summary: 토큰 갱신(refresh → access/refresh 재발급)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        '200':
+          description: 재발급
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken: { type: string }
+                  refreshToken: { type: string }
+        '401': { $ref: '#/components/responses/Error' }
   /me:
     get:
       tags: [Auth]

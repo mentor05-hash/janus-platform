@@ -74,7 +74,19 @@ export class PaymentRequestService {
         orderBy: { created_at: 'desc' },
       });
     }
-    // admin/hr: 전체(운영). 센터 스코프는 추후.
+    // admin/hr: 자기 센터 학생의 결제요청만(S4). centerId 없으면(HQ) 전체.
+    if (actor.centerId) {
+      const centerStudents = await this.prisma.student_profile.findMany({
+        where: { center_id: actor.centerId },
+        select: { account_id: true },
+      });
+      const ids = centerStudents.map((s) => s.account_id);
+      return this.prisma.payment_request.findMany({
+        where: { student_id: { in: ids } },
+        orderBy: { created_at: 'desc' },
+        take: 200,
+      });
+    }
     return this.prisma.payment_request.findMany({ orderBy: { created_at: 'desc' }, take: 200 });
   }
 

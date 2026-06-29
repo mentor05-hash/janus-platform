@@ -20,14 +20,20 @@ import {
 export class AdminPolicyService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // ── 요금(전사 기본 center_id NULL) ──
-  getPricing() {
-    return this.prisma.pricing_policy.findMany({ where: { center_id: null }, orderBy: { mode: 'asc' } });
+  // ── 요금: 전사 기본(center_id NULL) + 센터 override(center_id=actor.center) ──
+  // 일반 센터 관리자는 전사 기본을 덮어쓰지 않고 자기 센터 행만 편집한다(S3).
+  async getPricing(actor: AuthUser) {
+    const centerId = this.requireCenter(actor);
+    return this.prisma.pricing_policy.findMany({
+      where: { OR: [{ center_id: null }, { center_id: centerId }] },
+      orderBy: [{ center_id: 'asc' }, { mode: 'asc' }],
+    });
   }
 
   async updatePricing(dto: UpdatePricingDto, actor: AuthUser) {
+    const centerId = this.requireCenter(actor);
     const existing = await this.prisma.pricing_policy.findFirst({
-      where: { center_id: null, mode: dto.mode as never },
+      where: { center_id: centerId, mode: dto.mode as never },
     });
     // 문항 ≥ 일반 검증(DB CHECK 와 정합)
     const item = dto.boardItemFee ?? existing?.board_item_fee ?? null;
@@ -48,7 +54,7 @@ export class AdminPolicyService {
     };
     return existing
       ? this.prisma.pricing_policy.update({ where: { id: existing.id }, data })
-      : this.prisma.pricing_policy.create({ data: { center_id: null, mode: dto.mode as never, paid: true, ...data } });
+      : this.prisma.pricing_policy.create({ data: { center_id: centerId, mode: dto.mode as never, paid: true, ...data } });
   }
 
   // ── 한도(센터) ──
