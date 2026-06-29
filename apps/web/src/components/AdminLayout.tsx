@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { isHq } from '../auth/roleHome';
 
 const navStyle = ({ isActive }: { isActive: boolean }) => ({
   padding: '8px 4px',
@@ -12,6 +13,8 @@ const navStyle = ({ isActive }: { isActive: boolean }) => ({
 
 export function AdminLayout() {
   const { user, logout } = useAuth();
+  const hq = isHq(user);
+  const scopeLabel = hq ? '본사 (전사)' : user?.role === 'hr' ? 'HR' : '센터 관리자';
   return (
     <div>
       <header
@@ -20,11 +23,25 @@ export function AdminLayout() {
           alignItems: 'center',
           justifyContent: 'space-between',
           padding: '12px 24px',
-          background: 'var(--ink)',
+          background: hq ? '#0b3a4d' : 'var(--ink)',
           color: '#fff',
         }}
       >
-        <strong>잇올 멘토링 · 관리자</strong>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <strong>잇올 멘토링 · {hq ? '본사' : '관리자'}</strong>
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              padding: '2px 8px',
+              borderRadius: 999,
+              background: hq ? '#d4af37' : '#3a4a52',
+              color: hq ? '#16242b' : '#cfe3ec',
+            }}
+          >
+            {scopeLabel}
+          </span>
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 14 }}>
           <span>
             {user?.name} ({user?.role})
@@ -46,9 +63,12 @@ export function AdminLayout() {
             <NavLink to="/admin/policy" style={navStyle}>
               정책 편집
             </NavLink>
-            <NavLink to="/admin/infra" style={navStyle}>
-              줌·상담실·차단
-            </NavLink>
+            {/* 줌·상담실·차단은 센터 단위 — 본사(HQ)에는 숨김 */}
+            {!hq && (
+              <NavLink to="/admin/infra" style={navStyle}>
+                줌·상담실·차단
+              </NavLink>
+            )}
             <NavLink to="/admin/reports" style={navStyle}>
               신고
             </NavLink>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { isHq } from '../auth/roleHome';
 import type { FeatureRule, LimitPolicy, PenaltyPolicy, PricingPolicy } from '../api/types';
 
 const MODES = ['board', 'chat', 'zoom', 'hand', 'offline'];
@@ -9,6 +10,7 @@ type Row = { perHour: number; surchargePct: number; enabled: boolean };
 export function AdminPolicyPage() {
   const { user } = useAuth();
   const myCenter = user!.center_id;
+  const hq = isHq(user);
   const [rows, setRows] = useState<Record<string, Row>>({});
   const [limits, setLimits] = useState<Partial<LimitPolicy>>({});
   const [penalty, setPenalty] = useState<Partial<PenaltyPolicy>>({});
@@ -48,7 +50,7 @@ export function AdminPolicyPage() {
     const r = rows[mode];
     try {
       await api.put('/admin/pricing', { mode, perHour: r.perHour, surchargePct: r.surchargePct, enabled: r.enabled });
-      setMsg(`${mode} 요금 저장됨(센터 적용).`);
+      setMsg(`${mode} 요금 저장됨(${hq ? '전사' : '센터'} 적용).`);
       await load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : '저장 실패');
@@ -105,7 +107,7 @@ export function AdminPolicyPage() {
   return (
     <div style={{ display: 'grid', gap: 20 }}>
       <section>
-        <h2 style={{ color: 'var(--teal)' }}>요금 정책 (센터 적용)</h2>
+        <h2 style={{ color: 'var(--teal)' }}>요금 정책 ({hq ? '전사 기본' : '센터 적용'})</h2>
         {error && <p className="error">{error}</p>}
         {msg && <p style={{ color: 'var(--chip-done)', fontSize: 13 }}>{msg}</p>}
         <div style={{ display: 'grid', gap: 8 }}>
@@ -147,6 +149,7 @@ export function AdminPolicyPage() {
         </div>
       </section>
 
+      {!hq && (
       <section className="card">
         <h3 style={{ marginTop: 0 }}>한도 정책 (§5-9 축소 시 기존 동결·신규만 차단)</h3>
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
@@ -175,7 +178,9 @@ export function AdminPolicyPage() {
           한도 저장
         </button>
       </section>
+      )}
 
+      {!hq && (
       <section className="card">
         <h3 style={{ marginTop: 0 }}>가중 제한 임계 (§5-7, 빈칸=미설정)</h3>
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
@@ -203,6 +208,7 @@ export function AdminPolicyPage() {
           가중 제한 저장
         </button>
       </section>
+      )}
 
       <section className="card">
         <h3 style={{ marginTop: 0 }}>기능 열기/닫기 (전사 강제 + 센터 자율, 충돌 시 전사 우선)</h3>
