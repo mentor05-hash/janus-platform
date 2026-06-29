@@ -1,0 +1,77 @@
+import { INestApplication } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import { AppModule } from '../src/app.module';
+import { PrismaService } from '../src/common/prisma/prisma.service';
+import { QnaService } from '../src/modules/qna/qna.service';
+import { CreditService } from '../src/modules/billing/credit.service';
+
+/**
+ * 3.1 DoD 통합테스트 (실 DB):
+ *  - 질문 등록(건당 과금) → 교사 답변 → 학생 채택(pay_eligible).
+ *  - §5-9: 학생이 unfit 으로 분류한 교사는 공개 질문 답변 불가.
+ */
+const CENTER = '00000000-0000-4000-8000-0000000000c1';
+const TEACHER = '00000000-0000-4000-8000-0000000000a2';
+const STU_Q = '00000000-0000-4000-8000-0000000000e8';
+
+const teacherUser: any = { id: TEACHER, role: 'teacher', centerId: CENTER, loginId: 'teacher01' };
+const studentUser: any = { id: STU_Q, role: 'student', centerId: CENTER, loginId: 'qna_s' };
+
+describe('3.1 온라인 Q&A 통합', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+  let qna: QnaService;
+  let credit: CreditService;
+
+  async function cleanup() {
+    await prisma.qna_post.deleteMany({ where: { student_id: STU_Q } }); // cascade answers
+    await prisma.teacher_list_entry.deleteMany({ where: { student_id: STU_Q } });
+    await prisma.account.deleteMany({ where: { id: STU_Q } });
+  }
+
+  beforeAll(async () => {
+    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    app = mod.createNestApplication();
+    await app.init();
+    prisma = mod.get(PrismaService);
+    qna = mod.get(QnaService);
+    credit = mod.get(CreditService);
+    await cleanup();
+    await prisma.account.create({
+      data: { id: STU_Q, role: 'student' as any, center_id: CENTER, login_id: 'qna_s', pw_hash: 'x', name: 'q', status: 'approved' as any },
+    });
+    await prisma.student_profile.create({ data: { account_id: STU_Q, center_id: CENTER } });
+    await prisma.credit_account.create({ data: { student_id: STU_Q, purchased_balance: 0, granted_balance: 0 } });
+    await credit.charge(STU_Q, 20_000);
+  });
+
+  afterAll(async () => {
+    await cleanup();
+    await app.close();
+  });
+
+  it('질문 등록(건당 과금) → 답변 → 채택(pay_eligible)', async () => {
+    const before = await credit.getAccount(STU_Q);
+    const post: any = await qna.createQuestion(studentUser, { scope: 'open', body: '미적분 질문', qType: 'general' });
+    expect(post.chargedCredits).toBe(4_000); // 시드 board_general_fee
+    const after = await credit.getAccount(STU_Q);
+    expect(after.total).toBe(before.total - 4_000);
+
+    const ans: any = await qna.answer(post.id, { body: '답변입니다' }, teacherUser);
+    const res: any = await qna.acceptAnswer(ans.id, studentUser);
+    expect(res.payEligible).toBe(true);
+
+    const saved = await prisma.qna_answer.findUnique({ where: { id: ans.id } });
+    expect(saved!.pay_eligible).toBe(true);
+    const p = await prisma.qna_post.findUnique({ where: { id: post.id } });
+    expect(p!.status).toBe('resolved');
+  });
+
+  it('§5-9: unfit 분류 교사는 공개 질문 답변 불가', async () => {
+    await prisma.teacher_list_entry.create({
+      data: { student_id: STU_Q, teacher_id: TEACHER, list_kind: 'unfit' as any },
+    });
+    const post: any = await qna.createQuestion(studentUser, { scope: 'open', body: '두번째 질문' });
+    await expect(qna.answer(post.id, { body: 'x' }, teacherUser)).rejects.toThrow();
+  });
+});

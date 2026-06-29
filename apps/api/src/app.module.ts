@@ -22,6 +22,7 @@ import { EvaluationModule } from './modules/evaluation/evaluation.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
 import { OpsModule } from './modules/ops/ops.module';
 import { NotificationModule } from './modules/notification/notification.module';
+import { QnaModule } from './modules/qna/qna.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { NotificationModule } from './modules/notification/notification.module';
     PayrollModule,
     OpsModule,
     NotificationModule,
+    QnaModule,
   ],
   providers: [
     // 전역 인증·인가 (CLAUDE.md §7). @Public() 은 통과, @Roles() 로 역할 제한.

@@ -22,6 +22,7 @@ tags:
   - name: Classification & Review
   - name: Admin Policy
   - name: Payroll & Notification
+  - name: Online Q&A
 
 paths:
   /auth/login:
@@ -724,6 +725,53 @@ paths:
     get:
       tags: [Payroll & Notification]
       summary: 알림 목록(앱)
+      responses: { '200': { description: ok } }
+
+  /qna/posts:
+    get:
+      tags: [Online Q&A]
+      summary: Q&A 질문 목록(역할별)
+      responses: { '200': { description: ok } }
+    post:
+      tags: [Online Q&A]
+      summary: Q&A 질문 등록(학생, 건당 과금 §5-2)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scope, body]
+              properties:
+                scope: { type: string, enum: [open, assigned] }
+                assignedTeacherId: { type: string, format: uuid }
+                subject: { type: string }
+                difficulty: { type: string }
+                body: { type: string }
+                qType: { type: string, enum: [item, general] }
+      responses:
+        '201': { description: created }
+        '402': { description: 크레딧 부족 → 결제요청 }
+  /qna/posts/{id}/answers:
+    post:
+      tags: [Online Q&A]
+      summary: Q&A 답변(교사, §5-9 unfit 차단·지정 전용)
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string }
+      responses: { '201': { description: created } }
+  /qna/answers/{id}/accept:
+    patch:
+      tags: [Online Q&A]
+      summary: Q&A 답변 채택(질문 학생) — 급여 적격(pay_eligible)
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
       responses: { '200': { description: ok } }
 
 components:
