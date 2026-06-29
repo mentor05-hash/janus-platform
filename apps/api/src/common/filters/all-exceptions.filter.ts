@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { getRequestId } from '../observability/request-context';
 
 /**
  * 표준 오류 응답 형식 (CLAUDE.md §7): { error: { code, message } }.
@@ -40,10 +41,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
       this.logger.error(exception.message, exception.stack);
     }
 
+    const requestId = getRequestId();
     if (status >= 500) {
-      this.logger.error(`${req.method} ${req.url} → ${status} ${code}`);
+      this.logger.error(`${req.method} ${req.url} → ${status} ${code} rid=${requestId}`);
     }
 
-    res.status(status).json({ error: { code, message } });
+    res.status(status).json({ error: { code, message, requestId } });
   }
 }
