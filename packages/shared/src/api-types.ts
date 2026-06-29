@@ -2379,7 +2379,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 관리자 공지 알림 — 대상 역할별 일괄 발송(센터관리자/본사) */
+        /**
+         * 관리자 공지 — 즉시/예약 발송, 템플릿 사용(센터관리자/본사)
+         * @description scheduledAt 지정 시 예약 등록, templateId 지정 시 템플릿 내용으로 채움.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -2390,9 +2393,19 @@ export interface paths {
             requestBody: {
                 content: {
                     "application/json": {
-                        targets: ("teacher" | "student" | "guardian")[];
-                        title: string;
-                        body: string;
+                        targets?: ("teacher" | "student" | "guardian")[];
+                        title?: string;
+                        body?: string;
+                        /**
+                         * Format: uuid
+                         * @description 저장된 템플릿으로 내용 채우기
+                         */
+                        templateId?: string;
+                        /**
+                         * Format: date-time
+                         * @description 예약 발송 시각(미지정=즉시)
+                         */
+                        scheduledAt?: string;
                         /**
                          * Format: uuid
                          * @description HQ 전용 — 특정 센터 한정
@@ -2403,25 +2416,188 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description sent */
+                /** @description sent or scheduled */
                 201: {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": {
-                            data?: {
-                                sent?: number;
-                                byTarget?: Record<string, never>;
-                                scope?: string;
-                            };
-                        };
-                    };
+                    content?: never;
                 };
+                400: components["responses"]["Error"];
                 403: components["responses"]["Error"];
             };
         };
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/announcements/scheduled": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 예약 공지 목록(발송 대기) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ok */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/announcements/scheduled/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 예약 공지 취소(발송 전) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description cancelled */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                400: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/announcement-templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 공지 템플릿 목록(본사 공용 + 자기 센터) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ok */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /** 공지 템플릿 저장 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name: string;
+                        targets: ("teacher" | "student" | "guardian")[];
+                        title: string;
+                        body: string;
+                        channels?: ("app" | "sms" | "kakao")[];
+                    };
+                };
+            };
+            responses: {
+                /** @description created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/announcement-templates/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 공지 템플릿 삭제 */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description deleted */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                403: components["responses"]["Error"];
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;

@@ -765,38 +765,76 @@ paths:
   /admin/announcements:
     post:
       tags: [Payroll & Notification]
-      summary: 관리자 공지 알림 — 대상 역할별 일괄 발송(센터관리자/본사)
+      summary: 관리자 공지 — 즉시/예약 발송, 템플릿 사용(센터관리자/본사)
+      description: scheduledAt 지정 시 예약 등록, templateId 지정 시 템플릿 내용으로 채움.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [targets, title, body]
               properties:
                 targets:
                   type: array
                   items: { type: string, enum: [teacher, student, guardian] }
                 title: { type: string }
                 body: { type: string }
+                templateId: { type: string, format: uuid, description: '저장된 템플릿으로 내용 채우기' }
+                scheduledAt: { type: string, format: date-time, description: '예약 발송 시각(미지정=즉시)' }
                 centerId: { type: string, format: uuid, description: 'HQ 전용 — 특정 센터 한정' }
                 channels:
                   type: array
                   items: { type: string, enum: [app, sms, kakao] }
       responses:
-        '201':
-          description: sent
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: object
-                    properties:
-                      sent: { type: integer }
-                      byTarget: { type: object }
-                      scope: { type: string }
+        '201': { description: sent or scheduled }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /admin/announcements/scheduled:
+    get:
+      tags: [Payroll & Notification]
+      summary: 예약 공지 목록(발송 대기)
+      responses: { '200': { description: ok } }
+  /admin/announcements/scheduled/{id}/cancel:
+    post:
+      tags: [Payroll & Notification]
+      summary: 예약 공지 취소(발송 전)
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200': { description: cancelled }
+        '400': { $ref: '#/components/responses/Error' }
+  /admin/announcement-templates:
+    post:
+      tags: [Payroll & Notification]
+      summary: 공지 템플릿 저장
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, targets, title, body]
+              properties:
+                name: { type: string }
+                targets:
+                  type: array
+                  items: { type: string, enum: [teacher, student, guardian] }
+                title: { type: string }
+                body: { type: string }
+                channels:
+                  type: array
+                  items: { type: string, enum: [app, sms, kakao] }
+      responses: { '201': { description: created } }
+    get:
+      tags: [Payroll & Notification]
+      summary: 공지 템플릿 목록(본사 공용 + 자기 센터)
+      responses: { '200': { description: ok } }
+  /admin/announcement-templates/{id}:
+    delete:
+      tags: [Payroll & Notification]
+      summary: 공지 템플릿 삭제
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses:
+        '200': { description: deleted }
         '403': { $ref: '#/components/responses/Error' }
   /notifications:
     get:
