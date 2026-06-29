@@ -20,7 +20,8 @@ export class QuoteDto {
   @Matches(DATE_RE, { message: 'date 는 YYYY-MM-DD 형식이어야 합니다.' })
   date!: string;
 
-  @IsIn(['board', 'chat', 'zoom', 'hand', 'offline'])
+  // board(게시판)는 시간 슬롯 세션이 아니라 건당 과금 → /qna 경로 전용(§5-2). 예약 방식에서 제외.
+  @IsIn(['chat', 'zoom', 'hand', 'offline'])
   mode!: ConsultMode;
 
   // 입시 유료컨설팅 등 유형별 가산 단가 견적 반영(선택). 미지정 시 기본 시간제 요금.
@@ -54,7 +55,8 @@ export class BookingCreateDto {
   @IsString()
   subType?: string;
 
-  @IsIn(['board', 'chat', 'zoom', 'hand', 'offline'])
+  // board(게시판)는 시간 슬롯 세션이 아니라 건당 과금 → /qna 경로 전용(§5-2). 예약 방식에서 제외.
+  @IsIn(['chat', 'zoom', 'hand', 'offline'])
   mode!: ConsultMode;
 
   @IsOptional()
@@ -98,7 +100,8 @@ export class ReverseProposeDto {
   @IsIn(['담임', '교과', '입시', '심리'])
   consultType!: ConsultType;
 
-  @IsIn(['board', 'chat', 'zoom', 'hand', 'offline'])
+  // board(게시판)는 시간 슬롯 세션이 아니라 건당 과금 → /qna 경로 전용(§5-2). 예약 방식에서 제외.
+  @IsIn(['chat', 'zoom', 'hand', 'offline'])
   mode!: ConsultMode;
 
   @Type(() => Number)
