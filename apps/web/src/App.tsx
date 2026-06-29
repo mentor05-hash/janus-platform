@@ -4,6 +4,9 @@ import { AppLayout } from './components/AppLayout';
 import { LoginPage } from './pages/LoginPage';
 import { TeacherBookingsPage } from './pages/TeacherBookingsPage';
 import { NotePage } from './pages/NotePage';
+import { SchedulePage } from './pages/SchedulePage';
+import { PayrollPage } from './pages/PayrollPage';
+import { ReverseProposePage } from './pages/ReverseProposePage';
 
 function Protected({ children }: { children: JSX.Element }) {
   const { user, loading } = useAuth();
@@ -27,6 +30,9 @@ export function App() {
         <Route index element={<Navigate to="bookings" replace />} />
         <Route path="bookings" element={<TeacherBookingsPage />} />
         <Route path="bookings/:id/note" element={<NotePage />} />
+        <Route path="schedule" element={<SchedulePage />} />
+        <Route path="reverse" element={<ReverseProposePage />} />
+        <Route path="payroll" element={<PayrollPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/app/bookings" replace />} />
     </Routes>

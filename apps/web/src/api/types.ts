@@ -25,6 +25,33 @@ export interface Booking {
   chargedCredits: number;
 }
 
+export interface Slot {
+  index: number;
+  time: string;
+  status: 'avail' | 'booked' | 'rest' | 'off' | 'blocked';
+}
+
+export interface WorkSchedule {
+  recurring_template?: Record<string, { start: string; end: string }[]>;
+  pre_book_horizon_days?: number;
+}
+
+export interface Payroll {
+  teacherId: string;
+  confirmedAmount: number;
+  expectedAmount: number;
+  incentive: number;
+  breakdown: {
+    doneCases: number;
+    upcomingCases: number;
+    qnaAccepted: number;
+    perCaseRate: number;
+    qnaRate: number;
+    gradeAllowance: number;
+    incentive: number;
+  };
+}
+
 export interface ConsultationNote {
   bookingId: string;
   coreSummary: string | null;
