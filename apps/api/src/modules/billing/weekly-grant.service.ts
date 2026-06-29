@@ -45,6 +45,11 @@ export class WeeklyGrantService {
       if (weekly <= 0) continue;
       const acct = await this.prisma.credit_account.findUnique({ where: { student_id: s.account_id } });
       if (!acct) continue;
+      // 멱등(L2): 이번 주 부여분이 이미 있으면 중복 부여 방지(cron 중복 실행/수동 재실행)
+      const dup = await this.prisma.weekly_credit_grant.findFirst({
+        where: { account_id: acct.id, expire_at: expireAt },
+      });
+      if (dup) continue;
       await this.prisma.$transaction(async (tx) => {
         await tx.weekly_credit_grant.create({
           data: {

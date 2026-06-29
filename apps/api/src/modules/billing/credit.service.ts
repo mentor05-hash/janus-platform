@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreditTxnType } from '../../config/enums';
 import { consumeCredits, GrantLot } from './domain/credit-consume';
+import { planRefund, SpendSplit } from './domain/credit-refund';
 
 export interface ConsumeOutcome {
   ok: boolean;
@@ -134,12 +135,17 @@ export class CreditService {
         description: ref.description ?? '상담 예약 크레딧 차감',
         ref_type: ref.refType,
         ref_id: ref.refId ?? null,
+        // 분배 내역 기록(M4) — 환원 시 원래 버킷 복원에 사용
+        meta: { grantSpend: plan.grantSpend, purchasedSpend: plan.purchasedSpend } as object,
       },
     });
     return { ok: true, shortfall: 0, spent: amount };
   }
 
-  /** 취소 환원(§5-6) — 진행 중인 트랜잭션 내에서 실행(예약 취소와 원자적). */
+  /**
+   * 취소 환원(§5-6, M4) — 소비 분배(meta)를 읽어 원래 버킷으로 복원.
+   * 살아있는 부여 lot 은 lot 복원, 만료분·구매분은 구매분으로. 진행 중 트랜잭션 내 실행.
+   */
   async refundWithin(
     tx: Prisma.TransactionClient,
     studentId: string,
@@ -148,20 +154,46 @@ export class CreditService {
   ) {
     if (amount <= 0) return;
     const acct = await this.lockAccount(tx, studentId);
-    const balance = acct.purchased_balance + acct.granted_balance + amount;
+
+    // 원 소비 트랜잭션의 분배 내역 조회(없으면 전액 구매분 환원)
+    let split: SpendSplit | null = null;
+    if (ref.refId) {
+      const spend = await tx.credit_transaction.findFirst({
+        where: { account_id: acct.id, type: CreditTxnType.SPEND as never, ref_id: ref.refId },
+        orderBy: { created_at: 'desc' },
+      });
+      split = (spend?.meta as unknown as SpendSplit) ?? null;
+    }
+    const lotIds = (split?.grantSpend ?? []).map((g) => g.id);
+    const lots = lotIds.length
+      ? await tx.weekly_credit_grant.findMany({ where: { id: { in: lotIds } } })
+      : [];
+    const lotExpiry: Record<string, number> = {};
+    for (const l of lots) lotExpiry[l.id] = l.expire_at.getTime();
+
+    const refundPlan = planRefund(split, lotExpiry, Date.now(), amount);
+
+    let grantedInc = 0;
+    for (const r of refundPlan.grantRestores) {
+      await tx.weekly_credit_grant.update({ where: { id: r.id }, data: { remaining: { increment: r.amount } } });
+      grantedInc += r.amount;
+    }
+    const newGranted = acct.granted_balance + grantedInc;
+    const newPurchased = acct.purchased_balance + refundPlan.toPurchased;
     await tx.credit_account.update({
       where: { id: acct.id },
-      data: { purchased_balance: { increment: amount } },
+      data: { granted_balance: newGranted, purchased_balance: newPurchased },
     });
     await tx.credit_transaction.create({
       data: {
         account_id: acct.id,
         type: CreditTxnType.REFUND,
         amount,
-        balance,
+        balance: newGranted + newPurchased,
         description: '예약 취소 환원',
         ref_type: ref.refType,
         ref_id: ref.refId ?? null,
+        meta: { grantRestores: refundPlan.grantRestores, toPurchased: refundPlan.toPurchased } as object,
       },
     });
   }
