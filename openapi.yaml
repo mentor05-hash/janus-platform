@@ -671,18 +671,27 @@ paths:
       responses: { '200': { description: ok } }
     post:
       tags: [Classification & Review]
-      summary: 분류 추가(한도 검증)
+      summary: 분류 추가(§5-9 한쪽만·한도 검증)
       requestBody:
+        required: true
         content:
           application/json:
             schema:
               type: object
+              required: [teacherId, listKind]
               properties:
                 teacherId: { type: string, format: uuid }
-                list: { type: string, enum: [fit, unfit] }
+                listKind: { type: string, enum: [fit, unfit] }
       responses:
         '200': { description: ok }
-        '409': { description: 한도 초과 }
+        '409': { description: 한도 초과 또는 반대 목록 존재 }
+  /me/teacher-lists/{teacherId}:
+    delete:
+      tags: [Classification & Review]
+      summary: 분류 제거(학생)
+      parameters:
+        - { name: teacherId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses: { '200': { description: ok } }
   /bookings/{id}/review:
     post:
       tags: [Classification & Review]

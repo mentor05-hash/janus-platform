@@ -2039,7 +2039,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** 분류 추가(한도 검증) */
+        /** 분류 추가(§5-9 한쪽만·한도 검증) */
         post: {
             parameters: {
                 query?: never;
@@ -2047,13 +2047,13 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: {
+            requestBody: {
                 content: {
                     "application/json": {
                         /** Format: uuid */
-                        teacherId?: string;
+                        teacherId: string;
                         /** @enum {string} */
-                        list?: "fit" | "unfit";
+                        listKind: "fit" | "unfit";
                     };
                 };
             };
@@ -2065,7 +2065,7 @@ export interface paths {
                     };
                     content?: never;
                 };
-                /** @description 한도 초과 */
+                /** @description 한도 초과 또는 반대 목록 존재 */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -2075,6 +2075,42 @@ export interface paths {
             };
         };
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me/teacher-lists/{teacherId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 분류 제거(학생) */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    teacherId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ok */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
