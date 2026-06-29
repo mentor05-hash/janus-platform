@@ -55,6 +55,9 @@ export function AppLayout() {
         <NavLink to="/app/payroll" style={navStyle}>
           예상급여
         </NavLink>
+        <NavLink to="/app/notifications" style={navStyle}>
+          알림
+        </NavLink>
       </nav>
       <main style={{ maxWidth: 920, margin: '0 auto', padding: 24 }}>
         <Outlet />

@@ -138,6 +138,15 @@ export interface Report {
   created_at: string;
 }
 
+export interface Notification {
+  id: string;
+  type: string | null;
+  channels: string[];
+  payload: Record<string, unknown> | null;
+  read_at: string | null;
+  created_at: string;
+}
+
 export interface ConsultationNote {
   bookingId: string;
   coreSummary: string | null;

@@ -739,7 +739,13 @@ paths:
   /notifications:
     get:
       tags: [Payroll & Notification]
-      summary: 알림 목록(앱)
+      summary: 내 알림 목록(앱)
+      responses: { '200': { description: ok } }
+  /notifications/{id}/read:
+    patch:
+      tags: [Payroll & Notification]
+      summary: 알림 읽음 처리(본인)
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
       responses: { '200': { description: ok } }
 
   /qna/posts:

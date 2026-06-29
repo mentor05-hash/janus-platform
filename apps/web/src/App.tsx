@@ -9,6 +9,8 @@ import { NotePage } from './pages/NotePage';
 import { SchedulePage } from './pages/SchedulePage';
 import { PayrollPage } from './pages/PayrollPage';
 import { ReverseProposePage } from './pages/ReverseProposePage';
+import { NotificationsPage } from './pages/NotificationsPage';
+import { StudentNotesPage } from './pages/StudentNotesPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { AdminPolicyPage } from './pages/AdminPolicyPage';
 import { HrStudentsPage } from './pages/HrStudentsPage';
@@ -47,6 +49,8 @@ export function App() {
         <Route path="schedule" element={<SchedulePage />} />
         <Route path="reverse" element={<ReverseProposePage />} />
         <Route path="payroll" element={<PayrollPage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="students/:studentId/notes" element={<StudentNotesPage />} />
       </Route>
 
       <Route

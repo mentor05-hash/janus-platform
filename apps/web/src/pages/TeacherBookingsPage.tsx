@@ -80,6 +80,9 @@ export function TeacherBookingsPage() {
                   상담기록
                 </Link>
               )}
+              <Link className="btn ghost sm" to={`/app/students/${b.studentId}/notes`}>
+                학생 이력
+              </Link>
             </div>
           </div>
         ))}
