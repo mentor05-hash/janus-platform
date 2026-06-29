@@ -1,0 +1,94 @@
+import { useEffect, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { api, ApiError } from '../api/client';
+import type { ConsultationNote } from '../api/types';
+
+const empty = {
+  coreSummary: '',
+  memo: '',
+  homework: '',
+  futureDir: '',
+  guardianVisible: true,
+  saveState: 'draft' as 'draft' | 'final',
+};
+
+export function NotePage() {
+  const { id } = useParams<{ id: string }>();
+  const [form, setForm] = useState(empty);
+  const [msg, setMsg] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!id) return;
+    api
+      .get<ConsultationNote>(`/bookings/${id}/note`)
+      .then((n) =>
+        setForm({
+          coreSummary: n.coreSummary ?? '',
+          memo: n.memo ?? '',
+          homework: n.homework ?? '',
+          futureDir: n.futureDir ?? '',
+          guardianVisible: n.guardianVisible ?? true,
+          saveState: n.saveState,
+        }),
+      )
+      .catch(() => {
+        /* 아직 기록 없음 — 빈 폼 */
+      });
+  }, [id]);
+
+  async function save(saveState: 'draft' | 'final') {
+    setError('');
+    setMsg('');
+    try {
+      await api.put(`/bookings/${id}/note`, { ...form, saveState });
+      setForm((f) => ({ ...f, saveState }));
+      setMsg(saveState === 'final' ? '최종 저장되었습니다(학생·보호자 공개).' : '임시 저장되었습니다.');
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : '저장 실패');
+    }
+  }
+
+  const f = form;
+  const set = (k: keyof typeof empty, v: unknown) => setForm((p) => ({ ...p, [k]: v }));
+
+  return (
+    <div>
+      <Link to="/app/bookings">← 예약 목록</Link>
+      <h2 style={{ color: 'var(--teal)' }}>
+        상담 기록 <span className={`chip ${f.saveState === 'final' ? 'done' : 'confirmed'}`}>{f.saveState}</span>
+      </h2>
+      <div className="card" style={{ display: 'grid', gap: 12 }}>
+        <div>
+          <label className="label">핵심 요약 (학생·보호자 공개)</label>
+          <textarea className="textarea" rows={2} value={f.coreSummary} onChange={(e) => set('coreSummary', e.target.value)} />
+        </div>
+        <div>
+          <label className="label">숙제 (공개)</label>
+          <textarea className="textarea" rows={2} value={f.homework} onChange={(e) => set('homework', e.target.value)} />
+        </div>
+        <div>
+          <label className="label">향후 방향 (공개)</label>
+          <textarea className="textarea" rows={2} value={f.futureDir} onChange={(e) => set('futureDir', e.target.value)} />
+        </div>
+        <div>
+          <label className="label">내부 메모 (비공개 · 선생님/관리자만)</label>
+          <textarea className="textarea" rows={2} value={f.memo} onChange={(e) => set('memo', e.target.value)} />
+        </div>
+        <label style={{ fontSize: 14 }}>
+          <input type="checkbox" checked={f.guardianVisible} onChange={(e) => set('guardianVisible', e.target.checked)} /> 보호자 공개
+        </label>
+        {msg && <p style={{ color: 'var(--chip-done)', fontSize: 13 }}>{msg}</p>}
+        {error && <p className="error">{error}</p>}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn ghost" onClick={() => save('draft')}>
+            임시 저장
+          </button>
+          <button className="btn" onClick={() => save('final')}>
+            최종 저장(완료 가능)
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
