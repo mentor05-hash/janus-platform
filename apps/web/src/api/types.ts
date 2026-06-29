@@ -52,6 +52,34 @@ export interface Payroll {
   };
 }
 
+export interface Dashboard {
+  centerId: string | null;
+  activeUsers: number;
+  totalBookings: number;
+  doneTotal: number;
+  confirmedUpcoming: number;
+  weeklyConsult: number;
+  matchRate: number;
+}
+
+export interface PricingPolicy {
+  id: string;
+  center_id: string | null;
+  mode: string;
+  enabled: boolean;
+  per_hour: number;
+  surcharge_pct: number;
+  board_item_fee: number | null;
+  board_general_fee: number | null;
+}
+
+export interface LimitPolicy {
+  center_id: string;
+  reservation_limit: number | null;
+  classify_fit_limit: number;
+  classify_unfit_limit: number;
+}
+
 export interface ConsultationNote {
   bookingId: string;
   coreSummary: string | null;

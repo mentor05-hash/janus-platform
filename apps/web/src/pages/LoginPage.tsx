@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { roleHome } from '../auth/roleHome';
 
 export function LoginPage() {
   const { login, user } = useAuth();
@@ -11,15 +12,15 @@ export function LoginPage() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  if (user) navigate('/app/bookings', { replace: true });
+  if (user) navigate(roleHome(user.role), { replace: true });
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
     setBusy(true);
     try {
-      await login(loginId, password);
-      navigate('/app/bookings', { replace: true });
+      const me = await login(loginId, password);
+      navigate(roleHome(me.role), { replace: true });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : '로그인 실패');
     } finally {
