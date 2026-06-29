@@ -65,6 +65,10 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   ZOOM_PROVIDER?: string;
+
+  @IsOptional()
+  @IsString()
+  CACHE_PROVIDER?: string;
 }
 
 export function validateEnv(config: Record<string, unknown>) {

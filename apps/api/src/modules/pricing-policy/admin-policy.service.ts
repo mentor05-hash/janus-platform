@@ -1,10 +1,13 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
+import { CACHE_PROVIDER } from '../../common/cache/cache.types';
+import type { CacheProvider } from '../../common/cache/cache.types';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import {
   FeatureRule,
   resolveFeatureEnabled,
 } from '../availability/domain/feature';
+import { bumpPricingVersion } from './pricing-cache';
 import {
   SetFeatureDto,
   UpdateLimitsDto,
@@ -18,7 +21,10 @@ import {
  */
 @Injectable()
 export class AdminPolicyService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(CACHE_PROVIDER) private readonly cache: CacheProvider,
+  ) {}
 
   /** 본사(HQ) 슈퍼관리자 = admin + 센터 미소속(center_id NULL). 전사 정책을 편집·전역 권한. */
   private isHq(actor: AuthUser): boolean {
@@ -60,9 +66,11 @@ export class AdminPolicyService {
       updated_by: actor.id,
       updated_at: new Date(),
     };
-    return existing
-      ? this.prisma.pricing_policy.update({ where: { id: existing.id }, data })
-      : this.prisma.pricing_policy.create({ data: { center_id: targetCenter, mode: dto.mode, paid: true, ...data } });
+    const saved = existing
+      ? await this.prisma.pricing_policy.update({ where: { id: existing.id }, data })
+      : await this.prisma.pricing_policy.create({ data: { center_id: targetCenter, mode: dto.mode, paid: true, ...data } });
+    await bumpPricingVersion(this.cache, saved.updated_at?.getTime() ?? Date.now()); // §10 캐시 무효화
+    return saved;
   }
 
   // ── 한도(센터) ── HQ 는 센터 미소속이라 기본값만 반환(편집은 센터 관리자)

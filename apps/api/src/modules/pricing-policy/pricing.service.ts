@@ -1,7 +1,11 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import type { pricing_policy as PricingRow } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { CACHE_PROVIDER } from '../../common/cache/cache.types';
+import type { CacheProvider } from '../../common/cache/cache.types';
 import { computeSessionCost } from '../../config/constants';
 import { ConsultMode, ConsultType, TeacherGrade } from '../../config/enums';
+import { getPricingVersion, pricingKey, PRICING_TTL_SECONDS } from './pricing-cache';
 
 export interface SessionQuote {
   mode: ConsultMode;
@@ -25,7 +29,10 @@ export interface BoardQuote {
  */
 @Injectable()
 export class PricingService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(CACHE_PROVIDER) private readonly cache: CacheProvider,
+  ) {}
 
   /** 시간제 세션(zoom/chat/hand/offline) 요금. 센터 정책 우선·전사 fallback. S급은 할증율 적용. */
   async quoteSession(
@@ -55,18 +62,29 @@ export class PricingService {
     return { mode: 'board', qType, credits };
   }
 
-  /** 센터 전용 정책(center_id=centerId) 우선, 없으면 전사 기본(center_id=null). */
+  /**
+   * 센터 전용 정책(center_id=centerId) 우선, 없으면 전사 기본(center_id=null).
+   * 핫패스(예약 견적/생성마다 호출) — 버전 기반 캐시(§10). 요금 변경 시 버전 올려 일괄 무효화.
+   */
   private async getPolicy(mode: ConsultMode, centerId?: string | null) {
+    const ver = await getPricingVersion(this.cache);
+    const key = pricingKey(ver, mode, centerId);
+    const cached = await this.cache.get<PricingRow>(key);
+    if (cached) return cached;
+
+    let resolved: PricingRow | null = null;
     if (centerId) {
-      const centerPolicy = await this.prisma.pricing_policy.findFirst({
+      resolved = await this.prisma.pricing_policy.findFirst({
         where: { center_id: centerId, mode: mode, enabled: true },
       });
-      if (centerPolicy) return centerPolicy;
     }
-    const base = await this.prisma.pricing_policy.findFirst({
-      where: { center_id: null, mode: mode, enabled: true },
-    });
-    if (!base) throw new NotFoundException(`요금정책(${mode})이 설정되어 있지 않습니다.`);
-    return base;
+    if (!resolved) {
+      resolved = await this.prisma.pricing_policy.findFirst({
+        where: { center_id: null, mode: mode, enabled: true },
+      });
+    }
+    if (!resolved) throw new NotFoundException(`요금정책(${mode})이 설정되어 있지 않습니다.`);
+    await this.cache.set(key, resolved, PRICING_TTL_SECONDS);
+    return resolved;
   }
 }

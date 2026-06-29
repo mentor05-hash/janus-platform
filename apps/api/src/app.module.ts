@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { validateEnv } from './config/env.validation';
+import { CacheModule } from './common/cache/cache.module';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -34,6 +35,7 @@ import { StorageModule } from './modules/storage/storage.module';
       envFilePath: ['.env'],
     }),
     ScheduleModule.forRoot(), // §5-3 주간 크레딧 부여/소멸 스케줄러 기반
+    CacheModule, // §10 캐시 외부화(memory|redis)
     PrismaModule,
     HealthModule,
     // 도메인 컨텍스트
