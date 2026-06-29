@@ -41,6 +41,16 @@ export class RedisCacheProvider implements CacheProvider, OnModuleDestroy {
     }
   }
 
+  async incr(key: string, ttlSeconds: number): Promise<number> {
+    try {
+      const n = await this.redis.incr(key);
+      if (n === 1) await this.redis.expire(key, ttlSeconds);
+      return n;
+    } catch {
+      return 0; // degrade: 카운트 불가 시 제한하지 않음(가용성 우선)
+    }
+  }
+
   async onModuleDestroy() {
     await this.redis.quit().catch(() => undefined);
   }

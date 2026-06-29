@@ -8,4 +8,6 @@ export interface CacheProvider {
   get<T>(key: string): Promise<T | null>;
   set<T>(key: string, value: T, ttlSeconds: number): Promise<void>;
   del(key: string): Promise<void>;
+  /** 원자적 증가(rate limit 등). 최초 증가 시 ttlSeconds 만료 설정. 증가 후 값 반환. */
+  incr(key: string, ttlSeconds: number): Promise<number>;
 }

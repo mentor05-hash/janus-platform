@@ -7,6 +7,7 @@ import { CacheModule } from './common/cache/cache.module';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
+import { RateLimitGuard } from './common/ratelimit/rate-limit.guard';
 import { HealthModule } from './health/health.module';
 
 // ── 바운디드 컨텍스트 모듈 (CLAUDE.md §3) ──
@@ -57,7 +58,8 @@ import { StorageModule } from './modules/storage/storage.module';
     StorageModule,
   ],
   providers: [
-    // 전역 인증·인가 (CLAUDE.md §7). @Public() 은 통과, @Roles() 로 역할 제한.
+    // 전역 가드: rate limit(§10) → 인증 → 인가 순. @Public() 은 인증 통과, @Roles() 로 역할 제한.
+    { provide: APP_GUARD, useClass: RateLimitGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],
