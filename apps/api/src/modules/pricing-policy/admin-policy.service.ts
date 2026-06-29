@@ -5,7 +5,12 @@ import {
   FeatureRule,
   resolveFeatureEnabled,
 } from '../availability/domain/feature';
-import { UpdateLimitsDto, UpdatePricingDto, SetFeatureDto } from './dto/admin-policy.dto';
+import {
+  SetFeatureDto,
+  UpdateLimitsDto,
+  UpdatePenaltyDto,
+  UpdatePricingDto,
+} from './dto/admin-policy.dto';
 
 /**
  * 관리자 정책 편집 (CLAUDE.md §5-2/8/9). 요금·한도·기능토글 단일 소스.
@@ -62,6 +67,39 @@ export class AdminPolicyService {
       classify_unfit_limit: dto.classifyUnfitLimit ?? existing?.classify_unfit_limit ?? 30,
     };
     return this.prisma.limit_policy.upsert({
+      where: { center_id: centerId },
+      update: data,
+      create: { center_id: centerId, ...data },
+    });
+  }
+
+  // ── 가중 제한 임계(센터, §5-7) ──
+  async getPenalty(actor: AuthUser) {
+    const centerId = this.requireCenter(actor);
+    const p = await this.prisma.penalty_policy.findUnique({ where: { center_id: centerId } });
+    return (
+      p ?? {
+        center_id: centerId,
+        cancel_threshold: null,
+        noshow_threshold: null,
+        reject_threshold: null,
+        restrict_minutes: null,
+        ranking_weight_down: null,
+      }
+    );
+  }
+
+  async updatePenalty(dto: UpdatePenaltyDto, actor: AuthUser) {
+    const centerId = this.requireCenter(actor);
+    const existing = await this.prisma.penalty_policy.findUnique({ where: { center_id: centerId } });
+    const data = {
+      cancel_threshold: dto.cancelThreshold ?? existing?.cancel_threshold ?? null,
+      noshow_threshold: dto.noshowThreshold ?? existing?.noshow_threshold ?? null,
+      reject_threshold: dto.rejectThreshold ?? existing?.reject_threshold ?? null,
+      restrict_minutes: dto.restrictMinutes ?? existing?.restrict_minutes ?? null,
+      ranking_weight_down: dto.rankingWeightDown ?? existing?.ranking_weight_down ?? null,
+    };
+    return this.prisma.penalty_policy.upsert({
       where: { center_id: centerId },
       update: data,
       create: { center_id: centerId, ...data },

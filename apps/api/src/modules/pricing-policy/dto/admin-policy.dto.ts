@@ -23,6 +23,15 @@ export class UpdateLimitsDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) classifyUnfitLimit?: number;
 }
 
+/** PUT /admin/penalty-policy — 가중 제한 임계(센터, §5-7). */
+export class UpdatePenaltyDto {
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) cancelThreshold?: number | null;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) noshowThreshold?: number | null;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) rejectThreshold?: number | null;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) restrictMinutes?: number | null;
+  @IsOptional() @Type(() => Number) rankingWeightDown?: number | null;
+}
+
 /** PUT /admin/feature-availability — 기능 열기/닫기 토글. */
 export class SetFeatureDto {
   @IsIn(['전사', '센터', '캠프', '외부생'])

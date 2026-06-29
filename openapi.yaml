@@ -274,6 +274,85 @@ paths:
                 classifyFitLimit: { type: integer }
                 classifyUnfitLimit: { type: integer }
       responses: { '200': { description: saved } }
+  /admin/penalty-policy:
+    get:
+      tags: [Admin Policy]
+      summary: 가중 제한 임계 조회(센터, §5-7)
+      responses: { '200': { description: ok } }
+    put:
+      tags: [Admin Policy]
+      summary: 당일취소·노쇼·과다거절 임계 + 랭킹 가중치 하락
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                cancelThreshold: { type: integer, nullable: true }
+                noshowThreshold: { type: integer, nullable: true }
+                rejectThreshold: { type: integer, nullable: true }
+                restrictMinutes: { type: integer, nullable: true }
+                rankingWeightDown: { type: number, nullable: true }
+      responses: { '200': { description: saved } }
+  /admin/zoom-policy:
+    get:
+      tags: [Admin Policy]
+      summary: 줌 동시 한도 조회(센터)
+      responses: { '200': { description: ok } }
+    put:
+      tags: [Admin Policy]
+      summary: 줌 동시 한도 설정
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [concurrentLimit]
+              properties:
+                concurrentLimit: { type: integer }
+      responses: { '200': { description: saved } }
+  /admin/rooms:
+    get:
+      tags: [Admin Policy]
+      summary: 상담실 목록(센터)
+      responses: { '200': { description: ok } }
+    post:
+      tags: [Admin Policy]
+      summary: 상담실 등록
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type: { type: string }
+                capacity: { type: integer }
+                operatingHours: { type: string }
+                setting: { type: string }
+      responses: { '201': { description: created } }
+  /admin/blocked-times:
+    get:
+      tags: [Admin Policy]
+      summary: 차단 시간 목록(센터)
+      responses: { '200': { description: ok } }
+    post:
+      tags: [Admin Policy]
+      summary: 차단 시간 등록(슬롯에 즉시 반영)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [startAt, endAt]
+              properties:
+                type: { type: string }
+                startAt: { type: string, format: date-time }
+                endAt: { type: string, format: date-time }
+                scope: { type: string }
+      responses: { '201': { description: created } }
 
   /match/auto:
     post:

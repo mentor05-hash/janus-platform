@@ -21,6 +21,7 @@ import {
 } from '../../config/prisma-enums';
 import { AvailabilityService } from '../availability/availability.service';
 import { CreditService } from '../billing/credit.service';
+import { evaluatePenalty } from '../pricing-policy/domain/penalty';
 import { PricingService } from '../pricing-policy/pricing.service';
 import { BookingCreateDto, QuoteDto } from './dto/booking.dto';
 import { canTransition, shouldRefundOnTransition } from './domain/state-machine';
@@ -72,6 +73,7 @@ export class BookingService {
     const minutes = (dto.slotEnd - dto.slotStart) * SLOT_GRANULARITY_MINUTES;
     if (minutes <= 0) throw new BadRequestException('slotEnd 는 slotStart 보다 커야 합니다.');
 
+    await this.assertNotPenaltyRestricted(studentId); // §5-7 가중 제한
     const teacher = await this.requireTeacher(dto.teacherId);
     const startMin = dto.slotStart * SLOT_GRANULARITY_MINUTES;
     const endMin = dto.slotEnd * SLOT_GRANULARITY_MINUTES;
@@ -228,6 +230,26 @@ export class BookingService {
       }
     });
     return { id, status: to, refunded: refund ? b.charged_credits : 0 };
+  }
+
+  /** §5-7 가중 제한: 노쇼·과다거절 임계 초과 학생은 신규 예약 차단. */
+  private async assertNotPenaltyRestricted(studentId: string) {
+    const sp = await this.prisma.student_profile.findUnique({ where: { account_id: studentId } });
+    if (!sp?.center_id) return;
+    const pp = await this.prisma.penalty_policy.findUnique({ where: { center_id: sp.center_id } });
+    if (!pp) return;
+    const result = evaluatePenalty(
+      { cancelCount: 0, noshowCount: sp.noshow_count ?? 0, rejectCount: sp.rejected_count ?? 0 },
+      {
+        cancelThreshold: pp.cancel_threshold,
+        noshowThreshold: pp.noshow_threshold,
+        rejectThreshold: pp.reject_threshold,
+        rankingWeightDown: pp.ranking_weight_down == null ? null : Number(pp.ranking_weight_down),
+      },
+    );
+    if (result.restricted) {
+      throw new ForbiddenException(`가중 제한으로 신규 예약이 일시 제한되었습니다(${result.reasons.join(',')}).`);
+    }
   }
 
   private sessionSlotIndices(start: number, end: number): number[] {
