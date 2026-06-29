@@ -41,6 +41,7 @@ const ID = {
   acAdmin: '00000000-0000-4000-8000-0000000000a3',
   acHr: '00000000-0000-4000-8000-0000000000a4',
   acGuardian: '00000000-0000-4000-8000-0000000000a5',
+  acHq: '00000000-0000-4000-8000-0000000000a6',
   planStd: '00000000-0000-4000-8000-0000000000b2',
   planPrem: '00000000-0000-4000-8000-0000000000b3',
   planVip: '00000000-0000-4000-8000-0000000000b4',
@@ -173,6 +174,18 @@ async function main() {
       `INSERT INTO guardian (account_id, notify_settings) VALUES ($1,'{}'::jsonb)
        ON CONFLICT (account_id) DO NOTHING`,
       [ID.acGuardian],
+    );
+    // 본사(HQ) 슈퍼관리자 — admin + 센터 미소속(center_id NULL) + perm L3. 전사 정책·전역 권한.
+    await client.query(
+      `INSERT INTO account (id, role, center_id, login_id, pw_hash, name, status)
+       VALUES ($1,'admin',NULL,'hq01',$2,'본사관리자','approved')
+       ON CONFLICT (id) DO UPDATE SET pw_hash = EXCLUDED.pw_hash, center_id = NULL, status='approved'`,
+      [ID.acHq, DUMMY_PW_HASH],
+    );
+    await client.query(
+      `INSERT INTO staff_profile (account_id, staff_role, center_id, perm_level)
+       VALUES ($1,'본사',NULL,'L3') ON CONFLICT (account_id) DO NOTHING`,
+      [ID.acHq],
     );
     // 크레딧 계좌(학생) — 잔액 0
     await client.query(

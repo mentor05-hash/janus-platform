@@ -13,6 +13,7 @@ import { PricingService } from '../src/modules/pricing-policy/pricing.service';
  */
 const CENTER = '00000000-0000-4000-8000-0000000000c1';
 const admin: any = { id: '00000000-0000-4000-8000-0000000000a3', role: 'admin', centerId: CENTER, loginId: 'admin01' };
+const hq: any = { id: '00000000-0000-4000-8000-0000000000a6', role: 'admin', centerId: null }; // 본사(전사 토글)
 
 describe('2.4a 관리자 정책(요금·한도·기능토글) 통합', () => {
   let app: INestApplication;
@@ -51,7 +52,7 @@ describe('2.4a 관리자 정책(요금·한도·기능토글) 통합', () => {
     await policy.setFeature({ scope: '센터', targetType: 'mode', targetValue: 'zoom', enabled: true }, admin);
     let r = await policy.resolveFeature(CENTER, 'mode', 'zoom');
     expect(r.enabled).toBe(true);
-    await policy.setFeature({ scope: '전사', targetType: 'mode', targetValue: 'zoom', enabled: false }, admin);
+    await policy.setFeature({ scope: '전사', targetType: 'mode', targetValue: 'zoom', enabled: false }, hq); // 전사 토글은 HQ
     r = await policy.resolveFeature(CENTER, 'mode', 'zoom');
     expect(r.enabled).toBe(false); // 전사 우선
   });

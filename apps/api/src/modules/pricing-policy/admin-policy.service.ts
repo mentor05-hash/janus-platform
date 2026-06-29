@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import {
@@ -20,9 +20,16 @@ import {
 export class AdminPolicyService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // ── 요금: 전사 기본(center_id NULL) + 센터 override(center_id=actor.center) ──
-  // 일반 센터 관리자는 전사 기본을 덮어쓰지 않고 자기 센터 행만 편집한다(S3).
+  /** 본사(HQ) 슈퍼관리자 = admin + 센터 미소속(center_id NULL). 전사 정책을 편집·전역 권한. */
+  private isHq(actor: AuthUser): boolean {
+    return actor.role === 'admin' && !actor.centerId;
+  }
+
+  // ── 요금: 전사 기본(center_id NULL, HQ 편집) + 센터 override(center_id=actor.center) ──
   async getPricing(actor: AuthUser) {
+    if (this.isHq(actor)) {
+      return this.prisma.pricing_policy.findMany({ where: { center_id: null }, orderBy: { mode: 'asc' } });
+    }
     const centerId = this.requireCenter(actor);
     return this.prisma.pricing_policy.findMany({
       where: { OR: [{ center_id: null }, { center_id: centerId }] },
@@ -31,9 +38,10 @@ export class AdminPolicyService {
   }
 
   async updatePricing(dto: UpdatePricingDto, actor: AuthUser) {
-    const centerId = this.requireCenter(actor);
+    // HQ → 전사 기본(center_id NULL), 센터 관리자 → 자기 센터 override
+    const targetCenter = this.isHq(actor) ? null : this.requireCenter(actor);
     const existing = await this.prisma.pricing_policy.findFirst({
-      where: { center_id: centerId, mode: dto.mode as never },
+      where: { center_id: targetCenter, mode: dto.mode as never },
     });
     // 문항 ≥ 일반 검증(DB CHECK 와 정합)
     const item = dto.boardItemFee ?? existing?.board_item_fee ?? null;
@@ -54,11 +62,12 @@ export class AdminPolicyService {
     };
     return existing
       ? this.prisma.pricing_policy.update({ where: { id: existing.id }, data })
-      : this.prisma.pricing_policy.create({ data: { center_id: centerId, mode: dto.mode as never, paid: true, ...data } });
+      : this.prisma.pricing_policy.create({ data: { center_id: targetCenter, mode: dto.mode as never, paid: true, ...data } });
   }
 
-  // ── 한도(센터) ──
+  // ── 한도(센터) ── HQ 는 센터 미소속이라 기본값만 반환(편집은 센터 관리자)
   async getLimits(actor: AuthUser) {
+    if (this.isHq(actor)) return { center_id: null, reservation_limit: null, classify_fit_limit: 10, classify_unfit_limit: 30 };
     const centerId = this.requireCenter(actor);
     const lp = await this.prisma.limit_policy.findUnique({ where: { center_id: centerId } });
     return lp ?? { center_id: centerId, reservation_limit: null, classify_fit_limit: 10, classify_unfit_limit: 30 };
@@ -79,8 +88,10 @@ export class AdminPolicyService {
     });
   }
 
-  // ── 가중 제한 임계(센터, §5-7) ──
+  // ── 가중 제한 임계(센터, §5-7) ── HQ 는 기본값만(편집은 센터 관리자)
   async getPenalty(actor: AuthUser) {
+    if (this.isHq(actor))
+      return { center_id: null, cancel_threshold: null, noshow_threshold: null, reject_threshold: null, restrict_minutes: null, ranking_weight_down: null };
     const centerId = this.requireCenter(actor);
     const p = await this.prisma.penalty_policy.findUnique({ where: { center_id: centerId } });
     return (
@@ -118,6 +129,10 @@ export class AdminPolicyService {
   }
 
   async setFeature(dto: SetFeatureDto, actor: AuthUser) {
+    // 전사 강제 토글은 본사(HQ)만, 센터 자율 토글은 센터 관리자
+    if (dto.scope === '전사' && !this.isHq(actor)) {
+      throw new ForbiddenException('전사 기능 토글은 본사 관리자만 가능합니다.');
+    }
     const centerId = dto.scope === '전사' ? null : this.requireCenter(actor);
     const existing = await this.prisma.feature_availability.findFirst({
       where: { scope: dto.scope, center_id: centerId, target_type: dto.targetType, target_value: dto.targetValue },
