@@ -1,13 +1,15 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { computeSessionCost } from '../../config/constants';
-import { ConsultMode, TeacherGrade } from '../../config/enums';
+import { ConsultMode, ConsultType, TeacherGrade } from '../../config/enums';
 
 export interface SessionQuote {
   mode: ConsultMode;
   minutes: number;
   perHour: number;
   surchargePct: number;
+  occupancyFee: number;
+  paidConsultingFee: number;
   credits: number;
 }
 
@@ -31,12 +33,19 @@ export class PricingService {
     minutes: number,
     grade: TeacherGrade,
     centerId?: string | null,
+    consultType?: ConsultType,
   ): Promise<SessionQuote> {
     if (minutes <= 0) throw new BadRequestException('상담 시간이 올바르지 않습니다.');
     const policy = await this.getPolicy(mode, centerId);
     const surchargePct = grade === TeacherGrade.S ? policy.surcharge_pct : 0;
-    const credits = computeSessionCost(policy.per_hour, minutes, surchargePct);
-    return { mode, minutes, perHour: policy.per_hour, surchargePct, credits };
+    let credits = computeSessionCost(policy.per_hour, minutes, surchargePct);
+    // 오프라인 점유료 가산(§5-2, O5) — 정책 미설정 시 0
+    const occupancyFee = mode === ConsultMode.OFFLINE ? policy.offline_occupancy_fee ?? 0 : 0;
+    // 입시 유료컨설팅 별도 단가 가산(§5-2, O33) — 정책 미설정 시 0
+    const paidConsultingFee =
+      consultType === ConsultType.ADMISSION ? policy.paid_consulting_fee ?? 0 : 0;
+    credits += occupancyFee + paidConsultingFee;
+    return { mode, minutes, perHour: policy.per_hour, surchargePct, occupancyFee, paidConsultingFee, credits };
   }
 
   /** 게시판 건당 요금(문항 ≥ 일반). */

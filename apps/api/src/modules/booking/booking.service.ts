@@ -75,7 +75,7 @@ export class BookingService {
       dto.slotEnd * SLOT_GRANULARITY_MINUTES,
       studentId,
     );
-    const q = await this.pricing.quoteSession(dto.mode, minutes, teacher.grade as TeacherGrade, teacher.center_id);
+    const q = await this.pricing.quoteSession(dto.mode, minutes, teacher.grade as TeacherGrade, teacher.center_id, dto.consultType);
     return {
       minutes,
       credits: q.credits,
@@ -114,7 +114,7 @@ export class BookingService {
       throw new ConflictException('선택한 시간은 예약할 수 없습니다(휴게/근무/체류 위반).');
     }
 
-    const q = await this.pricing.quoteSession(dto.mode, minutes, teacher.grade as TeacherGrade, teacher.center_id);
+    const q = await this.pricing.quoteSession(dto.mode, minutes, teacher.grade as TeacherGrade, teacher.center_id, dto.consultType);
     const credits = q.credits;
     const startAt = utcFromKst(dto.date, startMin);
     const endAt = utcFromKst(dto.date, endMin);
@@ -225,7 +225,7 @@ export class BookingService {
     const bookable = await this.availability.assertBookable(user.id, dto.date, startMin, endMin, dto.studentId);
     if (!bookable) throw new ConflictException('제안하려는 시간은 예약할 수 없습니다(휴게/근무 위반).');
 
-    const q = await this.pricing.quoteSession(dto.mode, minutes, teacher.grade as TeacherGrade, teacher.center_id);
+    const q = await this.pricing.quoteSession(dto.mode, minutes, teacher.grade as TeacherGrade, teacher.center_id, dto.consultType);
     const startAt = utcFromKst(dto.date, startMin);
     const endAt = utcFromKst(dto.date, endMin);
 

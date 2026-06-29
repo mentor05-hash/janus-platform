@@ -23,6 +23,11 @@ export class QuoteDto {
   @IsIn(['board', 'chat', 'zoom', 'hand', 'offline'])
   mode!: ConsultMode;
 
+  // 입시 유료컨설팅 등 유형별 가산 단가 견적 반영(선택). 미지정 시 기본 시간제 요금.
+  @IsOptional()
+  @IsIn(['담임', '교과', '입시', '심리'])
+  consultType?: ConsultType;
+
   @Type(() => Number)
   @IsInt()
   @Min(0)
