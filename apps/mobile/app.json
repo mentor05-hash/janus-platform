@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "잇올 멘토링",
+    "slug": "itall-mentoring",
+    "version": "0.0.1",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": { "backgroundColor": "#0E5C7C" },
+    "ios": { "supportsTablet": true },
+    "android": {},
+    "extra": {
+      "apiBase": "http://localhost:3000/api/v1"
+    }
+  }
+}
