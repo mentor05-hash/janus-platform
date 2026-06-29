@@ -762,6 +762,42 @@ paths:
       summary: 급여 확정 정산 기록(관리자/HR) — 확정+예상+Q&A+인센티브
       parameters: [ { $ref: '#/components/parameters/Id' } ]
       responses: { '201': { description: settled } }
+  /admin/announcements:
+    post:
+      tags: [Payroll & Notification]
+      summary: 관리자 공지 알림 — 대상 역할별 일괄 발송(센터관리자/본사)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [targets, title, body]
+              properties:
+                targets:
+                  type: array
+                  items: { type: string, enum: [teacher, student, guardian] }
+                title: { type: string }
+                body: { type: string }
+                centerId: { type: string, format: uuid, description: 'HQ 전용 — 특정 센터 한정' }
+                channels:
+                  type: array
+                  items: { type: string, enum: [app, sms, kakao] }
+      responses:
+        '201':
+          description: sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      sent: { type: integer }
+                      byTarget: { type: object }
+                      scope: { type: string }
+        '403': { $ref: '#/components/responses/Error' }
   /notifications:
     get:
       tags: [Payroll & Notification]

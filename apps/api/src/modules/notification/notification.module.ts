@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { AnnouncementController } from './announcement.controller';
+import { AnnouncementService } from './announcement.service';
 import { NotificationController } from './notification.controller';
 import { NotificationService } from './notification.service';
 import { NotificationOutboxService } from './notification-outbox.service';
@@ -15,11 +17,12 @@ import type { ChannelGateway } from './notification.types';
  * notification.delivery 에 기록하고 실패분은 NotificationOutboxService 가 재시도.
  */
 @Module({
-  controllers: [NotificationController],
+  controllers: [NotificationController, AnnouncementController],
   providers: [
     NotificationService,
     NotificationOutboxService,
     NotifyService,
+    AnnouncementService,
     { provide: CHANNEL_GATEWAY, useClass: StubChannelGateway },
     {
       provide: NOTIFICATION_PROVIDER,

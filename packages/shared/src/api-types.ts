@@ -2370,6 +2370,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/announcements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 관리자 공지 알림 — 대상 역할별 일괄 발송(센터관리자/본사) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        targets: ("teacher" | "student" | "guardian")[];
+                        title: string;
+                        body: string;
+                        /**
+                         * Format: uuid
+                         * @description HQ 전용 — 특정 센터 한정
+                         */
+                        centerId?: string;
+                        channels?: ("app" | "sms" | "kakao")[];
+                    };
+                };
+            };
+            responses: {
+                /** @description sent */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            data?: {
+                                sent?: number;
+                                byTarget?: Record<string, never>;
+                                scope?: string;
+                            };
+                        };
+                    };
+                };
+                403: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/notifications": {
         parameters: {
             query?: never;
