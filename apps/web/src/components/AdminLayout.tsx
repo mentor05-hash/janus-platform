@@ -38,9 +38,14 @@ export function AdminLayout() {
         <NavLink to="/admin/dashboard" style={navStyle}>
           대시보드
         </NavLink>
-        <NavLink to="/admin/policy" style={navStyle}>
-          정책 편집
+        <NavLink to="/admin/students" style={navStyle}>
+          학생 승인
         </NavLink>
+        {user?.role === 'admin' && (
+          <NavLink to="/admin/policy" style={navStyle}>
+            정책 편집
+          </NavLink>
+        )}
       </nav>
       <main style={{ maxWidth: 920, margin: '0 auto', padding: 24 }}>
         <Outlet />

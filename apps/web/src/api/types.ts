@@ -52,6 +52,14 @@ export interface Payroll {
   };
 }
 
+export interface HrStudent {
+  id: string;
+  login_id: string;
+  name: string;
+  status: string;
+  created_at: string;
+}
+
 export interface Dashboard {
   centerId: string | null;
   activeUsers: number;

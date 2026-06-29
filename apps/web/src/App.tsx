@@ -11,6 +11,7 @@ import { PayrollPage } from './pages/PayrollPage';
 import { ReverseProposePage } from './pages/ReverseProposePage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { AdminPolicyPage } from './pages/AdminPolicyPage';
+import { HrStudentsPage } from './pages/HrStudentsPage';
 
 function Protected({ roles, children }: { roles?: string[]; children: JSX.Element }) {
   const { user, loading } = useAuth();
@@ -56,6 +57,7 @@ export function App() {
       >
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<AdminDashboardPage />} />
+        <Route path="students" element={<HrStudentsPage />} />
         <Route path="policy" element={<AdminPolicyPage />} />
       </Route>
 
