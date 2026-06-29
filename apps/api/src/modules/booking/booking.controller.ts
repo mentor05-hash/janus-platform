@@ -5,6 +5,7 @@ import {
   HttpCode,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
@@ -42,33 +43,29 @@ export class BookingController {
     return this.booking.list(user, role, status);
   }
 
-  @Post(':id/accept')
-  @HttpCode(200)
+  // ── 상태 전이(§5-4): openapi 계약과 일치하도록 PATCH ──
+  @Patch(':id/accept')
   accept(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
     return this.booking.accept(id, user);
   }
 
-  @Post(':id/reject')
-  @HttpCode(200)
+  @Patch(':id/reject')
   reject(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
     return this.booking.reject(id, user);
   }
 
-  @Post(':id/confirm')
-  @HttpCode(200)
+  @Patch(':id/confirm')
   confirm(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
     return this.booking.confirm(id, user);
   }
 
-  @Post(':id/complete')
-  @HttpCode(200)
+  @Patch(':id/complete')
   complete(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
     return this.booking.complete(id, user);
   }
 
   /** 취소. 선생님이 route 를 주면 사유 취소 4경로(§5-6: 이벤트·알림·환원·슬롯해제). */
-  @Post(':id/cancel')
-  @HttpCode(200)
+  @Patch(':id/cancel')
   cancel(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthUser,
@@ -80,8 +77,7 @@ export class BookingController {
     return this.booking.cancel(id, user);
   }
 
-  @Post(':id/noshow')
-  @HttpCode(200)
+  @Patch(':id/noshow')
   noshow(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
     return this.booking.noshow(id, user);
   }

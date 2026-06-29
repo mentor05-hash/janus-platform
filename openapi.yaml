@@ -350,6 +350,12 @@ paths:
                 reason: { type: string }
                 route: { type: string, enum: [substitute, priority, admin_manual, rebook_notice] }
       responses: { '200': { description: cancelled } }
+  /bookings/{id}/noshow:
+    patch:
+      tags: [Booking & Match]
+      summary: 노쇼 처리(선생님 — confirmed→noshow)
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      responses: { '200': { description: noshow } }
 
   /bookings/{id}/note:
     put:
