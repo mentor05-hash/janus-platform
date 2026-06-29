@@ -37,6 +37,7 @@ describe('2.5 역상담 통합', () => {
 
   async function makeStudent(id: string, login: string) {
     await purgeBookings({ student_id: id });
+    await prisma.payment.deleteMany({ where: { payer_account_id: id } });
     await prisma.account.deleteMany({ where: { id } });
     await prisma.account.create({
       data: { id, role: 'student' as any, center_id: CENTER, login_id: login, pw_hash: 'x', name: login, status: 'approved' as any },
@@ -59,6 +60,7 @@ describe('2.5 역상담 통합', () => {
 
   afterAll(async () => {
     await purgeBookings({ student_id: { in: [STU_R, STU_R2] } });
+    await prisma.payment.deleteMany({ where: { payer_account_id: { in: [STU_R, STU_R2] } } });
     await prisma.account.deleteMany({ where: { id: { in: [STU_R, STU_R2] } } });
     await app.close();
   });

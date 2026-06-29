@@ -12,7 +12,7 @@ import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AccountRole } from '../../config/enums';
 import { AvailabilityService } from './availability.service';
-import { WorkScheduleDto } from './dto/work-schedule.dto';
+import { OfflineAvailabilityDto, WorkScheduleDto } from './dto/work-schedule.dto';
 
 @Controller('teachers')
 export class AvailabilityController {
@@ -44,5 +44,16 @@ export class AvailabilityController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.availability.putWorkSchedule(id, dto, user);
+  }
+
+  /** PUT /teachers/{id}/offline-availability — 오프라인 가능 센터·시간(본인/관리자). */
+  @Put(':id/offline-availability')
+  @Roles('teacher', 'admin', 'hr')
+  putOfflineAvailability(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: OfflineAvailabilityDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.availability.putOfflineAvailability(id, dto, user);
   }
 }

@@ -159,4 +159,27 @@ export class AvailabilityService {
     }
     return this.prisma.work_schedule.create({ data: { teacher_id: teacherId, ...data } });
   }
+
+  /** 오프라인 가능 센터·시간 설정(본인 또는 관리자/HR). teacher 의 센터 기준 upsert. */
+  async putOfflineAvailability(
+    teacherId: string,
+    dto: { enabled: boolean; timeWindows?: unknown },
+    actor: { id: string; role: string },
+  ) {
+    const isSelf = actor.role === 'teacher' && actor.id === teacherId;
+    const isAdmin = actor.role === 'admin' || actor.role === 'hr';
+    if (!isSelf && !isAdmin) {
+      throw new ForbiddenException('본인 또는 관리자만 오프라인 가용을 설정할 수 있습니다.');
+    }
+    const teacher = await this.prisma.teacher_profile.findUnique({ where: { account_id: teacherId } });
+    if (!teacher) throw new NotFoundException('선생님을 찾을 수 없습니다.');
+    if (!teacher.center_id) throw new BadRequestException('센터 소속 선생님만 오프라인 가용을 설정할 수 있습니다.');
+
+    const data = { enabled: dto.enabled, time_windows: (dto.timeWindows ?? []) as object };
+    return this.prisma.teacher_offline_availability.upsert({
+      where: { teacher_id_center_id: { teacher_id: teacherId, center_id: teacher.center_id } },
+      update: data,
+      create: { teacher_id: teacherId, center_id: teacher.center_id, ...data },
+    });
+  }
 }

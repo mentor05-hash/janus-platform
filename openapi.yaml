@@ -258,8 +258,18 @@ paths:
   /teachers/{id}/offline-availability:
     put:
       tags: [Availability]
-      summary: 오프라인 가능 센터·시간 설정
+      summary: 오프라인 가능 센터·시간 설정(본인/관리자)
       parameters: [ { $ref: '#/components/parameters/Id' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled: { type: boolean }
+                timeWindows: { type: array, items: { type: object } }
       responses: { '200': { description: saved } }
   /admin/feature-availability:
     get:

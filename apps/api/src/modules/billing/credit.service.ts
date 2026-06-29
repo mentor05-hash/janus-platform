@@ -73,7 +73,16 @@ export class CreditService {
         method: 'mock',
       },
     });
+    // 결제 내역(payment) 기록 — /payments/history 노출
+    await tx.payment.create({
+      data: { payer_account_id: studentId, amount, pg_provider: 'mock', target: '충전', status: 'done' },
+    });
     return { purchasedBalance: updated.purchased_balance, grantedBalance: updated.granted_balance };
+  }
+
+  /** 결제 내역(GET /payments/history) — 본인 결제(payment) 목록. */
+  paymentHistory(payerId: string) {
+    return this.prisma.payment.findMany({ where: { payer_account_id: payerId }, orderBy: { created_at: 'desc' }, take: 100 });
   }
 
   /** 충전(모의 PG). 구매 크레딧 증가 + charge 트랜잭션 기록. */

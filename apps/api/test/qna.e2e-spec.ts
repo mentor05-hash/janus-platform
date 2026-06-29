@@ -26,6 +26,7 @@ describe('3.1 온라인 Q&A 통합', () => {
   async function cleanup() {
     await prisma.qna_post.deleteMany({ where: { student_id: STU_Q } }); // cascade answers
     await prisma.teacher_list_entry.deleteMany({ where: { student_id: STU_Q } });
+    await prisma.payment.deleteMany({ where: { payer_account_id: STU_Q } });
     await prisma.account.deleteMany({ where: { id: STU_Q } });
   }
 

@@ -704,7 +704,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** 오프라인 가능 센터·시간 설정 */
+        /** 오프라인 가능 센터·시간 설정(본인/관리자) */
         put: {
             parameters: {
                 query?: never;
@@ -714,7 +714,14 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        enabled: boolean;
+                        timeWindows?: Record<string, never>[];
+                    };
+                };
+            };
             responses: {
                 /** @description saved */
                 200: {
