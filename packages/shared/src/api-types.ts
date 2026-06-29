@@ -1242,7 +1242,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** 역상담 신청(선생님→학생, 첫 상담) */
+        /** 역상담 제안(선생님→학생, 첫 상담 한정). 슬롯 점유, 크레딧은 학생 수락 시 차감. */
         post: {
             parameters: {
                 query?: never;
@@ -1250,7 +1250,23 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody?: never;
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        studentId: string;
+                        /** Format: date */
+                        date: string;
+                        /** @enum {string} */
+                        consultType: "담임" | "교과" | "입시" | "심리";
+                        /** @enum {string} */
+                        mode: "board" | "chat" | "zoom" | "hand" | "offline";
+                        slotStart: number;
+                        slotEnd: number;
+                        content?: string;
+                    };
+                };
+            };
             responses: {
                 /** @description created */
                 201: {
@@ -1265,6 +1281,49 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/bookings/{id}/reverse-respond": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** 역상담 응답(학생 수락→크레딧 차감·confirmed / 거절→rejected) */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        action: "accept" | "reject";
+                    };
+                };
+            };
+            responses: {
+                /** @description ok */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         trace?: never;
     };
     "/bookings/{id}/accept": {

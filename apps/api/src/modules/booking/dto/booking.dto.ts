@@ -71,6 +71,41 @@ export class BookingCreateDto {
   content?: string;
 }
 
+/** 역상담 제안 (POST /bookings/reverse). 선생님 → 학생, 첫 상담 한정. */
+export class ReverseProposeDto {
+  @IsUUID()
+  studentId!: string;
+
+  @Matches(DATE_RE, { message: 'date 는 YYYY-MM-DD 형식이어야 합니다.' })
+  date!: string;
+
+  @IsIn(['담임', '교과', '입시', '심리'])
+  consultType!: ConsultType;
+
+  @IsIn(['board', 'chat', 'zoom', 'hand', 'offline'])
+  mode!: ConsultMode;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  slotStart!: number;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  slotEnd!: number;
+
+  @IsOptional()
+  @IsString()
+  content?: string;
+}
+
+/** 역상담 응답 (PATCH /bookings/{id}/reverse-respond). 학생 수락/거절. */
+export class ReverseRespondDto {
+  @IsIn(['accept', 'reject'])
+  action!: 'accept' | 'reject';
+}
+
 /** 취소 (POST /bookings/{id}/cancel). 선생님이 route 를 주면 사유 취소 4경로(§5-6). */
 export class CancelDto {
   @IsOptional()

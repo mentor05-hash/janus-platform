@@ -23,8 +23,9 @@ import { AvailabilityService } from '../availability/availability.service';
 import { CreditService } from '../billing/credit.service';
 import { evaluatePenalty } from '../pricing-policy/domain/penalty';
 import { PricingService } from '../pricing-policy/pricing.service';
-import { BookingCreateDto, QuoteDto } from './dto/booking.dto';
+import { BookingCreateDto, QuoteDto, ReverseProposeDto } from './dto/booking.dto';
 import { canTransition, shouldRefundOnTransition } from './domain/state-machine';
+import { canProposeReverse } from './domain/reverse';
 
 class ShortfallError extends Error {
   constructor(public readonly shortfall: number) {
@@ -162,6 +163,122 @@ export class BookingService {
       take: 100,
     });
     return rows.map((b) => this.toBookingDto(b));
+  }
+
+  /** POST /bookings/reverse — 선생님이 학생에게 역상담 제안(첫 상담 한정). 슬롯 점유, 크레딧은 학생 수락 시 차감. */
+  async proposeReverse(dto: ReverseProposeDto, user: AuthUser) {
+    if (user.role !== AccountRole.TEACHER) {
+      throw new ForbiddenException('선생님만 역상담을 제안할 수 있습니다.');
+    }
+    const minutes = (dto.slotEnd - dto.slotStart) * SLOT_GRANULARITY_MINUTES;
+    if (minutes <= 0) throw new BadRequestException('slotEnd 는 slotStart 보다 커야 합니다.');
+    const teacher = await this.requireTeacher(user.id);
+
+    const student = await this.prisma.student_profile.findUnique({ where: { account_id: dto.studentId } });
+    if (!student) throw new NotFoundException('학생을 찾을 수 없습니다.');
+
+    // 첫 상담 한정(§5-4): 기존 성사 상담(confirmed/done)이 없어야 제안 가능
+    const prior = await this.prisma.booking.count({
+      where: {
+        teacher_id: user.id,
+        student_id: dto.studentId,
+        status: { in: [BookingStatus.CONFIRMED, BookingStatus.DONE] as never },
+      },
+    });
+    if (!canProposeReverse(prior)) {
+      throw new ConflictException('이미 성사된 상담이 있어 역상담을 제안할 수 없습니다(첫 상담 한정).');
+    }
+
+    const startMin = dto.slotStart * SLOT_GRANULARITY_MINUTES;
+    const endMin = dto.slotEnd * SLOT_GRANULARITY_MINUTES;
+    const bookable = await this.availability.assertBookable(user.id, dto.date, startMin, endMin, dto.studentId);
+    if (!bookable) throw new ConflictException('제안하려는 시간은 예약할 수 없습니다(휴게/근무 위반).');
+
+    const q = await this.pricing.quoteSession(dto.mode, minutes, teacher.grade as TeacherGrade);
+    const startAt = utcFromKst(dto.date, startMin);
+    const endAt = utcFromKst(dto.date, endMin);
+
+    try {
+      const booking = await this.prisma.$transaction(async (tx) => {
+        const b = await tx.booking.create({
+          data: {
+            student_id: dto.studentId,
+            teacher_id: user.id,
+            center_id: teacher.center_id,
+            consult_type: consultTypeToPrisma(dto.consultType) as never,
+            mode: dto.mode as never,
+            direction: 'reverse',
+            start_at: startAt,
+            end_at: endAt,
+            status: BookingStatus.NEW as never,
+            charged_credits: q.credits,
+            origin: '역상담',
+            content: dto.content ?? null,
+          },
+        });
+        await tx.time_slot.createMany({
+          data: this.sessionSlotIndices(dto.slotStart, dto.slotEnd).map((i) => ({
+            teacher_id: user.id,
+            slot_date: new Date(dto.date),
+            slot_index: i,
+            status: 'booked',
+            booking_id: b.id,
+          })),
+        });
+        return b;
+      });
+      return this.toBookingDto(booking);
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        throw new ConflictException('이미 예약된 시간입니다.');
+      }
+      throw e;
+    }
+  }
+
+  /** PATCH /bookings/{id}/reverse-respond — 학생이 역상담 수락(크레딧 차감·confirmed)/거절(슬롯 해제·rejected). */
+  async respondReverse(id: string, action: 'accept' | 'reject', user: AuthUser) {
+    const b = await this.prisma.booking.findUnique({ where: { id } });
+    if (!b) throw new NotFoundException('예약을 찾을 수 없습니다.');
+    if (b.direction !== 'reverse') throw new BadRequestException('역상담 제안이 아닙니다.');
+    if (user.role !== AccountRole.STUDENT || b.student_id !== user.id) {
+      throw new ForbiddenException('제안 대상 학생만 응답할 수 있습니다.');
+    }
+    if (b.status !== BookingStatus.NEW) {
+      throw new BadRequestException(`응답할 수 없는 상태입니다: ${b.status}`);
+    }
+
+    if (action === 'reject') {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.booking.update({ where: { id }, data: { status: BookingStatus.REJECTED as never } });
+        await tx.time_slot.deleteMany({ where: { booking_id: id } });
+      });
+      return { id, status: BookingStatus.REJECTED };
+    }
+
+    // accept → 크레딧 차감(§5-3) + confirmed
+    const credits = b.charged_credits ?? 0;
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const outcome = await this.credit.consumeWithin(tx, b.student_id, credits, {
+          refType: 'booking',
+          refId: id,
+          description: '역상담 수락 크레딧 차감',
+        });
+        if (!outcome.ok) throw new ShortfallError(outcome.shortfall);
+        await tx.booking.update({ where: { id }, data: { status: BookingStatus.CONFIRMED as never } });
+      });
+      return { id, status: BookingStatus.CONFIRMED, chargedCredits: credits };
+    } catch (e) {
+      if (e instanceof ShortfallError) {
+        await this.credit.createPaymentRequest(b.student_id, e.shortfall, { refType: 'booking', refId: id });
+        throw new HttpException(
+          `크레딧이 ${e.shortfall} 부족합니다. 결제요청이 생성되었습니다.`,
+          HttpStatus.PAYMENT_REQUIRED,
+        );
+      }
+      throw e;
+    }
   }
 
   // ── 상태 전이 (§5-4) ──

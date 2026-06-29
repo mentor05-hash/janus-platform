@@ -41,11 +41,33 @@ describe('2.1 취소·알림 통합', () => {
     cancellation = mod.get(CancellationService);
     booking = mod.get(BookingService);
     credit = mod.get(CreditService);
-    await prisma.$executeRaw`DELETE FROM booking WHERE teacher_id=${TEACHER}::uuid AND start_at >= ${DAY_FLOOR}`;
+    {
+      // time_slot(자식) → booking 순으로 삭제(FK NO ACTION)
+      const olds = await prisma.booking.findMany({
+        where: { teacher_id: TEACHER, start_at: { gte: DAY_FLOOR } },
+        select: { id: true },
+      });
+      const ids = olds.map((b) => b.id);
+      if (ids.length) {
+        await prisma.time_slot.deleteMany({ where: { booking_id: { in: ids } } });
+        await prisma.booking.deleteMany({ where: { id: { in: ids } } });
+      }
+    }
   });
 
   afterAll(async () => {
-    await prisma.$executeRaw`DELETE FROM booking WHERE teacher_id=${TEACHER}::uuid AND start_at >= ${DAY_FLOOR}`;
+    {
+      // time_slot(자식) → booking 순으로 삭제(FK NO ACTION)
+      const olds = await prisma.booking.findMany({
+        where: { teacher_id: TEACHER, start_at: { gte: DAY_FLOOR } },
+        select: { id: true },
+      });
+      const ids = olds.map((b) => b.id);
+      if (ids.length) {
+        await prisma.time_slot.deleteMany({ where: { booking_id: { in: ids } } });
+        await prisma.booking.deleteMany({ where: { id: { in: ids } } });
+      }
+    }
     await app.close();
   });
 

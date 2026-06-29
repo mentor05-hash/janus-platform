@@ -437,8 +437,38 @@ paths:
   /bookings/reverse:
     post:
       tags: [Booking & Match]
-      summary: 역상담 신청(선생님→학생, 첫 상담)
+      summary: 역상담 제안(선생님→학생, 첫 상담 한정). 슬롯 점유, 크레딧은 학생 수락 시 차감.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [studentId, date, consultType, mode, slotStart, slotEnd]
+              properties:
+                studentId: { type: string, format: uuid }
+                date: { type: string, format: date }
+                consultType: { type: string, enum: [담임, 교과, 입시, 심리] }
+                mode: { type: string, enum: [board, chat, zoom, hand, offline] }
+                slotStart: { type: integer }
+                slotEnd: { type: integer }
+                content: { type: string }
       responses: { '201': { description: created } }
+  /bookings/{id}/reverse-respond:
+    patch:
+      tags: [Booking & Match]
+      summary: 역상담 응답(학생 수락→크레딧 차감·confirmed / 거절→rejected)
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [accept, reject] }
+      responses: { '200': { description: ok } }
   /bookings/{id}/accept:
     patch:
       tags: [Booking & Match]

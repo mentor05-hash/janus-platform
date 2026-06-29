@@ -11,9 +11,16 @@ import {
 } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { BookingService } from './booking.service';
 import { CancellationService } from './cancellation.service';
-import { BookingCreateDto, CancelDto, QuoteDto } from './dto/booking.dto';
+import {
+  BookingCreateDto,
+  CancelDto,
+  QuoteDto,
+  ReverseProposeDto,
+  ReverseRespondDto,
+} from './dto/booking.dto';
 import { AccountRole } from '../../config/enums';
 
 @Controller('bookings')
@@ -41,6 +48,24 @@ export class BookingController {
     @Query('status') status?: string,
   ) {
     return this.booking.list(user, role, status);
+  }
+
+  /** POST /bookings/reverse — 선생님이 학생에게 역상담 제안(첫 상담 한정). */
+  @Post('reverse')
+  @Roles('teacher')
+  proposeReverse(@Body() dto: ReverseProposeDto, @CurrentUser() user: AuthUser) {
+    return this.booking.proposeReverse(dto, user);
+  }
+
+  /** PATCH /bookings/{id}/reverse-respond — 학생 수락/거절. */
+  @Patch(':id/reverse-respond')
+  @Roles('student')
+  reverseRespond(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ReverseRespondDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.booking.respondReverse(id, dto.action, user);
   }
 
   // ── 상태 전이(§5-4): openapi 계약과 일치하도록 PATCH ──
