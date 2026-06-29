@@ -28,11 +28,12 @@ export class AvailabilityService {
 
   /** 학생 체류시간(요일) → 인터벌. 학생이 아니거나 미설정이면 종일. */
   private async resolveStay(studentId: string | undefined, weekday: string): Promise<Interval[]> {
-    if (!studentId) return [{ start: 0, end: 1440 }];
+    if (!studentId) return [{ start: 0, end: 1440 }]; // 익명 견적 — 제한 없음
     const sp = await this.prisma.student_profile.findUnique({ where: { account_id: studentId } });
     const stayTpl = (sp?.stay_time as unknown as WeeklyTemplate) ?? null;
-    if (stayTpl && stayTpl[weekday]) return this.windowsToIntervals(stayTpl[weekday]);
-    return [{ start: 0, end: 1440 }];
+    if (!stayTpl) return [{ start: 0, end: 1440 }]; // 체류시간 미설정 — 제한 없음
+    // 템플릿은 있으나 해당 요일 창이 없으면 그 날은 체류 없음 → 예약 불가(종일로 오인 금지).
+    return stayTpl[weekday] ? this.windowsToIntervals(stayTpl[weekday]) : [];
   }
 
   /**

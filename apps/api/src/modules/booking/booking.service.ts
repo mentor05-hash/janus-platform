@@ -139,6 +139,11 @@ export class BookingService {
         if (dto.mode === ConsultMode.ZOOM) {
           await this.assertZoomCapacity(tx, teacher.center_id, dto.date, startAt, endAt);
         }
+        // 오프라인 상담실 배정(§5 상담실) — 센터 내 시간대 미점유 방을 선정.
+        let roomId: string | null = null;
+        if (dto.mode === ConsultMode.OFFLINE) {
+          roomId = await this.assignRoom(tx, teacher.center_id, dto.date, startAt, endAt);
+        }
         const b = await tx.booking.create({
           data: {
             student_id: studentId,
@@ -152,6 +157,7 @@ export class BookingService {
             start_at: startAt,
             end_at: endAt,
             status: BookingStatus.NEW,
+            room_id: roomId,
             charged_credits: credits,
             origin: '직접',
             content: dto.content ?? null,
@@ -530,6 +536,36 @@ export class BookingService {
     }
   }
 
+  /**
+   * 오프라인 상담실 배정(§5 상담실). 센터 내 status=available 방 중 요청 시간대와 겹치는
+   * 진행 예정(new/confirmed) 예약이 없는 첫 방을 선정. room:센터:날짜 advisory 락으로
+   * 교차-선생님 동시 배정을 직렬화(중복 점유 방지, §7). 가용 방이 없으면 409.
+   */
+  private async assignRoom(
+    tx: Prisma.TransactionClient,
+    centerId: string | null,
+    date: string,
+    startAt: Date,
+    endAt: Date,
+  ): Promise<string> {
+    if (!centerId) throw new ConflictException('센터 정보가 없어 상담실을 배정할 수 없습니다.');
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`room:${centerId}:${date}`}))`;
+    const rooms = await tx.room.findMany({ where: { center_id: centerId, status: 'available' } });
+    if (rooms.length === 0) throw new ConflictException('등록된 상담실이 없습니다(관리자에게 문의).');
+    for (const room of rooms) {
+      const conflict = await tx.booking.count({
+        where: {
+          room_id: room.id,
+          status: { in: [BookingStatus.NEW, BookingStatus.CONFIRMED] },
+          start_at: { lt: endAt },
+          end_at: { gt: startAt },
+        },
+      });
+      if (conflict === 0) return room.id;
+    }
+    throw new ConflictException('해당 시간에 이용 가능한 상담실이 없습니다.');
+  }
+
   private async requireTeacher(teacherId: string) {
     const t = await this.prisma.teacher_profile.findUnique({ where: { account_id: teacherId } });
     if (!t) throw new NotFoundException('선생님을 찾을 수 없습니다.');
@@ -560,6 +596,7 @@ export class BookingService {
     status: string;
     charged_credits: number | null;
     meeting_url?: string | null;
+    room_id?: string | null;
   }) {
     return {
       id: b.id,
@@ -575,6 +612,7 @@ export class BookingService {
       status: b.status,
       chargedCredits: b.charged_credits ?? 0,
       meetingUrl: b.meeting_url ?? null,
+      roomId: b.room_id ?? null,
     };
   }
 }
