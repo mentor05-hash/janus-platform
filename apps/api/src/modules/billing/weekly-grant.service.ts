@@ -26,11 +26,17 @@ export class WeeklyGrantService {
     this.logger.log(`주간 소멸 완료: ${n}건`);
   }
 
-  /** 등급별 weekly_credits 를 학생 계좌에 부여(이번 주 일요일 24:00 만료). */
-  async runGrant(now = new Date()): Promise<number> {
+  /**
+   * 등급별 weekly_credits 를 학생 계좌에 부여(이번 주 일요일 24:00 만료).
+   * @param onlyStudentId 지정 시 해당 학생만(운영 단일 재부여·테스트 격리용).
+   */
+  async runGrant(now = new Date(), onlyStudentId?: string): Promise<number> {
     const expireAt = endOfWeekKst(now);
     const students = await this.prisma.student_profile.findMany({
-      where: { membership_grade_id: { not: null } },
+      where: {
+        membership_grade_id: { not: null },
+        ...(onlyStudentId ? { account_id: onlyStudentId } : {}),
+      },
       include: { membership_grade: true },
     });
     let count = 0;
@@ -68,10 +74,20 @@ export class WeeklyGrantService {
     return count;
   }
 
-  /** 남은 부여분을 소멸(이월 없음). */
-  async runExpire(now = new Date()): Promise<number> {
+  /** 남은 부여분을 소멸(이월 없음). onlyStudentId 지정 시 해당 학생 계좌만. */
+  async runExpire(now = new Date(), onlyStudentId?: string): Promise<number> {
+    let accountId: string | undefined;
+    if (onlyStudentId) {
+      const acct = await this.prisma.credit_account.findUnique({ where: { student_id: onlyStudentId } });
+      if (!acct) return 0;
+      accountId = acct.id;
+    }
     const grants = await this.prisma.weekly_credit_grant.findMany({
-      where: { remaining: { gt: 0 }, expire_at: { lte: now } },
+      where: {
+        remaining: { gt: 0 },
+        expire_at: { lte: now },
+        ...(accountId ? { account_id: accountId } : {}),
+      },
     });
     let count = 0;
     for (const g of grants) {

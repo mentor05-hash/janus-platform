@@ -127,6 +127,25 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/SubscriptionPlan' }
+  /subscription/me:
+    get:
+      tags: [Subscription & Payment]
+      summary: 내 활성 구독(학생)
+      responses: { '200': { description: ok } }
+  /subscription/subscribe:
+    post:
+      tags: [Subscription & Payment]
+      summary: 플랜 구독(학생) — 등급 반영, 주간부여 연동
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [planId]
+              properties:
+                planId: { type: string, format: uuid }
+      responses: { '201': { description: subscribed } }
   /payments/charge:
     post:
       tags: [Subscription & Payment]

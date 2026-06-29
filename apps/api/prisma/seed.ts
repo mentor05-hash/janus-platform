@@ -41,6 +41,9 @@ const ID = {
   acAdmin: '00000000-0000-4000-8000-0000000000a3',
   acHr: '00000000-0000-4000-8000-0000000000a4',
   acGuardian: '00000000-0000-4000-8000-0000000000a5',
+  planStd: '00000000-0000-4000-8000-0000000000b2',
+  planPrem: '00000000-0000-4000-8000-0000000000b3',
+  planVip: '00000000-0000-4000-8000-0000000000b4',
 };
 
 // 더미 계정 공통 개발 비밀번호(로컬 전용). 모든 더미 계정이 이 값으로 로그인.
@@ -74,6 +77,20 @@ async function main() {
         `INSERT INTO membership_grade (id, name, tier, weekly_credits, expire_policy, priority)
          VALUES ($1,$2,$3,$4,'end_of_week',$5) ON CONFLICT (id) DO NOTHING`,
         [id, name, tier, weekly, prio],
+      );
+    }
+
+    // 2-1) 구독 플랜(등급 연결, 월간) — 구독 시 학생 등급 결정(§5-3 연동)
+    const plans: [string, string, number, string][] = [
+      [ID.planStd, 'Standard 월간', 49_000, ID.gradeStd],
+      [ID.planPrem, 'Premium 월간', 89_000, ID.gradePrem],
+      [ID.planVip, 'VIP 월간', 149_000, ID.gradeVip],
+    ];
+    for (const [id, name, price, gradeId] of plans) {
+      await client.query(
+        `INSERT INTO subscription_plan (id, name, price, billing_cycle, payer, grade_id)
+         VALUES ($1,$2,$3,'monthly','guardian',$4) ON CONFLICT (id) DO NOTHING`,
+        [id, name, price, gradeId],
       );
     }
 
