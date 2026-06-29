@@ -712,7 +712,7 @@ export interface paths {
                 };
             };
         };
-        /** 카테고리·방식·게시판 열기/닫기(전사+센터) */
+        /** 카테고리·방식·게시판 열기/닫기(전사 강제+센터 자율, 충돌 시 전사 우선) */
         put: {
             parameters: {
                 query?: never;
@@ -720,7 +720,78 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        scope: "전사" | "센터" | "캠프" | "외부생";
+                        /** @description category/mode/board/online/offline */
+                        targetType: string;
+                        targetValue: string;
+                        enabled: boolean;
+                    };
+                };
+            };
+            responses: {
+                /** @description saved */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 한도 정책 조회(센터) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
             requestBody?: never;
+            responses: {
+                /** @description ok */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        /** 예약/분류 한도(§5-9 한도 축소 시 기존 동결·신규만 차단) */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        reservationLimit?: number | null;
+                        classifyFitLimit?: number;
+                        classifyUnfitLimit?: number;
+                    };
+                };
+            };
             responses: {
                 /** @description saved */
                 200: {

@@ -241,7 +241,38 @@ paths:
       responses: { '200': { description: ok } }
     put:
       tags: [Admin Policy]
-      summary: 카테고리·방식·게시판 열기/닫기(전사+센터)
+      summary: 카테고리·방식·게시판 열기/닫기(전사 강제+센터 자율, 충돌 시 전사 우선)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scope, targetType, targetValue, enabled]
+              properties:
+                scope: { type: string, enum: [전사, 센터, 캠프, 외부생] }
+                targetType: { type: string, description: 'category/mode/board/online/offline' }
+                targetValue: { type: string }
+                enabled: { type: boolean }
+      responses: { '200': { description: saved } }
+  /admin/limits:
+    get:
+      tags: [Admin Policy]
+      summary: 한도 정책 조회(센터)
+      responses: { '200': { description: ok } }
+    put:
+      tags: [Admin Policy]
+      summary: 예약/분류 한도(§5-9 한도 축소 시 기존 동결·신규만 차단)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reservationLimit: { type: integer, nullable: true }
+                classifyFitLimit: { type: integer }
+                classifyUnfitLimit: { type: integer }
       responses: { '200': { description: saved } }
 
   /match/auto:
