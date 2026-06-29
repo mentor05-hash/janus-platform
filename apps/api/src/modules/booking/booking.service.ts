@@ -13,7 +13,7 @@ import { ShortfallError } from '../../common/errors/shortfall.error';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { utcFromKst } from '../../common/time/kst';
 import { SLOT_GRANULARITY_MINUTES } from '../../config/constants';
-import { AccountRole, BookingStatus, ConsultMode, TeacherGrade } from '../../config/enums';
+import { AccountRole, BookingStatus, ConsultMode, ConsultType, TeacherGrade } from '../../config/enums';
 import {
   consultTypeFromPrisma,
   consultTypeToPrisma,
@@ -24,6 +24,7 @@ import { AvailabilityService } from '../availability/availability.service';
 import { CreditService } from '../billing/credit.service';
 import { evaluatePenalty } from '../pricing-policy/domain/penalty';
 import { PricingService } from '../pricing-policy/pricing.service';
+import { AdminPolicyService } from '../pricing-policy/admin-policy.service';
 import { BlockService } from '../report/block.service';
 import { BookingCreateDto, QuoteDto, ReverseProposeDto } from './dto/booking.dto';
 import { canTransition, shouldRefundOnTransition } from './domain/state-machine';
@@ -37,7 +38,28 @@ export class BookingService {
     private readonly pricing: PricingService,
     private readonly credit: CreditService,
     private readonly blocks: BlockService,
+    private readonly adminPolicy: AdminPolicyService,
   ) {}
+
+  /**
+   * §5-8 기능 열기/닫기(FeatureAvailability) + 카테고리×방식(CategoryModePolicy) 게이트.
+   * 닫힌 방식/카테고리이거나 허용되지 않은 방식이면 예약 차단.
+   */
+  private async assertConsultAllowed(centerId: string | null, consultType: ConsultType, mode: ConsultMode) {
+    const modeFeature = await this.adminPolicy.resolveFeature(centerId, 'mode', mode);
+    if (!modeFeature.enabled) throw new ForbiddenException(`현재 ${mode} 방식은 닫혀 있습니다.`);
+    const catFeature = await this.adminPolicy.resolveFeature(centerId, 'category', consultType);
+    if (!catFeature.enabled) throw new ForbiddenException(`현재 ${consultType} 상담은 닫혀 있습니다.`);
+
+    if (centerId) {
+      const cmp = await this.prisma.category_mode_policy.findFirst({
+        where: { center_id: centerId, consult_type: consultTypeToPrisma(consultType) },
+      });
+      if (cmp && !cmp.allowed_modes.includes(mode)) {
+        throw new ForbiddenException(`${consultType} 상담에는 ${mode} 방식을 사용할 수 없습니다.`);
+      }
+    }
+  }
 
   /** POST /bookings/quote — 요금·유효성(§5-1 버퍼 재검증 + §5-2 요금). */
   async quote(dto: QuoteDto, user: AuthUser) {
@@ -77,6 +99,7 @@ export class BookingService {
       throw new ForbiddenException('차단한 선생님에게는 예약할 수 없습니다.');
     }
     const teacher = await this.requireTeacher(dto.teacherId);
+    await this.assertConsultAllowed(teacher.center_id, dto.consultType, dto.mode); // §5-8 게이트
     const startMin = dto.slotStart * SLOT_GRANULARITY_MINUTES;
     const endMin = dto.slotEnd * SLOT_GRANULARITY_MINUTES;
 
@@ -180,6 +203,7 @@ export class BookingService {
     const minutes = (dto.slotEnd - dto.slotStart) * SLOT_GRANULARITY_MINUTES;
     if (minutes <= 0) throw new BadRequestException('slotEnd 는 slotStart 보다 커야 합니다.');
     const teacher = await this.requireTeacher(user.id);
+    await this.assertConsultAllowed(teacher.center_id, dto.consultType, dto.mode); // §5-8 게이트
 
     const student = await this.prisma.student_profile.findUnique({ where: { account_id: dto.studentId } });
     if (!student) throw new NotFoundException('학생을 찾을 수 없습니다.');
