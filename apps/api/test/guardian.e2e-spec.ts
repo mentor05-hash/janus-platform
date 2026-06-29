@@ -104,4 +104,17 @@ describe('2.2 학부모·공개정책·결제요청 통합', () => {
     const after = await credit.getAccount(STUDENT);
     expect(after.total).toBe(before.total + 15_000);
   });
+
+  it('M3: 결제요청 동시 결제 → 1회만 충전(이중 결제 방지)', async () => {
+    const before = await credit.getAccount(STUDENT);
+    const req: any = await paymentRequests.create(guardianUser, { neededCredits: 10_000, studentId: STUDENT });
+    const rs = await Promise.allSettled([
+      paymentRequests.respond(req.id, { action: 'pay' }, guardianUser),
+      paymentRequests.respond(req.id, { action: 'pay' }, guardianUser),
+    ]);
+    expect(rs.filter((r) => r.status === 'fulfilled').length).toBe(1);
+    expect(rs.filter((r) => r.status === 'rejected').length).toBe(1);
+    const after = await credit.getAccount(STUDENT);
+    expect(after.total).toBe(before.total + 10_000); // 단 1회 충전
+  });
 });

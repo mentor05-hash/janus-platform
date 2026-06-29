@@ -44,33 +44,41 @@ export class CreditService {
     });
   }
 
-  /** 충전(모의 PG). 구매 크레딧 증가 + charge 트랜잭션 기록.
-   *  무검증 mock 충전은 prod 에서 차단 — 실 PG(PgProvider) 연동 전 무료 크레딧 발급 방지. */
-  async charge(studentId: string, amount: number) {
+  /** 무검증 mock 충전 차단(§ PG 연동 전 무료 크레딧 방지). */
+  private assertChargeable() {
     const env = this.config.get<string>('NODE_ENV');
     const pg = this.config.get<string>('PG_PROVIDER') ?? 'mock';
     if (env === 'prod' && pg === 'mock') {
       throw new ForbiddenException('실 결제 연동(PG_PROVIDER) 전에는 충전할 수 없습니다.');
     }
-    return this.prisma.$transaction(async (tx) => {
-      const acct = await this.lockAccount(tx, studentId);
-      const balance = acct.purchased_balance + acct.granted_balance + amount;
-      const updated = await tx.credit_account.update({
-        where: { id: acct.id },
-        data: { purchased_balance: { increment: amount } },
-      });
-      await tx.credit_transaction.create({
-        data: {
-          account_id: acct.id,
-          type: CreditTxnType.CHARGE,
-          amount,
-          balance,
-          description: '크레딧 충전(모의 PG)',
-          method: 'mock',
-        },
-      });
-      return { purchasedBalance: updated.purchased_balance, grantedBalance: updated.granted_balance };
+  }
+
+  /** 트랜잭션 내 충전(결제요청 응답 등에서 원자적 처리에 사용). */
+  async chargeWithin(tx: Prisma.TransactionClient, studentId: string, amount: number) {
+    this.assertChargeable();
+    const acct = await this.lockAccount(tx, studentId);
+    const balance = acct.purchased_balance + acct.granted_balance + amount;
+    const updated = await tx.credit_account.update({
+      where: { id: acct.id },
+      data: { purchased_balance: { increment: amount } },
     });
+    await tx.credit_transaction.create({
+      data: {
+        account_id: acct.id,
+        type: CreditTxnType.CHARGE,
+        amount,
+        balance,
+        description: '크레딧 충전(모의 PG)',
+        method: 'mock',
+      },
+    });
+    return { purchasedBalance: updated.purchased_balance, grantedBalance: updated.granted_balance };
+  }
+
+  /** 충전(모의 PG). 구매 크레딧 증가 + charge 트랜잭션 기록. */
+  async charge(studentId: string, amount: number) {
+    this.assertChargeable();
+    return this.prisma.$transaction((tx) => this.chargeWithin(tx, studentId, amount));
   }
 
   /**

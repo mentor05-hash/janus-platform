@@ -85,4 +85,25 @@ describe('fix-2 동시성', () => {
     const after = await credit.getAccount(STUDENT);
     expect(after.total).toBe(before.total + 20_000); // 단 1회 환원
   });
+
+  it('M2: NOSHOW 전이가 학생 noshow_count 를 증가시킨다(§5-7 카운터)', async () => {
+    const STU_N = '00000000-0000-4000-8000-0000000000e7';
+    await prisma.account.deleteMany({ where: { id: STU_N } });
+    await prisma.account.create({
+      data: { id: STU_N, role: 'student' as any, center_id: CENTER, login_id: 'noshow_t', pw_hash: 'x', name: 'n', status: 'approved' as any },
+    });
+    await prisma.student_profile.create({ data: { account_id: STU_N, center_id: CENTER, noshow_count: 0 } });
+    const b = await prisma.booking.create({
+      data: { student_id: STU_N, teacher_id: TEACHER, center_id: CENTER, consult_type: 'subject' as any, mode: 'zoom' as any, status: 'confirmed' as any },
+    });
+    try {
+      await booking.noshow(b.id, teacherUser);
+      const sp = await prisma.student_profile.findUnique({ where: { account_id: STU_N } });
+      expect(sp!.noshow_count).toBe(1);
+    } finally {
+      await prisma.time_slot.deleteMany({ where: { booking_id: b.id } });
+      await prisma.booking.delete({ where: { id: b.id } }).catch(() => {});
+      await prisma.account.deleteMany({ where: { id: STU_N } });
+    }
+  });
 });

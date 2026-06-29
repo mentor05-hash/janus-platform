@@ -357,6 +357,12 @@ export class BookingService {
       if (to === BookingStatus.CANCELLED || to === BookingStatus.REJECTED) {
         await tx.time_slot.deleteMany({ where: { booking_id: id } }); // 슬롯 해제
       }
+      // §5-7 가중 제한 카운터 누적(noshow/reject) — 이후 신규 신청 제한 판정에 사용.
+      if (to === BookingStatus.NOSHOW) {
+        await tx.student_profile.update({ where: { account_id: b.student_id }, data: { noshow_count: { increment: 1 } } });
+      } else if (to === BookingStatus.REJECTED) {
+        await tx.student_profile.update({ where: { account_id: b.student_id }, data: { rejected_count: { increment: 1 } } });
+      }
       if (refund) {
         await this.credit.refundWithin(tx, b.student_id, b.charged_credits!, {
           refType: 'booking',

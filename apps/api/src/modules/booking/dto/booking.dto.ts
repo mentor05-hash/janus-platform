@@ -71,6 +71,17 @@ export class BookingCreateDto {
   content?: string;
 }
 
+/** 예약 목록 쿼리 (GET /bookings). 잘못된 값은 400(Prisma 500 방지). */
+export class BookingListQueryDto {
+  @IsOptional()
+  @IsIn(['student', 'teacher'])
+  role?: 'student' | 'teacher';
+
+  @IsOptional()
+  @IsIn(['new', 'confirmed', 'done', 'cancelled', 'rejected', 'noshow'])
+  status?: string;
+}
+
 /** 역상담 제안 (POST /bookings/reverse). 선생님 → 학생, 첫 상담 한정. */
 export class ReverseProposeDto {
   @IsUUID()

@@ -16,6 +16,7 @@ import { BookingService } from './booking.service';
 import { CancellationService } from './cancellation.service';
 import {
   BookingCreateDto,
+  BookingListQueryDto,
   CancelDto,
   QuoteDto,
   ReverseProposeDto,
@@ -42,12 +43,8 @@ export class BookingController {
   }
 
   @Get()
-  list(
-    @CurrentUser() user: AuthUser,
-    @Query('role') role?: 'student' | 'teacher',
-    @Query('status') status?: string,
-  ) {
-    return this.booking.list(user, role, status);
+  list(@CurrentUser() user: AuthUser, @Query() q: BookingListQueryDto) {
+    return this.booking.list(user, q.role, q.status);
   }
 
   /** POST /bookings/reverse — 선생님이 학생에게 역상담 제안(첫 상담 한정). */

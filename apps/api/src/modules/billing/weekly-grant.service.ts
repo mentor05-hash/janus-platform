@@ -116,16 +116,17 @@ export class WeeklyGrantService {
   }
 }
 
-/** 해당 주 일요일 24:00(KST) = 다음 월요일 00:00(KST) 직전. */
-function endOfWeekKst(now: Date): Date {
+/**
+ * 해당 주 일요일 23:59:00(KST) — 소멸 cron(`59 23 * * 0`)과 동일 시각.
+ * (이전 구현은 다음 월요일 00:00 으로 두어 일요일 23:59 소멸 런이 `expire_at <= now` 를
+ *  만족하지 못해 한 주치가 다음 주까지 살아남아 2주 중복되는 off-by-one 이 있었음.)
+ */
+export function endOfWeekKst(now: Date): Date {
   const KST = 9 * 60 * 60 * 1000;
   const k = new Date(now.getTime() + KST);
-  const dow = k.getUTCDay(); // 0=일
-  const daysUntilNextMon = (8 - dow) % 7 || 7;
-  const nextMonKstMidnight = Date.UTC(
-    k.getUTCFullYear(),
-    k.getUTCMonth(),
-    k.getUTCDate() + daysUntilNextMon,
-  );
-  return new Date(nextMonKstMidnight - KST);
+  const dow = k.getUTCDay(); // 0=일 .. 6=토
+  const daysUntilSun = (7 - dow) % 7; // 일요일이면 0(당일)
+  const sunMidnightKstAsUtc = Date.UTC(k.getUTCFullYear(), k.getUTCMonth(), k.getUTCDate() + daysUntilSun);
+  const expireKst = sunMidnightKstAsUtc + (23 * 60 + 59) * 60 * 1000; // 일 23:59:00 KST
+  return new Date(expireKst - KST);
 }

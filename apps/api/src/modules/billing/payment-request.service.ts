@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -92,14 +93,24 @@ export class PaymentRequestService {
     }
 
     if (dto.action === 'reject') {
-      await this.prisma.payment_request.update({ where: { id }, data: { status: 'rejected' } });
+      const upd = await this.prisma.payment_request.updateMany({
+        where: { id, status: 'open' },
+        data: { status: 'rejected' },
+      });
+      if (upd.count !== 1) throw new ConflictException('이미 처리된 결제요청입니다.');
       return { id, status: 'rejected' };
     }
 
     if (!canPayRequest(actor.role)) throw new ForbiddenException('결제할 수 없는 역할입니다.');
-    // 모의 PG 충전(학생 계좌) + 결제요청 완료
-    await this.credit.charge(req.student_id, req.needed_credits);
-    await this.prisma.payment_request.update({ where: { id }, data: { status: 'done' } });
+    // 원자적 처리(§7): 상태 open→done 가드 후 같은 트랜잭션에서 충전(이중 결제 방지).
+    await this.prisma.$transaction(async (tx) => {
+      const upd = await tx.payment_request.updateMany({
+        where: { id, status: 'open' },
+        data: { status: 'done' },
+      });
+      if (upd.count !== 1) throw new ConflictException('이미 처리된 결제요청입니다.');
+      await this.credit.chargeWithin(tx, req.student_id, req.needed_credits);
+    });
     return { id, status: 'done', chargedCredits: req.needed_credits };
   }
 
