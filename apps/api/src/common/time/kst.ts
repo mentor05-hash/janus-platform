@@ -11,6 +11,17 @@ export function kstMinutesOfDay(utc: Date): number {
   return Math.floor((((shifted % DAY_MS) + DAY_MS) % DAY_MS) / 60_000);
 }
 
+/**
+ * 특정 KST 날짜의 자정 기준 분(0..1440으로 클램프).
+ * kstMinutesOfDay 는 24:00 을 0 으로 접어 인터벌이 깨지지만, 이 함수는 날짜 자정 기준
+ * 상대값이라 24:00 종료=1440, 자정 교차(이전/다음날)는 [0,1440]으로 클램프해 안전.
+ */
+export function kstMinutesInDay(utc: Date, dateStr: string): number {
+  const base = utcFromKst(dateStr, 0).getTime();
+  const min = Math.round((utc.getTime() - base) / 60_000);
+  return Math.max(0, Math.min(1440, min));
+}
+
 /** UTC 시각 → KST 달력 날짜 'YYYY-MM-DD'. */
 export function kstDateString(utc: Date): string {
   const d = new Date(utc.getTime() + KST_OFFSET_MIN * 60_000);

@@ -2,7 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { PrismaService } from '../../common/prisma/prisma.service';
 import {
   hhmmToMin,
-  kstMinutesOfDay,
+  kstMinutesInDay,
   utcFromKst,
   weekdayKst,
 } from '../../common/time/kst';
@@ -103,23 +103,25 @@ export class AvailabilityService {
     );
   }
 
-  /** 그날 선생님 예약(점유) + 센터 차단시간을 KST 분 인터벌로. */
+  /** 그날 선생님 예약(점유) + 센터 차단시간을 '날짜 자정 기준 분' 인터벌로(L1: 24:00·자정 교차 안전). */
   private async loadDayOccupancy(teacherId: string, centerId: string | null, dateStr: string) {
     const dayStartUtc = utcFromKst(dateStr, 0);
     const dayEndUtc = utcFromKst(dateStr, 1440);
+    const toMin = (d: Date) => kstMinutesInDay(d, dateStr);
 
+    // 그날과 겹치는 예약(이전날 시작·자정 교차 포함) — start < dayEnd AND end > dayStart
     const rows = await this.prisma.booking.findMany({
       where: {
         teacher_id: teacherId,
         status: { in: ACTIVE_STATUSES },
-        start_at: { gte: dayStartUtc, lt: dayEndUtc },
-        NOT: { start_at: null },
+        start_at: { lt: dayEndUtc },
+        end_at: { gt: dayStartUtc },
       },
       select: { start_at: true, end_at: true },
     });
     const bookings: Interval[] = rows
       .filter((r) => r.start_at && r.end_at)
-      .map((r) => ({ start: kstMinutesOfDay(r.start_at!), end: kstMinutesOfDay(r.end_at!) }));
+      .map((r) => ({ start: toMin(r.start_at!), end: toMin(r.end_at!) }));
 
     let blocked: Interval[] = [];
     if (centerId) {
@@ -127,7 +129,7 @@ export class AvailabilityService {
         where: { center_id: centerId, start_at: { lt: dayEndUtc }, end_at: { gt: dayStartUtc } },
         select: { start_at: true, end_at: true },
       });
-      blocked = blk.map((b) => ({ start: kstMinutesOfDay(b.start_at), end: kstMinutesOfDay(b.end_at) }));
+      blocked = blk.map((b) => ({ start: toMin(b.start_at), end: toMin(b.end_at) }));
     }
     return { bookings, blocked };
   }
