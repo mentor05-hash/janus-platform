@@ -88,6 +88,56 @@ export interface LimitPolicy {
   classify_unfit_limit: number;
 }
 
+export interface PenaltyPolicy {
+  cancel_threshold: number | null;
+  noshow_threshold: number | null;
+  reject_threshold: number | null;
+  restrict_minutes: number | null;
+  ranking_weight_down: number | null;
+}
+
+export interface FeatureRule {
+  id: string;
+  scope: string;
+  center_id: string | null;
+  target_type: string;
+  target_value: string;
+  enabled: boolean;
+}
+
+export interface ZoomPolicy {
+  center_id: string;
+  concurrent_limit: number;
+}
+
+export interface Room {
+  id: string;
+  type: string | null;
+  capacity: number | null;
+  operating_hours: string | null;
+  setting: string | null;
+  status: string | null;
+}
+
+export interface BlockedTime {
+  id: string;
+  type: string | null;
+  start_at: string;
+  end_at: string;
+  scope: string | null;
+}
+
+export interface Report {
+  id: string;
+  target_type: string | null;
+  target_id: string | null;
+  reason: string | null;
+  status: string | null;
+  action: string | null;
+  ai_review: { flagged?: boolean; summary?: string; suggestedAction?: string } | null;
+  created_at: string;
+}
+
 export interface ConsultationNote {
   bookingId: string;
   coreSummary: string | null;

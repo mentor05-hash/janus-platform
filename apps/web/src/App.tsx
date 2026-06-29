@@ -12,6 +12,8 @@ import { ReverseProposePage } from './pages/ReverseProposePage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { AdminPolicyPage } from './pages/AdminPolicyPage';
 import { HrStudentsPage } from './pages/HrStudentsPage';
+import { AdminInfraPage } from './pages/AdminInfraPage';
+import { AdminReportsPage } from './pages/AdminReportsPage';
 
 function Protected({ roles, children }: { roles?: string[]; children: JSX.Element }) {
   const { user, loading } = useAuth();
@@ -59,6 +61,8 @@ export function App() {
         <Route path="dashboard" element={<AdminDashboardPage />} />
         <Route path="students" element={<HrStudentsPage />} />
         <Route path="policy" element={<AdminPolicyPage />} />
+        <Route path="infra" element={<AdminInfraPage />} />
+        <Route path="reports" element={<AdminReportsPage />} />
       </Route>
 
       <Route path="*" element={<HomeRedirect />} />

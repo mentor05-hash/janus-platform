@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import type { LimitPolicy, PricingPolicy } from '../api/types';
+import type { FeatureRule, LimitPolicy, PenaltyPolicy, PricingPolicy } from '../api/types';
 
 const MODES = ['board', 'chat', 'zoom', 'hand', 'offline'];
 type Row = { perHour: number; surchargePct: number; enabled: boolean };
@@ -11,6 +11,9 @@ export function AdminPolicyPage() {
   const myCenter = user!.center_id;
   const [rows, setRows] = useState<Record<string, Row>>({});
   const [limits, setLimits] = useState<Partial<LimitPolicy>>({});
+  const [penalty, setPenalty] = useState<Partial<PenaltyPolicy>>({});
+  const [features, setFeatures] = useState<FeatureRule[]>([]);
+  const [feat, setFeat] = useState({ scope: '센터', targetType: 'mode', targetValue: 'zoom', enabled: true });
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
 
@@ -28,6 +31,8 @@ export function AdminPolicyPage() {
       }
       setRows(map);
       setLimits(await api.get<LimitPolicy>('/admin/limits'));
+      setPenalty(await api.get<PenaltyPolicy>('/admin/penalty-policy'));
+      setFeatures(await api.get<FeatureRule[]>('/admin/feature-availability'));
     } catch (e) {
       setError(e instanceof ApiError ? e.message : '정책 조회 실패');
     }
@@ -65,7 +70,37 @@ export function AdminPolicyPage() {
     }
   }
 
+  async function savePenalty() {
+    setMsg('');
+    setError('');
+    try {
+      await api.put('/admin/penalty-policy', {
+        cancelThreshold: penalty.cancel_threshold ?? null,
+        noshowThreshold: penalty.noshow_threshold ?? null,
+        rejectThreshold: penalty.reject_threshold ?? null,
+        rankingWeightDown: penalty.ranking_weight_down ?? null,
+      });
+      setMsg('가중 제한 임계 저장됨.');
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : '저장 실패');
+    }
+  }
+
+  async function saveFeature() {
+    setMsg('');
+    setError('');
+    try {
+      await api.put('/admin/feature-availability', feat);
+      setMsg(`기능 토글 저장됨(${feat.scope} ${feat.targetValue} = ${feat.enabled ? '열림' : '닫힘'}).`);
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : '저장 실패');
+    }
+  }
+
   const setRow = (m: string, k: keyof Row, v: unknown) => setRows((p) => ({ ...p, [m]: { ...p[m], [k]: v } }));
+  const setPen = (k: keyof PenaltyPolicy, v: string) =>
+    setPenalty((p) => ({ ...p, [k]: v === '' ? null : Number(v) }));
 
   return (
     <div style={{ display: 'grid', gap: 20 }}>
@@ -139,6 +174,69 @@ export function AdminPolicyPage() {
         <button className="btn" style={{ marginTop: 12 }} onClick={saveLimits}>
           한도 저장
         </button>
+      </section>
+
+      <section className="card">
+        <h3 style={{ marginTop: 0 }}>가중 제한 임계 (§5-7, 빈칸=미설정)</h3>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          {(
+            [
+              ['cancel_threshold', '당일취소'],
+              ['noshow_threshold', '노쇼'],
+              ['reject_threshold', '과다거절'],
+              ['ranking_weight_down', '랭킹 가중치↓'],
+            ] as const
+          ).map(([k, label]) => (
+            <div key={k}>
+              <label className="label">{label}</label>
+              <input
+                className="input"
+                style={{ width: 110 }}
+                type="number"
+                value={penalty[k] ?? ''}
+                onChange={(e) => setPen(k, e.target.value)}
+              />
+            </div>
+          ))}
+        </div>
+        <button className="btn" style={{ marginTop: 12 }} onClick={savePenalty}>
+          가중 제한 저장
+        </button>
+      </section>
+
+      <section className="card">
+        <h3 style={{ marginTop: 0 }}>기능 열기/닫기 (전사 강제 + 센터 자율, 충돌 시 전사 우선)</h3>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div>
+            <label className="label">범위</label>
+            <select className="input" value={feat.scope} onChange={(e) => setFeat((p) => ({ ...p, scope: e.target.value }))}>
+              {['전사', '센터'].map((s) => (
+                <option key={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">대상유형</label>
+            <input className="input" style={{ width: 100 }} value={feat.targetType} onChange={(e) => setFeat((p) => ({ ...p, targetType: e.target.value }))} />
+          </div>
+          <div>
+            <label className="label">대상값</label>
+            <input className="input" style={{ width: 100 }} value={feat.targetValue} onChange={(e) => setFeat((p) => ({ ...p, targetValue: e.target.value }))} />
+          </div>
+          <label style={{ fontSize: 13 }}>
+            <input type="checkbox" checked={feat.enabled} onChange={(e) => setFeat((p) => ({ ...p, enabled: e.target.checked }))} /> 열림
+          </label>
+          <button className="btn sm" onClick={saveFeature}>
+            토글 저장
+          </button>
+        </div>
+        <ul style={{ marginTop: 12, color: 'var(--muted)', fontSize: 13 }}>
+          {features.map((f) => (
+            <li key={f.id}>
+              [{f.scope}] {f.target_type}:{f.target_value} → {f.enabled ? '열림' : '닫힘'}
+            </li>
+          ))}
+        </ul>
       </section>
     </div>
   );
