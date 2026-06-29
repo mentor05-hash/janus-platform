@@ -90,6 +90,22 @@ paths:
                   accessToken: { type: string }
                   refreshToken: { type: string }
         '401': { $ref: '#/components/responses/Error' }
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: 로그아웃 — 서버측 refresh 토큰 무효화(§10)
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      ok: { type: boolean }
   /me:
     get:
       tags: [Auth]

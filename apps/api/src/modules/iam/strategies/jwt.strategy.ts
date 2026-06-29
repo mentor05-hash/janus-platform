@@ -11,6 +11,7 @@ export interface JwtPayload {
   centerId: string | null;
   loginId: string;
   typ: 'access' | 'refresh';
+  jti?: string; // refresh 토큰 식별자 — 서버측 회전/무효화(§10)
 }
 
 @Injectable()

@@ -33,6 +33,12 @@ export class AuthController {
     return this.auth.refresh(dto.refreshToken);
   }
 
+  @Post('auth/logout')
+  @HttpCode(200)
+  logout(@CurrentUser() user: AuthUser) {
+    return this.auth.logout(user.id);
+  }
+
   @Get('me')
   me(@CurrentUser() user: AuthUser) {
     return this.auth.me(user.id);
