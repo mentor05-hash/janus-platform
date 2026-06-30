@@ -75,12 +75,35 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   }
 }
 
+/** multipart 업로드(파일). FormData 그대로 전송, Content-Type 은 브라우저가 설정. */
+async function upload<T>(path: string, form: FormData): Promise<T> {
+  const send = async () => {
+    const headers: Record<string, string> = {};
+    if (tokens.access) headers.Authorization = `Bearer ${tokens.access}`;
+    const res = await fetch(BASE + path, { method: 'POST', headers, body: form });
+    const text = await res.text();
+    const json = text ? JSON.parse(text) : {};
+    if (!res.ok) {
+      const err = json?.error ?? { code: 'ERROR', message: res.statusText };
+      throw new ApiError(err.code, err.message, res.status);
+    }
+    return (json?.data ?? json) as T;
+  };
+  try {
+    return await send();
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 401 && (await tryRefresh())) return send();
+    throw e;
+  }
+}
+
 export const api = {
   get: <T>(p: string) => request<T>('GET', p),
   post: <T>(p: string, b?: unknown) => request<T>('POST', p, b),
   patch: <T>(p: string, b?: unknown) => request<T>('PATCH', p, b),
   put: <T>(p: string, b?: unknown) => request<T>('PUT', p, b),
   del: <T>(p: string) => request<T>('DELETE', p),
+  upload,
   login: async (loginId: string, password: string) => {
     const data = await raw<{ accessToken: string; refreshToken: string }>(
       'POST',

@@ -10,7 +10,7 @@ export interface Column<T> {
 }
 
 /** 제네릭 데이터 테이블. columns.render 로 셀 커스터마이즈, 없으면 row[key] 출력. */
-export function Table<T extends Record<string, unknown>>({
+export function Table<T>({
   columns,
   rows,
   rowKey,
@@ -38,7 +38,7 @@ export function Table<T extends Record<string, unknown>>({
           <tr key={rowKey(row, i)}>
             {columns.map((c) => (
               <td key={c.key} style={{ textAlign: c.align ?? 'left' }}>
-                {c.render ? c.render(row) : String(row[c.key] ?? '')}
+                {c.render ? c.render(row) : String((row as Record<string, unknown>)[c.key] ?? '')}
               </td>
             ))}
           </tr>

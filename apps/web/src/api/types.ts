@@ -207,3 +207,21 @@ export interface CenterCompareRow {
   score0to100: number;
   rank: number;
 }
+
+// ── 자료실(material) ──
+export interface Material {
+  id: string;
+  title: string;
+  description: string | null;
+  subject: string | null;
+  visibility: 'public' | 'center' | 'private';
+  teacherId: string;
+  teacherName: string | null;
+  centerId: string | null;
+  centerName: string | null;
+  fileId: string | null;
+  filename: string | null;
+  size: number | null;
+  createdAt: string;
+  downloadUrl: string | null;
+}
