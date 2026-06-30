@@ -26,7 +26,10 @@ export class ReportService {
   ) {}
 
   async create(reporter: AuthUser, dto: CreateReportDto) {
-    const review = await this.llm.reviewReport({ targetType: dto.targetType, reason: dto.reason });
+    const review = await this.llm.reviewReport({
+      targetType: dto.targetType,
+      reason: dto.reason,
+    });
     const report = await this.prisma.report.create({
       data: {
         target_type: dto.targetType,
@@ -34,10 +37,15 @@ export class ReportService {
         reason: dto.reason,
         status: 'received',
         center_id: reporter.centerId ?? null, // 센터 스코프(M2)
-        ai_review: review as object, // AI 1차 검토 결과 보존(M3) — action 과 분리
+        ai_review: review, // AI 1차 검토 결과 보존(M3) — action 과 분리
       },
     });
-    return { id: report.id, status: report.status, aiFlagged: review.flagged, aiSummary: review.summary };
+    return {
+      id: report.id,
+      status: report.status,
+      aiFlagged: review.flagged,
+      aiSummary: review.summary,
+    };
   }
 
   async list(actor: AuthUser) {
@@ -58,17 +66,26 @@ export class ReportService {
     }
     const report = await this.prisma.report.findUnique({ where: { id } });
     if (!report) throw new NotFoundException('신고를 찾을 수 없습니다.');
-    if (actor.centerId && report.center_id && report.center_id !== actor.centerId) {
+    if (
+      actor.centerId &&
+      report.center_id &&
+      report.center_id !== actor.centerId
+    ) {
       throw new ForbiddenException('다른 센터의 신고는 처리할 수 없습니다.');
     }
     const from = (report.status ?? 'received') as ReportStatus;
     if (!canReportTransition(from, dto.status)) {
-      throw new BadRequestException(`허용되지 않는 신고 상태 전이: ${from} → ${dto.status}`);
+      throw new BadRequestException(
+        `허용되지 않는 신고 상태 전이: ${from} → ${dto.status}`,
+      );
     }
     // 조건부 전이(동시 처리 1회만 적용 — 비원자성 가드)
     const upd = await this.prisma.report.updateMany({
       where: { id, status: from },
-      data: { status: dto.status, ...(dto.action ? { action: dto.action } : {}) },
+      data: {
+        status: dto.status,
+        ...(dto.action ? { action: dto.action } : {}),
+      },
     });
     if (upd.count !== 1) throw new ConflictException('이미 처리된 신고입니다.');
     return { id, status: dto.status, action: dto.action ?? report.action };

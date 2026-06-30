@@ -25,7 +25,10 @@ export class FilesController {
 
   @Post()
   @UseInterceptors(FileInterceptor('file'))
-  upload(@UploadedFile() file: UploadedFileLike, @CurrentUser() user: AuthUser) {
+  upload(
+    @UploadedFile() file: UploadedFileLike,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.files.upload(user.id, file);
   }
 

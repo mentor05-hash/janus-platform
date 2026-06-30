@@ -24,9 +24,14 @@ export class FilesService {
   ) {}
 
   async upload(ownerId: string, file: UploadedFileLike) {
-    if (!file?.buffer?.length) throw new BadRequestException('업로드할 파일이 없습니다.');
+    if (!file?.buffer?.length)
+      throw new BadRequestException('업로드할 파일이 없습니다.');
     const key = `uploads/${randomUUID()}`;
-    await this.storage.put({ key, data: file.buffer, contentType: file.mimetype });
+    await this.storage.put({
+      key,
+      data: file.buffer,
+      contentType: file.mimetype,
+    });
     const row = await this.prisma.stored_file.create({
       data: {
         owner_id: ownerId,

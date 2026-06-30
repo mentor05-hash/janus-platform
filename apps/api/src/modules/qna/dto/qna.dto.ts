@@ -1,4 +1,10 @@
-import { IsIn, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import {
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+} from 'class-validator';
 
 /** POST /qna/posts — 질문 등록(학생). 게시판 건당 과금(§5-2). */
 export class CreateQuestionDto {

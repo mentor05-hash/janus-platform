@@ -26,7 +26,9 @@ export class LocalDiskStorageProvider implements StorageProvider {
     const full = this.resolve(input.key);
     await fs.mkdir(path.dirname(full), { recursive: true });
     await fs.writeFile(full, input.data);
-    this.logger.log(`put ${input.key} (${input.data.length}B, ${input.contentType})`);
+    this.logger.log(
+      `put ${input.key} (${input.data.length}B, ${input.contentType})`,
+    );
     return { key: input.key };
   }
 

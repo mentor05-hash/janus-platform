@@ -12,9 +12,13 @@ export interface AnswerEligibility {
   isUnfitForStudent: boolean;
 }
 
-export function canAnswerQuestion(p: AnswerEligibility): { allowed: boolean; reason?: string } {
+export function canAnswerQuestion(p: AnswerEligibility): {
+  allowed: boolean;
+  reason?: string;
+} {
   if (p.scope === 'assigned') {
-    if (p.assignedTeacherId !== p.teacherId) return { allowed: false, reason: 'not_assigned' };
+    if (p.assignedTeacherId !== p.teacherId)
+      return { allowed: false, reason: 'not_assigned' };
     return { allowed: true };
   }
   // open: 맞지 않는 선생님은 공개 게시판 질문을 가져갈 수 없음(§5-9)

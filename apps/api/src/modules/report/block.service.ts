@@ -10,10 +10,17 @@ export class BlockService {
   constructor(private readonly prisma: PrismaService) {}
 
   async block(student: AuthUser, teacherId: string) {
-    const teacher = await this.prisma.teacher_profile.findUnique({ where: { account_id: teacherId } });
+    const teacher = await this.prisma.teacher_profile.findUnique({
+      where: { account_id: teacherId },
+    });
     if (!teacher) throw new NotFoundException('선생님을 찾을 수 없습니다.');
     await this.prisma.teacher_block.upsert({
-      where: { student_id_teacher_id: { student_id: student.id, teacher_id: teacherId } },
+      where: {
+        student_id_teacher_id: {
+          student_id: student.id,
+          teacher_id: teacherId,
+        },
+      },
       update: {},
       create: { student_id: student.id, teacher_id: teacherId },
     });
@@ -28,7 +35,9 @@ export class BlockService {
   }
 
   async list(student: AuthUser) {
-    const rows = await this.prisma.teacher_block.findMany({ where: { student_id: student.id } });
+    const rows = await this.prisma.teacher_block.findMany({
+      where: { student_id: student.id },
+    });
     return rows.map((r) => r.teacher_id);
   }
 

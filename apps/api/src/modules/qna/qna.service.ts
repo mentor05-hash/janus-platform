@@ -34,14 +34,24 @@ export class QnaService {
       throw new ForbiddenException('학생만 질문을 등록할 수 있습니다.');
     }
     if (dto.scope === 'assigned') {
-      if (!dto.assignedTeacherId) throw new BadRequestException('지정 질문은 assignedTeacherId 가 필요합니다.');
-      const t = await this.prisma.teacher_profile.findUnique({ where: { account_id: dto.assignedTeacherId } });
+      if (!dto.assignedTeacherId)
+        throw new BadRequestException(
+          '지정 질문은 assignedTeacherId 가 필요합니다.',
+        );
+      const t = await this.prisma.teacher_profile.findUnique({
+        where: { account_id: dto.assignedTeacherId },
+      });
       if (!t) throw new NotFoundException('지정한 선생님을 찾을 수 없습니다.'); // 과금 전 검증
     }
-    const sp = await this.prisma.student_profile.findUnique({ where: { account_id: student.id } });
+    const sp = await this.prisma.student_profile.findUnique({
+      where: { account_id: student.id },
+    });
     if (!sp) throw new NotFoundException('학생 프로필이 없습니다.');
 
-    const quote = await this.pricing.quoteBoard(dto.qType ?? 'general', sp.center_id);
+    const quote = await this.pricing.quoteBoard(
+      dto.qType ?? 'general',
+      sp.center_id,
+    );
     const credits = quote.credits;
 
     try {
@@ -52,25 +62,38 @@ export class QnaService {
             subject: dto.subject ?? null,
             difficulty: dto.difficulty ?? null,
             scope: dto.scope,
-            assigned_teacher_id: dto.scope === 'assigned' ? dto.assignedTeacherId! : null,
+            assigned_teacher_id:
+              dto.scope === 'assigned' ? dto.assignedTeacherId! : null,
             body: dto.body,
             status: 'open',
           },
         });
         if (credits > 0) {
-          const outcome = await this.credit.consumeWithin(tx, student.id, credits, {
-            refType: 'qna',
-            refId: p.id,
-            description: 'Q&A 질문 등록',
-          });
+          const outcome = await this.credit.consumeWithin(
+            tx,
+            student.id,
+            credits,
+            {
+              refType: 'qna',
+              refId: p.id,
+              description: 'Q&A 질문 등록',
+            },
+          );
           if (!outcome.ok) throw new ShortfallError(outcome.shortfall);
         }
         return p;
       });
-      return { id: post.id, scope: post.scope, status: post.status, chargedCredits: credits };
+      return {
+        id: post.id,
+        scope: post.scope,
+        status: post.status,
+        chargedCredits: credits,
+      };
     } catch (e) {
       if (e instanceof ShortfallError) {
-        await this.credit.createPaymentRequest(student.id, e.shortfall, { refType: 'qna' });
+        await this.credit.createPaymentRequest(student.id, e.shortfall, {
+          refType: 'qna',
+        });
         throw new HttpException(
           `크레딧이 ${e.shortfall} 부족합니다. 결제요청이 생성되었습니다.`,
           HttpStatus.PAYMENT_REQUIRED,
@@ -83,17 +106,28 @@ export class QnaService {
   /** 목록: 학생=본인 질문, 교사=공개(open)+나에게 지정된 것, 관리자=전체. */
   async listPosts(user: AuthUser) {
     if (user.role === AccountRole.STUDENT) {
-      return this.prisma.qna_post.findMany({ where: { student_id: user.id }, orderBy: { created_at: 'desc' } });
+      return this.prisma.qna_post.findMany({
+        where: { student_id: user.id },
+        orderBy: { created_at: 'desc' },
+      });
     }
     if (user.role === AccountRole.TEACHER) {
       return this.prisma.qna_post.findMany({
-        where: { OR: [{ scope: 'open', status: 'open' }, { assigned_teacher_id: user.id }] },
+        where: {
+          OR: [
+            { scope: 'open', status: 'open' },
+            { assigned_teacher_id: user.id },
+          ],
+        },
         orderBy: { created_at: 'desc' },
       });
     }
     // 운영(관리자/HR)만 전체 조회. 그 외(보호자 등)는 차단(§5-10 누출 방지).
     if (user.role === AccountRole.ADMIN || user.role === AccountRole.HR) {
-      return this.prisma.qna_post.findMany({ orderBy: { created_at: 'desc' }, take: 200 });
+      return this.prisma.qna_post.findMany({
+        orderBy: { created_at: 'desc' },
+        take: 200,
+      });
     }
     throw new ForbiddenException('Q&A 목록 조회 권한이 없습니다.');
   }
@@ -103,12 +137,19 @@ export class QnaService {
     if (teacher.role !== AccountRole.TEACHER) {
       throw new ForbiddenException('선생님만 답변할 수 있습니다.');
     }
-    const post = await this.prisma.qna_post.findUnique({ where: { id: postId } });
+    const post = await this.prisma.qna_post.findUnique({
+      where: { id: postId },
+    });
     if (!post) throw new NotFoundException('질문을 찾을 수 없습니다.');
-    if (post.status !== 'open') throw new BadRequestException('마감된 질문입니다.');
+    if (post.status !== 'open')
+      throw new BadRequestException('마감된 질문입니다.');
 
     const unfit = await this.prisma.teacher_list_entry.findFirst({
-      where: { student_id: post.student_id, teacher_id: teacher.id, list_kind: 'unfit' },
+      where: {
+        student_id: post.student_id,
+        teacher_id: teacher.id,
+        list_kind: 'unfit',
+      },
     });
     const verdict = canAnswerQuestion({
       scope: post.scope as QnaScope,
@@ -124,14 +165,23 @@ export class QnaService {
       );
     }
     const ans = await this.prisma.qna_answer.create({
-      data: { post_id: postId, teacher_id: teacher.id, body: dto.body, accepted: false, pay_eligible: false },
+      data: {
+        post_id: postId,
+        teacher_id: teacher.id,
+        body: dto.body,
+        accepted: false,
+        pay_eligible: false,
+      },
     });
     return { id: ans.id, postId, accepted: false };
   }
 
   /** 답변 채택(질문 학생) — 채택 답변 급여 적격(pay_eligible), 질문 마감. */
   async acceptAnswer(answerId: string, student: AuthUser) {
-    const ans = await this.prisma.qna_answer.findUnique({ where: { id: answerId }, include: { qna_post: true } });
+    const ans = await this.prisma.qna_answer.findUnique({
+      where: { id: answerId },
+      include: { qna_post: true },
+    });
     if (!ans) throw new NotFoundException('답변을 찾을 수 없습니다.');
     if (ans.qna_post.student_id !== student.id) {
       throw new ForbiddenException('본인 질문의 답변만 채택할 수 있습니다.');
@@ -141,8 +191,12 @@ export class QnaService {
         where: { id: ans.post_id, status: 'open' },
         data: { status: 'resolved' },
       });
-      if (upd.count !== 1) throw new ConflictException('이미 채택/마감된 질문입니다.');
-      await tx.qna_answer.update({ where: { id: answerId }, data: { accepted: true, pay_eligible: true } });
+      if (upd.count !== 1)
+        throw new ConflictException('이미 채택/마감된 질문입니다.');
+      await tx.qna_answer.update({
+        where: { id: answerId },
+        data: { accepted: true, pay_eligible: true },
+      });
     });
     return { id: answerId, accepted: true, payEligible: true };
   }

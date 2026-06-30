@@ -9,11 +9,15 @@ export class S3StorageProvider implements StorageProvider {
   private readonly logger = new Logger('StorageProvider:s3');
 
   constructor(private readonly bucket?: string) {
-    this.logger.warn('S3StorageProvider 는 자격증명/버킷 미구성 상태입니다(STORAGE_PROVIDER=local 권장).');
+    this.logger.warn(
+      'S3StorageProvider 는 자격증명/버킷 미구성 상태입니다(STORAGE_PROVIDER=local 권장).',
+    );
   }
 
   private notConfigured(): never {
-    throw new Error('S3 스토리지가 아직 구성되지 않았습니다(STORAGE_S3_BUCKET·자격증명 필요).');
+    throw new Error(
+      'S3 스토리지가 아직 구성되지 않았습니다(STORAGE_S3_BUCKET·자격증명 필요).',
+    );
   }
 
   put(_input: PutInput): Promise<{ key: string }> {

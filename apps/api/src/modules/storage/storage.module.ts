@@ -23,9 +23,13 @@ import { STORAGE_PROVIDER } from './storage.types';
         const which = config.get<string>('STORAGE_PROVIDER') ?? 'local';
         switch (which) {
           case 's3':
-            return new S3StorageProvider(config.get<string>('STORAGE_S3_BUCKET'));
+            return new S3StorageProvider(
+              config.get<string>('STORAGE_S3_BUCKET'),
+            );
           default: {
-            const dir = config.get<string>('STORAGE_LOCAL_DIR') ?? path.resolve(process.cwd(), 'var/storage');
+            const dir =
+              config.get<string>('STORAGE_LOCAL_DIR') ??
+              path.resolve(process.cwd(), 'var/storage');
             return new LocalDiskStorageProvider(dir);
           }
         }

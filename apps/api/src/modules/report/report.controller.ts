@@ -1,4 +1,13 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -54,7 +63,10 @@ export class ReportController {
   /** DELETE /teacher-blocks/{teacherId} — 차단 해제(학생). */
   @Delete('teacher-blocks/:teacherId')
   @Roles('student')
-  unblock(@Param('teacherId', ParseUUIDPipe) teacherId: string, @CurrentUser() user: AuthUser) {
+  unblock(
+    @Param('teacherId', ParseUUIDPipe) teacherId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.blocks.unblock(user, teacherId);
   }
 }

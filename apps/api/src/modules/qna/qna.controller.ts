@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -36,7 +44,10 @@ export class QnaController {
   /** PATCH /qna/answers/{id}/accept — 답변 채택(질문 학생). */
   @Patch('answers/:id/accept')
   @Roles('student')
-  accept(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  accept(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.qna.acceptAnswer(id, user);
   }
 }

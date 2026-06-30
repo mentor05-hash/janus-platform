@@ -11,6 +11,9 @@ export const REPORT_TRANSITIONS: Record<ReportStatus, ReportStatus[]> = {
   dismissed: [],
 };
 
-export function canReportTransition(from: ReportStatus, to: ReportStatus): boolean {
+export function canReportTransition(
+  from: ReportStatus,
+  to: ReportStatus,
+): boolean {
   return REPORT_TRANSITIONS[from]?.includes(to) ?? false;
 }

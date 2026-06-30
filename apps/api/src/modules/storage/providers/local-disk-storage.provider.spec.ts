@@ -20,14 +20,22 @@ describe('LocalDiskStorageProvider (§10)', () => {
 
   it('delete 후 get 은 실패', async () => {
     const data = Buffer.from('x');
-    await sut.put({ key: 'uploads/del.bin', data, contentType: 'application/octet-stream' });
+    await sut.put({
+      key: 'uploads/del.bin',
+      data,
+      contentType: 'application/octet-stream',
+    });
     await sut.delete('uploads/del.bin');
     await expect(sut.get('uploads/del.bin')).rejects.toThrow();
   });
 
   it('경로 탈출 키는 거부', async () => {
     await expect(
-      sut.put({ key: '../escape.txt', data: Buffer.from('no'), contentType: 'text/plain' }),
+      sut.put({
+        key: '../escape.txt',
+        data: Buffer.from('no'),
+        contentType: 'text/plain',
+      }),
     ).rejects.toThrow(/경로 탈출/);
   });
 });
