@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, Child, Note, PaymentRequest } from '../api';
+import { C, R, SP, ui } from '../theme';
 
 type Summary = { notes: number; pending: number };
 
@@ -48,34 +49,38 @@ export function ChildrenScreen({ onPick }: { onPick: (c: Child) => void }) {
   }
 
   return (
-    <View style={styles.wrap}>
-      <Text style={styles.h}>연결 자녀</Text>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+    <View style={ui.screen}>
+      <Text style={ui.h}>연결 자녀</Text>
+      {error ? <Text style={ui.error}>{error}</Text> : null}
       <FlatList
         data={children}
         keyExtractor={(c) => c.linkId}
         renderItem={({ item }) => {
           const s = summary[item.studentId];
+          const alert = (s?.pending ?? 0) > 0;
           return (
-            <TouchableOpacity style={styles.card} onPress={() => onPick(item)}>
-              <Text style={styles.name}>{item.name ?? item.studentId}</Text>
-              <View style={styles.badges}>
-                <Text style={styles.badge}>상담기록 {s?.notes ?? '–'}</Text>
-                <Text style={[styles.badge, (s?.pending ?? 0) > 0 ? styles.badgeAlert : null]}>
-                  미결제 {s?.pending ?? 0}
-                </Text>
+            <TouchableOpacity style={[ui.card, styles.card]} onPress={() => onPick(item)} activeOpacity={0.7}>
+              <View style={styles.row}>
+                <View style={styles.avatar}><Text style={styles.avatarText}>{(item.name ?? '자').slice(0, 1)}</Text></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.name}>{item.name ?? item.studentId}</Text>
+                  <Text style={ui.sub}>{item.relation ?? '자녀'} · 상담기록 보기 ›</Text>
+                </View>
               </View>
-              <Text style={styles.sub}>{item.relation ?? '자녀'} · 상담기록 보기 ›</Text>
+              <View style={styles.badges}>
+                <Text style={styles.chip}>상담기록 {s?.notes ?? '–'}</Text>
+                <Text style={[styles.chip, alert ? styles.chipAlert : styles.chipMuted]}>미결제 {s?.pending ?? 0}</Text>
+              </View>
             </TouchableOpacity>
           );
         }}
-        ListEmptyComponent={<Text style={styles.sub}>연결된 자녀가 없습니다.</Text>}
+        ListEmptyComponent={<Text style={ui.sub}>연결된 자녀가 없습니다.</Text>}
       />
-      <Text style={styles.label}>자녀 연결 신청 (학생 아이디)</Text>
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        <TextInput style={[styles.input, { flex: 1 }]} value={loginId} onChangeText={setLoginId} autoCapitalize="none" placeholder="student01" />
-        <TouchableOpacity style={styles.btn} onPress={link}>
-          <Text style={styles.btnText}>신청</Text>
+      <Text style={ui.label}>자녀 연결 신청 (학생 아이디)</Text>
+      <View style={{ flexDirection: 'row', gap: SP.sm }}>
+        <TextInput style={[ui.input, { flex: 1 }]} value={loginId} onChangeText={setLoginId} autoCapitalize="none" placeholder="student01" placeholderTextColor={C.caption} />
+        <TouchableOpacity style={styles.linkBtn} onPress={link}>
+          <Text style={ui.btnText}>신청</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -83,17 +88,14 @@ export function ChildrenScreen({ onPick }: { onPick: (c: Child) => void }) {
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, padding: 16 },
-  h: { fontSize: 18, fontWeight: '700', color: '#0E5C7C', marginBottom: 12 },
-  card: { backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#e3e8eb', padding: 14, marginBottom: 10 },
-  name: { fontSize: 16, fontWeight: '700' },
-  badges: { flexDirection: 'row', gap: 8, marginTop: 6 },
-  badge: { fontSize: 12, color: '#0E5C7C', backgroundColor: '#e6f0f4', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3, overflow: 'hidden' },
-  badgeAlert: { color: '#b9521a', backgroundColor: '#fbe9dd' },
-  sub: { color: '#5b6b73', fontSize: 13, marginTop: 4 },
-  label: { color: '#5b6b73', fontSize: 13, marginTop: 16, marginBottom: 4 },
-  input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e3e8eb', borderRadius: 8, padding: 10 },
-  btn: { backgroundColor: '#0E5C7C', borderRadius: 8, paddingHorizontal: 18, justifyContent: 'center' },
-  btnText: { color: '#fff', fontWeight: '700' },
-  error: { color: '#d23b3b' },
+  card: { padding: 14, marginBottom: 10 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  avatar: { width: 44, height: 44, borderRadius: R.md, backgroundColor: C.teal100, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: C.teal, fontWeight: '800', fontSize: 16 },
+  name: { fontSize: 16, fontWeight: '700', color: C.ink },
+  badges: { flexDirection: 'row', gap: SP.sm, marginTop: 10 },
+  chip: { fontSize: 12, fontWeight: '600', color: C.teal, backgroundColor: C.teal50, borderRadius: R.pill, paddingHorizontal: 11, paddingVertical: 4, overflow: 'hidden' },
+  chipMuted: { color: C.mutedChip, backgroundColor: C.mutedChipBg },
+  chipAlert: { color: C.danger, backgroundColor: C.dangerBg },
+  linkBtn: { backgroundColor: C.teal, borderRadius: R.md, paddingHorizontal: 18, justifyContent: 'center' },
 });
