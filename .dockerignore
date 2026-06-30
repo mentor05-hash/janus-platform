@@ -1,3 +1,4 @@
+node_modules
 **/node_modules
 **/dist
 **/.git
@@ -7,5 +8,6 @@
 **/*.log
 **/coverage
 **/.DS_Store
-apps/web
 apps/mobile
+apps/web/dist
+apps/web/node_modules

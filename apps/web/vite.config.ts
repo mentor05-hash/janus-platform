@@ -6,6 +6,9 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    host: true,
+    // 터널(localtunnel/ngrok 등) 호스트 허용 — 공개 링크 접속 시 host check 차단 방지.
+    allowedHosts: true,
     proxy: {
       '/api': { target: 'http://localhost:3000', changeOrigin: true },
     },
