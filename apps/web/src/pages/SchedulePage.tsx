@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
-import type { Slot, WorkSchedule } from '../api/types';
+import type { Booking, Slot, WorkSchedule } from '../api/types';
 import { PageHeader, Card, Button, ErrorText, Badge } from '../components/ui';
 
 type Win = { start: string; end: string };
@@ -42,6 +42,7 @@ export function SchedulePage() {
   const [leaves, setLeaves] = useState<Leave[]>([]);
   const [leaveType, setLeaveType] = useState<'연차' | '반차' | '병가'>('연차');
   const [leaveDate, setLeaveDate] = useState(iso(new Date()));
+  const [changes, setChanges] = useState<Booking[]>([]);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
 
@@ -59,6 +60,14 @@ export function SchedulePage() {
         ...days.map((d) => api.get<Slot[]>(`/teachers/${teacherId}/slots?date=${d.date}`).catch(() => [] as Slot[])),
       ]);
       setLeaves(lv);
+      // 근무 변경 알림: 다가오는 확정/신청 예약(취소 4경로로 정리 대상)
+      const bks = await api.get<Booking[]>('/bookings?role=teacher').catch(() => [] as Booking[]);
+      const now = Date.now();
+      setChanges(
+        bks
+          .filter((b) => (b.status === 'confirmed' || b.status === 'new') && b.start && new Date(b.start).getTime() > now)
+          .slice(0, 6),
+      );
       const leaveDates = new Set(lv.map((l) => l.date));
       const g: Record<string, Record<number, Cell>> = {};
       days.forEach((d, di) => {
@@ -132,6 +141,18 @@ export function SchedulePage() {
       setError(e instanceof ApiError ? e.message : '해제 실패');
     }
   }
+  async function resolveBooking(id: string, route: 'substitute' | 'priority') {
+    setMsg('');
+    try {
+      await api.patch(`/bookings/${id}/cancel`, { reason: '근무 변경', route });
+      setMsg(route === 'priority' ? '대체 선생님 자동배정 처리됨' : '대체 후보 안내 발송됨');
+      await loadWeek();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : '처리 실패');
+    }
+  }
+  const fmtTime = (s: string | null) =>
+    s ? new Date(s).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
 
   return (
     <div>
@@ -218,6 +239,32 @@ export function SchedulePage() {
               </div>
             )}
           </Card>
+
+          {/* 근무 변경 알림 (대체 선생님 지정 / 일정 우선권) */}
+          {changes.length > 0 && (
+            <div style={{ background: '#fff9ed', border: '1px solid #f0dcae', borderRadius: 14, padding: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, color: '#92600a' }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#d97706' }} /> 근무 변경 알림
+              </div>
+              <p style={{ fontSize: 13, color: '#9a6a1e', marginTop: 6 }}>
+                예정 예약이 있어요. 근무를 줄이면 대체 선생님을 지정하거나 학생에게 일정 우선권을 부여하세요.
+              </p>
+              <div style={{ display: 'grid', gap: 10, marginTop: 8 }}>
+                {changes.map((b) => (
+                  <div key={b.id} style={{ background: '#fff', border: '1px solid #f0dcae', borderRadius: 10, padding: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                      <strong>{b.consultType ?? '상담'} · {b.mode}</strong>
+                      <span style={{ color: 'var(--muted)' }}>{fmtTime(b.start)}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                      <Button size="sm" style={{ flex: 1 }} onClick={() => resolveBooking(b.id, 'priority')}>일정 우선권</Button>
+                      <Button size="sm" variant="ghost" style={{ flex: 1 }} onClick={() => resolveBooking(b.id, 'substitute')}>대체 선생님 지정</Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
