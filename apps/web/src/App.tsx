@@ -19,6 +19,8 @@ import { AdminReportsPage } from './pages/AdminReportsPage';
 import { AnnouncementsPage } from './pages/AnnouncementsPage';
 import { AdminOrgPage } from './pages/AdminOrgPage';
 import { AdminMemberTypesPage } from './pages/AdminMemberTypesPage';
+import { AdminEvaluationPage } from './pages/AdminEvaluationPage';
+import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
 
 function Protected({ roles, children }: { roles?: string[]; children: JSX.Element }) {
   const { user, loading } = useAuth();
@@ -73,6 +75,8 @@ export function App() {
         <Route path="announcements" element={<AnnouncementsPage />} />
         <Route path="org" element={<AdminOrgPage />} />
         <Route path="member-types" element={<AdminMemberTypesPage />} />
+        <Route path="evaluation" element={<AdminEvaluationPage />} />
+        <Route path="analytics" element={<AdminAnalyticsPage />} />
       </Route>
 
       <Route path="*" element={<HomeRedirect />} />

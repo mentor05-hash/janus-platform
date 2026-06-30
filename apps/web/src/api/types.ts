@@ -164,3 +164,46 @@ export interface ConsultationNote {
   guardianVisible: boolean | null;
   saveState: 'draft' | 'final';
 }
+
+// ── 대시보드(평가/순위·센터비교) ──
+export interface WeightPolicy {
+  id: string;
+  center_id: string | null;
+  w_total: number;
+  w_completion: number;
+  w_rerequest: number;
+  w_reject: number;
+  w_noshow: number;
+  w_response: number;
+  w_satisfaction: number;
+}
+
+export interface RankingRow {
+  teacherId: string;
+  name: string | null;
+  center: string | null;
+  centerId: string | null;
+  directorRole: string | null;
+  metrics: {
+    total: number;
+    completion: number;
+    rerequest: number;
+    reject: number;
+    noshow: number;
+    response: number;
+    satisfaction: number;
+  };
+  hours: number | null;
+  score: number;
+  perHour: number | null;
+  rank: number;
+}
+
+export interface CenterCompareRow {
+  centerId: string;
+  name: string;
+  raw: { total: number; completion: number; noshow: number; satisfaction: number };
+  z: { total: number; completion: number; noshow: number; satisfaction: number };
+  score0to100: number;
+  rank: number;
+}
