@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { BookingStatus } from '../../config/enums';
@@ -16,9 +17,12 @@ import {
   UpdateWeightsDto,
 } from './dto/dashboard.dto';
 import {
+  buildPriorityCase,
+  CATEGORY_DEDUP_ORDER,
   minMaxNormalize,
   pct,
   resolvePeriod,
+  STATUS_DEDUP_ORDER,
   weightedScore,
   weightsSumTo100,
   WEIGHT_KEYS,
@@ -361,6 +365,11 @@ export class DashboardService {
   }
 
   // ── 5 피벗 뷰 ─────────────────────────────────────────────────
+  /**
+   * 5 피벗 뷰. 같은 선생님·학생·날짜(T·U·D)에 여러 예약이 있으면 §2.2 대로 1건만 집계
+   * (상태·분류 우선순위로 대표 1건 선택). 중복제거+집계를 DB(`DISTINCT ON`+`GROUP BY`)에서
+   * 수행 — 전건을 앱 메모리에 올리지 않아 대량에도 안전.
+   */
   async pivots(
     actor: AuthUser,
     view: PivotView,
@@ -369,65 +378,80 @@ export class DashboardService {
   ) {
     const scope = this.scope(actor); // null=전체, 그 외=자기센터 강제
     const range = resolvePeriod(q.period, q.from, q.to, now);
-    const startAt = range ? { start_at: range } : {};
     const centerFilter = scope ?? q.centerId ?? null;
-    const baseWhere = {
-      ...(centerFilter ? { center_id: centerFilter } : {}),
-      ...startAt,
-    };
+    const monthly = view === 'teacher-monthly' || view === 'center-monthly';
+    const centerKeyed = view === 'center' || view === 'center-monthly';
+    const teacherScoped =
+      view === 'teacher-in-center' ||
+      view === 'teacher-x-center' ||
+      view === 'teacher-monthly';
 
-    let rows: unknown[] = [];
-    switch (view) {
-      case 'center': {
-        // ① 센터별 비교(자기 스코프 내)
-        const grouped = await this.prisma.booking.groupBy({
-          by: ['center_id', 'status'],
-          where: baseWhere,
-          _count: { _all: true },
-        });
-        rows = this.foldByKey(grouped, 'center_id');
-        break;
-      }
-      case 'teacher-in-center':
-      case 'teacher-x-center': {
-        // ②③ 센터 내 선생님 / 선생님×센터
-        const grouped = await this.prisma.booking.groupBy({
-          by: ['teacher_id', 'center_id', 'status'],
-          where: {
-            ...baseWhere,
-            ...(q.teacherId ? { teacher_id: q.teacherId } : {}),
-          },
-          _count: { _all: true },
-        });
-        rows = this.foldByKey(grouped, view === 'teacher-x-center' ? 'teacher_id+center_id' : 'teacher_id');
-        break;
-      }
-      case 'teacher-monthly':
-      case 'center-monthly': {
-        // ④⑤ 선생님 월별 / 센터 월별 (앱 레벨 월 집계 — 이식성)
-        const key = view === 'teacher-monthly' ? 'teacher_id' : 'center_id';
-        const bookings = await this.prisma.booking.findMany({
-          where: {
-            ...baseWhere,
-            ...(view === 'teacher-monthly' && q.teacherId ? { teacher_id: q.teacherId } : {}),
-          },
-          select: { teacher_id: true, center_id: true, status: true, start_at: true },
-        });
-        const map = new Map<string, { key: string; month: string; total: number; done: number }>();
-        for (const b of bookings) {
-          const keyVal = key === 'teacher_id' ? b.teacher_id : b.center_id;
-          if (!keyVal || !b.start_at) continue;
-          const month = b.start_at.toISOString().slice(0, 7);
-          const k = `${keyVal}|${month}`;
-          const cur = map.get(k) ?? { key: keyVal, month, total: 0, done: 0 };
-          cur.total += 1;
-          if (b.status === BookingStatus.DONE) cur.done += 1;
-          map.set(k, cur);
-        }
-        rows = [...map.values()].map((r) => ({ ...r, completion: pct(r.done, r.total) }));
-        break;
-      }
+    // ── WHERE (값은 파라미터화, fail-closed 스코프는 위에서 결정) ──
+    const conds: Prisma.Sql[] = [Prisma.sql`start_at IS NOT NULL`];
+    if (centerFilter) conds.push(Prisma.sql`center_id = ${centerFilter}::uuid`);
+    if (q.teacherId && teacherScoped) {
+      conds.push(Prisma.sql`teacher_id = ${q.teacherId}::uuid`);
     }
+    if (centerKeyed) conds.push(Prisma.sql`center_id IS NOT NULL`);
+    if (range?.gte) conds.push(Prisma.sql`start_at >= ${range.gte}`);
+    if (range?.lte) conds.push(Prisma.sql`start_at <= ${range.lte}`);
+    const whereSql = Prisma.join(conds, ' AND ');
+
+    // ── 정적 식(내부 ENUM/컬럼만 — 안전) ──
+    const dayExpr = Prisma.raw(`(start_at AT TIME ZONE 'UTC')::date`);
+    const monthExpr = Prisma.raw(`to_char(start_at AT TIME ZONE 'UTC', 'YYYY-MM')`);
+    const statusCase = Prisma.raw(buildPriorityCase('status::text', STATUS_DEDUP_ORDER));
+    const catCase = Prisma.raw(buildPriorityCase('consult_type::text', CATEGORY_DEDUP_ORDER));
+    const keyExpr = centerKeyed
+      ? Prisma.raw(`center_id::text`)
+      : view === 'teacher-x-center'
+        ? Prisma.raw(`teacher_id::text || '|' || coalesce(center_id::text, '')`)
+        : Prisma.raw(`teacher_id::text`); // teacher-in-center / teacher-monthly
+
+    // T·U·D 당 1건(상태→분류 우선) 선택
+    const deduped = Prisma.sql`
+      SELECT DISTINCT ON (teacher_id, student_id, ${dayExpr})
+        teacher_id, center_id, status::text AS status, start_at
+      FROM booking
+      WHERE ${whereSql}
+      ORDER BY teacher_id, student_id, ${dayExpr}, ${statusCase}, ${catCase}, start_at`;
+
+    const selectMonth = monthly ? Prisma.sql`${monthExpr} AS month,` : Prisma.empty;
+    const groupMonth = monthly ? Prisma.sql`, ${monthExpr}` : Prisma.empty;
+    const orderMonth = monthly ? Prisma.sql`, month` : Prisma.empty;
+
+    const agg = await this.prisma.$queryRaw<
+      Array<{
+        key: string;
+        month?: string;
+        total: number;
+        done: number;
+        rejected: number;
+        noshow: number;
+        cancelled: number;
+      }>
+    >(Prisma.sql`
+      SELECT ${keyExpr} AS key, ${selectMonth}
+        count(*)::int AS total,
+        count(*) FILTER (WHERE status = 'done')::int AS done,
+        count(*) FILTER (WHERE status = 'rejected')::int AS rejected,
+        count(*) FILTER (WHERE status = 'noshow')::int AS noshow,
+        count(*) FILTER (WHERE status = 'cancelled')::int AS cancelled
+      FROM (${deduped}) d
+      GROUP BY ${keyExpr}${groupMonth}
+      ORDER BY ${keyExpr}${orderMonth}`);
+
+    const rows = agg.map((r) => ({
+      key: r.key,
+      ...(monthly ? { month: r.month } : {}),
+      total: r.total,
+      done: r.done,
+      rejected: r.rejected,
+      noshow: r.noshow,
+      cancelled: r.cancelled,
+      completion: pct(r.done, r.total),
+    }));
+
     return {
       data: rows,
       meta: {
@@ -436,35 +460,5 @@ export class DashboardService {
         dedup: '동일 T·U·D 1건(상태·분류 우선)',
       },
     };
-  }
-
-  /** groupBy(status 분해) 결과를 키별 1행으로 접기(상태별 카운트 합산). */
-  private foldByKey(
-    grouped: Array<Record<string, unknown> & { status: string; _count: { _all: number } }>,
-    keyField: string,
-  ): unknown[] {
-    const map = new Map<string, Record<string, unknown>>();
-    for (const g of grouped) {
-      const k =
-        keyField === 'teacher_id+center_id'
-          ? `${String(g.teacher_id)}|${String(g.center_id)}`
-          : String(g[keyField]);
-      const cur = map.get(k) ?? {
-        key: k,
-        total: 0,
-        done: 0,
-        rejected: 0,
-        noshow: 0,
-        cancelled: 0,
-      };
-      const c = g._count._all;
-      (cur.total as number) += c;
-      if (g.status in cur) (cur[g.status] as number) += c;
-      map.set(k, cur);
-    }
-    return [...map.values()].map((r) => ({
-      ...r,
-      completion: pct(r.done as number, r.total as number),
-    }));
   }
 }

@@ -80,6 +80,35 @@ export function pct(numer: number, denom: number): number {
   return denom === 0 ? 0 : Math.round((numer / denom) * 1000) / 10;
 }
 
+/**
+ * 피벗 중복제거(§2.2): 같은 선생님·학생·날짜(T·U·D)에 여러 예약이 있으면 1건만 집계.
+ * 우선순위로 "대표 1건"을 선택 — 먼저 상태(실현된 결과 우선), 동률이면 분류(담임 우선).
+ * 배열 앞일수록 높은 우선순위(보존). DB CASE 의 단일 소스 — 드리프트 방지.
+ */
+export const STATUS_DEDUP_ORDER = [
+  'done', // 완료(실제 상담)
+  'noshow', // 노쇼(실현된 부정 결과)
+  'confirmed', // 확정(예정)
+  'new', // 신청
+  'rejected', // 거부(비실현)
+  'cancelled', // 취소(비실현)
+] as const;
+
+/** consult_type 의 DB 저장값(한글). 동률 상태일 때 분류 우선순위. */
+export const CATEGORY_DEDUP_ORDER = ['담임', '입시', '교과', '심리'] as const;
+
+/**
+ * 우선순위 배열 → SQL CASE 식 문자열. 배열 앞일수록 작은 값(ORDER BY 시 먼저 선택).
+ * 값은 내부 ENUM 상수만(사용자 입력 아님) — 인라인 안전.
+ */
+export function buildPriorityCase(
+  columnSql: string,
+  order: readonly string[],
+): string {
+  const whens = order.map((v, i) => `WHEN '${v}' THEN ${i}`).join(' ');
+  return `CASE ${columnSql} ${whens} ELSE ${order.length} END`;
+}
+
 /** 기간 → 시작/끝 경계. 미지정/all 이면 undefined(전체). */
 export function resolvePeriod(
   period: string | undefined,

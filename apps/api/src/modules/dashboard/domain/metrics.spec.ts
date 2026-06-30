@@ -1,11 +1,15 @@
 import {
+  buildPriorityCase,
+  CATEGORY_DEDUP_ORDER,
   minMaxNormalize,
   pct,
   resolvePeriod,
+  STATUS_DEDUP_ORDER,
   weightedScore,
   weightsSumTo100,
   zScoreTo0100,
 } from './metrics';
+import { BookingStatus, ConsultType } from '../../../config/enums';
 
 describe('dashboard metrics (순수)', () => {
   it('가중치 합계 100 검증', () => {
@@ -82,5 +86,23 @@ describe('dashboard metrics (순수)', () => {
     const r = resolvePeriod('1w', undefined, undefined, now);
     expect(r?.gte?.toISOString()).toBe('2026-06-23T00:00:00.000Z');
     expect(resolvePeriod('all', undefined, undefined, now)).toBeUndefined();
+  });
+
+  it('dedup 우선순위 배열은 모든 ENUM 값을 빠짐없이 덮는다(드리프트 방지)', () => {
+    expect([...STATUS_DEDUP_ORDER].sort()).toEqual(
+      Object.values(BookingStatus).sort(),
+    );
+    expect([...CATEGORY_DEDUP_ORDER].sort()).toEqual(
+      Object.values(ConsultType).sort(),
+    );
+  });
+
+  it('buildPriorityCase: 앞일수록 작은 값(=먼저 선택), 미정의는 끝', () => {
+    const sql = buildPriorityCase('status', ['done', 'noshow']);
+    expect(sql).toBe("CASE status WHEN 'done' THEN 0 WHEN 'noshow' THEN 1 ELSE 2 END");
+    // 완료가 노쇼보다 우선(작은 값)
+    expect(STATUS_DEDUP_ORDER.indexOf('done')).toBeLessThan(
+      STATUS_DEDUP_ORDER.indexOf('noshow'),
+    );
   });
 });

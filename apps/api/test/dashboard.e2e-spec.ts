@@ -180,6 +180,45 @@ describe('대시보드(§dashboard)', () => {
     expect(Array.isArray(r.body.data)).toBe(true);
   });
 
+  it('피벗 dedup: 같은 선생님·학생·날짜 중복 예약은 1건만(상태 우선 done 보존)', async () => {
+    const student = await prisma.student_profile.findFirst({ select: { account_id: true } });
+    if (!student || !ownTeacher) return; // 시드 없으면 skip(방어)
+
+    const teacherTotal = async () => {
+      const r = await get(`ops/pivots/teacher-in-center?period=all&teacherId=${ownTeacher}`, tok.hq);
+      const row = r.body.data.find((x: any) => x.key === ownTeacher);
+      return { total: row?.total ?? 0, done: row?.done ?? 0 };
+    };
+
+    const before = await teacherTotal();
+    // 동일 T·U·D(같은 날 10시/11시) 2건: done 1 + cancelled 1 → dedup 후 1건(done 보존)
+    const day = '2026-05-15';
+    const mk = (h: number, status: 'done' | 'cancelled', type: 'subject' | 'homeroom') =>
+      prisma.booking.create({
+        data: {
+          student_id: student.account_id,
+          teacher_id: ownTeacher,
+          center_id: adminCenter,
+          consult_type: type,
+          mode: 'zoom',
+          status,
+          start_at: new Date(`${day}T0${h}:00:00Z`),
+        },
+        select: { id: true },
+      });
+    const created = [
+      await mk(1, 'cancelled', 'homeroom'),
+      await mk(2, 'done', 'subject'),
+    ];
+    try {
+      const after = await teacherTotal();
+      expect(after.total - before.total).toBe(1); // 2건 → +1 (중복제거)
+      expect(after.done - before.done).toBe(1); // done 이 cancelled 보다 우선 보존
+    } finally {
+      await prisma.booking.deleteMany({ where: { id: { in: created.map((c) => c.id) } } });
+    }
+  });
+
   it('역할 차단: 선생님은 대시보드 접근 403', async () => {
     const r = await get('admin/evaluation/ranking', tok.teacher);
     expect(r.status).toBe(403);
