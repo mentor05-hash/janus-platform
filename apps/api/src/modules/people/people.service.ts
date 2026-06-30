@@ -27,9 +27,15 @@ export class PeopleService {
       include: { account: { select: { name: true, center_id: true } } },
     });
     const scored = all
-      .map((t) => ({ t, score: Number(t.rating ?? 0) - (t.cancel_count ?? 0) * RANK_CANCEL_WEIGHT }))
+      .map((t) => ({
+        t,
+        score:
+          Number(t.rating ?? 0) - (t.cancel_count ?? 0) * RANK_CANCEL_WEIGHT,
+      }))
       .sort((a, b) => {
-        const g = (GRADE_ORDER[a.t.grade ?? 'B'] ?? 9) - (GRADE_ORDER[b.t.grade ?? 'B'] ?? 9);
+        const g =
+          (GRADE_ORDER[a.t.grade ?? 'B'] ?? 9) -
+          (GRADE_ORDER[b.t.grade ?? 'B'] ?? 9);
         return g !== 0 ? g : b.score - a.score;
       });
     const page = scored.slice((q.page - 1) * q.size, q.page * q.size);

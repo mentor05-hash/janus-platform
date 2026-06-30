@@ -14,7 +14,12 @@ import { TeachersController } from './teachers.controller';
  */
 @Module({
   imports: [NotificationModule],
-  controllers: [TeachersController, HrController, GuardianController, MemberTypeController],
+  controllers: [
+    TeachersController,
+    HrController,
+    GuardianController,
+    MemberTypeController,
+  ],
   providers: [PeopleService, GuardianService, MemberTypeService],
   exports: [PeopleService, GuardianService],
 })

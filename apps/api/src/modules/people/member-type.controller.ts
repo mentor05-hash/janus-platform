@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { MinPerm } from '../../common/decorators/min-perm.decorator';
@@ -33,12 +43,20 @@ export class MemberTypeController {
   }
 
   @Patch('teachers/:id/type')
-  setTeacherType(@Param('id', ParseUUIDPipe) id: string, @Body() dto: SetMemberTypeDto, @CurrentUser() user: AuthUser) {
+  setTeacherType(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SetMemberTypeDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.svc.assign('teacher', id, dto, user);
   }
 
   @Patch('students/:id/type')
-  setStudentType(@Param('id', ParseUUIDPipe) id: string, @Body() dto: SetMemberTypeDto, @CurrentUser() user: AuthUser) {
+  setStudentType(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SetMemberTypeDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.svc.assign('student', id, dto, user);
   }
 }

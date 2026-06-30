@@ -30,17 +30,30 @@ export class HrController {
   @Get('students')
   async listPendingStudents(@CurrentUser() user: AuthUser) {
     return this.prisma.account.findMany({
-      where: { role: 'student', ...(user.centerId ? { center_id: user.centerId } : {}) },
-      select: { id: true, login_id: true, name: true, status: true, created_at: true },
+      where: {
+        role: 'student',
+        ...(user.centerId ? { center_id: user.centerId } : {}),
+      },
+      select: {
+        id: true,
+        login_id: true,
+        name: true,
+        status: true,
+        created_at: true,
+      },
       orderBy: { created_at: 'desc' },
     });
   }
 
   /** POST /hr/students/{id}/approve — 자기 센터 학생 활성화. */
   @Post('students/:id/approve')
-  async approve(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  async approve(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     const target = await this.prisma.account.findUnique({ where: { id } });
-    if (!target || target.role !== 'student') throw new NotFoundException('학생을 찾을 수 없습니다.');
+    if (!target || target.role !== 'student')
+      throw new NotFoundException('학생을 찾을 수 없습니다.');
     if (user.centerId && target.center_id !== user.centerId) {
       throw new ForbiddenException('다른 센터의 학생은 승인할 수 없습니다.');
     }

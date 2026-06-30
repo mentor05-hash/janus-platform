@@ -1,9 +1,20 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { GuardianService } from './guardian.service';
-import { GuardianLinkRequestDto, GuardianLinkRespondDto } from './dto/guardian.dto';
+import {
+  GuardianLinkRequestDto,
+  GuardianLinkRespondDto,
+} from './dto/guardian.dto';
 
 @Controller()
 export class GuardianController {
@@ -19,7 +30,10 @@ export class GuardianController {
   /** POST /guardian/links — 자녀 연결 신청(보호자). */
   @Post('guardian/links')
   @Roles('guardian')
-  requestLink(@CurrentUser() user: AuthUser, @Body() dto: GuardianLinkRequestDto) {
+  requestLink(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: GuardianLinkRequestDto,
+  ) {
     return this.guardian.requestLink(user, dto);
   }
 
