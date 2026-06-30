@@ -18,15 +18,25 @@ const SCENARIO = {
 
 describe('휴게 버퍼(§5-1)', () => {
   it('유일한 가용창은 10:00–10:20 (index 60,61)', () => {
-    const slots = buildDaySlots({ ...SCENARIO, dayStartMin: H(9), dayEndMin: H(11, 30) });
-    const availIdx = slots.filter((s) => s.status === 'avail').map((s) => s.index);
+    const slots = buildDaySlots({
+      ...SCENARIO,
+      dayStartMin: H(9),
+      dayEndMin: H(11, 30),
+    });
+    const availIdx = slots
+      .filter((s) => s.status === 'avail')
+      .map((s) => s.index);
     expect(availIdx).toEqual([60, 61]);
     expect(slots.find((s) => s.index === 60)?.time).toBe('10:00');
     expect(slots.find((s) => s.index === 61)?.time).toBe('10:10');
   });
 
   it('예약 양옆 10분은 rest 로 모델링된다', () => {
-    const slots = buildDaySlots({ ...SCENARIO, dayStartMin: H(9), dayEndMin: H(11, 30) });
+    const slots = buildDaySlots({
+      ...SCENARIO,
+      dayStartMin: H(9),
+      dayEndMin: H(11, 30),
+    });
     const byIdx = (i: number) => slots.find((s) => s.index === i)?.status;
     expect(byIdx(54)).toBe('rest'); // 09:00–09:10 (A 앞 버퍼)
     expect(byIdx(59)).toBe('rest'); // 09:50–10:00 (A 뒤 버퍼)
@@ -35,8 +45,14 @@ describe('휴게 버퍼(§5-1)', () => {
   });
 
   it('예약 슬롯은 booked', () => {
-    const slots = buildDaySlots({ ...SCENARIO, dayStartMin: H(9), dayEndMin: H(11, 30) });
-    const booked = slots.filter((s) => s.status === 'booked').map((s) => s.index);
+    const slots = buildDaySlots({
+      ...SCENARIO,
+      dayStartMin: H(9),
+      dayEndMin: H(11, 30),
+    });
+    const booked = slots
+      .filter((s) => s.status === 'booked')
+      .map((s) => s.index);
     expect(booked).toEqual([55, 56, 57, 58, 63, 64, 65, 66, 67]);
   });
 

@@ -28,7 +28,9 @@ export function resolveFeatureEnabled(
   const company = matching.find((r) => r.scope === '전사');
   if (company) return company.enabled;
   // 센터 자율
-  const center = matching.find((r) => r.scope === '센터' && r.centerId === q.centerId);
+  const center = matching.find(
+    (r) => r.scope === '센터' && r.centerId === q.centerId,
+  );
   if (center) return center.enabled;
   return defaultEnabled;
 }

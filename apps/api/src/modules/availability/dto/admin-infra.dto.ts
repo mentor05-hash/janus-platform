@@ -1,5 +1,11 @@
 import { Type } from 'class-transformer';
-import { IsDateString, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import {
+  IsDateString,
+  IsInt,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 
 /** PUT /admin/zoom-policy — 동시 줌 한도. */
 export class SetZoomPolicyDto {

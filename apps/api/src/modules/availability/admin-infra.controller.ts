@@ -1,9 +1,22 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Put,
+} from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AdminInfraService } from './admin-infra.service';
-import { CreateBlockedTimeDto, CreateRoomDto, SetZoomPolicyDto } from './dto/admin-infra.dto';
+import {
+  CreateBlockedTimeDto,
+  CreateRoomDto,
+  SetZoomPolicyDto,
+} from './dto/admin-infra.dto';
 
 /** 관리자 인프라(줌·상담실·차단). 관리자 전용. */
 @Controller('admin')
@@ -34,11 +47,17 @@ export class AdminInfraController {
     return this.infra.listBlocked(user);
   }
   @Post('blocked-times')
-  createBlocked(@Body() dto: CreateBlockedTimeDto, @CurrentUser() user: AuthUser) {
+  createBlocked(
+    @Body() dto: CreateBlockedTimeDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.infra.createBlocked(dto, user);
   }
   @Delete('blocked-times/:id')
-  deleteBlocked(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  deleteBlocked(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.infra.deleteBlocked(id, user);
   }
 }

@@ -12,7 +12,10 @@ import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AccountRole } from '../../config/enums';
 import { AvailabilityService } from './availability.service';
-import { OfflineAvailabilityDto, WorkScheduleDto } from './dto/work-schedule.dto';
+import {
+  OfflineAvailabilityDto,
+  WorkScheduleDto,
+} from './dto/work-schedule.dto';
 
 @Controller('teachers')
 export class AvailabilityController {

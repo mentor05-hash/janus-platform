@@ -38,7 +38,8 @@ export interface BuildSlotsInput {
   dayEndMin?: number; // 기본 1440
 }
 
-const overlaps = (a: Interval, s: number, e: number) => a.start < e && s < a.end;
+const overlaps = (a: Interval, s: number, e: number) =>
+  a.start < e && s < a.end;
 const within = (ivs: Interval[], s: number, e: number) =>
   ivs.some((iv) => iv.start <= s && e <= iv.end);
 
@@ -49,7 +50,10 @@ function fmt(min: number): string {
 }
 
 /** 예약 앞뒤 buffer 구간을 휴게 인터벌로 변환. */
-export function bufferZones(bookings: Interval[], bufferMin: number): Interval[] {
+export function bufferZones(
+  bookings: Interval[],
+  bufferMin: number,
+): Interval[] {
   return bookings.flatMap((b) => [
     { start: b.start - bufferMin, end: b.start },
     { start: b.end, end: b.end + bufferMin },
@@ -96,8 +100,16 @@ export function buildDaySlots(input: BuildSlotsInput): Slot[] {
  * 새 예약 [startMin, endMin) 이 가능한지 검증 (§5-1).
  * 해당 범위의 모든 슬롯이 avail 이어야 true.
  */
-export function isRangeBookable(input: BuildSlotsInput, startMin: number, endMin: number): boolean {
+export function isRangeBookable(
+  input: BuildSlotsInput,
+  startMin: number,
+  endMin: number,
+): boolean {
   if (endMin <= startMin) return false;
-  const slots = buildDaySlots({ ...input, dayStartMin: startMin, dayEndMin: endMin });
+  const slots = buildDaySlots({
+    ...input,
+    dayStartMin: startMin,
+    dayEndMin: endMin,
+  });
   return slots.length > 0 && slots.every((s) => s.status === 'avail');
 }
