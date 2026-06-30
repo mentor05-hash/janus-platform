@@ -74,5 +74,16 @@ services:
     depends_on:
       - api
 
+  # 학생·학부모용 모바일(expo-web 정적). 사전 빌드된 apps/mobile/dist 를 nginx 로 서빙.
+  #   빌드 전: cd apps/mobile && EXPO_PUBLIC_API_BASE=/api/v1 npx expo export -p web
+  mobile:
+    build:
+      context: .
+      dockerfile: apps/mobile/Dockerfile.web
+    ports:
+      - "8090:80"
+    depends_on:
+      - api
+
 volumes:
   pgdata:   # = itall-mentoring_pgdata (dev compose 와 공유)

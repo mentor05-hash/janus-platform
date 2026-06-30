@@ -552,6 +552,8 @@ model student_profile {
   type_code              String?
   last_consult_at        DateTime?               @db.Timestamptz(6)
   last_homeroom_at       DateTime?               @db.Timestamptz(6)
+  reverse_admin          Boolean                 @default(false)
+  reverse_self           Boolean                 @default(false)
   board_question         board_question[]
   booking                booking[]
   consultation_note      consultation_note[]

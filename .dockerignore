@@ -11,3 +11,7 @@ node_modules
 apps/mobile
 apps/web/dist
 apps/web/node_modules
+# mobile 은 통째로 제외하되, 사전 빌드된 web export(dist)와 서빙 설정만 재포함
+!apps/mobile/dist
+!apps/mobile/nginx.web.conf
+!apps/mobile/Dockerfile.web

@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsIn,
   IsInt,
   IsOptional,
@@ -123,6 +124,12 @@ export class ReverseProposeDto {
   @IsOptional()
   @IsString()
   content?: string;
+}
+
+/** 역상담 대상 지정/신청 토글 (관리자·학생). */
+export class ReverseFlagDto {
+  @IsBoolean()
+  value!: boolean;
 }
 
 /** 역상담 응답 (PATCH /bookings/{id}/reverse-respond). 학생 수락/거절. */

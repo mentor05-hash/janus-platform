@@ -10,7 +10,7 @@ export {
   ErrorText,
   Meter,
 } from './primitives';
-export { TextField, TextareaField, SelectField } from './form';
+export { TextField, TextareaField, SelectField, PasswordField } from './form';
 export { Modal, ConfirmFooter } from './Modal';
 export { Table } from './Table';
 export type { Column } from './Table';

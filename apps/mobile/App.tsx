@@ -9,6 +9,7 @@ import { CreditsScreen } from './src/screens/CreditsScreen';
 import { ChildrenScreen } from './src/screens/ChildrenScreen';
 import { ChildNotesScreen } from './src/screens/ChildNotesScreen';
 import { PaymentsScreen } from './src/screens/PaymentsScreen';
+import { ReverseOptInScreen } from './src/screens/ReverseOptInScreen';
 import { C, SP } from './src/theme';
 
 export default function App() {
@@ -52,8 +53,17 @@ export default function App() {
 
   const isGuardian = me.role === 'guardian';
   const isStudent = me.role === 'student';
-  const tabs = isGuardian ? ['a', 'b'] : ['a', 'b'];
-  const tabLabel = (t: string) => (isGuardian ? (t === 'a' ? '자녀' : '결제요청') : t === 'a' ? '선생님 찾기' : '크레딧');
+  const tabs = isGuardian ? ['a', 'b'] : ['a', 'b', 'c'];
+  const tabLabel = (t: string) =>
+    isGuardian
+      ? t === 'a'
+        ? '자녀'
+        : '결제요청'
+      : t === 'a'
+        ? '선생님 찾기'
+        : t === 'b'
+          ? '크레딧'
+          : '역상담';
 
   return (
     <SafeAreaView style={styles.app}>
@@ -80,8 +90,10 @@ export default function App() {
             ) : (
               <SearchScreen onPick={setTeacher} />
             )
-          ) : (
+          ) : tab === 'b' ? (
             <CreditsScreen />
+          ) : (
+            <ReverseOptInScreen />
           ))}
 
         {isGuardian &&

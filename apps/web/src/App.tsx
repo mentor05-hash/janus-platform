@@ -25,6 +25,7 @@ import { AdminOrgPage } from './pages/AdminOrgPage';
 import { AdminMemberTypesPage } from './pages/AdminMemberTypesPage';
 import { AdminEvaluationPage } from './pages/AdminEvaluationPage';
 import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
+import { AdminReversePage } from './pages/AdminReversePage';
 
 function Protected({ roles, children }: { roles?: string[]; children: JSX.Element }) {
   const { user, loading } = useAuth();
@@ -75,6 +76,7 @@ export function App() {
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<AdminDashboardPage />} />
         <Route path="students" element={<HrStudentsPage />} />
+        <Route path="reverse" element={<AdminReversePage />} />
         <Route path="policy" element={<AdminPolicyPage />} />
         <Route path="rooms" element={<AdminRoomsPage />} />
         <Route path="block" element={<AdminBlockPage />} />

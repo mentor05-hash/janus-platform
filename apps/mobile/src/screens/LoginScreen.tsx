@@ -15,6 +15,7 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
   const [center, setCenter] = useState('강남');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [showPw, setShowPw] = useState(false);
 
   async function submit() {
     setError('');
@@ -65,7 +66,24 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
         <Text style={[styles.label, { marginTop: SP.lg }]}>아이디</Text>
         <TextInput style={ui.input} value={loginId} onChangeText={setLoginId} autoCapitalize="none" placeholder="아이디" placeholderTextColor={C.caption} />
         <Text style={[styles.label, { marginTop: SP.md }]}>비밀번호</Text>
-        <TextInput style={ui.input} value={password} onChangeText={setPassword} secureTextEntry />
+        <View style={styles.pwWrap}>
+          <TextInput
+            style={[ui.input, { paddingRight: 46 }]}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPw}
+            autoCapitalize="none"
+          />
+          <TouchableOpacity
+            style={styles.eyeBtn}
+            onPress={() => setShowPw((s) => !s)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityLabel={showPw ? '비밀번호 숨기기' : '비밀번호 표시'}
+          >
+            <Text style={{ fontSize: 18, color: showPw ? C.teal : C.caption }}>👁</Text>
+            {!showPw && <View style={styles.eyeSlash} />}
+          </TouchableOpacity>
+        </View>
         {error ? <Text style={ui.error}>{error}</Text> : null}
 
         <TouchableOpacity style={[ui.btn, { marginTop: SP.lg }, busy && ui.btnDisabled]} onPress={submit} disabled={busy}>
@@ -85,6 +103,9 @@ const styles = StyleSheet.create({
   heroSub: { color: '#cfe3ec', fontSize: 14, marginTop: 8, lineHeight: 20 },
   sheet: { flex: 1, backgroundColor: C.bg, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: SP.xl, paddingTop: 22 },
   label: { fontSize: 13, fontWeight: '700', color: C.muted, marginBottom: 8 },
+  pwWrap: { position: 'relative', justifyContent: 'center' },
+  eyeBtn: { position: 'absolute', right: 8, top: 0, bottom: 0, width: 34, alignItems: 'center', justifyContent: 'center' },
+  eyeSlash: { position: 'absolute', width: 24, height: 2, borderRadius: 1, backgroundColor: C.caption, transform: [{ rotate: '45deg' }] },
   search: { backgroundColor: C.white, borderWidth: 1, borderColor: C.inputBorder, borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 11 },
   center: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.white, borderWidth: 1, borderColor: C.line, borderRadius: 12, padding: 12 },
   centerOn: { borderColor: C.teal, borderWidth: 2, backgroundColor: C.teal50 },

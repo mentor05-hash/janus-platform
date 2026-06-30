@@ -2,7 +2,12 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
-const BASE: string = (Constants.expoConfig?.extra?.apiBase as string) ?? 'http://localhost:3000/api/v1';
+// 우선순위: EXPO_PUBLIC_API_BASE(빌드 주입, 웹 배포 시 '/api/v1' 상대경로)
+//  → app.json extra.apiBase(네이티브 기본) → localhost(개발).
+const BASE: string =
+  (process.env.EXPO_PUBLIC_API_BASE as string) ??
+  (Constants.expoConfig?.extra?.apiBase as string) ??
+  'http://localhost:3000/api/v1';
 
 // 토큰 저장: 네이티브=SecureStore, 웹(expo-web 프리뷰)=localStorage(SecureStore 웹 미지원).
 const store = {

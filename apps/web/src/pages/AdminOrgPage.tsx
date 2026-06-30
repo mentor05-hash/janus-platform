@@ -10,6 +10,7 @@ import {
   ErrorText,
   Table,
   TextField,
+  PasswordField,
   SelectField,
 } from '../components/ui';
 import type { Column } from '../components/ui';
@@ -115,7 +116,7 @@ export function AdminOrgPage() {
             <TextField label="로그인 ID" value={staff.loginId} onChange={(e) => setStaff({ ...staff, loginId: e.target.value })} />
           </div>
           <div style={{ width: 150 }}>
-            <TextField label="비밀번호" type="password" value={staff.password} onChange={(e) => setStaff({ ...staff, password: e.target.value })} />
+            <PasswordField label="비밀번호" value={staff.password} onChange={(e) => setStaff({ ...staff, password: e.target.value })} />
           </div>
           <div style={{ width: 110 }}>
             <TextField label="이름" value={staff.name} onChange={(e) => setStaff({ ...staff, name: e.target.value })} />

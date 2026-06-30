@@ -333,7 +333,10 @@ export class BookingService {
     });
     if (!student) throw new NotFoundException('학생을 찾을 수 없습니다.');
 
-    // 첫 상담 한정(§5-4): 기존 성사 상담(confirmed/done)이 없어야 제안 가능
+    // 역상담 대상 자격(§5-4 확장): 아래 3종 중 하나면 제안 가능
+    //  (1) 첫 상담 — 이 선생님과 성사 상담(confirmed/done)이 없음
+    //  (2) 관리자 지정(reverse_admin) — 추가 역상담 허용
+    //  (3) 학생 신청(reverse_self) — 추가 역상담 허용
     const prior = await this.prisma.booking.count({
       where: {
         teacher_id: user.id,
@@ -341,9 +344,11 @@ export class BookingService {
         status: { in: [BookingStatus.CONFIRMED, BookingStatus.DONE] },
       },
     });
-    if (!canProposeReverse(prior)) {
+    const eligible =
+      canProposeReverse(prior) || student.reverse_admin || student.reverse_self;
+    if (!eligible) {
       throw new ConflictException(
-        '이미 성사된 상담이 있어 역상담을 제안할 수 없습니다(첫 상담 한정).',
+        '역상담 대상이 아닙니다(첫 상담·관리자 지정·학생 신청에 해당해야 합니다).',
       );
     }
 
@@ -829,6 +834,104 @@ export class BookingService {
         '학생 등록(프로필)이 완료되지 않았습니다. 회원등록 후 이용하세요.',
       );
     return s;
+  }
+
+  /**
+   * 역상담 대상 학생 목록(선생님용). 같은 센터 학생 중 자격 3종을 분류해 반환.
+   *  - first: 첫상담 필요(완료 상담 0건)
+   *  - admin: 관리자 지정(reverse_admin)
+   *  - self : 학생 신청(reverse_self)
+   * types 가 비면 제외. 중복(예: ['admin','self'])이면 화면에서 조합 배지로 표시.
+   */
+  async listReverseEligible(user: AuthUser) {
+    if (user.role !== AccountRole.TEACHER)
+      throw new ForbiddenException('선생님만 조회할 수 있습니다.');
+    const teacher = await this.requireTeacher(user.id);
+    const rows = await this.prisma.student_profile.findMany({
+      where: {
+        ...(teacher.center_id ? { center_id: teacher.center_id } : {}),
+        OR: [
+          { done_count: 0 },
+          { done_count: null },
+          { reverse_admin: true },
+          { reverse_self: true },
+        ],
+      },
+      include: { account: { select: { name: true, login_id: true } } },
+      orderBy: { last_consult_at: 'asc' },
+    });
+    const data = rows
+      .map((s) => {
+        const types: string[] = [];
+        if ((s.done_count ?? 0) === 0) types.push('first');
+        if (s.reverse_admin) types.push('admin');
+        if (s.reverse_self) types.push('self');
+        return {
+          studentId: s.account_id,
+          name: s.account?.name ?? '학생',
+          loginId: s.account?.login_id ?? null,
+          doneCount: s.done_count ?? 0,
+          lastConsultAt: s.last_consult_at?.toISOString() ?? null,
+          types,
+        };
+      })
+      .filter((x) => x.types.length > 0);
+    return { data };
+  }
+
+  /** 관리자 역상담 대상 관리 목록 — 센터 학생 + 현재 지정/신청 플래그. */
+  async adminListReverseStudents(user: AuthUser) {
+    if (user.role !== AccountRole.ADMIN && user.role !== AccountRole.HR)
+      throw new ForbiddenException('관리자만 조회할 수 있습니다.');
+    const rows = await this.prisma.student_profile.findMany({
+      where: user.centerId ? { center_id: user.centerId } : {},
+      include: { account: { select: { name: true, login_id: true } } },
+      orderBy: { last_consult_at: 'asc' },
+    });
+    return {
+      data: rows.map((s) => ({
+        studentId: s.account_id,
+        name: s.account?.name ?? '학생',
+        loginId: s.account?.login_id ?? null,
+        doneCount: s.done_count ?? 0,
+        reverseAdmin: s.reverse_admin,
+        reverseSelf: s.reverse_self,
+      })),
+    };
+  }
+
+  /** 관리자: 학생을 역상담 대상으로 지정/해제(reverse_admin). */
+  async adminSetReverse(studentId: string, value: boolean, user: AuthUser) {
+    if (user.role !== AccountRole.ADMIN && user.role !== AccountRole.HR)
+      throw new ForbiddenException('관리자만 변경할 수 있습니다.');
+    const s = await this.requireStudent(studentId);
+    if (user.centerId && s.center_id && s.center_id !== user.centerId)
+      throw new ForbiddenException('다른 센터의 학생은 변경할 수 없습니다.');
+    await this.prisma.student_profile.update({
+      where: { account_id: studentId },
+      data: { reverse_admin: value },
+    });
+    return { studentId, reverseAdmin: value };
+  }
+
+  /** 학생: 본인 역상담 받기 신청 현황(reverse_self). */
+  async studentGetReverse(user: AuthUser) {
+    if (user.role !== AccountRole.STUDENT)
+      throw new ForbiddenException('학생만 조회할 수 있습니다.');
+    const s = await this.requireStudent(user.id);
+    return { reverseSelf: s.reverse_self };
+  }
+
+  /** 학생: 본인 역상담 받기 신청/취소(reverse_self). */
+  async studentSetReverse(value: boolean, user: AuthUser) {
+    if (user.role !== AccountRole.STUDENT)
+      throw new ForbiddenException('학생만 신청할 수 있습니다.');
+    await this.requireStudent(user.id);
+    await this.prisma.student_profile.update({
+      where: { account_id: user.id },
+      data: { reverse_self: value },
+    });
+    return { studentId: user.id, reverseSelf: value };
   }
 
   private toBookingDto(b: {

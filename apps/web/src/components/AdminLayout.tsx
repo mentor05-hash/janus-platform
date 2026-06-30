@@ -28,6 +28,7 @@ export function AdminLayout() {
           <NavLink to="/admin/students" className={navCls}>학생 승인</NavLink>
           {isAdmin && (
             <>
+              {!hq && <NavLink to="/admin/reverse" className={navCls}>역상담 대상</NavLink>}
               <NavLink to="/admin/policy" className={navCls}>정책 편집</NavLink>
               {/* 상담실·줌·차단은 센터 단위 — 본사(HQ)에는 숨김 */}
               {!hq && <NavLink to="/admin/rooms" className={navCls}>상담실 현황</NavLink>}
