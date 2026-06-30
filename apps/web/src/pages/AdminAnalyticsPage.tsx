@@ -3,19 +3,22 @@ import { api, ApiError } from '../api/client';
 import type { CenterCompareRow } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { isHq } from '../auth/roleHome';
+import { PageHeader, SelectField, ErrorText, Table, Tabs } from '../components/ui';
+import type { Column } from '../components/ui';
+import { BarList, SectionCard } from '../components/dashboard/widgets';
 
 const PERIODS = [
-  { v: 'all', t: '전체' },
-  { v: '1w', t: '최근 1주' },
-  { v: '2w', t: '최근 2주' },
-  { v: '1m', t: '최근 1달' },
+  { value: 'all', label: '전체' },
+  { value: '1w', label: '최근 1주' },
+  { value: '2w', label: '최근 2주' },
+  { value: '1m', label: '최근 1달' },
 ];
 const VIEWS = [
-  { v: 'center', t: '센터별' },
-  { v: 'teacher-in-center', t: '센터 내 선생님' },
-  { v: 'teacher-x-center', t: '선생님×센터' },
-  { v: 'teacher-monthly', t: '선생님 월별' },
-  { v: 'center-monthly', t: '센터 월별' },
+  { value: 'center', label: '센터별' },
+  { value: 'teacher-in-center', label: '센터 내 선생님' },
+  { value: 'teacher-x-center', label: '선생님×센터' },
+  { value: 'teacher-monthly', label: '선생님 월별' },
+  { value: 'center-monthly', label: '센터 월별' },
 ];
 const COL_LABEL: Record<string, string> = {
   key: '대상',
@@ -61,83 +64,41 @@ export function AdminAnalyticsPage() {
     void loadPivot();
   }, [loadPivot]);
 
-  const cols = pivot.length ? Object.keys(pivot[0]) : [];
-  const maxScore = Math.max(100, ...centers.map((c) => c.score0to100));
+  const cols: Column<Record<string, unknown>>[] = pivot.length
+    ? Object.keys(pivot[0]).map((k) => ({
+        key: k,
+        header: COL_LABEL[k] ?? k,
+        render: (row) => String(row[k] ?? ''),
+      }))
+    : [];
 
   return (
     <div>
-      <h2 style={{ color: 'var(--teal)' }}>센터 분석</h2>
-      <div style={{ margin: '10px 0' }}>
-        <select className="input" style={{ width: 160 }} value={period} onChange={(e) => setPeriod(e.target.value)}>
-          {PERIODS.map((p) => (
-            <option key={p.v} value={p.v}>{p.t}</option>
-          ))}
-        </select>
+      <PageHeader title="센터 분석" sub={hq ? '전체 센터 비교' : '자기 센터 위치'} />
+      <div style={{ maxWidth: 200, marginBottom: 8 }}>
+        <SelectField value={period} onChange={(e) => setPeriod(e.target.value)} options={PERIODS} />
       </div>
-      {error && <p className="error">{error}</p>}
+      <ErrorText>{error}</ErrorText>
 
-      {/* 센터 비교 (z-score 0~100) */}
-      <div className="card" style={{ marginBottom: 16 }}>
-        <strong>센터 비교 — 표준화 상대점수(z→0~100)</strong>
-        <p style={{ color: 'var(--muted)', fontSize: 13, margin: '4px 0 12px' }}>
-          {hq ? '전체 센터 순위' : '자기 센터 위치만 표시됩니다.'}
-        </p>
-        {centers.length === 0 ? (
-          <p style={{ color: 'var(--muted)' }}>데이터가 없습니다.</p>
-        ) : (
-          <div style={{ display: 'grid', gap: 8 }}>
-            {centers.map((c) => (
-              <div key={c.centerId} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ width: 24, fontWeight: 700, color: 'var(--teal)' }}>{c.rank}</span>
-                <span style={{ width: 110 }}>{c.name}</span>
-                <span style={{ flex: 1, height: 14, background: 'var(--line)', borderRadius: 7 }}>
-                  <span style={{ display: 'block', width: `${(c.score0to100 / maxScore) * 100}%`, height: 14, background: 'var(--teal)', borderRadius: 7 }} />
-                </span>
-                <span style={{ width: 48, textAlign: 'right', fontWeight: 700 }}>{c.score0to100}</span>
-                <span style={{ width: 150, fontSize: 12, color: 'var(--muted)' }}>
-                  완료 {c.raw.completion}% · 만족 {c.raw.satisfaction}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <SectionCard
+        title="센터 비교 — 표준화 상대점수(z→0~100)"
+        desc={hq ? '전체 센터 순위' : '자기 센터 위치만 표시됩니다.'}
+      >
+        <BarList
+          items={centers.map((c) => ({
+            id: c.centerId,
+            rank: c.rank,
+            label: c.name,
+            value: c.score0to100,
+            caption: `완료 ${c.raw.completion}% · 만족 ${c.raw.satisfaction}`,
+          }))}
+        />
+      </SectionCard>
 
-      {/* 피벗 뷰 */}
-      <div className="card">
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
-          <strong>피벗</strong>
-          <select className="input" style={{ width: 180 }} value={view} onChange={(e) => setView(e.target.value)}>
-            {VIEWS.map((v) => (
-              <option key={v.v} value={v.v}>{v.t}</option>
-            ))}
-          </select>
-        </div>
-        {pivot.length === 0 ? (
-          <p style={{ color: 'var(--muted)' }}>데이터가 없습니다.</p>
-        ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ borderBottom: '2px solid var(--line)', textAlign: 'left' }}>
-                {cols.map((c) => (
-                  <th key={c} style={{ padding: 6 }}>{COL_LABEL[c] ?? c}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {pivot.map((row, i) => (
-                <tr key={i} style={{ borderBottom: '1px solid var(--line)' }}>
-                  {cols.map((c) => (
-                    <td key={c} style={{ padding: 6, fontVariantNumeric: 'tabular-nums' }}>
-                      {String(row[c] ?? '')}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <SectionCard title="피벗">
+        <Tabs items={VIEWS} value={view} onChange={setView} />
+        <Table columns={cols} rows={pivot} rowKey={(_, i) => String(i)} />
+      </SectionCard>
     </div>
   );
 }
