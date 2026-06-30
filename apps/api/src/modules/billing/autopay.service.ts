@@ -20,7 +20,9 @@ export class AutopayService {
     @Inject(PG_PROVIDER) private readonly pg: PgProvider,
   ) {}
 
-  @Cron(process.env.SUBSCRIPTION_BILLING_CRON ?? '0 1 * * *', { timeZone: 'Asia/Seoul' })
+  @Cron(process.env.SUBSCRIPTION_BILLING_CRON ?? '0 1 * * *', {
+    timeZone: 'Asia/Seoul',
+  })
   async scheduledBilling() {
     const r = await this.runDue();
     this.logger.log(`정기결제 처리: 성공 ${r.charged} / 실패 ${r.failed}`);
@@ -37,26 +39,40 @@ export class AutopayService {
     for (const sub of due) {
       const due_at = sub.next_billing_at!;
       const plan = sub.subscription_plan;
-      const nextAt = computeNextBilling(plan.billing_cycle as BillingCycle, due_at);
+      const nextAt = computeNextBilling(plan.billing_cycle, due_at);
 
       // 선점: 아직 '도래(<= now)' 상태일 때만 다음 결제일로 조건부 이월.
       // 정확한 timestamp 일치(= due_at) 대신 lte 비교 → DB측 now() 등으로 들어온
       // 마이크로초 값이 JS Date(ms) 왕복에서 어긋나도 안전(결제 누락 방지). 동시 실행은
       // 이미 미래로 이월된 행을 lte 로 거르므로 중복 청구 없음(§7).
       const claim = await this.prisma.student_subscription.updateMany({
-        where: { id: sub.id, status: 'active', next_billing_at: { not: null, lte: now } },
+        where: {
+          id: sub.id,
+          status: 'active',
+          next_billing_at: { not: null, lte: now },
+        },
         data: { next_billing_at: nextAt },
       });
       if (claim.count !== 1) continue;
 
-      const payerAccountId = await this.resolvePayer(sub.student_id, plan.payer);
+      const payerAccountId = await this.resolvePayer(
+        sub.student_id,
+        plan.payer,
+      );
       const idempotencyKey = `${sub.id}:${due_at.toISOString()}`;
       let result;
       try {
-        result = await this.pg.charge({ payerAccountId, amount: plan.price, purpose: 'subscription', idempotencyKey });
+        result = await this.pg.charge({
+          payerAccountId,
+          amount: plan.price,
+          purpose: 'subscription',
+          idempotencyKey,
+        });
       } catch (e) {
         result = { transactionId: '', status: 'failed' as const };
-        this.logger.warn(`정기결제 청구 오류(sub=${sub.id}): ${(e as Error).message}`);
+        this.logger.warn(
+          `정기결제 청구 오류(sub=${sub.id}): ${(e as Error).message}`,
+        );
       }
 
       if (result.status === 'done') {
@@ -93,7 +109,10 @@ export class AutopayService {
   }
 
   /** 결제자 계좌 해석: student 플랜은 학생, guardian 플랜은 승인된 보호자(없으면 학생 fallback). */
-  private async resolvePayer(studentId: string, payer: string): Promise<string> {
+  private async resolvePayer(
+    studentId: string,
+    payer: string,
+  ): Promise<string> {
     if (payer === 'guardian') {
       const link = await this.prisma.guardian_student_link.findFirst({
         where: { student_id: studentId, status: 'approved' },

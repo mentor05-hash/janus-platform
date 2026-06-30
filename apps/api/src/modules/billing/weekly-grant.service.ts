@@ -14,13 +14,17 @@ export class WeeklyGrantService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  @Cron(process.env.WEEKLY_GRANT_CRON ?? '0 0 * * 1', { timeZone: 'Asia/Seoul' })
+  @Cron(process.env.WEEKLY_GRANT_CRON ?? '0 0 * * 1', {
+    timeZone: 'Asia/Seoul',
+  })
   async scheduledGrant() {
     const n = await this.runGrant();
     this.logger.log(`주간 부여 완료: ${n}건`);
   }
 
-  @Cron(process.env.GRANT_EXPIRE_CRON ?? '59 23 * * 0', { timeZone: 'Asia/Seoul' })
+  @Cron(process.env.GRANT_EXPIRE_CRON ?? '59 23 * * 0', {
+    timeZone: 'Asia/Seoul',
+  })
   async scheduledExpire() {
     const n = await this.runExpire();
     this.logger.log(`주간 소멸 완료: ${n}건`);
@@ -43,7 +47,9 @@ export class WeeklyGrantService {
     for (const s of students) {
       const weekly = s.membership_grade?.weekly_credits ?? 0;
       if (weekly <= 0) continue;
-      const acct = await this.prisma.credit_account.findUnique({ where: { student_id: s.account_id } });
+      const acct = await this.prisma.credit_account.findUnique({
+        where: { student_id: s.account_id },
+      });
       if (!acct) continue;
       // 멱등(L2): 이번 주 부여분이 이미 있으면 중복 부여 방지(cron 중복 실행/수동 재실행)
       const dup = await this.prisma.weekly_credit_grant.findFirst({
@@ -62,7 +68,10 @@ export class WeeklyGrantService {
         });
         const updated = await tx.credit_account.update({
           where: { id: acct.id },
-          data: { granted_balance: { increment: weekly }, grant_expire_at: expireAt },
+          data: {
+            granted_balance: { increment: weekly },
+            grant_expire_at: expireAt,
+          },
         });
         await tx.credit_transaction.create({
           data: {
@@ -83,7 +92,9 @@ export class WeeklyGrantService {
   async runExpire(now = new Date(), onlyStudentId?: string): Promise<number> {
     let accountId: string | undefined;
     if (onlyStudentId) {
-      const acct = await this.prisma.credit_account.findUnique({ where: { student_id: onlyStudentId } });
+      const acct = await this.prisma.credit_account.findUnique({
+        where: { student_id: onlyStudentId },
+      });
       if (!acct) return 0;
       accountId = acct.id;
     }
@@ -97,10 +108,15 @@ export class WeeklyGrantService {
     let count = 0;
     for (const g of grants) {
       await this.prisma.$transaction(async (tx) => {
-        const acct = await tx.credit_account.findUnique({ where: { id: g.account_id } });
+        const acct = await tx.credit_account.findUnique({
+          where: { id: g.account_id },
+        });
         if (!acct) return;
         const newGranted = Math.max(0, acct.granted_balance - g.remaining);
-        await tx.weekly_credit_grant.update({ where: { id: g.id }, data: { remaining: 0 } });
+        await tx.weekly_credit_grant.update({
+          where: { id: g.id },
+          data: { remaining: 0 },
+        });
         const updated = await tx.credit_account.update({
           where: { id: acct.id },
           data: { granted_balance: newGranted },
@@ -131,7 +147,11 @@ export function endOfWeekKst(now: Date): Date {
   const k = new Date(now.getTime() + KST);
   const dow = k.getUTCDay(); // 0=일 .. 6=토
   const daysUntilSun = (7 - dow) % 7; // 일요일이면 0(당일)
-  const sunMidnightKstAsUtc = Date.UTC(k.getUTCFullYear(), k.getUTCMonth(), k.getUTCDate() + daysUntilSun);
+  const sunMidnightKstAsUtc = Date.UTC(
+    k.getUTCFullYear(),
+    k.getUTCMonth(),
+    k.getUTCDate() + daysUntilSun,
+  );
   const expireKst = sunMidnightKstAsUtc + (23 * 60 + 59) * 60 * 1000; // 일 23:59:00 KST
   return new Date(expireKst - KST);
 }

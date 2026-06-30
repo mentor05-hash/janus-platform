@@ -9,10 +9,14 @@ export class RealPgProvider implements PgProvider {
   private readonly logger = new Logger('PgProvider:real');
 
   constructor(private readonly which: string) {
-    this.logger.warn(`RealPgProvider(${which}) 는 자격증명 미구성 상태입니다(PG_PROVIDER=mock 권장).`);
+    this.logger.warn(
+      `RealPgProvider(${which}) 는 자격증명 미구성 상태입니다(PG_PROVIDER=mock 권장).`,
+    );
   }
 
   charge(_input: ChargeInput): Promise<ChargeResult> {
-    throw new Error('실 PG 연동이 아직 구성되지 않았습니다(PG 자격증명·빌링키 필요).');
+    throw new Error(
+      '실 PG 연동이 아직 구성되지 않았습니다(PG 자격증명·빌링키 필요).',
+    );
   }
 }

@@ -26,7 +26,8 @@ export function planRefund(
   let toPurchased = split.purchasedSpend ?? 0;
   for (const g of split.grantSpend ?? []) {
     const exp = lotExpiry[g.id];
-    if (exp != null && exp > now) grantRestores.push({ id: g.id, amount: g.used });
+    if (exp != null && exp > now)
+      grantRestores.push({ id: g.id, amount: g.used });
     else toPurchased += g.used; // 만료/소실된 부여분은 구매분으로
   }
   return { grantRestores, toPurchased };

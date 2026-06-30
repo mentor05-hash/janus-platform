@@ -12,7 +12,9 @@ export class MockPgProvider implements PgProvider {
   async charge(input: ChargeInput): Promise<ChargeResult> {
     if (input.amount <= 0) return { transactionId: '', status: 'failed' };
     const transactionId = `mock_${input.idempotencyKey}`;
-    this.logger.log(`[stub] 승인 payer=${input.payerAccountId} amount=${input.amount} (${input.purpose})`);
+    this.logger.log(
+      `[stub] 승인 payer=${input.payerAccountId} amount=${input.amount} (${input.purpose})`,
+    );
     return { transactionId, status: 'done' };
   }
 }

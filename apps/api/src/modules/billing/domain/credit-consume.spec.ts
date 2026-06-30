@@ -30,7 +30,11 @@ describe('크레딧 소비 순서(§5-3)', () => {
   });
 
   it('잔액 부족 시 shortfall 로 부족분 보고(결제요청 유도)', () => {
-    const r = consumeCredits([{ id: 'g1', remaining: 5_000, expireAt: 100 }], 3_000, 20_000);
+    const r = consumeCredits(
+      [{ id: 'g1', remaining: 5_000, expireAt: 100 }],
+      3_000,
+      20_000,
+    );
     expect(r.grantSpend).toEqual([{ id: 'g1', used: 5_000 }]);
     expect(r.purchasedSpend).toBe(3_000);
     expect(r.shortfall).toBe(12_000);

@@ -20,8 +20,16 @@ export interface ConsumeResult {
   shortfall: number;
 }
 
-export function consumeCredits(grants: GrantLot[], purchased: number, amount: number): ConsumeResult {
-  const result: ConsumeResult = { grantSpend: [], purchasedSpend: 0, shortfall: 0 };
+export function consumeCredits(
+  grants: GrantLot[],
+  purchased: number,
+  amount: number,
+): ConsumeResult {
+  const result: ConsumeResult = {
+    grantSpend: [],
+    purchasedSpend: 0,
+    shortfall: 0,
+  };
   let need = Math.max(0, amount);
 
   // 1) 부여분 — 만료 임박(expireAt 오름차순) 우선

@@ -1,4 +1,8 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -26,7 +30,9 @@ export class CreditService {
   ) {}
 
   async getAccount(studentId: string) {
-    const acct = await this.prisma.credit_account.findUnique({ where: { student_id: studentId } });
+    const acct = await this.prisma.credit_account.findUnique({
+      where: { student_id: studentId },
+    });
     if (!acct) throw new NotFoundException('크레딧 계좌가 없습니다.');
     return {
       studentId,
@@ -38,7 +44,9 @@ export class CreditService {
   }
 
   async listTransactions(studentId: string, limit = 50) {
-    const acct = await this.prisma.credit_account.findUnique({ where: { student_id: studentId } });
+    const acct = await this.prisma.credit_account.findUnique({
+      where: { student_id: studentId },
+    });
     if (!acct) throw new NotFoundException('크레딧 계좌가 없습니다.');
     return this.prisma.credit_transaction.findMany({
       where: { account_id: acct.id },
@@ -52,12 +60,18 @@ export class CreditService {
     const env = this.config.get<string>('NODE_ENV');
     const pg = this.config.get<string>('PG_PROVIDER') ?? 'mock';
     if (env === 'prod' && pg === 'mock') {
-      throw new ForbiddenException('실 결제 연동(PG_PROVIDER) 전에는 충전할 수 없습니다.');
+      throw new ForbiddenException(
+        '실 결제 연동(PG_PROVIDER) 전에는 충전할 수 없습니다.',
+      );
     }
   }
 
   /** 트랜잭션 내 충전(결제요청 응답 등에서 원자적 처리에 사용). */
-  async chargeWithin(tx: Prisma.TransactionClient, studentId: string, amount: number) {
+  async chargeWithin(
+    tx: Prisma.TransactionClient,
+    studentId: string,
+    amount: number,
+  ) {
     this.assertChargeable();
     const acct = await this.lockAccount(tx, studentId);
     const balance = acct.purchased_balance + acct.granted_balance + amount;
@@ -77,20 +91,35 @@ export class CreditService {
     });
     // 결제 내역(payment) 기록 — /payments/history 노출
     await tx.payment.create({
-      data: { payer_account_id: studentId, amount, pg_provider: 'mock', target: '충전', status: 'done' },
+      data: {
+        payer_account_id: studentId,
+        amount,
+        pg_provider: 'mock',
+        target: '충전',
+        status: 'done',
+      },
     });
-    return { purchasedBalance: updated.purchased_balance, grantedBalance: updated.granted_balance };
+    return {
+      purchasedBalance: updated.purchased_balance,
+      grantedBalance: updated.granted_balance,
+    };
   }
 
   /** 결제 내역(GET /payments/history) — 본인 결제(payment) 목록. */
   paymentHistory(payerId: string) {
-    return this.prisma.payment.findMany({ where: { payer_account_id: payerId }, orderBy: { created_at: 'desc' }, take: 100 });
+    return this.prisma.payment.findMany({
+      where: { payer_account_id: payerId },
+      orderBy: { created_at: 'desc' },
+      take: 100,
+    });
   }
 
   /** 충전(모의 PG). 구매 크레딧 증가 + charge 트랜잭션 기록. */
   async charge(studentId: string, amount: number) {
     this.assertChargeable();
-    return this.prisma.$transaction((tx) => this.chargeWithin(tx, studentId, amount));
+    return this.prisma.$transaction((tx) =>
+      this.chargeWithin(tx, studentId, amount),
+    );
   }
 
   /**
@@ -147,7 +176,10 @@ export class CreditService {
         ref_type: ref.refType,
         ref_id: ref.refId ?? null,
         // 분배 내역 기록(M4) — 환원 시 원래 버킷 복원에 사용
-        meta: { grantSpend: plan.grantSpend, purchasedSpend: plan.purchasedSpend } as object,
+        meta: {
+          grantSpend: plan.grantSpend,
+          purchasedSpend: plan.purchasedSpend,
+        },
       },
     });
     return { ok: true, shortfall: 0, spent: amount };
@@ -170,7 +202,11 @@ export class CreditService {
     let split: SpendSplit | null = null;
     if (ref.refId) {
       const spend = await tx.credit_transaction.findFirst({
-        where: { account_id: acct.id, type: CreditTxnType.SPEND, ref_id: ref.refId },
+        where: {
+          account_id: acct.id,
+          type: CreditTxnType.SPEND,
+          ref_id: ref.refId,
+        },
         orderBy: { created_at: 'desc' },
       });
       split = (spend?.meta as unknown as SpendSplit) ?? null;
@@ -186,7 +222,10 @@ export class CreditService {
 
     let grantedInc = 0;
     for (const r of refundPlan.grantRestores) {
-      await tx.weekly_credit_grant.update({ where: { id: r.id }, data: { remaining: { increment: r.amount } } });
+      await tx.weekly_credit_grant.update({
+        where: { id: r.id },
+        data: { remaining: { increment: r.amount } },
+      });
       grantedInc += r.amount;
     }
     const newGranted = acct.granted_balance + grantedInc;
@@ -204,15 +243,24 @@ export class CreditService {
         description: '예약 취소 환원',
         ref_type: ref.refType,
         ref_id: ref.refId ?? null,
-        meta: { grantRestores: refundPlan.grantRestores, toPurchased: refundPlan.toPurchased } as object,
+        meta: {
+          grantRestores: refundPlan.grantRestores,
+          toPurchased: refundPlan.toPurchased,
+        },
       },
     });
   }
 
   /** 취소 환원(독립 트랜잭션 래퍼). */
-  async refund(studentId: string, amount: number, ref: { refType: string; refId?: string }) {
+  async refund(
+    studentId: string,
+    amount: number,
+    ref: { refType: string; refId?: string },
+  ) {
     if (amount <= 0) return;
-    return this.prisma.$transaction((tx) => this.refundWithin(tx, studentId, amount, ref));
+    return this.prisma.$transaction((tx) =>
+      this.refundWithin(tx, studentId, amount, ref),
+    );
   }
 
   /** 잔액 부족 시 결제요청 생성(§5-6 / 결제요청 경로). */
@@ -237,11 +285,15 @@ export class CreditService {
       select: { id: true, needed_credits: true, status: true },
     });
     // 충전(결제) 요청 → 보호자(없으면 학생 본인) 알림
-    await this.notify.notify(guardianLink?.guardian_id ?? studentId, 'payment_requested', {
-      requestId: pr.id,
-      studentId,
-      neededCredits,
-    });
+    await this.notify.notify(
+      guardianLink?.guardian_id ?? studentId,
+      'payment_requested',
+      {
+        requestId: pr.id,
+        studentId,
+        neededCredits,
+      },
+    );
     return pr;
   }
 
@@ -249,8 +301,11 @@ export class CreditService {
   private async lockAccount(tx: Prisma.TransactionClient, studentId: string) {
     const locked = await tx.$queryRaw<{ id: string }[]>`
       SELECT id FROM credit_account WHERE student_id = ${studentId}::uuid FOR UPDATE`;
-    if (locked.length === 0) throw new NotFoundException('크레딧 계좌가 없습니다.');
-    const acct = await tx.credit_account.findUnique({ where: { id: locked[0].id } });
+    if (locked.length === 0)
+      throw new NotFoundException('크레딧 계좌가 없습니다.');
+    const acct = await tx.credit_account.findUnique({
+      where: { id: locked[0].id },
+    });
     return acct!;
   }
 }

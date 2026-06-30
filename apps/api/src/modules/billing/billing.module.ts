@@ -29,7 +29,9 @@ import { PG_PROVIDER } from './pg/pg.types';
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const which = config.get<string>('PG_PROVIDER') ?? 'mock';
-        return !which || which === 'mock' ? new MockPgProvider() : new RealPgProvider(which);
+        return !which || which === 'mock'
+          ? new MockPgProvider()
+          : new RealPgProvider(which);
       },
     },
   ],
