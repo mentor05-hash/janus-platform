@@ -1,4 +1,13 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Post,
+} from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -27,7 +36,10 @@ export class EvaluationController {
   /** DELETE /me/teacher-lists/{teacherId} — 분류 제거(학생). */
   @Delete('me/teacher-lists/:teacherId')
   @Roles('student')
-  remove(@Param('teacherId', ParseUUIDPipe) teacherId: string, @CurrentUser() user: AuthUser) {
+  remove(
+    @Param('teacherId', ParseUUIDPipe) teacherId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.evaluation.removeClassification(user, teacherId);
   }
 
