@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import type { Slot, WorkSchedule } from '../api/types';
+import { PageHeader, Card, Button, ErrorText } from '../components/ui';
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -66,38 +67,33 @@ export function SchedulePage() {
   const availCount = slots.filter((s) => s.status === 'avail').length;
 
   return (
-    <div style={{ display: 'grid', gap: 20 }}>
-      <section>
-        <h2 style={{ color: 'var(--teal)' }}>가용 슬롯</h2>
-        <input className="input" type="date" style={{ width: 200 }} value={date} onChange={(e) => setDate(e.target.value)} />
-        {error && <p className="error">{error}</p>}
-        <p style={{ color: 'var(--muted)', fontSize: 13 }}>
-          가용 {availCount}칸 · 10분 단위 (초록=가용/파랑=예약/회색=휴게·근무외/빨강=차단)
-        </p>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-          {slots.map((s) => (
-            <span
-              key={s.index}
-              title={`${s.time} · ${s.status}`}
-              style={{
-                width: 52,
-                textAlign: 'center',
-                fontSize: 11,
-                padding: '4px 0',
-                borderRadius: 4,
-                background: slotColor[s.status],
-                color: s.status === 'off' || s.status === 'rest' ? 'var(--muted)' : '#fff',
-              }}
-            >
-              {s.time}
-            </span>
-          ))}
-          {slots.length === 0 && !error && <span style={{ color: 'var(--muted)' }}>근무 시간이 없습니다.</span>}
-        </div>
-      </section>
+    <div>
+      <PageHeader title="가용 슬롯" sub="10분 단위 · 초록=가용/파랑=예약/회색=휴게·근무외/빨강=차단" />
+      <input className="input" type="date" style={{ width: 200 }} value={date} onChange={(e) => setDate(e.target.value)} />
+      <ErrorText>{error}</ErrorText>
+      <p style={{ color: 'var(--muted)', fontSize: 13 }}>가용 {availCount}칸</p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 20 }}>
+        {slots.map((s) => (
+          <span
+            key={s.index}
+            title={`${s.time} · ${s.status}`}
+            style={{
+              width: 52,
+              textAlign: 'center',
+              fontSize: 11,
+              padding: '4px 0',
+              borderRadius: 4,
+              background: slotColor[s.status],
+              color: s.status === 'off' || s.status === 'rest' ? 'var(--muted)' : '#fff',
+            }}
+          >
+            {s.time}
+          </span>
+        ))}
+        {slots.length === 0 && !error && <span style={{ color: 'var(--muted)' }}>근무 시간이 없습니다.</span>}
+      </div>
 
-      <section className="card">
-        <h3 style={{ marginTop: 0 }}>근무표(요일별, 1구간)</h3>
+      <Card title="근무표(요일별, 1구간)">
         <div style={{ display: 'grid', gap: 8 }}>
           {WEEKDAYS.map((label, d) => (
             <div key={d} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -121,10 +117,8 @@ export function SchedulePage() {
           ))}
         </div>
         {msg && <p style={{ color: 'var(--chip-done)', fontSize: 13 }}>{msg}</p>}
-        <button className="btn" style={{ marginTop: 12 }} onClick={saveSchedule}>
-          근무표 저장
-        </button>
-      </section>
+        <Button style={{ marginTop: 12 }} onClick={saveSchedule}>근무표 저장</Button>
+      </Card>
     </div>
   );
 }

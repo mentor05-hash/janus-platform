@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import type { ConsultationNote } from '../api/types';
+import { Card, Button, Badge, ErrorText, TextareaField } from '../components/ui';
 
 const empty = {
   coreSummary: '',
@@ -56,39 +57,26 @@ export function NotePage() {
     <div>
       <Link to="/app/bookings">← 예약 목록</Link>
       <h2 style={{ color: 'var(--teal)' }}>
-        상담 기록 <span className={`chip ${f.saveState === 'final' ? 'done' : 'confirmed'}`}>{f.saveState}</span>
+        상담 기록{' '}
+        <Badge kind={f.saveState === 'final' ? 'done' : 'confirmed'}>
+          {f.saveState === 'final' ? '최종' : '임시'}
+        </Badge>
       </h2>
-      <div className="card" style={{ display: 'grid', gap: 12 }}>
-        <div>
-          <label className="label">핵심 요약 (학생·보호자 공개)</label>
-          <textarea className="textarea" rows={2} value={f.coreSummary} onChange={(e) => set('coreSummary', e.target.value)} />
-        </div>
-        <div>
-          <label className="label">숙제 (공개)</label>
-          <textarea className="textarea" rows={2} value={f.homework} onChange={(e) => set('homework', e.target.value)} />
-        </div>
-        <div>
-          <label className="label">향후 방향 (공개)</label>
-          <textarea className="textarea" rows={2} value={f.futureDir} onChange={(e) => set('futureDir', e.target.value)} />
-        </div>
-        <div>
-          <label className="label">내부 메모 (비공개 · 선생님/관리자만)</label>
-          <textarea className="textarea" rows={2} value={f.memo} onChange={(e) => set('memo', e.target.value)} />
-        </div>
+      <Card>
+        <TextareaField label="핵심 요약 (학생·보호자 공개)" rows={2} value={f.coreSummary} onChange={(e) => set('coreSummary', e.target.value)} />
+        <TextareaField label="숙제 (공개)" rows={2} value={f.homework} onChange={(e) => set('homework', e.target.value)} />
+        <TextareaField label="향후 방향 (공개)" rows={2} value={f.futureDir} onChange={(e) => set('futureDir', e.target.value)} />
+        <TextareaField label="내부 메모 (비공개 · 선생님/관리자만)" rows={2} value={f.memo} onChange={(e) => set('memo', e.target.value)} />
         <label style={{ fontSize: 14 }}>
           <input type="checkbox" checked={f.guardianVisible} onChange={(e) => set('guardianVisible', e.target.checked)} /> 보호자 공개
         </label>
         {msg && <p style={{ color: 'var(--chip-done)', fontSize: 13 }}>{msg}</p>}
-        {error && <p className="error">{error}</p>}
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn ghost" onClick={() => save('draft')}>
-            임시 저장
-          </button>
-          <button className="btn" onClick={() => save('final')}>
-            최종 저장(완료 가능)
-          </button>
+        <ErrorText>{error}</ErrorText>
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <Button variant="ghost" onClick={() => save('draft')}>임시 저장</Button>
+          <Button onClick={() => save('final')}>최종 저장(완료 가능)</Button>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

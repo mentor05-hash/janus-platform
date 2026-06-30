@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api, ApiError } from '../api/client';
+import { PageHeader, Card, Button, ErrorText, TextField, TextareaField, SelectField } from '../components/ui';
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -38,57 +39,46 @@ export function ReverseProposePage() {
 
   return (
     <div>
-      <h2 style={{ color: 'var(--teal)' }}>역상담 제안</h2>
-      <p style={{ color: 'var(--muted)', fontSize: 13 }}>
-        첫 상담에 한해 선생님이 학생에게 먼저 제안합니다. 슬롯은 10분 단위 인덱스(예: 10:00=60).
-      </p>
-      <div className="card" style={{ display: 'grid', gap: 12, maxWidth: 480 }}>
-        <div>
-          <label className="label">학생 ID (UUID)</label>
-          <input className="input" value={f.studentId} onChange={(e) => set('studentId', e.target.value)} />
-        </div>
+      <PageHeader
+        title="역상담 제안"
+        sub="첫 상담에 한해 선생님이 학생에게 먼저 제안. 슬롯은 10분 단위 인덱스(예: 10:00=60)."
+      />
+      <Card style={{ maxWidth: 480 }}>
+        <TextField label="학생 ID (UUID)" value={f.studentId} onChange={(e) => set('studentId', e.target.value)} />
         <div style={{ display: 'flex', gap: 12 }}>
           <div style={{ flex: 1 }}>
-            <label className="label">날짜</label>
-            <input className="input" type="date" value={f.date} onChange={(e) => set('date', e.target.value)} />
+            <TextField label="날짜" type="date" value={f.date} onChange={(e) => set('date', e.target.value)} />
           </div>
           <div>
-            <label className="label">유형</label>
-            <select className="input" value={f.consultType} onChange={(e) => set('consultType', e.target.value)}>
-              {['담임', '교과', '입시', '심리'].map((t) => (
-                <option key={t}>{t}</option>
-              ))}
-            </select>
+            <SelectField
+              label="유형"
+              value={f.consultType}
+              onChange={(e) => set('consultType', e.target.value)}
+              options={['담임', '교과', '입시', '심리'].map((t) => ({ value: t, label: t }))}
+            />
           </div>
           <div>
-            <label className="label">방식</label>
-            <select className="input" value={f.mode} onChange={(e) => set('mode', e.target.value)}>
-              {['zoom', 'chat', 'hand', 'offline', 'board'].map((m) => (
-                <option key={m}>{m}</option>
-              ))}
-            </select>
+            <SelectField
+              label="방식"
+              value={f.mode}
+              onChange={(e) => set('mode', e.target.value)}
+              options={['zoom', 'chat', 'hand', 'offline', 'board'].map((m) => ({ value: m, label: m }))}
+            />
           </div>
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
           <div style={{ flex: 1 }}>
-            <label className="label">시작 슬롯</label>
-            <input className="input" type="number" value={f.slotStart} onChange={(e) => set('slotStart', e.target.value)} />
+            <TextField label="시작 슬롯" type="number" value={f.slotStart} onChange={(e) => set('slotStart', e.target.value)} />
           </div>
           <div style={{ flex: 1 }}>
-            <label className="label">종료 슬롯</label>
-            <input className="input" type="number" value={f.slotEnd} onChange={(e) => set('slotEnd', e.target.value)} />
+            <TextField label="종료 슬롯" type="number" value={f.slotEnd} onChange={(e) => set('slotEnd', e.target.value)} />
           </div>
         </div>
-        <div>
-          <label className="label">내용(선택)</label>
-          <textarea className="textarea" rows={2} value={f.content} onChange={(e) => set('content', e.target.value)} />
-        </div>
+        <TextareaField label="내용(선택)" rows={2} value={f.content} onChange={(e) => set('content', e.target.value)} />
         {msg && <p style={{ color: 'var(--chip-done)', fontSize: 13 }}>{msg}</p>}
-        {error && <p className="error">{error}</p>}
-        <button className="btn" onClick={submit} disabled={!f.studentId}>
-          제안 보내기
-        </button>
-      </div>
+        <ErrorText>{error}</ErrorText>
+        <Button onClick={submit} disabled={!f.studentId}>제안 보내기</Button>
+      </Card>
     </div>
   );
 }
