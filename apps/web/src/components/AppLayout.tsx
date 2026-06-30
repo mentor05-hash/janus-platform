@@ -1,69 +1,52 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 
-const navStyle = ({ isActive }: { isActive: boolean }) => ({
-  padding: '8px 4px',
-  color: isActive ? 'var(--teal)' : 'var(--muted)',
-  fontWeight: isActive ? 700 : 500,
-  borderBottom: isActive ? '2px solid var(--teal)' : '2px solid transparent',
-  textDecoration: 'none',
-  fontSize: 14,
-});
+const navCls = ({ isActive }: { isActive: boolean }) => (isActive ? 'nav-item active' : 'nav-item');
+
+const NAV = [
+  { to: '/app/bookings', label: '예약' },
+  { to: '/app/schedule', label: '근무·슬롯' },
+  { to: '/app/reverse', label: '역상담 제안' },
+  { to: '/app/payroll', label: '예상급여' },
+  { to: '/app/materials', label: '자료실' },
+  { to: '/app/notifications', label: '알림' },
+];
 
 export function AppLayout() {
   const { user, logout } = useAuth();
+  const initial = (user?.name ?? '선').slice(0, 1);
   return (
-    <div>
-      <header
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '12px 24px',
-          background: 'var(--teal)',
-          color: '#fff',
-        }}
-      >
-        <strong>잇올 멘토링 · 선생님</strong>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 14 }}>
-          <span>
-            {user?.name} ({user?.role})
-          </span>
-          <button className="btn ghost sm" onClick={logout}>
+    <div className="shell">
+      <aside className="sidebar">
+        <div className="sidebar-logo">
+          <span className="mark">잇</span>
+          <div>
+            <div className="title">잇올 멘토링</div>
+            <div className="center">선생님 콘솔</div>
+          </div>
+        </div>
+        <nav className="sidebar-nav">
+          {NAV.map((n) => (
+            <NavLink key={n.to} to={n.to} className={navCls}>
+              {n.label}
+            </NavLink>
+          ))}
+        </nav>
+        <div className="sidebar-foot">
+          <span className="avatar">{initial}</span>
+          <div>
+            <div className="who">{user?.name}</div>
+            <div className="role">{user?.role}</div>
+          </div>
+          <button className="btn ghost sm logout" onClick={logout}>
             로그아웃
           </button>
         </div>
-      </header>
-      <nav
-        style={{
-          display: 'flex',
-          gap: 20,
-          padding: '0 24px',
-          background: '#fff',
-          borderBottom: '1px solid var(--line)',
-        }}
-      >
-        <NavLink to="/app/bookings" style={navStyle}>
-          예약
-        </NavLink>
-        <NavLink to="/app/schedule" style={navStyle}>
-          근무·슬롯
-        </NavLink>
-        <NavLink to="/app/reverse" style={navStyle}>
-          역상담 제안
-        </NavLink>
-        <NavLink to="/app/payroll" style={navStyle}>
-          예상급여
-        </NavLink>
-        <NavLink to="/app/materials" style={navStyle}>
-          자료실
-        </NavLink>
-        <NavLink to="/app/notifications" style={navStyle}>
-          알림
-        </NavLink>
-      </nav>
-      <main style={{ maxWidth: 920, margin: '0 auto', padding: 24 }}>
-        <Outlet />
+      </aside>
+      <main className="shell-main">
+        <div className="inner">
+          <Outlet />
+        </div>
       </main>
     </div>
   );

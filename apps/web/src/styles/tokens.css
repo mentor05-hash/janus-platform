@@ -1,55 +1,109 @@
-/* 디자인 토큰 (CLAUDE.md §4): teal #0E5C7C, ink #16242B, Pretendard, 상태칩, 등급색 */
+/* 디자인 토큰 — hi-fi 핸드오프(Itall Foundations) 기준 정밀 반영 */
 :root {
-  --teal: #0e5c7c;
-  --teal-600: #0b4a64;
-  --ink: #16242b;
-  --muted: #5b6b73;
-  --line: #e3e8eb;
-  --bg: #f5f7f8;
+  /* 브랜드 teal 스케일 */
+  --teal: #0e5c7c;        /* PRIMARY (teal-700) */
+  --teal-900: #0a4a64;    /* 진한 강조·그라데이션 끝·primary hover */
+  --teal-600: #0a4a64;    /* (하위호환 별칭) */
+  --teal-500: #1a7fa8;    /* 보조 강조 */
+  --teal-300: #6fb3ce;    /* 차트 보조 */
+  --teal-100: #dcecf3;    /* 아바타·칩 보더 */
+  --teal-50: #f0f7fa;     /* 칩·강조영역 bg·secondary hover */
+
+  /* 뉴트럴 / 잉크 */
+  --ink: #16242b;         /* 기본 텍스트(타이틀) */
+  --ink-body: #374151;    /* 본문·입력 텍스트 */
+  --muted: #52656d;       /* 보조 텍스트·라벨 */
+  --caption: #94a3ab;     /* 캡션·placeholder·meta */
+  --line: #e7ecef;        /* 카드 보더·구분선 */
+  --line-soft: #eef2f4;   /* 카드 내부 구분선 */
+  --input-border: #cbd5da;/* 입력 보더(카드보다 진하게) */
+  --bg: #f2f4f6;          /* 페이지 배경 */
+  --fill-50: #f6f8fa;     /* 테이블 헤더·카드 내부 fill */
   --white: #fff;
+  --admin-navy: #0e2a38;  /* 관리자 사이드바 bg */
 
-  /* 상태칩: 예약됨 파랑 / 진행중 주황 / 완료 초록 / 휴게·취소 회색 */
-  --chip-new: #2563eb;
-  --chip-confirmed: #ea7317;
-  --chip-done: #1f9d57;
-  --chip-muted: #8a979e;
-  --chip-danger: #d23b3b;
+  /* 상태칩: 텍스트색 + soft 배경 + 점 */
+  --chip-new: #2563eb;        --chip-new-bg: #eff4fe;
+  --chip-confirmed: #b86c04;  --chip-confirmed-dot: #d97706;  --chip-confirmed-bg: #fef6e7;
+  --chip-done: #15803d;       --chip-done-dot: #16a34a;        --chip-done-bg: #ecf8ef;
+  --chip-muted: #52656d;      --chip-muted-dot: #94a3ab;       --chip-muted-bg: #f1f5f7;
+  --chip-danger: #dc2626;     --chip-danger-bg: #fef2f2;       --chip-danger-border: #f0c6c6;
 
-  /* 등급: S 금색 / A teal / B 그레이 */
-  --grade-s: linear-gradient(135deg, #d4af37, #f0d77a);
+  /* 등급: S 금색 그라데이션 / A teal / B 그레이 */
+  --grade-s: linear-gradient(135deg, #e0b53d, #c99a2e);
   --grade-a: var(--teal);
-  --grade-b: #8a979e;
+  --grade-b: #64748b;
+
+  /* 그림자(플랫) */
+  --shadow-card: 0 1px 3px rgba(16, 36, 43, 0.04);
+  --shadow-btn: 0 1px 2px rgba(14, 92, 124, 0.25);
 }
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
 body {
   font-family: 'Pretendard', -apple-system, system-ui, sans-serif;
-  color: var(--ink);
+  color: var(--ink-body);
   background: var(--bg);
   font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
 }
 button { font-family: inherit; cursor: pointer; }
 a { color: var(--teal); }
 
+/* ── 상태칩(soft pill + 점) ── */
 .chip {
-  display: inline-block; padding: 2px 10px; border-radius: 999px;
-  font-size: 12px; font-weight: 600; color: var(--white);
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 11px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; line-height: 1;
 }
-.chip.new { background: var(--chip-new); }
-.chip.confirmed { background: var(--chip-confirmed); }
-.chip.done { background: var(--chip-done); }
-.chip.cancelled, .chip.rejected, .chip.noshow { background: var(--chip-muted); }
+.chip::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%;
+  background: currentColor; flex-shrink: 0;
+}
+.chip.new        { color: var(--chip-new);       background: var(--chip-new-bg); }
+.chip.confirmed  { color: var(--chip-confirmed);  background: var(--chip-confirmed-bg); }
+.chip.confirmed::before { background: var(--chip-confirmed-dot); }
+.chip.done       { color: var(--chip-done);       background: var(--chip-done-bg); }
+.chip.done::before { background: var(--chip-done-dot); }
+.chip.cancelled, .chip.rejected, .chip.noshow {
+  color: var(--chip-muted); background: var(--chip-muted-bg);
+}
+.chip.cancelled::before, .chip.rejected::before, .chip.noshow::before {
+  background: var(--chip-muted-dot);
+}
 
+/* ── 버튼 ── */
 .btn {
-  padding: 8px 14px; border: 1px solid var(--teal); background: var(--teal);
-  color: #fff; border-radius: 8px; font-weight: 600; font-size: 14px;
+  padding: 11px 20px; border: none; background: var(--teal);
+  color: #fff; border-radius: 9px; font-weight: 600; font-size: 14px;
+  box-shadow: var(--shadow-btn); transition: background 0.12s;
 }
-.btn.ghost { background: #fff; color: var(--teal); }
-.btn.sm { padding: 5px 10px; font-size: 13px; }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn:hover:not(:disabled) { background: var(--teal-900); }
+.btn.ghost {
+  background: #fff; color: var(--teal);
+  border: 1px solid var(--teal); box-shadow: none;
+}
+.btn.ghost:hover:not(:disabled) { background: var(--teal-50); }
+.btn.danger {
+  background: #fff; color: var(--chip-danger);
+  border: 1px solid var(--chip-danger-border); box-shadow: none;
+}
+.btn.danger:hover:not(:disabled) { background: var(--chip-danger-bg); }
+.btn.sm { padding: 7px 14px; font-size: 12px; border-radius: 7px; }
+.btn:disabled { background: #e2e8eb; color: var(--caption); box-shadow: none; cursor: not-allowed; }
 
-.card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
-.input, .textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; }
-.label { font-size: 13px; color: var(--muted); margin-bottom: 4px; display: block; }
+/* ── 카드 ── */
+.card {
+  background: #fff; border: 1px solid var(--line);
+  border-radius: 14px; padding: 18px; box-shadow: var(--shadow-card);
+}
+
+/* ── 입력 ── */
+.input, .textarea {
+  width: 100%; padding: 11px 12px; border: 1px solid var(--input-border);
+  border-radius: 9px; font-size: 14px; color: var(--ink); background: #fff;
+}
+.input:focus, .textarea:focus { border-color: var(--teal); outline: none; }
+.label { font-size: 13px; font-weight: 500; color: var(--ink-body); margin-bottom: 6px; display: block; }
 .error { color: var(--chip-danger); font-size: 13px; }

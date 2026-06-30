@@ -1,29 +1,29 @@
-/* 디자인 시스템 컴포넌트 스타일 (tokens.css 보강) */
+/* 디자인 시스템 컴포넌트 스타일 (tokens.css 보강) — hi-fi 핸드오프 기준 */
 
-/* 등급 뱃지: S 금색 그라데이션 / A teal / B 그레이 */
+/* 등급 뱃지: 라운드-렉트(핸드오프) — S 금색/A teal/B 그레이 */
 .badge {
-  display: inline-block; padding: 2px 10px; border-radius: 999px;
-  font-size: 12px; font-weight: 700; color: #fff;
+  display: inline-block; padding: 6px 13px; border-radius: 9px;
+  font-size: 13px; font-weight: 800; color: #fff; line-height: 1;
 }
-.badge.grade-s { background: var(--grade-s); color: #4a3b00; }
+.badge.grade-s { background: var(--grade-s); color: #fff; box-shadow: 0 1px 3px rgba(201,154,46,0.4); }
 .badge.grade-a { background: var(--grade-a); }
 .badge.grade-b { background: var(--grade-b); }
-.badge.soft { background: #e6f0f4; color: var(--teal); }
-.badge.danger { background: #fbe9dd; color: #b9521a; }
+/* soft = 과목·방식 칩(연한 teal) */
+.badge.soft { background: var(--teal-50); color: var(--teal); border: 1px solid var(--teal-100); padding: 4px 10px; border-radius: 7px; font-size: 12px; font-weight: 600; }
+.badge.danger { background: var(--chip-danger-bg); color: var(--chip-danger); border: 1px solid var(--chip-danger-border); padding: 4px 10px; border-radius: 7px; font-size: 12px; font-weight: 600; }
 
-/* 버튼 danger 변형 */
-.btn.danger { background: var(--chip-danger); border-color: var(--chip-danger); }
+/* 버튼 보조 변형 */
 .btn.block { width: 100%; }
 
-/* 페이지 헤더 */
-.page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
-.page-header h2 { color: var(--teal); margin: 0; }
-.page-header .sub { color: var(--muted); font-size: 13px; margin-top: 4px; }
+/* 페이지 헤더 — 타이틀은 잉크(teal 아님), 큼직하게 */
+.page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+.page-header h2 { color: var(--ink); margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.6px; }
+.page-header .sub { color: #7c8c93; font-size: 13px; margin-top: 4px; }
 
-/* 데이터 테이블 */
-.dtable { width: 100%; border-collapse: collapse; font-size: 14px; }
-.dtable thead th { text-align: left; padding: 8px 6px; border-bottom: 2px solid var(--line); color: var(--muted); font-weight: 600; }
-.dtable tbody td { padding: 8px 6px; border-bottom: 1px solid var(--line); }
+/* 데이터 테이블 — 헤더 fill + 진한 라벨 */
+.dtable { width: 100%; border-collapse: collapse; font-size: 13px; }
+.dtable thead th { text-align: left; padding: 11px 14px; background: var(--fill-50); border-bottom: 1px solid var(--line); color: var(--muted); font-weight: 700; font-size: 12px; }
+.dtable tbody td { padding: 12px 14px; border-bottom: 1px solid var(--line-soft); }
 .dtable tbody tr:hover { background: #fafbfc; }
 
 /* 탭(세그먼트) */
@@ -31,9 +31,9 @@
 .tabs button { background: none; border: none; padding: 10px 14px; font-size: 14px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .tabs button.active { color: var(--teal); border-bottom-color: var(--teal); font-weight: 700; }
 
-/* 모달 */
+/* 모달 — 잉크 틴트의 부드러운 그림자 */
 .modal-overlay { position: fixed; inset: 0; background: rgba(22,36,43,0.45); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
-.modal { background: #fff; border-radius: 14px; padding: 20px; width: 100%; max-width: 460px; max-height: 90vh; overflow: auto; box-shadow: 0 12px 40px rgba(0,0,0,0.2); }
+.modal { background: #fff; border-radius: 14px; padding: 20px; width: 100%; max-width: 460px; max-height: 90vh; overflow: auto; box-shadow: 0 12px 40px rgba(16,36,43,0.12); }
 .modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .modal-head h3 { margin: 0; color: var(--ink); }
 .modal-x { background: none; border: none; font-size: 22px; color: var(--muted); line-height: 1; }
@@ -53,3 +53,37 @@
 /* 폼 행 */
 .form-row { margin-bottom: 12px; }
 .form-grid { display: grid; gap: 12px; }
+
+/* ── 콘솔 셸: 좌측 사이드바 + 메인 ── */
+.shell { display: flex; min-height: 100vh; }
+.sidebar {
+  width: 228px; flex-shrink: 0; background: #fff;
+  border-right: 1px solid var(--line); display: flex; flex-direction: column;
+  position: sticky; top: 0; height: 100vh;
+}
+.sidebar.navy { background: var(--admin-navy); border-right-color: #0a2230; }
+.sidebar-logo { display: flex; align-items: center; gap: 10px; padding: 20px 18px 18px; }
+.sidebar-logo .mark { width: 34px; height: 34px; border-radius: 9px; background: var(--teal); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; flex-shrink: 0; }
+.sidebar-logo .title { font-size: 14px; font-weight: 800; line-height: 1.2; }
+.sidebar.navy .sidebar-logo .title { color: #fff; }
+.sidebar-logo .center { font-size: 11px; color: var(--caption); }
+.sidebar-nav { display: flex; flex-direction: column; gap: 2px; padding: 6px 12px; flex: 1; overflow-y: auto; }
+.nav-item {
+  display: flex; align-items: center; gap: 11px; padding: 10px 12px;
+  border-radius: 9px; font-size: 14px; font-weight: 600;
+  color: #5a6b73; text-decoration: none;
+}
+.sidebar.navy .nav-item { color: #b8c7cf; }
+.nav-item:hover { background: var(--fill-50); }
+.sidebar.navy .nav-item:hover { background: rgba(255,255,255,0.06); }
+.nav-item.active { background: var(--teal); color: #fff; font-weight: 700; }
+.sidebar.navy .nav-item.active { background: var(--teal); color: #fff; }
+.sidebar-foot { border-top: 1px solid var(--line-soft); padding: 14px 16px; display: flex; align-items: center; gap: 10px; }
+.sidebar.navy .sidebar-foot { border-top-color: rgba(255,255,255,0.1); }
+.sidebar-foot .avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--teal-100); color: var(--teal); display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; }
+.sidebar-foot .who { font-size: 13px; font-weight: 700; }
+.sidebar.navy .sidebar-foot .who { color: #fff; }
+.sidebar-foot .role { font-size: 11px; color: var(--caption); }
+.sidebar-foot .logout { margin-left: auto; }
+.shell-main { flex: 1; overflow: auto; padding: 24px 26px; min-width: 0; }
+.shell-main .inner { max-width: 1180px; margin: 0 auto; }
