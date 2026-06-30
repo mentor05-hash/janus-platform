@@ -14,7 +14,9 @@ const navStyle = ({ isActive }: { isActive: boolean }) => ({
 export function AdminLayout() {
   const { user, logout } = useAuth();
   const hq = isHq(user);
-  const scopeLabel = hq ? '본사 (전사)' : user?.role === 'hr' ? 'HR' : '센터 관리자';
+  const isMaster = user?.permLevel === 'L1';
+  // 권한레벨 정확 표기: 마스터/본사관리자/센터관리자 (HR 은 별도)
+  const scopeLabel = user?.role === 'hr' ? 'HR' : (user?.adminTier ?? (hq ? '본사관리자' : '센터관리자'));
   return (
     <div>
       <header
@@ -28,15 +30,15 @@ export function AdminLayout() {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <strong>잇올 멘토링 · {hq ? '본사' : '관리자'}</strong>
+          <strong>잇올 멘토링 · {isMaster ? '마스터' : hq ? '본사' : '관리자'}</strong>
           <span
             style={{
               fontSize: 11,
               fontWeight: 700,
               padding: '2px 8px',
               borderRadius: 999,
-              background: hq ? '#d4af37' : '#3a4a52',
-              color: hq ? '#16242b' : '#cfe3ec',
+              background: isMaster ? '#6b4caf' : hq ? '#d4af37' : '#3a4a52',
+              color: isMaster ? '#fff' : hq ? '#16242b' : '#cfe3ec',
             }}
           >
             {scopeLabel}
