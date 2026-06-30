@@ -7,6 +7,7 @@ import { LoginPage } from './pages/LoginPage';
 import { TeacherBookingsPage } from './pages/TeacherBookingsPage';
 import { NotePage } from './pages/NotePage';
 import { SchedulePage } from './pages/SchedulePage';
+import { TeacherEvalPage } from './pages/TeacherEvalPage';
 import { PayrollPage } from './pages/PayrollPage';
 import { ReverseProposePage } from './pages/ReverseProposePage';
 import { NotificationsPage } from './pages/NotificationsPage';
@@ -53,6 +54,7 @@ export function App() {
         <Route path="bookings" element={<TeacherBookingsPage />} />
         <Route path="bookings/:id/note" element={<NotePage />} />
         <Route path="schedule" element={<SchedulePage />} />
+        <Route path="evaluations" element={<TeacherEvalPage />} />
         <Route path="reverse" element={<ReverseProposePage />} />
         <Route path="payroll" element={<PayrollPage />} />
         <Route path="materials" element={<TeacherMaterialsPage />} />

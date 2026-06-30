@@ -18,6 +18,13 @@ import { ClassifyDto, ReviewDto } from './dto/evaluation.dto';
 export class EvaluationController {
   constructor(private readonly evaluation: EvaluationService) {}
 
+  /** GET /me/evaluations — 받은 평가(선생님): 등급·항목점수·월별추이·후기. */
+  @Get('me/evaluations')
+  @Roles('teacher')
+  myEvaluations(@CurrentUser() user: AuthUser) {
+    return this.evaluation.myEvaluations(user);
+  }
+
   /** GET /me/teacher-lists — 내 fit/unfit 분류(학생). */
   @Get('me/teacher-lists')
   @Roles('student')

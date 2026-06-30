@@ -165,6 +165,18 @@ export interface ConsultationNote {
   saveState: 'draft' | 'final';
 }
 
+// 선생님 받은 평가
+export interface MyEvaluations {
+  grade: string;
+  topPercent: number | null;
+  nextReviewAt: string | null;
+  overall: number;
+  count: number;
+  itemScores: { attitude: number; content: number; skill: number; again: number };
+  monthlyTrend: { month: number; avg: number | null }[];
+  reviews: { rating: number; text: string | null; createdAt: string | null }[];
+}
+
 // T6 뷰어 개요(담임 공백 + 거부 이력)
 export interface RecordOverview {
   studentId: string;

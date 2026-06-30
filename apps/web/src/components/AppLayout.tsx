@@ -6,6 +6,7 @@ const navCls = ({ isActive }: { isActive: boolean }) => (isActive ? 'nav-item ac
 const NAV = [
   { to: '/app/bookings', label: '예약' },
   { to: '/app/schedule', label: '근무·슬롯' },
+  { to: '/app/evaluations', label: '받은 평가' },
   { to: '/app/reverse', label: '역상담 제안' },
   { to: '/app/payroll', label: '예상급여' },
   { to: '/app/materials', label: '자료실' },
