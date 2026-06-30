@@ -42,17 +42,22 @@ export function computeIncentive(
 ): number {
   if (!policy || !policy.on) return 0;
   if (policy.minCases != null && stats.doneCount < policy.minCases) return 0;
-  if (policy.minRating != null && (stats.rating ?? 0) < policy.minRating) return 0;
+  if (policy.minRating != null && (stats.rating ?? 0) < policy.minRating)
+    return 0;
   return policy.amount ?? 0;
 }
 
-export function computePayroll(input: PayrollInput, rates: PayrollRates): PayrollEstimate {
+export function computePayroll(
+  input: PayrollInput,
+  rates: PayrollRates,
+): PayrollEstimate {
   const confirmedAmount =
     input.doneCount * rates.perCaseRate +
     input.qnaAcceptedCount * rates.qnaRate +
     rates.gradeAllowance;
   // 예상분 = 확정분 + 예정 상담의 건당 추정
-  const expectedAmount = confirmedAmount + input.upcomingCount * rates.perCaseRate;
+  const expectedAmount =
+    confirmedAmount + input.upcomingCount * rates.perCaseRate;
   return {
     confirmedAmount,
     expectedAmount,
