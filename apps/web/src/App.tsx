@@ -18,6 +18,7 @@ import { AdminPolicyPage } from './pages/AdminPolicyPage';
 import { HrStudentsPage } from './pages/HrStudentsPage';
 import { AdminInfraPage } from './pages/AdminInfraPage';
 import { AdminRoomsPage } from './pages/AdminRoomsPage';
+import { AdminBlockPage } from './pages/AdminBlockPage';
 import { AdminReportsPage } from './pages/AdminReportsPage';
 import { AnnouncementsPage } from './pages/AnnouncementsPage';
 import { AdminOrgPage } from './pages/AdminOrgPage';
@@ -76,6 +77,7 @@ export function App() {
         <Route path="students" element={<HrStudentsPage />} />
         <Route path="policy" element={<AdminPolicyPage />} />
         <Route path="rooms" element={<AdminRoomsPage />} />
+        <Route path="block" element={<AdminBlockPage />} />
         <Route path="infra" element={<AdminInfraPage />} />
         <Route path="reports" element={<AdminReportsPage />} />
         <Route path="announcements" element={<AnnouncementsPage />} />

@@ -31,6 +31,7 @@ export function AdminLayout() {
               <NavLink to="/admin/policy" className={navCls}>정책 편집</NavLink>
               {/* 상담실·줌·차단은 센터 단위 — 본사(HQ)에는 숨김 */}
               {!hq && <NavLink to="/admin/rooms" className={navCls}>상담실 현황</NavLink>}
+              {!hq && <NavLink to="/admin/block" className={navCls}>신청불가 시간</NavLink>}
               {!hq && <NavLink to="/admin/infra" className={navCls}>줌·상담실·차단</NavLink>}
               <NavLink to="/admin/reports" className={navCls}>신고</NavLink>
               <NavLink to="/admin/announcements" className={navCls}>공지</NavLink>
