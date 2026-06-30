@@ -1,10 +1,19 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccountRole, AccountStatus } from '../../config/enums';
 import { NotifyService } from './notify.service';
-import { AnnouncementDto, AnnouncementTemplateDto } from './dto/announcement.dto';
+import {
+  AnnouncementDto,
+  AnnouncementTemplateDto,
+} from './dto/announcement.dto';
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -27,22 +36,37 @@ export class AnnouncementService {
   async send(actor: AuthUser, dto: AnnouncementDto) {
     const scope = this.resolveScope(actor, dto);
     // 템플릿 병합(dto 값이 우선, 없으면 템플릿에서)
-    let tmpl: { targets: string[]; title: string; body: string; channels: string[] } | null = null;
+    let tmpl: {
+      targets: string[];
+      title: string;
+      body: string;
+      channels: string[];
+    } | null = null;
     if (dto.templateId) {
-      const t = await this.prisma.announcement_template.findUnique({ where: { id: dto.templateId } });
+      const t = await this.prisma.announcement_template.findUnique({
+        where: { id: dto.templateId },
+      });
       if (!t) throw new NotFoundException('공지 템플릿을 찾을 수 없습니다.');
-      tmpl = { targets: t.targets, title: t.title, body: t.body, channels: t.channels };
+      tmpl = {
+        targets: t.targets,
+        title: t.title,
+        body: t.body,
+        channels: t.channels,
+      };
     }
     const targets = dto.targets ?? tmpl?.targets;
     const title = dto.title ?? tmpl?.title;
     const body = dto.body ?? tmpl?.body;
     if (!targets?.length || !title || !body) {
-      throw new BadRequestException('targets/title/body 가 필요합니다(템플릿 또는 직접 입력).');
+      throw new BadRequestException(
+        'targets/title/body 가 필요합니다(템플릿 또는 직접 입력).',
+      );
     }
-    const channels = (dto.channels ?? (tmpl?.channels as Channel[]) ?? ['app']) as Channel[];
+    const channels = dto.channels ?? (tmpl?.channels as Channel[]) ?? ['app'];
     if (dto.scheduledAt) {
       const when = new Date(dto.scheduledAt);
-      if (when.getTime() <= Date.now()) throw new BadRequestException('예약 시각은 현재보다 미래여야 합니다.');
+      if (when.getTime() <= Date.now())
+        throw new BadRequestException('예약 시각은 현재보다 미래여야 합니다.');
       const row = await this.prisma.scheduled_announcement.create({
         data: {
           created_by: actor.id,
@@ -56,9 +80,21 @@ export class AnnouncementService {
         },
         select: { id: true, scheduled_at: true, status: true },
       });
-      return { scheduledId: row.id, scheduledAt: row.scheduled_at, status: row.status, scope: scope ?? 'all' };
+      return {
+        scheduledId: row.id,
+        scheduledAt: row.scheduled_at,
+        status: row.status,
+        scope: scope ?? 'all',
+      };
     }
-    const r = await this.dispatch(targets, title, body, scope ?? null, channels, actor.id);
+    const r = await this.dispatch(
+      targets,
+      title,
+      body,
+      scope ?? null,
+      channels,
+      actor.id,
+    );
     return { ...r, scope: scope ?? 'all' };
   }
 
@@ -82,16 +118,21 @@ export class AnnouncementService {
     const isHq = actor.role === AccountRole.ADMIN && !actor.centerId;
     // 본사 공용(center_id NULL) + 본인 센터 템플릿
     return this.prisma.announcement_template.findMany({
-      where: isHq ? {} : { OR: [{ center_id: null }, { center_id: actor.centerId }] },
+      where: isHq
+        ? {}
+        : { OR: [{ center_id: null }, { center_id: actor.centerId }] },
       orderBy: { created_at: 'desc' },
     });
   }
 
   async deleteTemplate(id: string, actor: AuthUser) {
-    const t = await this.prisma.announcement_template.findUnique({ where: { id } });
+    const t = await this.prisma.announcement_template.findUnique({
+      where: { id },
+    });
     if (!t) throw new NotFoundException('템플릿을 찾을 수 없습니다.');
     const isHq = actor.role === AccountRole.ADMIN && !actor.centerId;
-    if (!isHq && t.center_id !== actor.centerId) throw new ForbiddenException('다른 센터의 템플릿은 삭제할 수 없습니다.');
+    if (!isHq && t.center_id !== actor.centerId)
+      throw new ForbiddenException('다른 센터의 템플릿은 삭제할 수 없습니다.');
     await this.prisma.announcement_template.delete({ where: { id } });
     return { id, deleted: true };
   }
@@ -100,22 +141,31 @@ export class AnnouncementService {
   async listScheduled(actor: AuthUser) {
     const isHq = actor.role === AccountRole.ADMIN && !actor.centerId;
     return this.prisma.scheduled_announcement.findMany({
-      where: { status: 'pending', ...(isHq ? {} : { center_id: actor.centerId }) },
+      where: {
+        status: 'pending',
+        ...(isHq ? {} : { center_id: actor.centerId }),
+      },
       orderBy: { scheduled_at: 'asc' },
     });
   }
 
   /** 예약 공지 취소(발송 전). */
   async cancelScheduled(id: string, actor: AuthUser) {
-    const row = await this.prisma.scheduled_announcement.findUnique({ where: { id } });
+    const row = await this.prisma.scheduled_announcement.findUnique({
+      where: { id },
+    });
     if (!row) throw new NotFoundException('예약 공지를 찾을 수 없습니다.');
     const isHq = actor.role === AccountRole.ADMIN && !actor.centerId;
-    if (!isHq && row.center_id !== actor.centerId) throw new ForbiddenException('다른 센터의 예약 공지는 취소할 수 없습니다.');
+    if (!isHq && row.center_id !== actor.centerId)
+      throw new ForbiddenException(
+        '다른 센터의 예약 공지는 취소할 수 없습니다.',
+      );
     const upd = await this.prisma.scheduled_announcement.updateMany({
       where: { id, status: 'pending' },
       data: { status: 'cancelled' },
     });
-    if (upd.count !== 1) throw new BadRequestException('이미 발송되었거나 취소된 공지입니다.');
+    if (upd.count !== 1)
+      throw new BadRequestException('이미 발송되었거나 취소된 공지입니다.');
     return { id, status: 'cancelled' };
   }
 
@@ -135,7 +185,11 @@ export class AnnouncementService {
   async runReminders(now = new Date()): Promise<{ reminded: number }> {
     const soon = new Date(now.getTime() + ONE_DAY_MS);
     const rows = await this.prisma.scheduled_announcement.findMany({
-      where: { status: 'pending', reminder_sent: false, scheduled_at: { gt: now, lte: soon } },
+      where: {
+        status: 'pending',
+        reminder_sent: false,
+        scheduled_at: { gt: now, lte: soon },
+      },
       take: 100,
     });
     let reminded = 0;
@@ -168,15 +222,28 @@ export class AnnouncementService {
         data: { status: 'sent', sent_at: now },
       });
       if (claim.count !== 1) continue; // 다른 실행이 선점
-      const r = await this.dispatch(s.targets, s.title, s.body, s.center_id, s.channels as Channel[], s.created_by);
-      await this.prisma.scheduled_announcement.update({ where: { id: s.id }, data: { sent_count: r.sent } });
+      const r = await this.dispatch(
+        s.targets,
+        s.title,
+        s.body,
+        s.center_id,
+        s.channels as Channel[],
+        s.created_by,
+      );
+      await this.prisma.scheduled_announcement.update({
+        where: { id: s.id },
+        data: { sent_count: r.sent },
+      });
       processed++;
     }
     return { processed };
   }
 
   // ── 내부 ──
-  private resolveScope(actor: AuthUser, dto: AnnouncementDto): string | null | undefined {
+  private resolveScope(
+    actor: AuthUser,
+    dto: AnnouncementDto,
+  ): string | null | undefined {
     const isHq = actor.role === AccountRole.ADMIN && !actor.centerId;
     return isHq ? dto.centerId : actor.centerId;
   }
@@ -194,11 +261,20 @@ export class AnnouncementService {
     let sent = 0;
     for (const role of [...new Set(targets)]) {
       const accounts = await this.prisma.account.findMany({
-        where: { role: role as AccountRole, status: AccountStatus.APPROVED, ...(scope ? { center_id: scope } : {}) },
+        where: {
+          role: role as AccountRole,
+          status: AccountStatus.APPROVED,
+          ...(scope ? { center_id: scope } : {}),
+        },
         select: { id: true },
       });
       for (const a of accounts) {
-        await this.notify.notify(a.id, 'announcement', { title, body, from }, channels);
+        await this.notify.notify(
+          a.id,
+          'announcement',
+          { title, body, from },
+          channels,
+        );
       }
       byTarget[role] = accounts.length;
       sent += accounts.length;

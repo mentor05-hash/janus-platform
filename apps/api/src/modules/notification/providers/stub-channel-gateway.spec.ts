@@ -3,7 +3,12 @@ import { NotifyMessage } from '../notification.types';
 
 describe('StubChannelGateway (§10)', () => {
   const sut = new StubChannelGateway();
-  const msg: NotifyMessage = { recipientId: 'r1', type: 'test', channels: [], payload: {} };
+  const msg: NotifyMessage = {
+    recipientId: 'r1',
+    type: 'test',
+    channels: [],
+    payload: {},
+  };
 
   it('앱 채널은 성공', async () => {
     expect(await sut.deliver('app', msg)).toBe(true);

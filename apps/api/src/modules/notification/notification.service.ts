@@ -24,7 +24,9 @@ export class NotificationService {
       data: { read_at: new Date() },
     });
     if (upd.count === 0) {
-      const exists = await this.prisma.notification.findFirst({ where: { id, recipient_id: recipientId } });
+      const exists = await this.prisma.notification.findFirst({
+        where: { id, recipient_id: recipientId },
+      });
       if (!exists) throw new ForbiddenException('본인 알림이 아닙니다.');
     }
     return { id, read: true };

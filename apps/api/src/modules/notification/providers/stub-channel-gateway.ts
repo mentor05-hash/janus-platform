@@ -1,5 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ChannelGateway, NotifyChannel, NotifyMessage } from '../notification.types';
+import {
+  ChannelGateway,
+  NotifyChannel,
+  NotifyMessage,
+} from '../notification.types';
 
 /**
  * 로컬 stub 채널 게이트웨이(§10). 앱 인앱 알림은 성공으로 간주,
@@ -16,7 +20,9 @@ export class StubChannelGateway implements ChannelGateway {
       return true;
     }
     // SMS·카카오 알림톡: 미구성 → 실패(재시도 대상)
-    this.logger.warn(`[stub] ${channel} 미구성 — 발송 실패 처리 → ${msg.recipientId}`);
+    this.logger.warn(
+      `[stub] ${channel} 미구성 — 발송 실패 처리 → ${msg.recipientId}`,
+    );
     return false;
   }
 }

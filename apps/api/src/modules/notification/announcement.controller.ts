@@ -1,9 +1,20 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+} from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AnnouncementService } from './announcement.service';
-import { AnnouncementDto, AnnouncementTemplateDto } from './dto/announcement.dto';
+import {
+  AnnouncementDto,
+  AnnouncementTemplateDto,
+} from './dto/announcement.dto';
 
 /**
  * 관리자 공지 알림 (§3 notification). 센터관리자·본사관리자 전용.
@@ -28,13 +39,19 @@ export class AnnouncementController {
 
   /** POST /admin/announcements/scheduled/{id}/cancel — 예약 공지 취소(발송 전). */
   @Post('announcements/scheduled/:id/cancel')
-  cancelScheduled(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  cancelScheduled(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.announcement.cancelScheduled(id, user);
   }
 
   /** POST /admin/announcement-templates — 공지 템플릿 저장. */
   @Post('announcement-templates')
-  createTemplate(@Body() dto: AnnouncementTemplateDto, @CurrentUser() user: AuthUser) {
+  createTemplate(
+    @Body() dto: AnnouncementTemplateDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.announcement.createTemplate(user, dto);
   }
 
@@ -46,7 +63,10 @@ export class AnnouncementController {
 
   /** DELETE /admin/announcement-templates/{id} — 템플릿 삭제. */
   @Delete('announcement-templates/:id')
-  deleteTemplate(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  deleteTemplate(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.announcement.deleteTemplate(id, user);
   }
 }

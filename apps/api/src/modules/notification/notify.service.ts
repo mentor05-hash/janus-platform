@@ -11,7 +11,10 @@ import type { NotificationProvider, NotifyChannel } from './notification.types';
 export class NotifyService {
   private readonly logger = new Logger(NotifyService.name);
 
-  constructor(@Inject(NOTIFICATION_PROVIDER) private readonly provider: NotificationProvider) {}
+  constructor(
+    @Inject(NOTIFICATION_PROVIDER)
+    private readonly provider: NotificationProvider,
+  ) {}
 
   async notify(
     recipientId: string | null | undefined,
@@ -24,7 +27,9 @@ export class NotifyService {
       await this.provider.send({ recipientId, type, channels, payload });
     } catch (e) {
       // 알림 실패가 본 트랜잭션/응답을 막지 않도록 격리(아웃박스가 재시도).
-      this.logger.warn(`알림 발송 실패 type=${type} → ${recipientId}: ${(e as Error).message}`);
+      this.logger.warn(
+        `알림 발송 실패 type=${type} → ${recipientId}: ${(e as Error).message}`,
+      );
     }
   }
 }
