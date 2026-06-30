@@ -11,12 +11,24 @@ import { BookingService } from '../src/modules/booking/booking.service';
 const CENTER = '00000000-0000-4000-8000-0000000000c1';
 const TEACHER = '00000000-0000-4000-8000-0000000000a2';
 const STUDENT = '00000000-0000-4000-8000-0000000000a1';
-const studentUser: any = { id: STUDENT, role: 'student', centerId: CENTER, loginId: 'student01' };
+const studentUser: any = {
+  id: STUDENT,
+  role: 'student',
+  centerId: CENTER,
+  loginId: 'student01',
+};
 const DATE = '2034-04-04';
 
 const bookZoom = (booking: BookingService) =>
   booking.create(
-    { teacherId: TEACHER, date: DATE, consultType: '교과' as any, mode: 'zoom' as any, slotStart: 60, slotEnd: 63 } as any,
+    {
+      teacherId: TEACHER,
+      date: DATE,
+      consultType: '교과',
+      mode: 'zoom',
+      slotStart: 60,
+      slotEnd: 63,
+    },
     studentUser,
   );
 
@@ -27,21 +39,32 @@ describe('b3 줌 동시 진행 한도(§5-8)', () => {
   let original: number | null = null;
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     await app.init();
     prisma = mod.get(PrismaService);
     booking = mod.get(BookingService);
-    const zp = await prisma.zoom_policy.findUnique({ where: { center_id: CENTER } });
+    const zp = await prisma.zoom_policy.findUnique({
+      where: { center_id: CENTER },
+    });
     original = zp?.concurrent_limit ?? null;
   });
 
   const cleanBookings = async () => {
-    const rows = await prisma.booking.findMany({ where: { teacher_id: TEACHER, start_at: { gte: new Date('2034-04-04T00:00:00Z') } } });
+    const rows = await prisma.booking.findMany({
+      where: {
+        teacher_id: TEACHER,
+        start_at: { gte: new Date('2034-04-04T00:00:00Z') },
+      },
+    });
     const ids = rows.map((r) => r.id);
     if (ids.length) {
       await prisma.time_slot.deleteMany({ where: { booking_id: { in: ids } } });
-      await prisma.credit_transaction.deleteMany({ where: { ref_id: { in: ids } } });
+      await prisma.credit_transaction.deleteMany({
+        where: { ref_id: { in: ids } },
+      });
       await prisma.booking.deleteMany({ where: { id: { in: ids } } });
     }
   };
@@ -49,7 +72,10 @@ describe('b3 줌 동시 진행 한도(§5-8)', () => {
   afterAll(async () => {
     await cleanBookings();
     if (original !== null) {
-      await prisma.zoom_policy.update({ where: { center_id: CENTER }, data: { concurrent_limit: original } });
+      await prisma.zoom_policy.update({
+        where: { center_id: CENTER },
+        data: { concurrent_limit: original },
+      });
     } else {
       await prisma.zoom_policy.deleteMany({ where: { center_id: CENTER } });
     }

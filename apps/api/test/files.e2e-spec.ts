@@ -15,13 +15,33 @@ import { FilesService } from '../src/modules/storage/files.service';
 /**
  * a1 §10 StorageProvider: 업로드(stored_file 기록) + 다운로드 소유권 게이트.
  */
-const OWNER: any = { id: '00000000-0000-4000-8000-0000000000a1', role: 'student', centerId: null, loginId: 's' };
-const OTHER: any = { id: '00000000-0000-4000-8000-0000000000a2', role: 'teacher', centerId: null, loginId: 't' };
-const ADMIN: any = { id: '00000000-0000-4000-8000-0000000000a3', role: 'admin', centerId: null, loginId: 'a' };
+const OWNER: any = {
+  id: '00000000-0000-4000-8000-0000000000a1',
+  role: 'student',
+  centerId: null,
+  loginId: 's',
+};
+const OTHER: any = {
+  id: '00000000-0000-4000-8000-0000000000a2',
+  role: 'teacher',
+  centerId: null,
+  loginId: 't',
+};
+const ADMIN: any = {
+  id: '00000000-0000-4000-8000-0000000000a3',
+  role: 'admin',
+  centerId: null,
+  loginId: 'a',
+};
 
 const fakeFile = (text: string) => {
   const buffer = Buffer.from(text, 'utf8');
-  return { buffer, originalname: '첨부.txt', mimetype: 'text/plain', size: buffer.length };
+  return {
+    buffer,
+    originalname: '첨부.txt',
+    mimetype: 'text/plain',
+    size: buffer.length,
+  };
 };
 
 describe('a1 파일 저장/다운로드(§10)', () => {
@@ -31,7 +51,9 @@ describe('a1 파일 저장/다운로드(§10)', () => {
   let uploadedId = '';
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     await app.init();
     prisma = mod.get(PrismaService);
@@ -68,6 +90,8 @@ describe('a1 파일 저장/다운로드(§10)', () => {
   });
 
   it('없는 파일 → 404', async () => {
-    await expect(files.download('00000000-0000-4000-8000-0000000000ff', OWNER)).rejects.toThrow(/찾을 수 없/);
+    await expect(
+      files.download('00000000-0000-4000-8000-0000000000ff', OWNER),
+    ).rejects.toThrow(/찾을 수 없/);
   });
 });

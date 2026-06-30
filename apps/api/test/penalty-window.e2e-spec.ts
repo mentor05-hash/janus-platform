@@ -11,12 +11,24 @@ import { BookingService } from '../src/modules/booking/booking.service';
 const CENTER = '00000000-0000-4000-8000-0000000000c1';
 const TEACHER = '00000000-0000-4000-8000-0000000000a2';
 const STUDENT = '00000000-0000-4000-8000-0000000000a1';
-const studentUser: any = { id: STUDENT, role: 'student', centerId: CENTER, loginId: 'student01' };
+const studentUser: any = {
+  id: STUDENT,
+  role: 'student',
+  centerId: CENTER,
+  loginId: 'student01',
+};
 const DATE = '2034-05-05';
 
 const book = (booking: BookingService) =>
   booking.create(
-    { teacherId: TEACHER, date: DATE, consultType: '교과' as any, mode: 'chat' as any, slotStart: 60, slotEnd: 63 } as any,
+    {
+      teacherId: TEACHER,
+      date: DATE,
+      consultType: '교과',
+      mode: 'chat',
+      slotStart: 60,
+      slotEnd: 63,
+    },
     studentUser,
   );
 
@@ -27,12 +39,16 @@ describe('b4 가중 제한 시간 해제(§5-7)', () => {
   let origPolicy: any = null;
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     await app.init();
     prisma = mod.get(PrismaService);
     booking = mod.get(BookingService);
-    origPolicy = await prisma.penalty_policy.findUnique({ where: { center_id: CENTER } });
+    origPolicy = await prisma.penalty_policy.findUnique({
+      where: { center_id: CENTER },
+    });
     // 당일취소 임계 1, 제한창 30분
     await prisma.penalty_policy.upsert({
       where: { center_id: CENTER },
@@ -47,11 +63,18 @@ describe('b4 가중 제한 시간 해제(§5-7)', () => {
   });
 
   const cleanBookings = async () => {
-    const rows = await prisma.booking.findMany({ where: { teacher_id: TEACHER, start_at: { gte: new Date('2034-05-05T00:00:00Z') } } });
+    const rows = await prisma.booking.findMany({
+      where: {
+        teacher_id: TEACHER,
+        start_at: { gte: new Date('2034-05-05T00:00:00Z') },
+      },
+    });
     const ids = rows.map((r) => r.id);
     if (ids.length) {
       await prisma.time_slot.deleteMany({ where: { booking_id: { in: ids } } });
-      await prisma.credit_transaction.deleteMany({ where: { ref_id: { in: ids } } });
+      await prisma.credit_transaction.deleteMany({
+        where: { ref_id: { in: ids } },
+      });
       await prisma.booking.deleteMany({ where: { id: { in: ids } } });
     }
   };
@@ -65,7 +88,10 @@ describe('b4 가중 제한 시간 해제(§5-7)', () => {
     if (origPolicy) {
       await prisma.penalty_policy.update({
         where: { center_id: CENTER },
-        data: { cancel_threshold: origPolicy.cancel_threshold, restrict_minutes: origPolicy.restrict_minutes },
+        data: {
+          cancel_threshold: origPolicy.cancel_threshold,
+          restrict_minutes: origPolicy.restrict_minutes,
+        },
       });
     } else {
       await prisma.penalty_policy.deleteMany({ where: { center_id: CENTER } });

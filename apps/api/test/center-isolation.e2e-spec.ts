@@ -16,17 +16,22 @@ describe('센터 격리 — 상담기록 열람(§7/S4)', () => {
   let svc: ConsultationService;
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     await app.init();
     svc = mod.get(ConsultationService);
   });
   afterAll(async () => app.close());
 
-  const admin = (centerId: string | null) => ({ id: 'x', role: 'admin', centerId, loginId: 'a' }) as any;
+  const admin = (centerId: string | null) =>
+    ({ id: 'x', role: 'admin', centerId, loginId: 'a' }) as any;
 
   it('타 센터 관리자 → 403 거부', async () => {
-    await expect(svc.listForStudent(STU_C1, admin(OTHER_CENTER))).rejects.toThrow(/다른 센터/);
+    await expect(
+      svc.listForStudent(STU_C1, admin(OTHER_CENTER)),
+    ).rejects.toThrow(/다른 센터/);
   });
 
   it('자기 센터 관리자 → 허용', async () => {
@@ -34,6 +39,8 @@ describe('센터 격리 — 상담기록 열람(§7/S4)', () => {
   });
 
   it('본사/마스터(센터 미소속) → 전체 허용', async () => {
-    await expect(svc.listForStudent(STU_C1, admin(null))).resolves.toBeDefined();
+    await expect(
+      svc.listForStudent(STU_C1, admin(null)),
+    ).resolves.toBeDefined();
   });
 });

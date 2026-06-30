@@ -15,9 +15,24 @@ const TEACHER = '00000000-0000-4000-8000-0000000000a2';
 const STU_R = '00000000-0000-4000-8000-0000000000e4'; // 수락+차단
 const STU_R2 = '00000000-0000-4000-8000-0000000000e5'; // 거절
 
-const teacherUser: any = { id: TEACHER, role: 'teacher', centerId: CENTER, loginId: 'teacher01' };
-const userR: any = { id: STU_R, role: 'student', centerId: CENTER, loginId: 'rev_r' };
-const userR2: any = { id: STU_R2, role: 'student', centerId: CENTER, loginId: 'rev_r2' };
+const teacherUser: any = {
+  id: TEACHER,
+  role: 'teacher',
+  centerId: CENTER,
+  loginId: 'teacher01',
+};
+const userR: any = {
+  id: STU_R,
+  role: 'student',
+  centerId: CENTER,
+  loginId: 'rev_r',
+};
+const userR2: any = {
+  id: STU_R2,
+  role: 'student',
+  centerId: CENTER,
+  loginId: 'rev_r2',
+};
 const DATE = '2031-05-05';
 
 describe('2.5 역상담 통합', () => {
@@ -40,14 +55,28 @@ describe('2.5 역상담 통합', () => {
     await prisma.payment.deleteMany({ where: { payer_account_id: id } });
     await prisma.account.deleteMany({ where: { id } });
     await prisma.account.create({
-      data: { id, role: 'student' as any, center_id: CENTER, login_id: login, pw_hash: 'x', name: login, status: 'approved' as any },
+      data: {
+        id,
+        role: 'student' as any,
+        center_id: CENTER,
+        login_id: login,
+        pw_hash: 'x',
+        name: login,
+        status: 'approved' as any,
+      },
     });
-    await prisma.student_profile.create({ data: { account_id: id, center_id: CENTER } });
-    await prisma.credit_account.create({ data: { student_id: id, purchased_balance: 0, granted_balance: 0 } });
+    await prisma.student_profile.create({
+      data: { account_id: id, center_id: CENTER },
+    });
+    await prisma.credit_account.create({
+      data: { student_id: id, purchased_balance: 0, granted_balance: 0 },
+    });
   }
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     await app.init();
     prisma = mod.get(PrismaService);
@@ -60,7 +89,9 @@ describe('2.5 역상담 통합', () => {
 
   afterAll(async () => {
     await purgeBookings({ student_id: { in: [STU_R, STU_R2] } });
-    await prisma.payment.deleteMany({ where: { payer_account_id: { in: [STU_R, STU_R2] } } });
+    await prisma.payment.deleteMany({
+      where: { payer_account_id: { in: [STU_R, STU_R2] } },
+    });
     await prisma.account.deleteMany({ where: { id: { in: [STU_R, STU_R2] } } });
     await app.close();
   });
@@ -68,7 +99,14 @@ describe('2.5 역상담 통합', () => {
   it('제안 → 학생 수락(크레딧 차감·confirmed)', async () => {
     const before = await credit.getAccount(STU_R);
     const b: any = await booking.proposeReverse(
-      { studentId: STU_R, date: DATE, consultType: '교과' as any, mode: 'zoom' as any, slotStart: 60, slotEnd: 63 } as any,
+      {
+        studentId: STU_R,
+        date: DATE,
+        consultType: '교과',
+        mode: 'zoom',
+        slotStart: 60,
+        slotEnd: 63,
+      },
       teacherUser,
     );
     expect(b.direction).toBe('reverse');
@@ -83,7 +121,14 @@ describe('2.5 역상담 통합', () => {
   it('첫 상담 외 재제안 차단(성사 상담 존재)', async () => {
     await expect(
       booking.proposeReverse(
-        { studentId: STU_R, date: DATE, consultType: '교과' as any, mode: 'zoom' as any, slotStart: 80, slotEnd: 83 } as any,
+        {
+          studentId: STU_R,
+          date: DATE,
+          consultType: '교과' as any,
+          mode: 'zoom' as any,
+          slotStart: 80,
+          slotEnd: 83,
+        } as any,
         teacherUser,
       ),
     ).rejects.toThrow(/첫 상담/);
@@ -91,19 +136,37 @@ describe('2.5 역상담 통합', () => {
 
   it('제안 → 학생 거절(슬롯 해제·rejected)', async () => {
     const b: any = await booking.proposeReverse(
-      { studentId: STU_R2, date: DATE, consultType: '교과' as any, mode: 'zoom' as any, slotStart: 90, slotEnd: 93 } as any,
+      {
+        studentId: STU_R2,
+        date: DATE,
+        consultType: '교과',
+        mode: 'zoom',
+        slotStart: 90,
+        slotEnd: 93,
+      },
       teacherUser,
     );
-    expect(await prisma.time_slot.count({ where: { booking_id: b.id } })).toBe(3);
+    expect(await prisma.time_slot.count({ where: { booking_id: b.id } })).toBe(
+      3,
+    );
     const res: any = await booking.respondReverse(b.id, 'reject', userR2);
     expect(res.status).toBe('rejected');
-    expect(await prisma.time_slot.count({ where: { booking_id: b.id } })).toBe(0);
+    expect(await prisma.time_slot.count({ where: { booking_id: b.id } })).toBe(
+      0,
+    );
   });
 
   it('역상담 제안(NEW)을 일반 취소해도 환원 없음(미차감, H3 회귀)', async () => {
     const before = await credit.getAccount(STU_R2); // 미충전 → 0
     const b: any = await booking.proposeReverse(
-      { studentId: STU_R2, date: DATE, consultType: '교과' as any, mode: 'zoom' as any, slotStart: 100, slotEnd: 103 } as any,
+      {
+        studentId: STU_R2,
+        date: DATE,
+        consultType: '교과',
+        mode: 'zoom',
+        slotStart: 100,
+        slotEnd: 103,
+      },
       teacherUser,
     );
     const res: any = await booking.cancel(b.id, userR2);

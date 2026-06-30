@@ -9,8 +9,18 @@ import { BookingService } from '../src/modules/booking/booking.service';
  */
 const TEACHER = '00000000-0000-4000-8000-0000000000a2';
 const STUDENT = '00000000-0000-4000-8000-0000000000a1';
-const studentUser: any = { id: STUDENT, role: 'student', centerId: '00000000-0000-4000-8000-0000000000c1', loginId: 's' };
-const teacherUser: any = { id: TEACHER, role: 'teacher', centerId: '00000000-0000-4000-8000-0000000000c1', loginId: 't' };
+const studentUser: any = {
+  id: STUDENT,
+  role: 'student',
+  centerId: '00000000-0000-4000-8000-0000000000c1',
+  loginId: 's',
+};
+const teacherUser: any = {
+  id: TEACHER,
+  role: 'teacher',
+  centerId: '00000000-0000-4000-8000-0000000000c1',
+  loginId: 't',
+};
 const DATE = '2034-06-06';
 
 describe('a2 zoom 입장 URL(§9·§10)', () => {
@@ -19,7 +29,9 @@ describe('a2 zoom 입장 URL(§9·§10)', () => {
   let booking: BookingService;
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     await app.init();
     prisma = mod.get(PrismaService);
@@ -32,11 +44,18 @@ describe('a2 zoom 입장 URL(§9·§10)', () => {
   });
 
   const cleanBookings = async () => {
-    const rows = await prisma.booking.findMany({ where: { teacher_id: TEACHER, start_at: { gte: new Date('2034-06-06T00:00:00Z') } } });
+    const rows = await prisma.booking.findMany({
+      where: {
+        teacher_id: TEACHER,
+        start_at: { gte: new Date('2034-06-06T00:00:00Z') },
+      },
+    });
     const ids = rows.map((r) => r.id);
     if (ids.length) {
       await prisma.time_slot.deleteMany({ where: { booking_id: { in: ids } } });
-      await prisma.credit_transaction.deleteMany({ where: { ref_id: { in: ids } } });
+      await prisma.credit_transaction.deleteMany({
+        where: { ref_id: { in: ids } },
+      });
       await prisma.booking.deleteMany({ where: { id: { in: ids } } });
     }
   };
@@ -48,7 +67,14 @@ describe('a2 zoom 입장 URL(§9·§10)', () => {
 
   it('zoom 예약 확정 → 입장 URL 발급', async () => {
     const created: any = await booking.create(
-      { teacherId: TEACHER, date: DATE, consultType: '교과' as any, mode: 'zoom' as any, slotStart: 60, slotEnd: 63 } as any,
+      {
+        teacherId: TEACHER,
+        date: DATE,
+        consultType: '교과',
+        mode: 'zoom',
+        slotStart: 60,
+        slotEnd: 63,
+      },
       studentUser,
     );
     expect(created.meetingUrl).toBeNull(); // 생성(new) 단계엔 미발급

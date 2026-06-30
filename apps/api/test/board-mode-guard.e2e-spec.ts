@@ -16,14 +16,25 @@ describe('board 예약 차단(§5-2)', () => {
   let token = '';
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     app.setGlobalPrefix('api/v1');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        transform: true,
+        forbidNonWhitelisted: true,
+      }),
+    );
     app.useGlobalFilters(new AllExceptionsFilter());
     await app.init();
     const auth = app.get(AuthService);
-    const t = await auth.login({ loginId: 'student01', password: 'dev-password!' } as any);
+    const t = await auth.login({
+      loginId: 'student01',
+      password: 'dev-password!',
+    });
     token = t.accessToken;
   });
 
@@ -31,7 +42,14 @@ describe('board 예약 차단(§5-2)', () => {
     await app.close();
   });
 
-  const body = { teacherId: TEACHER, date: '2026-07-20', mode: 'board', consultType: '교과', slotStart: 60, slotEnd: 63 };
+  const body = {
+    teacherId: TEACHER,
+    date: '2026-07-20',
+    mode: 'board',
+    consultType: '교과',
+    slotStart: 60,
+    slotEnd: 63,
+  };
 
   it('board 견적 요청 → 400(허용 방식 아님)', async () => {
     const res = await request(app.getHttpServer())
@@ -56,6 +74,5 @@ describe('board 예약 차단(§5-2)', () => {
       .send({ ...body, mode: 'chat' });
     expect(res.status).toBe(200);
     expect(res.body.credits).toBe(9000); // TransformInterceptor 미등록 테스트 앱 — 원형 응답
-
   });
 });

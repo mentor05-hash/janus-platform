@@ -21,7 +21,9 @@ describe('회원등록 게이트 — 양방향(§iam/people)', () => {
   const loginId = 'reggate_stu';
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     await app.init();
     prisma = mod.get(PrismaService);
@@ -29,9 +31,18 @@ describe('회원등록 게이트 — 양방향(§iam/people)', () => {
     booking = mod.get(BookingService);
 
     // 회원가입(pending) → 승인(approved). 단 student_profile 은 생성하지 않음(미등록).
-    const su = await auth.signup({ loginId, password: 'mentor2026', name: '미등록학생', role: 'student', centerId: CENTER } as any);
+    const su = await auth.signup({
+      loginId,
+      password: 'mentor2026',
+      name: '미등록학생',
+      role: 'student',
+      centerId: CENTER,
+    } as any);
     acctId = su.id;
-    await prisma.account.update({ where: { id: acctId }, data: { status: 'approved' as any } });
+    await prisma.account.update({
+      where: { id: acctId },
+      data: { status: 'approved' as any },
+    });
   });
 
   afterAll(async () => {
@@ -39,22 +50,51 @@ describe('회원등록 게이트 — 양방향(§iam/people)', () => {
     await app.close();
   });
 
-  const studentUser = () => ({ id: acctId, role: 'student', centerId: CENTER, loginId }) as any;
-  const dto = { teacherId: TEACHER, date: '2034-08-08', consultType: '교과', mode: 'zoom', slotStart: 60, slotEnd: 63 } as any;
+  const studentUser = () =>
+    ({ id: acctId, role: 'student', centerId: CENTER, loginId }) as any;
+  const dto = {
+    teacherId: TEACHER,
+    date: '2034-08-08',
+    consultType: '교과',
+    mode: 'zoom',
+    slotStart: 60,
+    slotEnd: 63,
+  } as any;
 
   it('정방향: 미등록 학생 예약 → 500 아닌 404(프로필 없음)', async () => {
-    await expect(booking.create(dto, studentUser())).rejects.toMatchObject({ status: 404 });
-    await expect(booking.create(dto, studentUser())).rejects.toThrow(/등록|프로필/);
+    await expect(booking.create(dto, studentUser())).rejects.toMatchObject({
+      status: 404,
+    });
+    await expect(booking.create(dto, studentUser())).rejects.toThrow(
+      /등록|프로필/,
+    );
   });
 
   it('정방향: 미등록 학생 견적 → 404', async () => {
-    await expect(booking.quote(dto, studentUser())).rejects.toMatchObject({ status: 404 });
+    await expect(booking.quote(dto, studentUser())).rejects.toMatchObject({
+      status: 404,
+    });
   });
 
   it('역방향: 선생님이 미등록 학생에 역상담 제안 → 404', async () => {
-    const teacherUser = { id: TEACHER, role: 'teacher', centerId: CENTER, loginId: 'teacher01' } as any;
+    const teacherUser = {
+      id: TEACHER,
+      role: 'teacher',
+      centerId: CENTER,
+      loginId: 'teacher01',
+    } as any;
     await expect(
-      booking.proposeReverse({ studentId: acctId, date: '2034-08-08', consultType: '교과', mode: 'zoom', slotStart: 60, slotEnd: 63 } as any, teacherUser),
+      booking.proposeReverse(
+        {
+          studentId: acctId,
+          date: '2034-08-08',
+          consultType: '교과',
+          mode: 'zoom',
+          slotStart: 60,
+          slotEnd: 63,
+        } as any,
+        teacherUser,
+      ),
     ).rejects.toMatchObject({ status: 404 });
   });
 });

@@ -18,7 +18,9 @@ describe('a4 알림 outbox(§10)', () => {
   let outbox: NotificationOutboxService;
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     await app.init();
     prisma = mod.get(PrismaService);
@@ -29,12 +31,19 @@ describe('a4 알림 outbox(§10)', () => {
   });
 
   afterAll(async () => {
-    await prisma.notification.deleteMany({ where: { recipient_id: STUDENT, type: { startsWith: 'a4_' } } });
+    await prisma.notification.deleteMany({
+      where: { recipient_id: STUDENT, type: { startsWith: 'a4_' } },
+    });
     await app.close();
   });
 
   it('발송 시 채널별 전달 상태 기록(app=sent, kakao=failed)', async () => {
-    await provider.send({ recipientId: STUDENT, type: 'a4_send', channels: ['app', 'kakao'], payload: { x: 1 } });
+    await provider.send({
+      recipientId: STUDENT,
+      type: 'a4_send',
+      channels: ['app', 'kakao'],
+      payload: { x: 1 },
+    });
     const row = await prisma.notification.findFirst({
       where: { recipient_id: STUDENT, type: 'a4_send' },
       orderBy: { created_at: 'desc' },
@@ -52,7 +61,7 @@ describe('a4 알림 outbox(§10)', () => {
         type: 'a4_recover',
         channels: ['app'],
         payload: {},
-        delivery: { app: 'failed' } as object,
+        delivery: { app: 'failed' },
         attempts: 1,
       },
     });
@@ -70,7 +79,7 @@ describe('a4 알림 outbox(§10)', () => {
         type: 'a4_stuck',
         channels: ['kakao'],
         payload: {},
-        delivery: { kakao: 'failed' } as object,
+        delivery: { kakao: 'failed' },
         attempts: 1,
       },
     });

@@ -14,10 +14,18 @@ describe('d2 비밀번호 정책(§10)', () => {
   const strongLogin = 'pwpolicy_strong';
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     app.setGlobalPrefix('api/v1');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        transform: true,
+        forbidNonWhitelisted: true,
+      }),
+    );
     app.useGlobalFilters(new AllExceptionsFilter());
     await app.init();
     prisma = mod.get(PrismaService);
@@ -31,14 +39,24 @@ describe('d2 비밀번호 정책(§10)', () => {
   it('약한 비밀번호 → 400', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/auth/signup')
-      .send({ loginId: 'pwpolicy_weak', password: 'short', name: '약함', role: 'student' });
+      .send({
+        loginId: 'pwpolicy_weak',
+        password: 'short',
+        name: '약함',
+        role: 'student',
+      });
     expect(res.status).toBe(400);
   });
 
   it('정책 충족 비밀번호 → 가입 성공', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/auth/signup')
-      .send({ loginId: strongLogin, password: 'mentor2026', name: '강함', role: 'student' });
+      .send({
+        loginId: strongLogin,
+        password: 'mentor2026',
+        name: '강함',
+        role: 'student',
+      });
     expect(res.status).toBe(201);
   });
 });

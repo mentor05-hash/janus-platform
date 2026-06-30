@@ -5,7 +5,10 @@ import { PrismaService } from '../src/common/prisma/prisma.service';
 import { BookingService } from '../src/modules/booking/booking.service';
 import { CancellationService } from '../src/modules/booking/cancellation.service';
 import { CreditService } from '../src/modules/billing/credit.service';
-import { NOTIFICATION_PROVIDER, NotifyMessage } from '../src/modules/notification/notification.types';
+import {
+  NOTIFICATION_PROVIDER,
+  NotifyMessage,
+} from '../src/modules/notification/notification.types';
 
 /**
  * 2.1 DoD 통합테스트 (실 DB):
@@ -18,8 +21,18 @@ const TEACHER = '00000000-0000-4000-8000-0000000000a2';
 const DATE = '2030-01-16';
 const DAY_FLOOR = new Date('2030-01-16T00:00:00Z');
 
-const studentUser: any = { id: STUDENT, role: 'student', centerId: CENTER, loginId: 'student01' };
-const teacherUser: any = { id: TEACHER, role: 'teacher', centerId: CENTER, loginId: 'teacher01' };
+const studentUser: any = {
+  id: STUDENT,
+  role: 'student',
+  centerId: CENTER,
+  loginId: 'student01',
+};
+const teacherUser: any = {
+  id: TEACHER,
+  role: 'teacher',
+  centerId: CENTER,
+  loginId: 'teacher01',
+};
 
 describe('2.1 취소·알림 통합', () => {
   let app: INestApplication;
@@ -49,7 +62,9 @@ describe('2.1 취소·알림 통합', () => {
       });
       const ids = olds.map((b) => b.id);
       if (ids.length) {
-        await prisma.time_slot.deleteMany({ where: { booking_id: { in: ids } } });
+        await prisma.time_slot.deleteMany({
+          where: { booking_id: { in: ids } },
+        });
         await prisma.booking.deleteMany({ where: { id: { in: ids } } });
       }
     }
@@ -64,7 +79,9 @@ describe('2.1 취소·알림 통합', () => {
       });
       const ids = olds.map((b) => b.id);
       if (ids.length) {
-        await prisma.time_slot.deleteMany({ where: { booking_id: { in: ids } } });
+        await prisma.time_slot.deleteMany({
+          where: { booking_id: { in: ids } },
+        });
         await prisma.booking.deleteMany({ where: { id: { in: ids } } });
       }
     }
@@ -77,22 +94,33 @@ describe('2.1 취소·알림 통합', () => {
 
     // zoom 10:00–10:30 (슬롯 60–63, 30분 → 20,000)
     const b: any = await booking.create(
-      { teacherId: TEACHER, date: DATE, consultType: '교과' as any, mode: 'zoom' as any, slotStart: 60, slotEnd: 63 } as any,
+      {
+        teacherId: TEACHER,
+        date: DATE,
+        consultType: '교과',
+        mode: 'zoom',
+        slotStart: 60,
+        slotEnd: 63,
+      },
       studentUser,
     );
     const afterBook = await credit.getAccount(STUDENT);
     expect(afterBook.total).toBe(before.total - 20_000);
-    expect(await prisma.time_slot.count({ where: { booking_id: b.id } })).toBe(3);
+    expect(await prisma.time_slot.count({ where: { booking_id: b.id } })).toBe(
+      3,
+    );
 
     sent.length = 0;
     const res: any = await cancellation.teacherCancel(
       b.id,
-      { reason: '개인 사정', route: 'substitute' as any },
+      { reason: '개인 사정', route: 'substitute' },
       teacherUser,
     );
 
     // CancellationEvent
-    const ev: any = await prisma.cancellation_event.findFirst({ where: { booking_id: b.id } });
+    const ev: any = await prisma.cancellation_event.findFirst({
+      where: { booking_id: b.id },
+    });
     expect(ev).toBeTruthy();
     expect(ev.cancelled_by).toBe(TEACHER);
     expect(ev.route).toBe('substitute');
@@ -104,7 +132,9 @@ describe('2.1 취소·알림 통합', () => {
     expect(bk!.status).toBe('cancelled');
 
     // 슬롯 해제
-    expect(await prisma.time_slot.count({ where: { booking_id: b.id } })).toBe(0);
+    expect(await prisma.time_slot.count({ where: { booking_id: b.id } })).toBe(
+      0,
+    );
 
     // 크레딧 환원
     const afterCancel = await credit.getAccount(STUDENT);

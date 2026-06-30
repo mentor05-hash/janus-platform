@@ -17,8 +17,18 @@ const PLAN_PREM = '00000000-0000-4000-8000-0000000000b3'; // grade Premium(60k)
 const STU_A = '00000000-0000-4000-8000-0000000000e1';
 const STU_B = '00000000-0000-4000-8000-0000000000e2';
 
-const userA: any = { id: STU_A, role: 'student', centerId: CENTER, loginId: 'mem_test_a' };
-const userB: any = { id: STU_B, role: 'student', centerId: CENTER, loginId: 'mem_test_b' };
+const userA: any = {
+  id: STU_A,
+  role: 'student',
+  centerId: CENTER,
+  loginId: 'mem_test_a',
+};
+const userB: any = {
+  id: STU_B,
+  role: 'student',
+  centerId: CENTER,
+  loginId: 'mem_test_b',
+};
 
 describe('2.3 구독·등급·주간부여 통합', () => {
   let app: INestApplication;
@@ -31,7 +41,9 @@ describe('2.3 구독·등급·주간부여 통합', () => {
   const FUTURE = new Date('2999-01-01T00:00:00Z');
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     await app.init();
     prisma = mod.get(PrismaService);
@@ -39,13 +51,28 @@ describe('2.3 구독·등급·주간부여 통합', () => {
     weeklyGrant = mod.get(WeeklyGrantService);
     credit = mod.get(CreditService);
 
-    for (const [id, login] of [[STU_A, 'mem_test_a'], [STU_B, 'mem_test_b']] as const) {
+    for (const [id, login] of [
+      [STU_A, 'mem_test_a'],
+      [STU_B, 'mem_test_b'],
+    ] as const) {
       await prisma.account.deleteMany({ where: { id } });
       await prisma.account.create({
-        data: { id, role: 'student' as any, center_id: CENTER, login_id: login, pw_hash: 'x', name: login, status: 'approved' as any },
+        data: {
+          id,
+          role: 'student' as any,
+          center_id: CENTER,
+          login_id: login,
+          pw_hash: 'x',
+          name: login,
+          status: 'approved' as any,
+        },
       });
-      await prisma.student_profile.create({ data: { account_id: id, center_id: CENTER } });
-      await prisma.credit_account.create({ data: { student_id: id, purchased_balance: 0, granted_balance: 0 } });
+      await prisma.student_profile.create({
+        data: { account_id: id, center_id: CENTER },
+      });
+      await prisma.credit_account.create({
+        data: { student_id: id, purchased_balance: 0, granted_balance: 0 },
+      });
     }
   });
 
@@ -59,8 +86,12 @@ describe('2.3 구독·등급·주간부여 통합', () => {
     await membership.subscribe(userB, PLAN_PREM, NOW);
 
     // 등급 반영 확인
-    const spA = await prisma.student_profile.findUnique({ where: { account_id: STU_A } });
-    expect(spA!.membership_grade_id).toBe('00000000-0000-4000-8000-0000000000f2');
+    const spA = await prisma.student_profile.findUnique({
+      where: { account_id: STU_A },
+    });
+    expect(spA!.membership_grade_id).toBe(
+      '00000000-0000-4000-8000-0000000000f2',
+    );
 
     // 주간 부여(단일 학생 스코프)
     await weeklyGrant.runGrant(NOW, STU_A);
@@ -84,7 +115,11 @@ describe('2.3 구독·등급·주간부여 통합', () => {
       where: { student_id: STU_A, status: 'active' },
     });
     expect(actives).toBe(1);
-    const sp = await prisma.student_profile.findUnique({ where: { account_id: STU_A } });
-    expect(sp!.membership_grade_id).toBe('00000000-0000-4000-8000-0000000000f3'); // Premium
+    const sp = await prisma.student_profile.findUnique({
+      where: { account_id: STU_A },
+    });
+    expect(sp!.membership_grade_id).toBe(
+      '00000000-0000-4000-8000-0000000000f3',
+    ); // Premium
   });
 });

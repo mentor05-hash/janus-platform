@@ -13,8 +13,18 @@ import { CreditService } from '../src/modules/billing/credit.service';
 const CENTER = '00000000-0000-4000-8000-0000000000c1';
 const TEACHER = '00000000-0000-4000-8000-0000000000a2';
 const STUDENT = '00000000-0000-4000-8000-0000000000a1';
-const studentUser: any = { id: STUDENT, role: 'student', centerId: CENTER, loginId: 'student01' };
-const teacherUser: any = { id: TEACHER, role: 'teacher', centerId: CENTER, loginId: 'teacher01' };
+const studentUser: any = {
+  id: STUDENT,
+  role: 'student',
+  centerId: CENTER,
+  loginId: 'student01',
+};
+const teacherUser: any = {
+  id: TEACHER,
+  role: 'teacher',
+  centerId: CENTER,
+  loginId: 'teacher01',
+};
 const DATE = '2032-02-02';
 
 const settled = (rs: PromiseSettledResult<unknown>[]) => ({
@@ -30,7 +40,10 @@ describe('fix-2 동시성', () => {
 
   async function purge() {
     const bs = await prisma.booking.findMany({
-      where: { teacher_id: TEACHER, start_at: { gte: new Date(`${DATE}T00:00:00Z`) } },
+      where: {
+        teacher_id: TEACHER,
+        start_at: { gte: new Date(`${DATE}T00:00:00Z`) },
+      },
       select: { id: true },
     });
     const ids = bs.map((b) => b.id);
@@ -41,7 +54,9 @@ describe('fix-2 동시성', () => {
   }
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     await app.init();
     prisma = mod.get(PrismaService);
@@ -60,7 +75,14 @@ describe('fix-2 동시성', () => {
     // A=slots 60,61(10:00–10:20) / B=slots 62,63 — B는 A의 뒤 버퍼(slot 62) 침범
     const mk = (s: number, e: number) =>
       booking.create(
-        { teacherId: TEACHER, date: DATE, consultType: '교과' as any, mode: 'zoom' as any, slotStart: s, slotEnd: e } as any,
+        {
+          teacherId: TEACHER,
+          date: DATE,
+          consultType: '교과',
+          mode: 'zoom',
+          slotStart: s,
+          slotEnd: e,
+        },
         studentUser,
       );
     const rs = await Promise.allSettled([mk(60, 62), mk(62, 64)]);
@@ -71,13 +93,23 @@ describe('fix-2 동시성', () => {
 
   it('H2: 동일 예약 동시 취소 → 1회만 적용·환원', async () => {
     const b: any = await booking.create(
-      { teacherId: TEACHER, date: DATE, consultType: '교과' as any, mode: 'zoom' as any, slotStart: 80, slotEnd: 83 } as any,
+      {
+        teacherId: TEACHER,
+        date: DATE,
+        consultType: '교과',
+        mode: 'zoom',
+        slotStart: 80,
+        slotEnd: 83,
+      },
       studentUser,
     );
     await booking.accept(b.id, teacherUser); // confirmed
     const before = await credit.getAccount(STUDENT);
 
-    const rs = await Promise.allSettled([booking.cancel(b.id, studentUser), booking.cancel(b.id, studentUser)]);
+    const rs = await Promise.allSettled([
+      booking.cancel(b.id, studentUser),
+      booking.cancel(b.id, studentUser),
+    ]);
     const { ok, fail } = settled(rs);
     expect(ok).toBe(1);
     expect(fail).toBe(1);
@@ -90,15 +122,34 @@ describe('fix-2 동시성', () => {
     const STU_N = '00000000-0000-4000-8000-0000000000e7';
     await prisma.account.deleteMany({ where: { id: STU_N } });
     await prisma.account.create({
-      data: { id: STU_N, role: 'student' as any, center_id: CENTER, login_id: 'noshow_t', pw_hash: 'x', name: 'n', status: 'approved' as any },
+      data: {
+        id: STU_N,
+        role: 'student' as any,
+        center_id: CENTER,
+        login_id: 'noshow_t',
+        pw_hash: 'x',
+        name: 'n',
+        status: 'approved' as any,
+      },
     });
-    await prisma.student_profile.create({ data: { account_id: STU_N, center_id: CENTER, noshow_count: 0 } });
+    await prisma.student_profile.create({
+      data: { account_id: STU_N, center_id: CENTER, noshow_count: 0 },
+    });
     const b = await prisma.booking.create({
-      data: { student_id: STU_N, teacher_id: TEACHER, center_id: CENTER, consult_type: 'subject' as any, mode: 'zoom' as any, status: 'confirmed' as any },
+      data: {
+        student_id: STU_N,
+        teacher_id: TEACHER,
+        center_id: CENTER,
+        consult_type: 'subject' as any,
+        mode: 'zoom' as any,
+        status: 'confirmed' as any,
+      },
     });
     try {
       await booking.noshow(b.id, teacherUser);
-      const sp = await prisma.student_profile.findUnique({ where: { account_id: STU_N } });
+      const sp = await prisma.student_profile.findUnique({
+        where: { account_id: STU_N },
+      });
       expect(sp!.noshow_count).toBe(1);
     } finally {
       await prisma.time_slot.deleteMany({ where: { booking_id: b.id } });

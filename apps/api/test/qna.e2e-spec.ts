@@ -14,8 +14,18 @@ const CENTER = '00000000-0000-4000-8000-0000000000c1';
 const TEACHER = '00000000-0000-4000-8000-0000000000a2';
 const STU_Q = '00000000-0000-4000-8000-0000000000e8';
 
-const teacherUser: any = { id: TEACHER, role: 'teacher', centerId: CENTER, loginId: 'teacher01' };
-const studentUser: any = { id: STU_Q, role: 'student', centerId: CENTER, loginId: 'qna_s' };
+const teacherUser: any = {
+  id: TEACHER,
+  role: 'teacher',
+  centerId: CENTER,
+  loginId: 'teacher01',
+};
+const studentUser: any = {
+  id: STU_Q,
+  role: 'student',
+  centerId: CENTER,
+  loginId: 'qna_s',
+};
 
 describe('3.1 온라인 Q&A 통합', () => {
   let app: INestApplication;
@@ -25,13 +35,17 @@ describe('3.1 온라인 Q&A 통합', () => {
 
   async function cleanup() {
     await prisma.qna_post.deleteMany({ where: { student_id: STU_Q } }); // cascade answers
-    await prisma.teacher_list_entry.deleteMany({ where: { student_id: STU_Q } });
+    await prisma.teacher_list_entry.deleteMany({
+      where: { student_id: STU_Q },
+    });
     await prisma.payment.deleteMany({ where: { payer_account_id: STU_Q } });
     await prisma.account.deleteMany({ where: { id: STU_Q } });
   }
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     await app.init();
     prisma = mod.get(PrismaService);
@@ -39,10 +53,22 @@ describe('3.1 온라인 Q&A 통합', () => {
     credit = mod.get(CreditService);
     await cleanup();
     await prisma.account.create({
-      data: { id: STU_Q, role: 'student' as any, center_id: CENTER, login_id: 'qna_s', pw_hash: 'x', name: 'q', status: 'approved' as any },
+      data: {
+        id: STU_Q,
+        role: 'student' as any,
+        center_id: CENTER,
+        login_id: 'qna_s',
+        pw_hash: 'x',
+        name: 'q',
+        status: 'approved' as any,
+      },
     });
-    await prisma.student_profile.create({ data: { account_id: STU_Q, center_id: CENTER } });
-    await prisma.credit_account.create({ data: { student_id: STU_Q, purchased_balance: 0, granted_balance: 0 } });
+    await prisma.student_profile.create({
+      data: { account_id: STU_Q, center_id: CENTER },
+    });
+    await prisma.credit_account.create({
+      data: { student_id: STU_Q, purchased_balance: 0, granted_balance: 0 },
+    });
     await credit.charge(STU_Q, 20_000);
   });
 
@@ -53,12 +79,20 @@ describe('3.1 온라인 Q&A 통합', () => {
 
   it('질문 등록(건당 과금) → 답변 → 채택(pay_eligible)', async () => {
     const before = await credit.getAccount(STU_Q);
-    const post: any = await qna.createQuestion(studentUser, { scope: 'open', body: '미적분 질문', qType: 'general' });
+    const post: any = await qna.createQuestion(studentUser, {
+      scope: 'open',
+      body: '미적분 질문',
+      qType: 'general',
+    });
     expect(post.chargedCredits).toBe(4_000); // 시드 board_general_fee
     const after = await credit.getAccount(STU_Q);
     expect(after.total).toBe(before.total - 4_000);
 
-    const ans: any = await qna.answer(post.id, { body: '답변입니다' }, teacherUser);
+    const ans: any = await qna.answer(
+      post.id,
+      { body: '답변입니다' },
+      teacherUser,
+    );
     const res: any = await qna.acceptAnswer(ans.id, studentUser);
     expect(res.payEligible).toBe(true);
 
@@ -71,22 +105,39 @@ describe('3.1 온라인 Q&A 통합', () => {
   it('지정 질문: 존재하지 않는 교사면 과금 전 거부(fix-7)', async () => {
     const before = await credit.getAccount(STU_Q);
     await expect(
-      qna.createQuestion(studentUser, { scope: 'assigned', assignedTeacherId: '00000000-0000-4000-8000-0000000000ff', body: 'x' }),
+      qna.createQuestion(studentUser, {
+        scope: 'assigned',
+        assignedTeacherId: '00000000-0000-4000-8000-0000000000ff',
+        body: 'x',
+      }),
     ).rejects.toThrow();
     const after = await credit.getAccount(STU_Q);
     expect(after.total).toBe(before.total); // 과금 없음
   });
 
   it('Q&A 목록(H2): 보호자 등 비운영 역할은 조회 불가', async () => {
-    const guardian: any = { id: '00000000-0000-4000-8000-0000000000a5', role: 'guardian', centerId: CENTER };
+    const guardian: any = {
+      id: '00000000-0000-4000-8000-0000000000a5',
+      role: 'guardian',
+      centerId: CENTER,
+    };
     await expect(qna.listPosts(guardian)).rejects.toThrow();
   });
 
   it('§5-9: unfit 분류 교사는 공개 질문 답변 불가', async () => {
     await prisma.teacher_list_entry.create({
-      data: { student_id: STU_Q, teacher_id: TEACHER, list_kind: 'unfit' as any },
+      data: {
+        student_id: STU_Q,
+        teacher_id: TEACHER,
+        list_kind: 'unfit' as any,
+      },
     });
-    const post: any = await qna.createQuestion(studentUser, { scope: 'open', body: '두번째 질문' });
-    await expect(qna.answer(post.id, { body: 'x' }, teacherUser)).rejects.toThrow();
+    const post: any = await qna.createQuestion(studentUser, {
+      scope: 'open',
+      body: '두번째 질문',
+    });
+    await expect(
+      qna.answer(post.id, { body: 'x' }, teacherUser),
+    ).rejects.toThrow();
   });
 });

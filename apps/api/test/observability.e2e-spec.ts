@@ -12,7 +12,9 @@ describe('c1 요청 ID 전파(§10)', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     app.use(requestIdMiddleware);
     app.setGlobalPrefix('api/v1');

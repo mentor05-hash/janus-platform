@@ -20,13 +20,23 @@ describe('알림 커버리지(§3 notification)', () => {
   const DATE = '2034-09-09';
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     await app.init();
     prisma = mod.get(PrismaService);
     booking = mod.get(BookingService);
-    await prisma.credit_account.update({ where: { student_id: STU }, data: { purchased_balance: 1_000_000 } });
-    await prisma.notification.deleteMany({ where: { recipient_id: { in: [STU, TEA] }, payload: { path: ['marker'], equals: 'covtest' } } });
+    await prisma.credit_account.update({
+      where: { student_id: STU },
+      data: { purchased_balance: 1_000_000 },
+    });
+    await prisma.notification.deleteMany({
+      where: {
+        recipient_id: { in: [STU, TEA] },
+        payload: { path: ['marker'], equals: 'covtest' },
+      },
+    });
   });
 
   afterAll(async () => {
@@ -38,19 +48,51 @@ describe('알림 커버리지(§3 notification)', () => {
     await app.close();
   });
 
-  const studentUser = { id: STU, role: 'student', centerId: C1, loginId: 'student01' } as any;
-  const teacherUser = { id: TEA, role: 'teacher', centerId: C1, loginId: 'teacher01' } as any;
+  const studentUser = {
+    id: STU,
+    role: 'student',
+    centerId: C1,
+    loginId: 'student01',
+  } as any;
+  const teacherUser = {
+    id: TEA,
+    role: 'teacher',
+    centerId: C1,
+    loginId: 'teacher01',
+  } as any;
 
   it('상담 신청 → 선생님 booking_requested 알림', async () => {
-    const b: any = await booking.create({ teacherId: TEA, date: DATE, consultType: '교과', mode: 'zoom', slotStart: 60, slotEnd: 63 } as any, studentUser);
+    const b: any = await booking.create(
+      {
+        teacherId: TEA,
+        date: DATE,
+        consultType: '교과',
+        mode: 'zoom',
+        slotStart: 60,
+        slotEnd: 63,
+      } as any,
+      studentUser,
+    );
     bid = b.id;
-    const n = await prisma.notification.findFirst({ where: { recipient_id: TEA, type: 'booking_requested', payload: { path: ['bookingId'], equals: bid } } });
+    const n = await prisma.notification.findFirst({
+      where: {
+        recipient_id: TEA,
+        type: 'booking_requested',
+        payload: { path: ['bookingId'], equals: bid },
+      },
+    });
     expect(n).toBeTruthy();
   });
 
   it('승인 → 학생 booking_confirmed 알림', async () => {
     await booking.accept(bid, teacherUser);
-    const n = await prisma.notification.findFirst({ where: { recipient_id: STU, type: 'booking_confirmed', payload: { path: ['bookingId'], equals: bid } } });
+    const n = await prisma.notification.findFirst({
+      where: {
+        recipient_id: STU,
+        type: 'booking_confirmed',
+        payload: { path: ['bookingId'], equals: bid },
+      },
+    });
     expect(n).toBeTruthy();
   });
 });

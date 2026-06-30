@@ -17,13 +17,20 @@ describe('알림 수신함', () => {
   let id: string;
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     await app.init();
     prisma = mod.get(PrismaService);
     svc = mod.get(NotificationService);
     const n = await prisma.notification.create({
-      data: { recipient_id: STUDENT, type: 'cancel', channels: ['app'], payload: { test: true } },
+      data: {
+        recipient_id: STUDENT,
+        type: 'cancel',
+        channels: ['app'],
+        payload: { test: true },
+      },
     });
     id = n.id;
   });

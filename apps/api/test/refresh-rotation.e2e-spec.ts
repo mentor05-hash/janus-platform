@@ -13,7 +13,9 @@ describe('d3 refresh 회전·로그아웃(§10)', () => {
   let auth: AuthService;
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     await app.init();
     auth = mod.get(AuthService);
@@ -24,7 +26,10 @@ describe('d3 refresh 회전·로그아웃(§10)', () => {
   });
 
   it('refresh 시 회전 — 이전 refresh 토큰은 재사용 불가', async () => {
-    const { refreshToken: rt1 } = await auth.login({ loginId: 'student01', password: 'dev-password!' } as any);
+    const { refreshToken: rt1 } = await auth.login({
+      loginId: 'student01',
+      password: 'dev-password!',
+    });
     const { refreshToken: rt2 } = await auth.refresh(rt1);
     expect(rt2).not.toBe(rt1);
     // 이전 토큰 재사용 → 거부(회전됨)
@@ -35,7 +40,10 @@ describe('d3 refresh 회전·로그아웃(§10)', () => {
   });
 
   it('로그아웃 후 refresh 무효', async () => {
-    const { refreshToken } = await auth.login({ loginId: 'student01', password: 'dev-password!' } as any);
+    const { refreshToken } = await auth.login({
+      loginId: 'student01',
+      password: 'dev-password!',
+    });
     await auth.logout(STUDENT);
     await expect(auth.refresh(refreshToken)).rejects.toThrow(/재사용|무효/);
   });

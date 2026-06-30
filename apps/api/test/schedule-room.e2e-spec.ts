@@ -25,32 +25,98 @@ describe('근무·체류·상담실(시뮬 회귀)', () => {
   let roomId = '';
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     await app.init();
     prisma = mod.get(PrismaService);
     availability = mod.get(AvailabilityService);
     booking = mod.get(BookingService);
-    const pw = (await prisma.account.findUnique({ where: { login_id: 'student01' } }))!.pw_hash;
+    const pw = (await prisma.account.findUnique({
+      where: { login_id: 'student01' },
+    }))!.pw_hash;
 
-    await prisma.account.create({ data: { id: TEA, role: 'teacher' as any, center_id: C1, login_id: 'sr_tea', pw_hash: pw, name: '회귀쌤', status: 'approved' as any } });
-    await prisma.teacher_profile.create({ data: { account_id: TEA, center_id: C1, subjects: ['수학'], grade: 'A' as any } });
-    await prisma.work_schedule.create({ data: { teacher_id: TEA, recurring_template: Object.fromEntries(['0','1','2','3','4','5','6'].map((d) => [d, [{ start: '09:00', end: '18:00' }]])) as object } });
+    await prisma.account.create({
+      data: {
+        id: TEA,
+        role: 'teacher' as any,
+        center_id: C1,
+        login_id: 'sr_tea',
+        pw_hash: pw,
+        name: '회귀쌤',
+        status: 'approved' as any,
+      },
+    });
+    await prisma.teacher_profile.create({
+      data: {
+        account_id: TEA,
+        center_id: C1,
+        subjects: ['수학'],
+        grade: 'A' as any,
+      },
+    });
+    await prisma.work_schedule.create({
+      data: {
+        teacher_id: TEA,
+        recurring_template: Object.fromEntries(
+          ['0', '1', '2', '3', '4', '5', '6'].map((d) => [
+            d,
+            [{ start: '09:00', end: '18:00' }],
+          ]),
+        ),
+      },
+    });
 
-    await prisma.account.create({ data: { id: STU, role: 'student' as any, center_id: C1, login_id: 'sr_stu', pw_hash: pw, name: '회귀학생', status: 'approved' as any } });
+    await prisma.account.create({
+      data: {
+        id: STU,
+        role: 'student' as any,
+        center_id: C1,
+        login_id: 'sr_stu',
+        pw_hash: pw,
+        name: '회귀학생',
+        status: 'approved' as any,
+      },
+    });
     // 체류: 월요일('1')만
-    await prisma.student_profile.create({ data: { account_id: STU, center_id: C1, stay_time: { '1': [{ start: '09:00', end: '18:00' }] } as object } });
-    await prisma.credit_account.create({ data: { student_id: STU, purchased_balance: 500000, granted_balance: 0, reserved_credits: 0 } });
+    await prisma.student_profile.create({
+      data: {
+        account_id: STU,
+        center_id: C1,
+        stay_time: { '1': [{ start: '09:00', end: '18:00' }] },
+      },
+    });
+    await prisma.credit_account.create({
+      data: {
+        student_id: STU,
+        purchased_balance: 500000,
+        granted_balance: 0,
+        reserved_credits: 0,
+      },
+    });
     // 공유 DB 의 기존 C1 상담실(시드/시뮬) 제거 → 이 테스트 방만 남겨 배정 결정성 보장
     await prisma.room.deleteMany({ where: { center_id: C1 } });
-    const room = await prisma.room.create({ data: { center_id: C1, type: 'offline', capacity: 1, status: 'available' } });
+    const room = await prisma.room.create({
+      data: {
+        center_id: C1,
+        type: 'offline',
+        capacity: 1,
+        status: 'available',
+      },
+    });
     roomId = room.id;
   });
 
   afterAll(async () => {
-    const acct = await prisma.credit_account.findUnique({ where: { student_id: STU } });
+    const acct = await prisma.credit_account.findUnique({
+      where: { student_id: STU },
+    });
     await prisma.time_slot.deleteMany({ where: { teacher_id: TEA } });
-    if (acct) await prisma.credit_transaction.deleteMany({ where: { account_id: acct.id } });
+    if (acct)
+      await prisma.credit_transaction.deleteMany({
+        where: { account_id: acct.id },
+      });
     await prisma.booking.deleteMany({ where: { teacher_id: TEA } });
     await prisma.room.deleteMany({ where: { center_id: C1 } });
     await prisma.credit_account.deleteMany({ where: { student_id: STU } });
@@ -68,10 +134,21 @@ describe('근무·체류·상담실(시뮬 회귀)', () => {
     expect(tue.filter((s) => s.status === 'avail').length).toBe(0); // 수정 전이면 종일 가용(버그)
   });
 
-  const studentUser = () => ({ id: STU, role: 'student', centerId: C1, loginId: 'sr_stu' }) as any;
+  const studentUser = () =>
+    ({ id: STU, role: 'student', centerId: C1, loginId: 'sr_stu' }) as any;
 
   it('② 오프라인 예약 → 상담실(room_id) 배정', async () => {
-    const b: any = await booking.create({ teacherId: TEA, date: MON, consultType: '교과', mode: 'offline', slotStart: 60, slotEnd: 63 } as any, studentUser());
+    const b: any = await booking.create(
+      {
+        teacherId: TEA,
+        date: MON,
+        consultType: '교과',
+        mode: 'offline',
+        slotStart: 60,
+        slotEnd: 63,
+      } as any,
+      studentUser(),
+    );
     expect(b.roomId).toBe(roomId);
   });
 
@@ -81,7 +158,17 @@ describe('근무·체류·상담실(시뮬 회귀)', () => {
     await prisma.booking.deleteMany({ where: { teacher_id: TEA } });
     await prisma.room.deleteMany({ where: { center_id: C1 } });
     await expect(
-      booking.create({ teacherId: TEA, date: MON, consultType: '교과', mode: 'offline', slotStart: 66, slotEnd: 69 } as any, studentUser()),
+      booking.create(
+        {
+          teacherId: TEA,
+          date: MON,
+          consultType: '교과',
+          mode: 'offline',
+          slotStart: 66,
+          slotEnd: 69,
+        } as any,
+        studentUser(),
+      ),
     ).rejects.toThrow(/상담실/);
   });
 });

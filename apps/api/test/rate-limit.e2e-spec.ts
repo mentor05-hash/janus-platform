@@ -11,10 +11,18 @@ describe('d1 rate limit(§10)', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     app.setGlobalPrefix('api/v1');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        transform: true,
+        forbidNonWhitelisted: true,
+      }),
+    );
     app.useGlobalFilters(new AllExceptionsFilter());
     await app.init();
   });
@@ -27,7 +35,9 @@ describe('d1 rate limit(§10)', () => {
     const body = { loginId: 'nope_rl', password: 'wrongpw' };
     const codes: number[] = [];
     for (let i = 0; i < 12; i++) {
-      const res = await request(app.getHttpServer()).post('/api/v1/auth/login').send(body);
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send(body);
       codes.push(res.status);
     }
     // 한도(10) 이내는 401(자격 실패), 초과분에 429 가 나타난다.

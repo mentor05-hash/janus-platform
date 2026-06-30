@@ -19,27 +19,74 @@ describe('랭킹 가중치(§5-7)', () => {
   let people: PeopleService;
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     await app.init();
     prisma = mod.get(PrismaService);
     people = mod.get(PeopleService);
-    const pw = (await prisma.account.findUnique({ where: { login_id: 'student01' } }))!.pw_hash;
-    for (const [id, ln] of [[TA, 'rank_ta'], [TB, 'rank_tb']] as const) {
-      await prisma.account.upsert({ where: { id }, update: {}, create: { id, role: 'teacher' as any, center_id: C1, login_id: ln, pw_hash: pw, name: ln, status: 'approved' as any } });
+    const pw = (await prisma.account.findUnique({
+      where: { login_id: 'student01' },
+    }))!.pw_hash;
+    for (const [id, ln] of [
+      [TA, 'rank_ta'],
+      [TB, 'rank_tb'],
+    ] as const) {
+      await prisma.account.upsert({
+        where: { id },
+        update: {},
+        create: {
+          id,
+          role: 'teacher' as any,
+          center_id: C1,
+          login_id: ln,
+          pw_hash: pw,
+          name: ln,
+          status: 'approved' as any,
+        },
+      });
     }
-    await prisma.teacher_profile.upsert({ where: { account_id: TA }, update: { rating: 4.0, cancel_count: 0, subjects: [SUBJ] }, create: { account_id: TA, center_id: C1, subjects: [SUBJ], grade: 'A' as any, rating: 4.0, cancel_count: 0 } });
-    await prisma.teacher_profile.upsert({ where: { account_id: TB }, update: { rating: 4.5, cancel_count: 5, subjects: [SUBJ] }, create: { account_id: TB, center_id: C1, subjects: [SUBJ], grade: 'A' as any, rating: 4.5, cancel_count: 5 } });
+    await prisma.teacher_profile.upsert({
+      where: { account_id: TA },
+      update: { rating: 4.0, cancel_count: 0, subjects: [SUBJ] },
+      create: {
+        account_id: TA,
+        center_id: C1,
+        subjects: [SUBJ],
+        grade: 'A' as any,
+        rating: 4.0,
+        cancel_count: 0,
+      },
+    });
+    await prisma.teacher_profile.upsert({
+      where: { account_id: TB },
+      update: { rating: 4.5, cancel_count: 5, subjects: [SUBJ] },
+      create: {
+        account_id: TB,
+        center_id: C1,
+        subjects: [SUBJ],
+        grade: 'A' as any,
+        rating: 4.5,
+        cancel_count: 5,
+      },
+    });
   });
 
   afterAll(async () => {
-    await prisma.teacher_profile.deleteMany({ where: { account_id: { in: [TA, TB] } } });
+    await prisma.teacher_profile.deleteMany({
+      where: { account_id: { in: [TA, TB] } },
+    });
     await prisma.account.deleteMany({ where: { id: { in: [TA, TB] } } });
     await app.close();
   });
 
   it('취소 누적 교사는 평점 높아도 아래로 정렬', async () => {
-    const r = await people.listTeachers({ subject: SUBJ, page: 1, size: 10 } as any);
+    const r = await people.listTeachers({
+      subject: SUBJ,
+      page: 1,
+      size: 10,
+    });
     const ids = r.data.map((t: any) => t.id);
     expect(ids).toEqual([TA, TB]); // TA(유효4.0) > TB(유효3.5)
   });
