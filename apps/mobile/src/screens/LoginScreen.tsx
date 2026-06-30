@@ -10,7 +10,7 @@ const CENTERS = [
 ];
 
 export function LoginScreen({ onLogin }: { onLogin: () => void }) {
-  const [loginId, setLoginId] = useState('student01');
+  const [loginId, setLoginId] = useState('sims001');
   const [password, setPassword] = useState('Itall-2026!');
   const [center, setCenter] = useState('강남');
   const [error, setError] = useState('');
@@ -86,7 +86,14 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
         </View>
         {error ? <Text style={ui.error}>{error}</Text> : null}
 
-        <TouchableOpacity style={[ui.btn, { marginTop: SP.lg }, busy && ui.btnDisabled]} onPress={submit} disabled={busy}>
+        <View style={styles.demo}>
+          <Text style={styles.demoText}>
+            데모 계정 · 비밀번호 <Text style={{ fontWeight: '800' }}>Itall-2026!</Text>{'\n'}
+            학생 sims001~sims040 · 학부모 simg001~simg030
+          </Text>
+        </View>
+
+        <TouchableOpacity style={[ui.btn, { marginTop: SP.md }, busy && ui.btnDisabled]} onPress={submit} disabled={busy}>
           {busy ? <ActivityIndicator color="#fff" /> : <Text style={ui.btnText}>로그인</Text>}
         </TouchableOpacity>
         <Text style={styles.footer}>선택한 센터가 계정에 자동 연동됩니다</Text>
@@ -114,4 +121,6 @@ const styles = StyleSheet.create({
   cName: { fontSize: 15, fontWeight: '700', color: C.ink },
   cSub: { fontSize: 12, color: C.muted, marginTop: 2 },
   footer: { textAlign: 'center', color: C.caption, fontSize: 12, marginTop: 14 },
+  demo: { marginTop: SP.md, backgroundColor: C.teal50, borderRadius: R.md, paddingVertical: 10, paddingHorizontal: 12 },
+  demoText: { color: C.muted, fontSize: 12, lineHeight: 18 },
 });
