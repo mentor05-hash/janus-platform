@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, CreditAccount } from '../api';
+import { C, SP, ui } from '../theme';
 
 export function CreditsScreen() {
   const [acct, setAcct] = useState<CreditAccount | null>(null);
@@ -27,31 +28,39 @@ export function CreditsScreen() {
   }
 
   return (
-    <View style={styles.wrap}>
-      <Text style={styles.h}>크레딧</Text>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+    <View style={ui.screen}>
+      <Text style={ui.h}>크레딧</Text>
+      {error ? <Text style={ui.error}>{error}</Text> : null}
       {acct && (
-        <View style={styles.card}>
-          <Text style={styles.total}>{acct.total.toLocaleString()} 크레딧</Text>
-          <Text style={styles.sub}>
-            구매 {acct.purchasedBalance.toLocaleString()} · 주간부여 {acct.grantedBalance.toLocaleString()}
-          </Text>
+        <View style={ui.card}>
+          <Text style={styles.cap}>보유 크레딧</Text>
+          <Text style={styles.total}>{acct.total.toLocaleString()}</Text>
+          <View style={styles.split}>
+            <View style={styles.splitItem}>
+              <Text style={styles.splitNum}>{acct.purchasedBalance.toLocaleString()}</Text>
+              <Text style={styles.splitLabel}>구매</Text>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.splitItem}>
+              <Text style={styles.splitNum}>{acct.grantedBalance.toLocaleString()}</Text>
+              <Text style={styles.splitLabel}>주간부여</Text>
+            </View>
+          </View>
         </View>
       )}
-      <TouchableOpacity style={styles.btn} onPress={charge}>
-        <Text style={styles.btnText}>50,000 충전 (모의 PG)</Text>
+      <TouchableOpacity style={[ui.btn, { marginTop: SP.xl }]} onPress={charge}>
+        <Text style={ui.btnText}>50,000 충전 (모의 PG)</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, padding: 16 },
-  h: { fontSize: 18, fontWeight: '700', color: '#0E5C7C', marginBottom: 12 },
-  card: { backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#e3e8eb', padding: 20 },
-  total: { fontSize: 28, fontWeight: '700', color: '#0E5C7C' },
-  sub: { color: '#5b6b73', marginTop: 6 },
-  btn: { backgroundColor: '#0E5C7C', borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 20 },
-  btnText: { color: '#fff', fontWeight: '700' },
-  error: { color: '#d23b3b' },
+  cap: { color: C.caption, fontSize: 12, fontWeight: '600' },
+  total: { fontSize: 32, fontWeight: '800', color: C.teal, marginTop: 2, letterSpacing: -0.5 },
+  split: { flexDirection: 'row', alignItems: 'center', marginTop: SP.lg, borderTopWidth: 1, borderTopColor: C.lineSoft, paddingTop: SP.md },
+  splitItem: { flex: 1, alignItems: 'center' },
+  splitNum: { fontSize: 18, fontWeight: '800', color: C.ink },
+  splitLabel: { fontSize: 12, color: C.muted, marginTop: 2 },
+  divider: { width: 1, height: 32, backgroundColor: C.lineSoft },
 });

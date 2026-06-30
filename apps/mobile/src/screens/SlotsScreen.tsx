@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, Quote, Slot, Teacher } from '../api';
+import { C, R, SP, ui } from '../theme';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const DURATION = 3; // 30분 (10분 슬롯 3칸)
@@ -61,32 +62,36 @@ export function SlotsScreen({ teacher, onBack }: { teacher: Teacher; onBack: () 
   const avail = slots.filter((s) => s.status === 'avail');
 
   return (
-    <ScrollView style={styles.wrap}>
+    <ScrollView style={ui.screen}>
       <TouchableOpacity onPress={onBack}>
         <Text style={styles.back}>← 선생님 목록</Text>
       </TouchableOpacity>
-      <Text style={styles.h}>{teacher.name} · 예약</Text>
-      <Text style={styles.label}>날짜 (YYYY-MM-DD)</Text>
-      <TextInput style={styles.input} value={date} onChangeText={setDate} autoCapitalize="none" />
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      <Text style={ui.h}>{teacher.name} · 예약</Text>
+      <Text style={ui.label}>날짜 (YYYY-MM-DD)</Text>
+      <TextInput style={ui.input} value={date} onChangeText={setDate} autoCapitalize="none" />
+      {error ? <Text style={ui.error}>{error}</Text> : null}
 
-      <Text style={styles.label}>가용 시간 (30분, zoom)</Text>
+      <Text style={ui.label}>가용 시간 (30분, zoom)</Text>
       <View style={styles.slotWrap}>
-        {avail.map((s) => (
-          <TouchableOpacity key={s.index} style={[styles.slot, start === s.index && styles.slotSel]} onPress={() => pick(s.index)}>
-            <Text style={[styles.slotText, start === s.index && styles.slotTextSel]}>{s.time}</Text>
-          </TouchableOpacity>
-        ))}
-        {avail.length === 0 && <Text style={styles.sub}>가용 시간이 없습니다.</Text>}
+        {avail.map((s) => {
+          const sel = start === s.index;
+          return (
+            <TouchableOpacity key={s.index} style={[styles.slot, sel && styles.slotSel]} onPress={() => pick(s.index)}>
+              <Text style={[styles.slotText, sel && styles.slotTextSel]}>{s.time}</Text>
+            </TouchableOpacity>
+          );
+        })}
+        {avail.length === 0 && <Text style={ui.sub}>가용 시간이 없습니다.</Text>}
       </View>
 
       {quote && (
-        <View style={styles.quote}>
+        <View style={[ui.card, styles.quote]}>
           <Text style={styles.quoteText}>
-            {quote.minutes}분 · {quote.credits.toLocaleString()}크레딧 · {quote.valid ? '예약 가능' : '불가'}
+            {quote.minutes}분 · {quote.credits.toLocaleString()}크레딧 ·{' '}
+            <Text style={{ color: quote.valid ? C.done : C.danger }}>{quote.valid ? '예약 가능' : '불가'}</Text>
           </Text>
-          <TouchableOpacity style={[styles.btn, !quote.valid && styles.btnDisabled]} onPress={book} disabled={!quote.valid}>
-            <Text style={styles.btnText}>예약하기</Text>
+          <TouchableOpacity style={[ui.btn, !quote.valid && ui.btnDisabled]} onPress={book} disabled={!quote.valid}>
+            <Text style={ui.btnText}>예약하기</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -95,21 +100,15 @@ export function SlotsScreen({ teacher, onBack }: { teacher: Teacher; onBack: () 
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, padding: 16 },
-  back: { color: '#0E5C7C', marginBottom: 8 },
-  h: { fontSize: 18, fontWeight: '700', color: '#0E5C7C' },
-  label: { color: '#5b6b73', fontSize: 13, marginTop: 14, marginBottom: 4 },
-  input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e3e8eb', borderRadius: 8, padding: 10 },
-  slotWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  slot: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#0E5C7C', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
-  slotSel: { backgroundColor: '#0E5C7C' },
-  slotText: { color: '#0E5C7C', fontWeight: '600' },
-  slotTextSel: { color: '#fff' },
-  quote: { marginTop: 20, backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#e3e8eb', padding: 16 },
-  quoteText: { fontWeight: '700', marginBottom: 12 },
-  btn: { backgroundColor: '#0E5C7C', borderRadius: 8, padding: 14, alignItems: 'center' },
-  btnDisabled: { opacity: 0.5 },
-  btnText: { color: '#fff', fontWeight: '700' },
-  sub: { color: '#5b6b73', fontSize: 13 },
-  error: { color: '#d23b3b', marginTop: 8 },
+  back: { color: C.teal, marginBottom: SP.sm, fontWeight: '600' },
+  slotWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: SP.sm, marginTop: 4 },
+  slot: {
+    backgroundColor: C.teal50, borderWidth: 1, borderColor: C.teal100,
+    borderRadius: R.md, paddingHorizontal: 14, paddingVertical: 9,
+  },
+  slotSel: { backgroundColor: C.teal, borderColor: C.teal },
+  slotText: { color: C.teal, fontWeight: '700', fontSize: 13 },
+  slotTextSel: { color: C.white },
+  quote: { marginTop: SP.xl },
+  quoteText: { fontWeight: '700', fontSize: 15, color: C.ink, marginBottom: SP.md },
 });

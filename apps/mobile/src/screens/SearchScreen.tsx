@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, Teacher } from '../api';
+import { C, R, SP, ui, gradeColor } from '../theme';
 
 export function SearchScreen({ onPick }: { onPick: (t: Teacher) => void }) {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -14,41 +15,45 @@ export function SearchScreen({ onPick }: { onPick: (t: Teacher) => void }) {
   }, []);
 
   return (
-    <View style={styles.wrap}>
-      <Text style={styles.h}>선생님 찾기</Text>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+    <View style={ui.screen}>
+      <Text style={ui.h}>선생님 찾기</Text>
+      {error ? <Text style={ui.error}>{error}</Text> : null}
       <FlatList
         data={teachers}
         keyExtractor={(t) => t.id}
         renderItem={({ item }) => (
-          <TouchableOpacity style={styles.card} onPress={() => onPick(item)}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={styles.name}>{item.name}</Text>
-              <View style={[styles.grade, item.grade === 'S' ? styles.gradeS : item.grade === 'A' ? styles.gradeA : styles.gradeB]}>
-                <Text style={styles.gradeText}>{item.grade}</Text>
+          <TouchableOpacity style={[ui.card, styles.card]} onPress={() => onPick(item)} activeOpacity={0.7}>
+            <View style={styles.row}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{(item.name ?? '?').slice(0, 1)}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={styles.nameRow}>
+                  <Text style={styles.name}>{item.name}</Text>
+                  <View style={[styles.grade, { backgroundColor: gradeColor(item.grade) }]}>
+                    <Text style={styles.gradeText}>{item.grade}</Text>
+                  </View>
+                </View>
+                <Text style={ui.sub}>
+                  {item.subjects.join(', ')} · {item.category ?? '-'} · 평점 {item.rating ?? 0}
+                </Text>
               </View>
             </View>
-            <Text style={styles.sub}>
-              {item.subjects.join(', ')} · {item.category ?? '-'} · 평점 {item.rating ?? 0}
-            </Text>
           </TouchableOpacity>
         )}
-        ListEmptyComponent={!error ? <Text style={styles.sub}>선생님이 없습니다.</Text> : null}
+        ListEmptyComponent={!error ? <Text style={ui.sub}>선생님이 없습니다.</Text> : null}
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, padding: 16 },
-  h: { fontSize: 18, fontWeight: '700', color: '#0E5C7C', marginBottom: 12 },
-  card: { backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#e3e8eb', padding: 14, marginBottom: 10 },
-  name: { fontSize: 16, fontWeight: '700' },
-  sub: { color: '#5b6b73', fontSize: 13, marginTop: 4 },
-  grade: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
-  gradeS: { backgroundColor: '#d4af37' },
-  gradeA: { backgroundColor: '#0E5C7C' },
-  gradeB: { backgroundColor: '#8a979e' },
-  gradeText: { color: '#fff', fontWeight: '700', fontSize: 12 },
-  error: { color: '#d23b3b' },
+  card: { padding: 14, marginBottom: 10 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  avatar: { width: 44, height: 44, borderRadius: R.md, backgroundColor: C.teal100, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: C.teal, fontWeight: '800', fontSize: 16 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: SP.sm },
+  name: { fontSize: 16, fontWeight: '700', color: C.ink },
+  grade: { paddingHorizontal: 9, paddingVertical: 3, borderRadius: R.md },
+  gradeText: { color: C.white, fontWeight: '800', fontSize: 11 },
 });

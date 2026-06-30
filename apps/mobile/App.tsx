@@ -9,6 +9,7 @@ import { CreditsScreen } from './src/screens/CreditsScreen';
 import { ChildrenScreen } from './src/screens/ChildrenScreen';
 import { ChildNotesScreen } from './src/screens/ChildNotesScreen';
 import { PaymentsScreen } from './src/screens/PaymentsScreen';
+import { C, SP } from './src/theme';
 
 export default function App() {
   const [ready, setReady] = useState(false);
@@ -100,7 +101,7 @@ export default function App() {
           {tabs.map((t) => (
             <TouchableOpacity
               key={t}
-              style={styles.tab}
+              style={[styles.tab, tab === t && styles.tabActiveBox]}
               onPress={() => {
                 setTab(t);
                 setTeacher(null);
@@ -117,15 +118,16 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  app: { flex: 1, backgroundColor: '#F5F7F8' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: { backgroundColor: '#0E5C7C', padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  brand: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  logout: { color: '#cfe3ec' },
+  app: { flex: 1, backgroundColor: C.bg },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bg },
+  header: { backgroundColor: C.teal, paddingHorizontal: SP.lg, paddingVertical: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  brand: { color: C.white, fontWeight: '800', fontSize: 16, letterSpacing: -0.3 },
+  logout: { color: '#cfe3ec', fontSize: 13, fontWeight: '600' },
   body: { flex: 1 },
-  notice: { padding: 24, color: '#5b6b73' },
-  tabs: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#e3e8eb', backgroundColor: '#fff' },
-  tab: { flex: 1, padding: 14, alignItems: 'center' },
-  tabLabel: { color: '#8a979e', fontWeight: '600' },
-  tabActive: { color: '#0E5C7C' },
+  notice: { padding: SP.xl, color: C.muted },
+  tabs: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: C.line, backgroundColor: C.white, paddingBottom: 4 },
+  tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderTopWidth: 2, borderTopColor: 'transparent' },
+  tabActiveBox: { borderTopColor: C.teal },
+  tabLabel: { color: C.caption, fontWeight: '600', fontSize: 13 },
+  tabActive: { color: C.teal, fontWeight: '800' },
 });
