@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { ConsultationService } from './consultation.service';
 import { NoteDto } from './dto/note.dto';
 
@@ -47,5 +48,15 @@ export class ConsultationController {
   @Get('me/notes')
   myNotes(@CurrentUser() user: AuthUser) {
     return this.consultation.listForStudent(user.id, user);
+  }
+
+  /** GET /students/{id}/record-overview — T6 뷰어 필터용: 담임 공백 + 거부 이력(관리자·HR·선생님). */
+  @Get('students/:id/record-overview')
+  @Roles('admin', 'hr', 'teacher')
+  recordOverview(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.consultation.recordOverview(id, user);
   }
 }

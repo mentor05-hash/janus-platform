@@ -1,12 +1,20 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
-import type { ConsultationNote } from '../api/types';
+import type { ConsultationNote, RecordOverview } from '../api/types';
 import { Card, Badge, ErrorText, EmptyState } from '../components/ui';
+
+const GAP_BADGE: Record<RecordOverview['homeroomGap']['level'], { kind: 'done' | 'noshow' | 'danger' | 'soft'; label: string }> = {
+  ok: { kind: 'done', label: '담임 정상' },
+  warn: { kind: 'noshow', label: '담임 공백 주의' },
+  danger: { kind: 'danger', label: '담임 공백 위험' },
+  none: { kind: 'soft', label: '담임 상담 이력 없음' },
+};
 
 export function StudentNotesPage() {
   const { studentId } = useParams<{ studentId: string }>();
   const [notes, setNotes] = useState<ConsultationNote[]>([]);
+  const [overview, setOverview] = useState<RecordOverview | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -15,7 +23,14 @@ export function StudentNotesPage() {
       .get<ConsultationNote[]>(`/students/${studentId}/notes`)
       .then(setNotes)
       .catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
+    // 개요(담임 공백 + 거부 이력)는 보조 정보 — 실패해도 기록 목록은 유지
+    api
+      .get<RecordOverview>(`/students/${studentId}/record-overview`)
+      .then(setOverview)
+      .catch(() => setOverview(null));
   }, [studentId]);
+
+  const gap = overview && GAP_BADGE[overview.homeroomGap.level];
 
   return (
     <div>
@@ -23,6 +38,33 @@ export function StudentNotesPage() {
       <h2 style={{ color: 'var(--teal)' }}>학생 상담 이력</h2>
       <p style={{ color: 'var(--muted)', fontSize: 13 }}>내가 작성한 이 학생의 상담 기록만 표시됩니다.</p>
       <ErrorText>{error}</ErrorText>
+
+      {overview && (
+        <Card style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {gap && <Badge kind={gap.kind}>{gap.label}</Badge>}
+            {overview.homeroomGap.daysSince != null && (
+              <span style={{ fontSize: 13, color: 'var(--muted)' }}>
+                마지막 담임 상담 {overview.homeroomGap.daysSince}일 경과
+                {overview.homeroomGap.warnDays != null && ` · 주의 ${overview.homeroomGap.warnDays}일`}
+                {overview.homeroomGap.dangerDays != null && ` · 위험 ${overview.homeroomGap.dangerDays}일`}
+              </span>
+            )}
+            <Badge kind={overview.rejectCount > 0 ? 'rejected' : 'soft'}>거부 {overview.rejectCount}건</Badge>
+          </div>
+          {overview.rejections.length > 0 && (
+            <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 13, color: 'var(--muted)' }}>
+              {overview.rejections.map((r) => (
+                <li key={r.bookingId}>
+                  {r.consultType ?? '-'} · {r.teacherName ?? r.teacherId.slice(0, 8)}
+                  {r.startAt && ` · ${new Date(r.startAt).toLocaleDateString('ko-KR')}`}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      )}
+
       <div style={{ display: 'grid', gap: 8 }}>
         {notes.map((n) => (
           <Card key={n.bookingId}>

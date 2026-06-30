@@ -5,8 +5,9 @@ import {
 } from '@nestjs/common';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { AccountRole, NoteSaveState } from '../../config/enums';
+import { AccountRole, BookingStatus, NoteSaveState } from '../../config/enums';
 import { consultTypeFromPrisma } from '../../config/prisma-enums';
+import { homeroomGap } from './domain/homeroom';
 import { NoteDto } from './dto/note.dto';
 
 type NoteRow = {
@@ -100,6 +101,72 @@ export class ConsultationService {
       orderBy: { created_at: 'desc' },
     });
     return notes.map((n) => this.maskForViewer(n as NoteRow, user, studentId));
+  }
+
+  /**
+   * T6 뷰어 필터용 개요: 담임 공백 플래그 + 거부 이력(§4 원천 데이터 노출).
+   * 권한은 assertStudentAccess 재사용(센터관리자=자기 센터). 선생님은 본인 담당 거부만.
+   */
+  async recordOverview(studentId: string, user: AuthUser, now = new Date()) {
+    await this.assertStudentAccess(studentId, user);
+    const sp = await this.prisma.student_profile.findUnique({
+      where: { account_id: studentId },
+      select: {
+        center_id: true,
+        last_homeroom_at: true,
+        homeroom_teacher_id: true,
+      },
+    });
+    if (!sp) throw new NotFoundException('학생을 찾을 수 없습니다.');
+
+    const policy = sp.center_id
+      ? await this.prisma.consultation_policy.findUnique({
+          where: { center_id: sp.center_id },
+        })
+      : null;
+    const gap = homeroomGap(
+      sp.last_homeroom_at,
+      {
+        cycleDays: policy?.homeroom_cycle_days ?? null,
+        warnDays: policy?.warn_days ?? null,
+        dangerDays: policy?.danger_days ?? null,
+      },
+      now,
+    );
+
+    // 거부 이력: 선생님은 본인 담당분만(§D 뷰어 범위)
+    const rejections = await this.prisma.booking.findMany({
+      where: {
+        student_id: studentId,
+        status: BookingStatus.REJECTED,
+        ...(user.role === AccountRole.TEACHER ? { teacher_id: user.id } : {}),
+      },
+      select: {
+        id: true,
+        teacher_id: true,
+        consult_type: true,
+        start_at: true,
+        created_at: true,
+        teacher_profile: { select: { account: { select: { name: true } } } },
+      },
+      orderBy: { created_at: 'desc' },
+      take: 100,
+    });
+
+    return {
+      studentId,
+      homeroomTeacherId: sp.homeroom_teacher_id,
+      homeroomGap: gap,
+      rejections: rejections.map((b) => ({
+        bookingId: b.id,
+        teacherId: b.teacher_id,
+        teacherName: b.teacher_profile?.account?.name ?? null,
+        consultType: consultTypeFromPrisma(b.consult_type),
+        startAt: b.start_at,
+        createdAt: b.created_at,
+      })),
+      rejectCount: rejections.length,
+    };
   }
 
   // ── 권한 ──

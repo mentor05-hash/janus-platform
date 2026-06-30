@@ -683,6 +683,43 @@ paths:
       tags: [Consultation Note]
       summary: 학생 본인 공개 항목(핵심요약·숙제·향후방향)
       responses: { '200': { description: ok } }
+  /students/{id}/record-overview:
+    get:
+      tags: [Consultation Note]
+      summary: T6 뷰어 개요 — 담임 공백 플래그 + 거부 이력(관리자·HR·선생님 전용, 선생님=본인 담당)
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  studentId: { type: string, format: uuid }
+                  homeroomTeacherId: { type: string, format: uuid, nullable: true }
+                  homeroomGap:
+                    type: object
+                    properties:
+                      lastHomeroomAt: { type: string, format: date-time, nullable: true }
+                      daysSince: { type: integer, nullable: true }
+                      level: { type: string, enum: [none, ok, warn, danger] }
+                      cycleDays: { type: integer, nullable: true }
+                      warnDays: { type: integer, nullable: true }
+                      dangerDays: { type: integer, nullable: true }
+                  rejections:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        bookingId: { type: string, format: uuid }
+                        teacherId: { type: string, format: uuid }
+                        teacherName: { type: string, nullable: true }
+                        consultType: { type: string, nullable: true }
+                        startAt: { type: string, format: date-time, nullable: true }
+                        createdAt: { type: string, format: date-time, nullable: true }
+                  rejectCount: { type: integer }
+        '403': { description: 권한 없음(학생·보호자) }
 
   /credits/account:
     get:

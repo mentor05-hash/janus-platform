@@ -165,6 +165,29 @@ export interface ConsultationNote {
   saveState: 'draft' | 'final';
 }
 
+// T6 뷰어 개요(담임 공백 + 거부 이력)
+export interface RecordOverview {
+  studentId: string;
+  homeroomTeacherId: string | null;
+  homeroomGap: {
+    lastHomeroomAt: string | null;
+    daysSince: number | null;
+    level: 'none' | 'ok' | 'warn' | 'danger';
+    cycleDays: number | null;
+    warnDays: number | null;
+    dangerDays: number | null;
+  };
+  rejections: {
+    bookingId: string;
+    teacherId: string;
+    teacherName: string | null;
+    consultType: string | null;
+    startAt: string | null;
+    createdAt: string | null;
+  }[];
+  rejectCount: number;
+}
+
 // ── 대시보드(평가/순위·센터비교) ──
 export interface WeightPolicy {
   id: string;
