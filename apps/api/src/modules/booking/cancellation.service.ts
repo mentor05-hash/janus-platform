@@ -10,8 +10,11 @@ import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { kstDateString, kstMinutesOfDay } from '../../common/time/kst';
 import { AccountRole, BookingStatus, CancelRoute } from '../../config/enums';
+import { consultTypeFromPrisma } from '../../config/prisma-enums';
+import { SLOT_GRANULARITY_MINUTES } from '../../config/constants';
 import { AvailabilityService } from '../availability/availability.service';
 import { CreditService } from '../billing/credit.service';
+import { PricingService } from '../pricing-policy/pricing.service';
 import { NOTIFICATION_PROVIDER } from '../notification/notification.types';
 import type {
   NotificationProvider,
@@ -37,6 +40,7 @@ export class CancellationService {
     private readonly prisma: PrismaService,
     private readonly availability: AvailabilityService,
     private readonly credit: CreditService,
+    private readonly pricing: PricingService,
     @Inject(NOTIFICATION_PROVIDER)
     private readonly notifier: NotificationProvider,
   ) {}
@@ -125,13 +129,117 @@ export class CancellationService {
       ),
     );
 
+    // ── priority(우선권 자동배정): 상위 후보로 같은 시간·방식 새 예약을 자동 생성 ──
+    // 크레딧 부족·슬롯 경합 시 자동배정을 건너뛰고 후보 알림만(=substitute 폴백, §5-6).
+    let reassignedBookingId: string | null = null;
+    if (dto.route === 'priority' && substitutes.length > 0) {
+      reassignedBookingId = await this.tryPriorityReassign(booking, substitutes[0]);
+      if (reassignedBookingId) {
+        await this.notifier.send({
+          recipientId: booking.student_id,
+          type: 'auto_reassigned',
+          channels: ALL_CHANNELS,
+          payload: { bookingId: reassignedBookingId, teacherId: substitutes[0], from: bookingId },
+        });
+      }
+    }
+
     return {
       eventId: event.id,
       route: dto.route,
       refunded: refundAmount,
       notified: recipients.length,
       substituteCandidates: substitutes,
+      reassignedBookingId,
     };
+  }
+
+  /**
+   * priority 자동배정: 상위 대체 후보로 동일 학생·시간·방식의 새 예약(confirmed)을 생성.
+   * 대체 교사 요금으로 재견적·재차감(트랜잭션). 부족/경합이면 null 반환 → 자동배정 생략(폴백).
+   */
+  private async tryPriorityReassign(
+    booking: {
+      student_id: string;
+      center_id: string | null;
+      start_at: Date | null;
+      end_at: Date | null;
+      consult_type: string;
+      sub_type: string | null;
+      mode: string;
+      session_mode: string | null;
+    },
+    substituteId: string,
+  ): Promise<string | null> {
+    if (!booking.start_at || !booking.end_at) return null;
+    const teacher = await this.prisma.teacher_profile.findUnique({
+      where: { account_id: substituteId },
+      select: { grade: true, center_id: true },
+    });
+    if (!teacher) return null;
+    const dateStr = kstDateString(booking.start_at);
+    const startMin = kstMinutesOfDay(booking.start_at);
+    const endMin = kstMinutesOfDay(booking.end_at);
+    const minutes = endMin - startMin;
+    if (minutes <= 0) return null;
+    const consultType = consultTypeFromPrisma(booking.consult_type) ?? undefined;
+    const q = await this.pricing.quoteSession(
+      booking.mode as never,
+      minutes,
+      teacher.grade as never,
+      teacher.center_id,
+      consultType as never,
+    );
+    const slotStart = startMin / SLOT_GRANULARITY_MINUTES;
+    const slotEnd = endMin / SLOT_GRANULARITY_MINUTES;
+    const indices = Array.from({ length: slotEnd - slotStart }, (_, k) => slotStart + k);
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const bookable = await this.availability.assertBookable(
+          substituteId,
+          dateStr,
+          startMin,
+          endMin,
+          booking.student_id,
+        );
+        if (!bookable) return null;
+        const b = await tx.booking.create({
+          data: {
+            student_id: booking.student_id,
+            teacher_id: substituteId,
+            center_id: teacher.center_id,
+            consult_type: booking.consult_type as never,
+            sub_type: booking.sub_type,
+            mode: booking.mode as never,
+            session_mode: booking.session_mode as never,
+            direction: 'student',
+            start_at: booking.start_at,
+            end_at: booking.end_at,
+            status: BookingStatus.CONFIRMED,
+            charged_credits: q.credits,
+            origin: '우선배정',
+          },
+        });
+        const outcome = await this.credit.consumeWithin(tx, booking.student_id, q.credits, {
+          refType: 'booking',
+          refId: b.id,
+          description: '우선권 자동배정 크레딧 차감',
+        });
+        if (!outcome.ok) throw new Error('shortfall'); // 롤백 → 폴백
+        await tx.time_slot.createMany({
+          data: indices.map((i) => ({
+            teacher_id: substituteId,
+            slot_date: new Date(dateStr),
+            slot_index: i,
+            status: 'booked',
+            booking_id: b.id,
+          })),
+        });
+        return b.id;
+      });
+    } catch {
+      return null; // 크레딧 부족·슬롯 경합 → 자동배정 생략
+    }
   }
 
   /** 같은 센터의 다른 선생님 중 동일 시간대에 가용한 후보. */
