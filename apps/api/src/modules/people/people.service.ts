@@ -1,7 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { buildPageMeta } from '../../common/dto/pagination.dto';
+import { RANK_CANCEL_WEIGHT } from '../../config/constants';
 import { TeacherQueryDto } from './dto/teacher-query.dto';
+
+const GRADE_ORDER: Record<string, number> = { S: 0, A: 1, B: 2 };
 
 /**
  * People 컨텍스트 — 학생·선생님 프로필 조회 (CLAUDE.md §3).
@@ -17,19 +20,22 @@ export class PeopleService {
       ...(q.category ? { teacher_category: q.category } : {}),
       ...(q.subject ? { subjects: { has: q.subject } } : {}),
     };
-    const [rows, total] = await this.prisma.$transaction([
-      this.prisma.teacher_profile.findMany({
-        where,
-        skip: (q.page - 1) * q.size,
-        take: q.size,
-        include: { account: { select: { name: true, center_id: true } } },
-        orderBy: [{ grade: 'asc' }, { rating: 'desc' }],
-      }),
-      this.prisma.teacher_profile.count({ where }),
-    ]);
+    // 랭킹 가중치(§5-7): 등급 우선, 동급은 유효평점(평점 − 취소누적×가중치) 내림차순.
+    // 계산 정렬이라 전체 후보를 가져와 JS 정렬 후 페이지네이션(센터 규모상 소량).
+    const all = await this.prisma.teacher_profile.findMany({
+      where,
+      include: { account: { select: { name: true, center_id: true } } },
+    });
+    const scored = all
+      .map((t) => ({ t, score: Number(t.rating ?? 0) - (t.cancel_count ?? 0) * RANK_CANCEL_WEIGHT }))
+      .sort((a, b) => {
+        const g = (GRADE_ORDER[a.t.grade ?? 'B'] ?? 9) - (GRADE_ORDER[b.t.grade ?? 'B'] ?? 9);
+        return g !== 0 ? g : b.score - a.score;
+      });
+    const page = scored.slice((q.page - 1) * q.size, q.page * q.size);
     return {
-      data: rows.map((t) => this.toTeacherCard(t)),
-      meta: buildPageMeta(total, q.page, q.size),
+      data: page.map((s) => this.toTeacherCard(s.t)),
+      meta: buildPageMeta(scored.length, q.page, q.size),
     };
   }
 

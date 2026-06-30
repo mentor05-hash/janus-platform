@@ -24,6 +24,8 @@ describe('a4 알림 outbox(§10)', () => {
     prisma = mod.get(PrismaService);
     provider = mod.get(NOTIFICATION_PROVIDER);
     outbox = mod.get(NotificationOutboxService);
+    // 공유 DB 알림 백로그가 retryFailed 배치(take 200)를 막지 않도록 선정리 — 시드엔 알림 없음.
+    await prisma.notification.deleteMany({});
   });
 
   afterAll(async () => {

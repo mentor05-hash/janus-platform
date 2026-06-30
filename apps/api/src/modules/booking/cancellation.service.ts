@@ -67,6 +67,8 @@ export class CancellationService {
         throw new ConflictException('이미 처리된 예약입니다.');
       }
       await tx.time_slot.deleteMany({ where: { booking_id: bookingId } });
+      // 교사 사유 취소 누적 → 검색 랭킹 가중치 하락(§5-7).
+      await tx.teacher_profile.update({ where: { account_id: booking.teacher_id }, data: { cancel_count: { increment: 1 } } });
       if (refundAmount > 0) {
         await this.credit.refundWithin(tx, booking.student_id, refundAmount, {
           refType: 'cancellation',

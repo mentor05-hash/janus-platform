@@ -43,6 +43,9 @@ export function computeSessionCost(
 /** §5-9 분류 한도 기본값(fit/unfit). 한도 축소 시 기존 유지(동결)·신규만 차단. */
 export const CLASSIFY_LIMITS = { fit: 10, unfit: 30 } as const;
 
+/** §5-7 검색 랭킹 가중치: 교사 사유 취소 1건당 유효 평점 하락폭(취소 누적 → 순위 하락). */
+export const RANK_CANCEL_WEIGHT = 0.2;
+
 /** §5-3 주간 크레딧: 월요일 00:00 부여 / 일요일 24:00 소멸 (이월 없음). */
 export const WEEKLY_GRANT = {
   grantCron: '0 0 * * 1',

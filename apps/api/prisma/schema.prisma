@@ -626,6 +626,7 @@ model teacher_profile {
   pay_base                                                           Int?
   teacher_category                                                   String?
   type_code                                                          String?
+  cancel_count                                                       Int                            @default(0)
   board_question_board_question_assigned_teacher_idToteacher_profile board_question[]               @relation("board_question_assigned_teacher_idToteacher_profile")
   board_question_board_question_taken_teacher_idToteacher_profile    board_question[]               @relation("board_question_taken_teacher_idToteacher_profile")
   booking                                                            booking[]
