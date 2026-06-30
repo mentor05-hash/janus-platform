@@ -106,10 +106,42 @@ paths:
                     type: object
                     properties:
                       ok: { type: boolean }
+  /centers:
+    get:
+      tags: [Auth]
+      summary: 센터 목록(관리자)
+      responses: { '200': { description: ok } }
+    post:
+      tags: [Auth]
+      summary: 센터 생성(본사 이상 L2)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [name], properties: { name: { type: string }, region: { type: string } } }
+      responses: { '201': { description: created }, '403': { $ref: '#/components/responses/Error' } }
+  /admin/staff:
+    post:
+      tags: [Auth]
+      summary: 관리자 계정 생성 — 본사 이상(L2 생성은 마스터 L1만)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [loginId, password, name, permLevel]
+              properties:
+                loginId: { type: string }
+                password: { type: string }
+                name: { type: string }
+                permLevel: { type: string, enum: [L2, L3] }
+                centerId: { type: string, format: uuid, description: 'L3 필수' }
+      responses: { '201': { description: created }, '403': { $ref: '#/components/responses/Error' } }
   /me:
     get:
       tags: [Auth]
-      summary: 내 프로필·권한
+      summary: 내 프로필·권한(adminTier 포함)
       responses:
         '200':
           description: ok
