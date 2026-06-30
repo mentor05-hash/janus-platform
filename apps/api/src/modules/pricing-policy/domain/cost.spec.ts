@@ -1,4 +1,7 @@
-import { computeSessionCost, PRICING_DEFAULTS } from '../../../config/constants';
+import {
+  computeSessionCost,
+  PRICING_DEFAULTS,
+} from '../../../config/constants';
 
 /**
  * §5-2 요금 단일 소스 불변규칙.
@@ -22,6 +25,8 @@ describe('요금 계산(§5-2)', () => {
   });
 
   it('게시판 건당: 문항(8,000) ≥ 일반(4,000) (DB CHECK 정합)', () => {
-    expect(PRICING_DEFAULTS.boardItemFee).toBeGreaterThanOrEqual(PRICING_DEFAULTS.boardGeneralFee);
+    expect(PRICING_DEFAULTS.boardItemFee).toBeGreaterThanOrEqual(
+      PRICING_DEFAULTS.boardGeneralFee,
+    );
   });
 });

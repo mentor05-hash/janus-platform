@@ -1,5 +1,9 @@
 import { MemoryCacheProvider } from '../../common/cache/memory-cache.provider';
-import { bumpPricingVersion, getPricingVersion, pricingKey } from './pricing-cache';
+import {
+  bumpPricingVersion,
+  getPricingVersion,
+  pricingKey,
+} from './pricing-cache';
 
 describe('요금 캐시 버전 무효화(§10)', () => {
   it('pricingKey 포맷(centerId 없으면 global)', () => {

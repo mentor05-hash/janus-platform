@@ -8,7 +8,11 @@ export const PRICING_VER_KEY = 'pricing:ver';
 export const PRICING_TTL_SECONDS = 60;
 const PRICING_VER_TTL_SECONDS = 86_400;
 
-export function pricingKey(ver: string, mode: string, centerId?: string | null): string {
+export function pricingKey(
+  ver: string,
+  mode: string,
+  centerId?: string | null,
+): string {
   return `pricing:${ver}:${mode}:${centerId ?? 'global'}`;
 }
 
@@ -17,6 +21,9 @@ export async function getPricingVersion(cache: CacheProvider): Promise<string> {
 }
 
 /** 요금 변경 시 호출 — 새 버전을 기록해 기존 캐시를 일괄 무효화. */
-export async function bumpPricingVersion(cache: CacheProvider, stamp: number): Promise<void> {
+export async function bumpPricingVersion(
+  cache: CacheProvider,
+  stamp: number,
+): Promise<void> {
   await cache.set(PRICING_VER_KEY, String(stamp), PRICING_VER_TTL_SECONDS);
 }

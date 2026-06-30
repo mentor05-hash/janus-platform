@@ -1,11 +1,20 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type { pricing_policy as PricingRow } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CACHE_PROVIDER } from '../../common/cache/cache.types';
 import type { CacheProvider } from '../../common/cache/cache.types';
 import { computeSessionCost } from '../../config/constants';
 import { ConsultMode, ConsultType, TeacherGrade } from '../../config/enums';
-import { getPricingVersion, pricingKey, PRICING_TTL_SECONDS } from './pricing-cache';
+import {
+  getPricingVersion,
+  pricingKey,
+  PRICING_TTL_SECONDS,
+} from './pricing-cache';
 
 export interface SessionQuote {
   mode: ConsultMode;
@@ -42,23 +51,40 @@ export class PricingService {
     centerId?: string | null,
     consultType?: ConsultType,
   ): Promise<SessionQuote> {
-    if (minutes <= 0) throw new BadRequestException('상담 시간이 올바르지 않습니다.');
+    if (minutes <= 0)
+      throw new BadRequestException('상담 시간이 올바르지 않습니다.');
     const policy = await this.getPolicy(mode, centerId);
     const surchargePct = grade === TeacherGrade.S ? policy.surcharge_pct : 0;
     let credits = computeSessionCost(policy.per_hour, minutes, surchargePct);
     // 오프라인 점유료 가산(§5-2, O5) — 정책 미설정 시 0
-    const occupancyFee = mode === ConsultMode.OFFLINE ? policy.offline_occupancy_fee ?? 0 : 0;
+    const occupancyFee =
+      mode === ConsultMode.OFFLINE ? (policy.offline_occupancy_fee ?? 0) : 0;
     // 입시 유료컨설팅 별도 단가 가산(§5-2, O33) — 정책 미설정 시 0
     const paidConsultingFee =
-      consultType === ConsultType.ADMISSION ? policy.paid_consulting_fee ?? 0 : 0;
+      consultType === ConsultType.ADMISSION
+        ? (policy.paid_consulting_fee ?? 0)
+        : 0;
     credits += occupancyFee + paidConsultingFee;
-    return { mode, minutes, perHour: policy.per_hour, surchargePct, occupancyFee, paidConsultingFee, credits };
+    return {
+      mode,
+      minutes,
+      perHour: policy.per_hour,
+      surchargePct,
+      occupancyFee,
+      paidConsultingFee,
+      credits,
+    };
   }
 
   /** 게시판 건당 요금(문항 ≥ 일반). */
-  async quoteBoard(qType: 'item' | 'general', centerId?: string | null): Promise<BoardQuote> {
-    const policy = await this.getPolicy('board' as ConsultMode, centerId);
-    const credits = (qType === 'item' ? policy.board_item_fee : policy.board_general_fee) ?? 0;
+  async quoteBoard(
+    qType: 'item' | 'general',
+    centerId?: string | null,
+  ): Promise<BoardQuote> {
+    const policy = await this.getPolicy('board', centerId);
+    const credits =
+      (qType === 'item' ? policy.board_item_fee : policy.board_general_fee) ??
+      0;
     return { mode: 'board', qType, credits };
   }
 
@@ -83,7 +109,10 @@ export class PricingService {
         where: { center_id: null, mode: mode, enabled: true },
       });
     }
-    if (!resolved) throw new NotFoundException(`요금정책(${mode})이 설정되어 있지 않습니다.`);
+    if (!resolved)
+      throw new NotFoundException(
+        `요금정책(${mode})이 설정되어 있지 않습니다.`,
+      );
     await this.cache.set(key, resolved, PRICING_TTL_SECONDS);
     return resolved;
   }

@@ -39,9 +39,12 @@ export function evaluatePenalty(
   window?: PenaltyWindow,
 ): PenaltyResult {
   const reasons: string[] = [];
-  if (t.cancelThreshold != null && stats.cancelCount >= t.cancelThreshold) reasons.push('cancel');
-  if (t.noshowThreshold != null && stats.noshowCount >= t.noshowThreshold) reasons.push('noshow');
-  if (t.rejectThreshold != null && stats.rejectCount >= t.rejectThreshold) reasons.push('reject');
+  if (t.cancelThreshold != null && stats.cancelCount >= t.cancelThreshold)
+    reasons.push('cancel');
+  if (t.noshowThreshold != null && stats.noshowCount >= t.noshowThreshold)
+    reasons.push('noshow');
+  if (t.rejectThreshold != null && stats.rejectCount >= t.rejectThreshold)
+    reasons.push('reject');
   let restricted = reasons.length > 0;
 
   // 시간 기반 해제: 임계 초과여도 제한 창이 지났으면 해제
@@ -56,5 +59,10 @@ export function evaluatePenalty(
     restricted = false;
     lifted = true;
   }
-  return { restricted, reasons, rankingWeightDown: restricted ? (t.rankingWeightDown ?? 0) : 0, lifted };
+  return {
+    restricted,
+    reasons,
+    rankingWeightDown: restricted ? (t.rankingWeightDown ?? 0) : 0,
+    lifted,
+  };
 }
