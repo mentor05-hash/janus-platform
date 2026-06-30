@@ -14,7 +14,14 @@ import { CancellationService } from './cancellation.service';
  * 예약 quote·상태머신(§5-4)·시간대(휴게 버퍼 §5-1 재검증)·크레딧 차감(§5-3).
  */
 @Module({
-  imports: [AvailabilityModule, PricingPolicyModule, BillingModule, NotificationModule, ReportModule, ZoomModule],
+  imports: [
+    AvailabilityModule,
+    PricingPolicyModule,
+    BillingModule,
+    NotificationModule,
+    ReportModule,
+    ZoomModule,
+  ],
   controllers: [BookingController],
   providers: [BookingService, CancellationService],
   exports: [BookingService],

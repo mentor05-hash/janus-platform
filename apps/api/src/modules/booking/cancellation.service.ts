@@ -13,7 +13,10 @@ import { AccountRole, BookingStatus, CancelRoute } from '../../config/enums';
 import { AvailabilityService } from '../availability/availability.service';
 import { CreditService } from '../billing/credit.service';
 import { NOTIFICATION_PROVIDER } from '../notification/notification.types';
-import type { NotificationProvider, NotifyChannel } from '../notification/notification.types';
+import type {
+  NotificationProvider,
+  NotifyChannel,
+} from '../notification/notification.types';
 import { canTransition } from './domain/state-machine';
 import { NotifyTarget, planTeacherCancellation } from './domain/cancellation';
 
@@ -34,27 +37,39 @@ export class CancellationService {
     private readonly prisma: PrismaService,
     private readonly availability: AvailabilityService,
     private readonly credit: CreditService,
-    @Inject(NOTIFICATION_PROVIDER) private readonly notifier: NotificationProvider,
+    @Inject(NOTIFICATION_PROVIDER)
+    private readonly notifier: NotificationProvider,
   ) {}
 
-  async teacherCancel(bookingId: string, dto: CancelWithReason, user: AuthUser) {
-    const booking = await this.prisma.booking.findUnique({ where: { id: bookingId } });
+  async teacherCancel(
+    bookingId: string,
+    dto: CancelWithReason,
+    user: AuthUser,
+  ) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+    });
     if (!booking) throw new NotFoundException('예약을 찾을 수 없습니다.');
     if (user.role !== AccountRole.TEACHER || booking.teacher_id !== user.id) {
       throw new ForbiddenException('담당 선생님만 사유 취소를 할 수 있습니다.');
     }
-    const from = booking.status as BookingStatus;
+    const from = booking.status;
     if (!canTransition(from, BookingStatus.CANCELLED)) {
       throw new BadRequestException(`취소할 수 없는 상태입니다: ${from}`);
     }
 
     const plan = planTeacherCancellation(dto.route);
     // 역상담 제안(reverse + NEW)은 미차감 상태 → 환원 금지(무료 발급 방지).
-    const consumed = !(booking.direction === 'reverse' && from === BookingStatus.NEW);
-    const refundAmount = plan.refund && consumed ? (booking.charged_credits ?? 0) : 0;
+    const consumed = !(
+      booking.direction === 'reverse' && from === BookingStatus.NEW
+    );
+    const refundAmount =
+      plan.refund && consumed ? (booking.charged_credits ?? 0) : 0;
 
     // 대체후보 탐색(substitute/priority) — 알림/이벤트 기록용
-    const substitutes = plan.needsSubstitutes ? await this.findSubstitutes(booking) : [];
+    const substitutes = plan.needsSubstitutes
+      ? await this.findSubstitutes(booking)
+      : [];
 
     // ── 원자적 처리(§7): 조건부 상태변경 · 슬롯해제 · 환원 · 이벤트기록 ──
     // updateMany where status=from 으로 동시 취소를 한 번만 적용(이중 환원·이벤트 중복 방지).
@@ -68,7 +83,10 @@ export class CancellationService {
       }
       await tx.time_slot.deleteMany({ where: { booking_id: bookingId } });
       // 교사 사유 취소 누적 → 검색 랭킹 가중치 하락(§5-7).
-      await tx.teacher_profile.update({ where: { account_id: booking.teacher_id }, data: { cancel_count: { increment: 1 } } });
+      await tx.teacher_profile.update({
+        where: { account_id: booking.teacher_id },
+        data: { cancel_count: { increment: 1 } },
+      });
       if (refundAmount > 0) {
         await this.credit.refundWithin(tx, booking.student_id, refundAmount, {
           refType: 'cancellation',

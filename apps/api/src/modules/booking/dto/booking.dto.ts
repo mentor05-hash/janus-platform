@@ -8,7 +8,13 @@ import {
   Matches,
   Min,
 } from 'class-validator';
-import { BookingStatus, CancelRoute, ConsultMode, ConsultType, SessionMode } from '../../../config/enums';
+import {
+  BookingStatus,
+  CancelRoute,
+  ConsultMode,
+  ConsultType,
+  SessionMode,
+} from '../../../config/enums';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 

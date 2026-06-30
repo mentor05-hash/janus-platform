@@ -6,8 +6,16 @@ import { BookingStatus } from '../../../config/enums';
  * 역상담(reverse)도 동일 상태 흐름(첫 상담 한정 옵션)을 따른다.
  */
 export const BOOKING_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
-  [BookingStatus.NEW]: [BookingStatus.CONFIRMED, BookingStatus.REJECTED, BookingStatus.CANCELLED],
-  [BookingStatus.CONFIRMED]: [BookingStatus.DONE, BookingStatus.CANCELLED, BookingStatus.NOSHOW],
+  [BookingStatus.NEW]: [
+    BookingStatus.CONFIRMED,
+    BookingStatus.REJECTED,
+    BookingStatus.CANCELLED,
+  ],
+  [BookingStatus.CONFIRMED]: [
+    BookingStatus.DONE,
+    BookingStatus.CANCELLED,
+    BookingStatus.NOSHOW,
+  ],
   [BookingStatus.DONE]: [],
   [BookingStatus.CANCELLED]: [],
   [BookingStatus.REJECTED]: [],
@@ -19,7 +27,10 @@ export function canTransition(from: BookingStatus, to: BookingStatus): boolean {
 }
 
 /** 취소 시 크레딧 환원 대상 상태(자리를 점유했던 경우). */
-export function shouldRefundOnTransition(from: BookingStatus, to: BookingStatus): boolean {
+export function shouldRefundOnTransition(
+  from: BookingStatus,
+  to: BookingStatus,
+): boolean {
   if (to === BookingStatus.CANCELLED || to === BookingStatus.REJECTED) {
     return from === BookingStatus.NEW || from === BookingStatus.CONFIRMED;
   }

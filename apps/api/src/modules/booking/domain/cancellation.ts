@@ -17,6 +17,8 @@ export interface CancellationPlan {
 export function planTeacherCancellation(route: CancelRoute): CancellationPlan {
   const base: NotifyTarget[] = ['student', 'guardian', 'admin'];
   const needsSubstitutes = route === 'substitute' || route === 'priority';
-  const notifyTargets = needsSubstitutes ? [...base, 'substitute' as const] : base;
+  const notifyTargets = needsSubstitutes
+    ? [...base, 'substitute' as const]
+    : base;
   return { notifyTargets, needsSubstitutes, refund: true };
 }

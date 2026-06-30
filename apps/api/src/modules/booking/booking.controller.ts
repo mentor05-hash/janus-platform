@@ -50,7 +50,10 @@ export class BookingController {
   /** POST /bookings/reverse — 선생님이 학생에게 역상담 제안(첫 상담 한정). */
   @Post('reverse')
   @Roles('teacher')
-  proposeReverse(@Body() dto: ReverseProposeDto, @CurrentUser() user: AuthUser) {
+  proposeReverse(
+    @Body() dto: ReverseProposeDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.booking.proposeReverse(dto, user);
   }
 
@@ -67,22 +70,34 @@ export class BookingController {
 
   // ── 상태 전이(§5-4): openapi 계약과 일치하도록 PATCH ──
   @Patch(':id/accept')
-  accept(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  accept(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.booking.accept(id, user);
   }
 
   @Patch(':id/reject')
-  reject(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  reject(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.booking.reject(id, user);
   }
 
   @Patch(':id/confirm')
-  confirm(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  confirm(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.booking.confirm(id, user);
   }
 
   @Patch(':id/complete')
-  complete(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  complete(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.booking.complete(id, user);
   }
 
@@ -94,13 +109,20 @@ export class BookingController {
     @Body() dto: CancelDto,
   ) {
     if (user.role === AccountRole.TEACHER && dto?.route) {
-      return this.cancellation.teacherCancel(id, { reason: dto.reason, route: dto.route }, user);
+      return this.cancellation.teacherCancel(
+        id,
+        { reason: dto.reason, route: dto.route },
+        user,
+      );
     }
     return this.booking.cancel(id, user);
   }
 
   @Patch(':id/noshow')
-  noshow(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  noshow(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.booking.noshow(id, user);
   }
 }

@@ -1,4 +1,8 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { kstDateString } from '../../common/time/kst';
@@ -24,10 +28,13 @@ export class MatchingService {
   ) {}
 
   async autoMatch(dto: MatchAutoDto, user: AuthUser, now = new Date()) {
-    const student = await this.prisma.student_profile.findUnique({ where: { account_id: user.id } });
+    const student = await this.prisma.student_profile.findUnique({
+      where: { account_id: user.id },
+    });
     if (!student) throw new NotFoundException('학생 프로필이 없습니다.');
 
-    const mode: ConsultMode = dto.mode === 'offline' ? ConsultMode.OFFLINE : ConsultMode.ZOOM;
+    const mode: ConsultMode =
+      dto.mode === 'offline' ? ConsultMode.OFFLINE : ConsultMode.ZOOM;
     const blocked = await this.blocks.blockedTeacherIds(user.id); // 차단 교사 제외(§ 신고·차단)
     const teachers = await this.prisma.teacher_profile.findMany({
       where: {
@@ -40,8 +47,15 @@ export class MatchingService {
     for (let d = 0; d < HORIZON_DAYS; d++) {
       const dateStr = kstDateString(new Date(now.getTime() + d * 86_400_000));
       for (const t of teachers) {
-        const slots = await this.availability.getDaySlots(t.account_id, dateStr, user.id);
-        const start = this.firstFreeRun(slots.map((s) => s.status), SLOTS_NEEDED);
+        const slots = await this.availability.getDaySlots(
+          t.account_id,
+          dateStr,
+          user.id,
+        );
+        const start = this.firstFreeRun(
+          slots.map((s) => s.status),
+          SLOTS_NEEDED,
+        );
         if (start !== null) {
           return {
             matched: true,
