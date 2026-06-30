@@ -1,26 +1,43 @@
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
 const BASE: string = (Constants.expoConfig?.extra?.apiBase as string) ?? 'http://localhost:3000/api/v1';
+
+// 토큰 저장: 네이티브=SecureStore, 웹(expo-web 프리뷰)=localStorage(SecureStore 웹 미지원).
+const store = {
+  get: (k: string): Promise<string | null> =>
+    Platform.OS === 'web'
+      ? Promise.resolve(typeof localStorage !== 'undefined' ? localStorage.getItem(k) : null)
+      : SecureStore.getItemAsync(k),
+  set: (k: string, v: string): Promise<void> =>
+    Platform.OS === 'web'
+      ? Promise.resolve(localStorage.setItem(k, v))
+      : SecureStore.setItemAsync(k, v).then(() => undefined),
+  del: (k: string): Promise<void> =>
+    Platform.OS === 'web'
+      ? Promise.resolve(localStorage.removeItem(k))
+      : SecureStore.deleteItemAsync(k).then(() => undefined),
+};
 
 let accessToken: string | null = null;
 let refreshToken: string | null = null;
 
 export async function loadTokens() {
-  accessToken = await SecureStore.getItemAsync('itall_access');
-  refreshToken = await SecureStore.getItemAsync('itall_refresh');
+  accessToken = await store.get('itall_access');
+  refreshToken = await store.get('itall_refresh');
 }
 async function setTokens(a: string, r: string) {
   accessToken = a;
   refreshToken = r;
-  await SecureStore.setItemAsync('itall_access', a);
-  await SecureStore.setItemAsync('itall_refresh', r);
+  await store.set('itall_access', a);
+  await store.set('itall_refresh', r);
 }
 export async function clearTokens() {
   accessToken = null;
   refreshToken = null;
-  await SecureStore.deleteItemAsync('itall_access');
-  await SecureStore.deleteItemAsync('itall_refresh');
+  await store.del('itall_access');
+  await store.del('itall_refresh');
 }
 export const hasSession = () => !!accessToken;
 
