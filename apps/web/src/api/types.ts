@@ -31,6 +31,8 @@ export interface Booking {
   end: string | null;
   status: BookingStatus;
   chargedCredits: number;
+  content?: string | null;
+  attachments?: { id: string; name: string; type?: string }[];
 }
 
 export interface Slot {

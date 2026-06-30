@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
-import type { ConsultationNote } from '../api/types';
+import type { Booking, ConsultationNote } from '../api/types';
 import { Card, Button, Badge, ErrorText, TextareaField } from '../components/ui';
 
 const empty = {
@@ -16,11 +16,13 @@ const empty = {
 export function NotePage() {
   const { id } = useParams<{ id: string }>();
   const [form, setForm] = useState(empty);
+  const [booking, setBooking] = useState<Booking | null>(null);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (!id) return;
+    api.get<Booking>(`/bookings/${id}`).then(setBooking).catch(() => {});
     api
       .get<ConsultationNote>(`/bookings/${id}/note`)
       .then((n) =>
@@ -62,6 +64,29 @@ export function NotePage() {
           {f.saveState === 'final' ? '최종' : '임시'}
         </Badge>
       </h2>
+      {booking && (booking.content || (booking.attachments?.length ?? 0) > 0) && (
+        <Card style={{ marginBottom: 12, background: 'var(--teal-50, #eef6fa)' }}>
+          <h4 style={{ margin: '0 0 8px', fontSize: 14, color: 'var(--ink)' }}>학생 상담 요청</h4>
+          {booking.content && (
+            <p style={{ whiteSpace: 'pre-wrap', fontSize: 14, color: 'var(--ink)', margin: '0 0 10px' }}>{booking.content}</p>
+          )}
+          {(booking.attachments?.length ?? 0) > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>첨부 문제 ({booking.attachments!.length})</span>
+              {booking.attachments!.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => api.downloadFile(a.id, a.name).catch((e) => setError(e instanceof ApiError ? e.message : '다운로드 실패'))}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', background: '#fff', cursor: 'pointer', fontSize: 13, color: 'var(--teal)' }}
+                >
+                  📄 {a.name} <span style={{ color: 'var(--muted)', fontSize: 11 }}>· 다운로드</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
       <Card>
         <TextareaField label="핵심 요약 (학생·보호자 공개)" rows={2} value={f.coreSummary} onChange={(e) => set('coreSummary', e.target.value)} />
         <TextareaField label="숙제 (공개)" rows={2} value={f.homework} onChange={(e) => set('homework', e.target.value)} />

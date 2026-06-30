@@ -1,5 +1,7 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsIn,
   IsInt,
@@ -8,6 +10,7 @@ import {
   IsUUID,
   Matches,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import {
   BookingStatus,
@@ -48,6 +51,19 @@ export class QuoteDto {
 }
 
 /** 예약 생성 (POST /bookings). */
+/** 학생이 첨부한 문제 파일(업로드 후 stored_file id 참조). */
+export class AttachmentDto {
+  @IsUUID()
+  id!: string;
+
+  @IsString()
+  name!: string;
+
+  @IsOptional()
+  @IsString()
+  type?: string;
+}
+
 export class BookingCreateDto {
   @IsUUID()
   teacherId!: string;
@@ -83,6 +99,13 @@ export class BookingCreateDto {
   @IsOptional()
   @IsString()
   content?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => AttachmentDto)
+  attachments?: AttachmentDto[];
 }
 
 /** 예약 목록 쿼리 (GET /bookings). 잘못된 값은 400(Prisma 500 방지). */

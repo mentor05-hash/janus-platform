@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { api, ApiError, Quote, Slot, Teacher } from '../api';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { api, ApiError, Attachment, Quote, Slot, Teacher } from '../api';
 import { C, R, SP, ui } from '../theme';
 
 const today = () => new Date().toISOString().slice(0, 10);
-const DURATION = 3; // 30분 (10분 슬롯 3칸)
+const DURATION = 3; // 기본 30분 (10분 슬롯 3칸)
+const MIN_LEN = 1; // 최소 10분
+const FORCE_WINDOW = 4; // 이전 상담 종료 후 40분(=4칸) 이내면 시작 강제
 const WD = ['일', '월', '화', '수', '목', '금', '토'];
+const minToTime = (idx: number) => `${String(Math.floor((idx * 10) / 60)).padStart(2, '0')}:${String((idx * 10) % 60).padStart(2, '0')}`;
 
 // 슬롯 상태별 표시(학생 관점). avail 만 신청 가능, 나머지는 안내용.
 const SLOT_UI: Record<Slot['status'], { label: string; bg: string; fg: string; bd: string }> = {
@@ -17,12 +20,6 @@ const SLOT_UI: Record<Slot['status'], { label: string; bg: string; fg: string; b
 };
 
 const SUBJECTS = ['국어', '수학', '영어', '탐구'];
-const UPLOADS = [
-  { icon: '✏️', label: '직접입력' },
-  { icon: '🖼️', label: '그림' },
-  { icon: '📄', label: 'PDF' },
-  { icon: '🎬', label: '동영상' },
-];
 const MODES = [
   { mode: 'board', label: '게시판', sub: '질문·답변', price: '건당 4,000~8,000' },
   { mode: 'chat', label: '실시간 채팅', sub: '바로 대화', price: '10분 3,000' },
@@ -33,36 +30,75 @@ const MODES = [
 export function SlotsScreen({ teacher, onBack }: { teacher: Teacher; onBack: () => void }) {
   const [date, setDate] = useState(today());
   const [slots, setSlots] = useState<Slot[]>([]);
-  const [start, setStart] = useState<number | null>(null);
+  // 선택 범위: selStart..selEnd(둘 다 포함, 10분 인덱스). null = 미선택
+  const [selStart, setSelStart] = useState<number | null>(null);
+  const [selEnd, setSelEnd] = useState<number | null>(null);
+  const [notice, setNotice] = useState(''); // 강제 시작 안내
   const [subject, setSubject] = useState('수학');
   const [content, setContent] = useState('');
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [mode, setMode] = useState('zoom');
   const [quote, setQuote] = useState<Quote | null>(null);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    setStart(null);
+  function resetSel() {
+    setSelStart(null);
+    setSelEnd(null);
+    setNotice('');
     setQuote(null);
+  }
+
+  useEffect(() => {
+    resetSel();
     api
       .get<Slot[]>(`/teachers/${teacher.id}/slots?date=${date}`)
       .then(setSlots)
       .catch((e) => setError(e instanceof ApiError ? e.message : '슬롯 조회 실패'));
   }, [teacher.id, date]);
 
-  // 슬롯·방식 선택 시 재견적
+  // 범위·방식 선택 시 재견적
   useEffect(() => {
-    if (start === null) return;
+    if (selStart === null || selEnd === null) return;
     setError('');
     api
-      .post<Quote>('/bookings/quote', { teacherId: teacher.id, date, mode, slotStart: start, slotEnd: start + DURATION })
+      .post<Quote>('/bookings/quote', { teacherId: teacher.id, date, mode, slotStart: selStart, slotEnd: selEnd + 1 })
       .then(setQuote)
       .catch((e) => { setQuote(null); setError(e instanceof ApiError ? e.message : '견적 실패'); });
-  }, [start, mode, teacher.id, date]);
+  }, [selStart, selEnd, mode, teacher.id, date]);
+
+  // 문제 파일 첨부(웹: 브라우저 파일창 → /files 업로드 → id 연결)
+  function pickFiles() {
+    if (typeof document === 'undefined') {
+      Alert.alert('안내', '파일 첨부는 웹에서 지원됩니다. (앱은 추후 지원)');
+      return;
+    }
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.multiple = true;
+    input.accept = 'image/*,application/pdf,video/*';
+    input.onchange = async () => {
+      const files = Array.from(input.files ?? []);
+      if (!files.length) return;
+      setUploading(true);
+      try {
+        for (const f of files) {
+          const r = await api.uploadWeb(f, f.name);
+          setAttachments((prev) => [...prev, { id: r.id, name: r.filename, type: r.contentType }]);
+        }
+      } catch (e) {
+        Alert.alert('업로드 실패', e instanceof ApiError ? e.message : '오류가 발생했어요.');
+      } finally {
+        setUploading(false);
+      }
+    };
+    input.click();
+  }
 
   async function book() {
-    if (start === null) return;
+    if (selStart === null || selEnd === null) return;
     try {
-      await api.post('/bookings', { teacherId: teacher.id, date, consultType: '교과', subType: subject, mode, slotStart: start, slotEnd: start + DURATION, content });
+      await api.post('/bookings', { teacherId: teacher.id, date, consultType: '교과', subType: subject, mode, slotStart: selStart, slotEnd: selEnd + 1, content, attachments });
       Alert.alert('예약 완료', '상담이 신청되었습니다.');
       onBack();
     } catch (e) {
@@ -95,10 +131,49 @@ export function SlotsScreen({ teacher, onBack }: { teacher: Teacher; onBack: () 
     return [...m.entries()].sort((a, b) => a[0] - b[0]);
   }, [slots]);
 
-  // 30분(3칸) 연속 가능해야 시작 가능 — 학생이 '진짜 신청 가능'한 시작점만 활성화
   const availSet = useMemo(() => new Set(slots.filter((s) => s.status === 'avail').map((s) => s.index)), [slots]);
-  const canStart = (idx: number) => availSet.has(idx) && availSet.has(idx + 1) && availSet.has(idx + 2);
-  const selectedTime = start !== null ? slots.find((s) => s.index === start)?.time ?? '' : '';
+  const statusAt = (idx: number) => slots.find((s) => s.index === idx)?.status;
+  const selectedTime = selStart !== null ? minToTime(selStart) : '';
+  const selLen = selStart !== null && selEnd !== null ? selEnd - selStart + 1 : 0;
+
+  // 가용 런(연속 avail 구간)의 시작 인덱스
+  const runStartOf = (idx: number) => {
+    let i = idx;
+    while (availSet.has(i - 1)) i -= 1;
+    return i;
+  };
+  // 런이 '이전 상담 직후'(booked → rest(휴게10분) → avail)인지
+  const afterBooking = (runStart: number) => statusAt(runStart - 1) === 'rest' && statusAt(runStart - 2) === 'booked';
+  // 제한규칙: 이전 상담 종료 후 40분 이내 시작은 무조건 '종료+10분'(런 시작)으로 강제
+  const forcedStartFor = (idx: number) => {
+    const rs = runStartOf(idx);
+    if (afterBooking(rs) && idx - rs < FORCE_WINDOW) return rs;
+    return idx;
+  };
+  // 새 선택: 시작점(강제 적용) + 기본 30분(가용 한도 내 클램프)
+  function selectNew(idx: number) {
+    if (!availSet.has(idx)) return;
+    const fs = forcedStartFor(idx);
+    let end = fs;
+    while (end - fs + 1 < DURATION && availSet.has(end + 1)) end += 1;
+    setSelStart(fs);
+    setSelEnd(end);
+    setNotice(fs !== idx ? `이전 상담 직후라 이 시간대는 ${minToTime(fs)} 시작만 가능해요(휴게 10분).` : afterBooking(fs) ? `이전 상담 직후 시간대 — ${minToTime(fs)} 시작 고정(휴게 10분).` : '');
+  }
+  function onTapCell(idx: number) {
+    if (statusAt(idx) !== 'avail') return; // 가능 칸만
+    if (selStart === null || selEnd === null) return selectNew(idx);
+    // 현재 선택의 '시작' 칸 → 앞에서 축소(시작 +10). 단, 강제규칙이 지배하면 불가
+    if (idx === selStart && selEnd > selStart) {
+      const ns = selStart + 1;
+      if (forcedStartFor(ns) !== ns) { setNotice(`이 시간대는 ${minToTime(selStart)} 시작만 가능해 앞부분을 줄일 수 없어요.`); return; }
+      setSelStart(ns); return;
+    }
+    // 현재 선택의 '마지막' 칸 → 뒤에서 축소(끝 −10)
+    if (idx === selEnd && selEnd > selStart) { setSelEnd(selEnd - 1); return; }
+    // 그 외 가능 칸 → 새 선택
+    return selectNew(idx);
+  }
 
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
@@ -124,14 +199,19 @@ export function SlotsScreen({ teacher, onBack }: { teacher: Teacher; onBack: () 
 
       {/* 문제 업로드 */}
       <Text style={styles.sec}>문제 업로드</Text>
-      <View style={styles.row}>
-        {UPLOADS.map((u) => (
-          <View key={u.label} style={styles.upload}>
-            <Text style={{ fontSize: 20 }}>{u.icon}</Text>
-            <Text style={styles.uploadT}>{u.label}</Text>
-          </View>
-        ))}
-      </View>
+      <TouchableOpacity style={styles.attachBtn} onPress={pickFiles} disabled={uploading} activeOpacity={0.7}>
+        {uploading ? <ActivityIndicator color={C.teal} /> : <Text style={styles.attachIcon}>📎</Text>}
+        <Text style={styles.attachT}>{uploading ? '업로드 중…' : '파일 첨부 (사진 · PDF · 동영상)'}</Text>
+      </TouchableOpacity>
+      {attachments.map((a) => (
+        <View key={a.id} style={styles.attRow}>
+          <Text style={styles.attName} numberOfLines={1}>📄 {a.name}</Text>
+          <TouchableOpacity onPress={() => setAttachments((prev) => prev.filter((x) => x.id !== a.id))} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={styles.attDel}>삭제</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+      {attachments.length > 0 && <Text style={styles.attHint}>첨부한 문제는 담당 선생님이 상담 화면에서 열어볼 수 있어요.</Text>}
 
       {/* 진행 방식 */}
       <Text style={styles.sec}>진행 방식</Text>
@@ -164,7 +244,7 @@ export function SlotsScreen({ teacher, onBack }: { teacher: Teacher; onBack: () 
       </ScrollView>
 
       {/* 시간 — 시간대별 컴팩트 표(선생님 근무·체류 반영) */}
-      <Text style={styles.sec}>시간 (30분 단위 · 가능 시간만 선택)</Text>
+      <Text style={styles.sec}>시간 (가능 시간만 · 기본 30분)</Text>
       {slots.length === 0 ? (
         <Text style={ui.sub}>이 날짜에는 선생님 근무 시간이 없어요. 다른 날짜를 선택해 주세요.</Text>
       ) : (
@@ -175,23 +255,27 @@ export function SlotsScreen({ teacher, onBack }: { teacher: Teacher; onBack: () 
                 <Text style={styles.hourLabel}>{h}시</Text>
                 <View style={styles.hourCells}>
                   {cells.map((s) => {
-                    const inRange = start !== null && s.index >= start && s.index < start + DURATION;
-                    const startable = canStart(s.index);
+                    const inRange = selStart !== null && selEnd !== null && s.index >= selStart && s.index <= selEnd;
+                    const isStart = s.index === selStart;
+                    const isEnd = s.index === selEnd;
+                    const edge = inRange && selLen > 1 && (isStart || isEnd);
                     const u = SLOT_UI[s.status];
+                    const clickable = s.status === 'avail';
                     return (
                       <TouchableOpacity
                         key={s.index}
-                        activeOpacity={startable ? 0.6 : 1}
-                        disabled={!startable}
-                        onPress={() => setStart(s.index)}
+                        activeOpacity={clickable ? 0.6 : 1}
+                        disabled={!clickable}
+                        onPress={() => onTapCell(s.index)}
                         style={[
                           styles.cell,
                           { backgroundColor: u.bg, borderColor: u.bd },
                           inRange && styles.cellSel,
-                          s.status === 'avail' && !startable && { opacity: 0.45 },
+                          edge && styles.cellEdge,
                         ]}
                       >
                         <Text style={[styles.cellT, { color: inRange ? '#fff' : u.fg }]}>{s.time}</Text>
+                        {edge && <Text style={styles.edgeMark}>{isStart ? '↤' : '↦'}</Text>}
                       </TouchableOpacity>
                     );
                   })}
@@ -208,6 +292,23 @@ export function SlotsScreen({ teacher, onBack }: { teacher: Teacher; onBack: () 
               </View>
             ))}
           </View>
+
+          {notice ? (
+            <View style={styles.notice}><Text style={styles.noticeT}>ⓘ {notice}</Text></View>
+          ) : null}
+
+          {/* 선택 요약 + 시간 조정 안내 + 초기화 */}
+          {selStart !== null && selEnd !== null ? (
+            <View style={styles.selBar}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.selTime}>{minToTime(selStart)} ~ {minToTime(selEnd + 1)} · {selLen * 10}분</Text>
+                <Text style={styles.selHint}>시작(↤)·끝(↦) 칸을 누르면 10분씩 줄어요</Text>
+              </View>
+              <TouchableOpacity onPress={resetSel} style={styles.resetBtn}><Text style={styles.resetT}>선택 초기화</Text></TouchableOpacity>
+            </View>
+          ) : (
+            <Text style={[ui.sub, { marginTop: 8 }]}>가능(초록) 시간을 누르면 30분이 선택돼요.</Text>
+          )}
           {avail.length === 0 && <Text style={[ui.sub, { marginTop: 6 }]}>이 날은 신청 가능한 빈 시간이 없어요.</Text>}
         </>
       )}
@@ -244,8 +345,13 @@ const styles = StyleSheet.create({
   pillOn: { backgroundColor: C.teal, borderColor: C.teal },
   pillT: { color: C.muted, fontWeight: '700', fontSize: 14 },
   pillTOn: { color: '#fff' },
-  upload: { flex: 1, alignItems: 'center', gap: 4, backgroundColor: C.white, borderWidth: 1, borderColor: C.line, borderRadius: R.md, paddingVertical: 12 },
-  uploadT: { fontSize: 12, color: C.muted, fontWeight: '600' },
+  attachBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.white, borderWidth: 1, borderStyle: 'dashed', borderColor: C.inputBorder, borderRadius: R.md, paddingVertical: 14 },
+  attachIcon: { fontSize: 18 },
+  attachT: { fontSize: 14, color: C.muted, fontWeight: '700' },
+  attRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.teal50, borderRadius: R.md, paddingVertical: 10, paddingHorizontal: 12, marginTop: 8 },
+  attName: { flex: 1, color: C.ink, fontSize: 13, fontWeight: '600', marginRight: 10 },
+  attDel: { color: C.danger, fontSize: 13, fontWeight: '700' },
+  attHint: { color: C.muted, fontSize: 11, marginTop: 6 },
   modeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   modeCard: { width: '48%', backgroundColor: C.white, borderWidth: 1, borderColor: C.line, borderRadius: 12, padding: 14 },
   modeOn: { borderColor: C.teal, borderWidth: 2, backgroundColor: C.teal50 },
@@ -262,7 +368,16 @@ const styles = StyleSheet.create({
   hourCells: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, flex: 1 },
   cell: { width: 46, paddingVertical: 6, borderRadius: 7, borderWidth: 1, alignItems: 'center' },
   cellSel: { backgroundColor: C.teal, borderColor: C.teal },
+  cellEdge: { borderColor: '#fff', borderWidth: 2 },
   cellT: { fontSize: 11, fontWeight: '700' },
+  edgeMark: { color: '#fff', fontSize: 9, marginTop: -1, fontWeight: '800' },
+  notice: { marginTop: 8, backgroundColor: '#FEF6E7', borderColor: '#F0DCAE', borderWidth: 1, borderRadius: 9, padding: 9 },
+  noticeT: { color: '#92600a', fontSize: 12, fontWeight: '600', lineHeight: 17 },
+  selBar: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, backgroundColor: C.teal50, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12 },
+  selTime: { color: C.ink, fontWeight: '800', fontSize: 14 },
+  selHint: { color: C.muted, fontSize: 11, marginTop: 2 },
+  resetBtn: { borderWidth: 1, borderColor: C.teal, borderRadius: 8, paddingVertical: 7, paddingHorizontal: 11 },
+  resetT: { color: C.teal, fontWeight: '700', fontSize: 12 },
   legend: { flexDirection: 'row', gap: 14, marginTop: 10, flexWrap: 'wrap' },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   legendDot: { width: 12, height: 12, borderRadius: 3, borderWidth: 1 },

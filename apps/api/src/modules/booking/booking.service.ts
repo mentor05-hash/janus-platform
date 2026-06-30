@@ -239,6 +239,7 @@ export class BookingService {
             charged_credits: credits,
             origin: '직접',
             content: dto.content ?? null,
+            attachments: (dto.attachments ?? []) as unknown as Prisma.InputJsonValue,
           },
         });
 
@@ -836,6 +837,19 @@ export class BookingService {
     return s;
   }
 
+  /** 단건 조회(관계자만) — 상담 요청 내용·첨부 포함. */
+  async getOne(id: string, user: AuthUser) {
+    const b = await this.prisma.booking.findUnique({ where: { id } });
+    if (!b) throw new NotFoundException('예약을 찾을 수 없습니다.');
+    const involved =
+      b.teacher_id === user.id ||
+      b.student_id === user.id ||
+      user.role === AccountRole.ADMIN ||
+      user.role === AccountRole.HR;
+    if (!involved) throw new ForbiddenException('이 예약에 접근할 권한이 없습니다.');
+    return this.toBookingDto(b);
+  }
+
   /**
    * 역상담 대상 학생 목록(선생님용). 같은 센터 학생 중 자격 3종을 분류해 반환.
    *  - first: 첫상담 필요(완료 상담 0건)
@@ -949,7 +963,12 @@ export class BookingService {
     charged_credits: number | null;
     meeting_url?: string | null;
     room_id?: string | null;
+    content?: string | null;
+    attachments?: unknown;
   }) {
+    const atts = Array.isArray(b.attachments)
+      ? (b.attachments as { id: string; name: string; type?: string }[])
+      : [];
     return {
       id: b.id,
       studentId: b.student_id,
@@ -965,6 +984,8 @@ export class BookingService {
       chargedCredits: b.charged_credits ?? 0,
       meetingUrl: b.meeting_url ?? null,
       roomId: b.room_id ?? null,
+      content: b.content ?? null,
+      attachments: atts,
     };
   }
 }

@@ -23,6 +23,16 @@ export class FilesService {
     @Inject(STORAGE_PROVIDER) private readonly storage: StorageProvider,
   ) {}
 
+  /** 이 선생님의 예약 중 해당 파일을 첨부로 가진 건이 있는지(jsonb 포함 검사). */
+  private async teacherOwnsAttachment(teacherId: string, fileId: string): Promise<boolean> {
+    const rows = await this.prisma.$queryRaw<{ ok: number }[]>`
+      SELECT 1 AS ok FROM booking
+      WHERE teacher_id = ${teacherId}::uuid
+        AND attachments @> ${`[{"id":"${fileId}"}]`}::jsonb
+      LIMIT 1`;
+    return rows.length > 0;
+  }
+
   async upload(ownerId: string, file: UploadedFileLike) {
     if (!file?.buffer?.length)
       throw new BadRequestException('업로드할 파일이 없습니다.');
@@ -55,7 +65,12 @@ export class FilesService {
   async download(id: string, user: AuthUser) {
     const row = await this.prisma.stored_file.findUnique({ where: { id } });
     if (!row) throw new NotFoundException('파일을 찾을 수 없습니다.');
-    if (row.owner_id !== user.id && user.role !== AccountRole.ADMIN) {
+    const allowed =
+      row.owner_id === user.id ||
+      user.role === AccountRole.ADMIN ||
+      // 학생이 예약에 첨부한 문제 파일 → 그 예약의 담당 선생님은 열람 가능(§5-10)
+      (user.role === AccountRole.TEACHER && (await this.teacherOwnsAttachment(user.id, id)));
+    if (!allowed) {
       throw new ForbiddenException('이 파일에 접근할 권한이 없습니다.');
     }
     const data = await this.storage.get(row.storage_key);

@@ -48,6 +48,12 @@ export class BookingController {
     return this.booking.list(user, q.role, q.status);
   }
 
+  /** GET /bookings/{id} — 단건(관계자만): 상담 요청 내용·첨부 포함. */
+  @Get(':id')
+  getOne(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.booking.getOne(id, user);
+  }
+
   /** GET /bookings/reverse/eligible — 선생님: 역상담 대상 학생 목록(첫상담/관리자지정/학생신청). */
   @Get('reverse/eligible')
   @Roles('teacher')
