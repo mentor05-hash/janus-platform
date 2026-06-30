@@ -1,5 +1,11 @@
 import { plainToInstance } from 'class-transformer';
-import { IsIn, IsNotEmpty, IsOptional, IsString, validateSync } from 'class-validator';
+import {
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  validateSync,
+} from 'class-validator';
 
 /**
  * ENV 검증 (CLAUDE.md §10 설정 외부화). 부팅 시 누락/오타를 즉시 실패시킨다.
@@ -79,7 +85,10 @@ export function validateEnv(config: Record<string, unknown>) {
   if (errors.length > 0) {
     throw new Error(
       `환경변수 검증 실패:\n${errors
-        .map((e) => `  - ${e.property}: ${Object.values(e.constraints ?? {}).join(', ')}`)
+        .map(
+          (e) =>
+            `  - ${e.property}: ${Object.values(e.constraints ?? {}).join(', ')}`,
+        )
         .join('\n')}`,
     );
   }

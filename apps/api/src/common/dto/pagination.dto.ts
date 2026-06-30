@@ -28,6 +28,15 @@ export interface PageMeta {
   totalPages: number;
 }
 
-export function buildPageMeta(total: number, page: number, size: number): PageMeta {
-  return { page, size, total, totalPages: Math.max(1, Math.ceil(total / size)) };
+export function buildPageMeta(
+  total: number,
+  page: number,
+  size: number,
+): PageMeta {
+  return {
+    page,
+    size,
+    total,
+    totalPages: Math.max(1, Math.ceil(total / size)),
+  };
 }

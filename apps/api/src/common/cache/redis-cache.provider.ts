@@ -12,8 +12,12 @@ export class RedisCacheProvider implements CacheProvider, OnModuleDestroy {
 
   constructor(url: string) {
     this.redis = new Redis(url, { lazyConnect: true, maxRetriesPerRequest: 1 });
-    this.redis.on('error', (e) => this.logger.warn(`redis error: ${e.message}`));
-    void this.redis.connect().catch((e) => this.logger.warn(`redis connect 실패: ${e.message}`));
+    this.redis.on('error', (e) =>
+      this.logger.warn(`redis error: ${e.message}`),
+    );
+    void this.redis
+      .connect()
+      .catch((e) => this.logger.warn(`redis connect 실패: ${e.message}`));
   }
 
   async get<T>(key: string): Promise<T | null> {

@@ -13,4 +13,5 @@ export interface RateLimitOptions {
  * 엔드포인트 rate limit (§10 보안) — IP+라우트 기준 고정 윈도우.
  * 메타데이터만 부여하고 실제 카운팅/차단은 RateLimitGuard 가 수행(CacheProvider 기반).
  */
-export const RateLimit = (opts: RateLimitOptions) => SetMetadata(RATE_LIMIT_KEY, opts);
+export const RateLimit = (opts: RateLimitOptions) =>
+  SetMetadata(RATE_LIMIT_KEY, opts);

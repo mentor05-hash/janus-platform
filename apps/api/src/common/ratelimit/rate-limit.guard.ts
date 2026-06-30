@@ -25,10 +25,10 @@ export class RateLimitGuard implements CanActivate {
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
-    const opts = this.reflector.getAllAndOverride<RateLimitOptions>(RATE_LIMIT_KEY, [
-      ctx.getHandler(),
-      ctx.getClass(),
-    ]);
+    const opts = this.reflector.getAllAndOverride<RateLimitOptions>(
+      RATE_LIMIT_KEY,
+      [ctx.getHandler(), ctx.getClass()],
+    );
     if (!opts || ctx.getType() !== 'http') return true;
 
     const req = ctx.switchToHttp().getRequest<Request>();
@@ -39,7 +39,10 @@ export class RateLimitGuard implements CanActivate {
     const count = await this.cache.incr(key, opts.windowSec);
     if (count > opts.limit) {
       throw new HttpException(
-        { message: '요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요.', error: 'too_many_requests' },
+        {
+          message: '요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요.',
+          error: 'too_many_requests',
+        },
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }

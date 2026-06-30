@@ -12,11 +12,21 @@ import { map } from 'rxjs/operators';
  * 컨트롤러가 이미 { data, meta } 형태로 반환하면(목록 등) 그대로 통과시킨다.
  */
 @Injectable()
-export class TransformInterceptor<T> implements NestInterceptor<T, { data: T; meta?: unknown }> {
-  intercept(_ctx: ExecutionContext, next: CallHandler): Observable<{ data: T; meta?: unknown }> {
+export class TransformInterceptor<T> implements NestInterceptor<
+  T,
+  { data: T; meta?: unknown }
+> {
+  intercept(
+    _ctx: ExecutionContext,
+    next: CallHandler,
+  ): Observable<{ data: T; meta?: unknown }> {
     return next.handle().pipe(
       map((payload) => {
-        if (payload && typeof payload === 'object' && 'data' in (payload as object)) {
+        if (
+          payload &&
+          typeof payload === 'object' &&
+          'data' in (payload as object)
+        ) {
           return payload as { data: T; meta?: unknown };
         }
         return { data: payload as T };

@@ -28,7 +28,7 @@ export class JsonLogger implements LoggerService {
       requestId: getRequestId(),
       message: typeof message === 'string' ? message : JSON.stringify(message),
     });
-    // eslint-disable-next-line no-console
+
     console.log(line);
   }
 
@@ -50,8 +50,12 @@ export class JsonLogger implements LoggerService {
 }
 
 /** ENV LOG_FORMAT(json|pretty)·기본(staging/prod=json)에 따라 로거 선택. */
-export function createLogger(env: string | undefined, logFormat: string | undefined): LoggerService {
-  const fmt = logFormat ?? (env === 'staging' || env === 'prod' ? 'json' : 'pretty');
+export function createLogger(
+  env: string | undefined,
+  logFormat: string | undefined,
+): LoggerService {
+  const fmt =
+    logFormat ?? (env === 'staging' || env === 'prod' ? 'json' : 'pretty');
   if (fmt === 'json') return new JsonLogger();
   const levels: LogLevel[] = ['log', 'error', 'warn', 'debug', 'verbose'];
   return new ConsoleLogger({ logLevels: levels });

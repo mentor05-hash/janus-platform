@@ -1,4 +1,9 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthUser } from '../decorators/current-user.decorator';
 import { MIN_PERM_KEY } from '../decorators/min-perm.decorator';
@@ -19,7 +24,9 @@ export class PermLevelGuard implements CanActivate {
     if (!need) return true;
     const user = ctx.switchToHttp().getRequest<{ user?: AuthUser }>().user;
     if (!permAtLeast(user?.permLevel, need)) {
-      throw new ForbiddenException(`${PERM_TIER[need]} 이상 권한이 필요합니다.`);
+      throw new ForbiddenException(
+        `${PERM_TIER[need]} 이상 권한이 필요합니다.`,
+      );
     }
     return true;
   }

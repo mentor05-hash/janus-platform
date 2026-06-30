@@ -17,7 +17,9 @@ import { RedisCacheProvider } from './redis-cache.provider';
       useFactory: (config: ConfigService) => {
         const which = config.get<string>('CACHE_PROVIDER') ?? 'memory';
         if (which === 'redis') {
-          return new RedisCacheProvider(config.get<string>('REDIS_URL') ?? 'redis://localhost:6379');
+          return new RedisCacheProvider(
+            config.get<string>('REDIS_URL') ?? 'redis://localhost:6379',
+          );
         }
         return new MemoryCacheProvider();
       },

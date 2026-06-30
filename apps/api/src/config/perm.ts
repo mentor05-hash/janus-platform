@@ -12,7 +12,10 @@ export const PERM_TIER: Record<PermLevel, string> = {
 };
 
 /** have 가 need 이상 권한인지(숫자가 클수록 상위). */
-export function permAtLeast(have: string | null | undefined, need: PermLevel): boolean {
+export function permAtLeast(
+  have: string | null | undefined,
+  need: PermLevel,
+): boolean {
   const h = have && have in PERM_RANK ? PERM_RANK[have as PermLevel] : 0;
   return h >= PERM_RANK[need];
 }

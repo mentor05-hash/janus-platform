@@ -33,7 +33,8 @@ export function kstDateString(utc: Date): string {
 /** KST 달력 날짜 + 자정 기준 분 → UTC Date. */
 export function utcFromKst(dateStr: string, minutesOfDay: number): Date {
   const [y, mo, d] = dateStr.split('-').map(Number);
-  const ms = Date.UTC(y, mo - 1, d) - KST_OFFSET_MIN * 60_000 + minutesOfDay * 60_000;
+  const ms =
+    Date.UTC(y, mo - 1, d) - KST_OFFSET_MIN * 60_000 + minutesOfDay * 60_000;
   return new Date(ms);
 }
 

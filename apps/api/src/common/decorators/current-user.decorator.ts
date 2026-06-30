@@ -12,7 +12,10 @@ export interface AuthUser {
 
 /** 컨트롤러에서 현재 사용자 추출: foo(@CurrentUser() user: AuthUser) */
 export const CurrentUser = createParamDecorator(
-  (data: keyof AuthUser | undefined, ctx: ExecutionContext): AuthUser | AuthUser[keyof AuthUser] => {
+  (
+    data: keyof AuthUser | undefined,
+    ctx: ExecutionContext,
+  ): AuthUser | AuthUser[keyof AuthUser] => {
     const req = ctx.switchToHttp().getRequest();
     const user = req.user as AuthUser;
     return data ? user?.[data] : user;

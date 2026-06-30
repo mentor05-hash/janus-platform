@@ -34,8 +34,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
         message = body;
       } else if (body && typeof body === 'object') {
         const b = body as Record<string, unknown>;
-        message = (Array.isArray(b.message) ? b.message.join(', ') : (b.message as string)) ?? message;
-        if (typeof b.error === 'string') code = (b.error as string).replace(/\s+/g, '_').toUpperCase();
+        message =
+          (Array.isArray(b.message)
+            ? b.message.join(', ')
+            : (b.message as string)) ?? message;
+        if (typeof b.error === 'string')
+          code = b.error.replace(/\s+/g, '_').toUpperCase();
       }
     } else if (exception instanceof Error) {
       this.logger.error(exception.message, exception.stack);
@@ -43,7 +47,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     const requestId = getRequestId();
     if (status >= 500) {
-      this.logger.error(`${req.method} ${req.url} → ${status} ${code} rid=${requestId}`);
+      this.logger.error(
+        `${req.method} ${req.url} → ${status} ${code} rid=${requestId}`,
+      );
     }
 
     res.status(status).json({ error: { code, message, requestId } });

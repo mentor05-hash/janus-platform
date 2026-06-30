@@ -10,7 +10,10 @@ import { requestIdMiddleware } from './common/observability/request-id.middlewar
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     // 구조적 로깅(§10) — LOG_FORMAT=json|pretty, 기본 staging/prod=json
-    logger: createLogger(process.env.APP_ENV ?? process.env.NODE_ENV, process.env.LOG_FORMAT),
+    logger: createLogger(
+      process.env.APP_ENV ?? process.env.NODE_ENV,
+      process.env.LOG_FORMAT,
+    ),
   });
 
   app.use(requestIdMiddleware); // 요청 ID 전파(§10 관측성) — 최선행
@@ -34,7 +37,10 @@ async function bootstrap() {
     }),
   );
   app.useGlobalFilters(new AllExceptionsFilter()); // { error: { code, message }, requestId }
-  app.useGlobalInterceptors(new LoggingInterceptor(), new TransformInterceptor()); // 요청로깅 + { data, meta }
+  app.useGlobalInterceptors(
+    new LoggingInterceptor(),
+    new TransformInterceptor(),
+  ); // 요청로깅 + { data, meta }
 
   const port = Number(process.env.PORT ?? 3000);
   await app.listen(port);
