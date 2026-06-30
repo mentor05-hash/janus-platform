@@ -1086,6 +1086,107 @@ paths:
         '403': { $ref: '#/components/responses/Error' }
         '404': { $ref: '#/components/responses/Error' }
 
+  # ── 대시보드 추가(설계 반영 v1) — 평가/순위·시수·원장·센터비교. 구현은 Phase 3 ──
+  /admin/evaluation/weights:
+    get:
+      tags: [Dashboard]
+      summary: 평가 가중치 조회(관리자, 조회는 센터 스코프)
+      parameters:
+        - { name: centerId, in: query, required: false, schema: { type: string, format: uuid } }
+      responses: { '200': { description: ok } }
+    put:
+      tags: [Dashboard]
+      summary: 평가 가중치 조정 — 합계 100 검증 (본사급 L2↑만, 센터관리자 조회만)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [w_total, w_completion, w_rerequest, w_reject, w_noshow, w_response, w_satisfaction]
+              properties:
+                centerId: { type: string, format: uuid, nullable: true, description: 'null=전사 기본' }
+                w_total: { type: integer }
+                w_completion: { type: integer }
+                w_rerequest: { type: integer }
+                w_reject: { type: integer }
+                w_noshow: { type: integer }
+                w_response: { type: integer }
+                w_satisfaction: { type: integer }
+      responses:
+        '200': { description: saved }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /admin/evaluation/ranking:
+    get:
+      tags: [Dashboard]
+      summary: 선생님 가중 종합점수·순위(범위는 역할 스코프 — 센터관리자=자기 센터)
+      parameters:
+        - { name: period, in: query, schema: { type: string, enum: [all, date, 1w, 2w, 1m, custom] } }
+        - { name: from, in: query, required: false, schema: { type: string, format: date } }
+        - { name: to, in: query, required: false, schema: { type: string, format: date } }
+        - { name: centerId, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: director, in: query, required: false, schema: { type: string, enum: [원장, 부원장] } }
+      responses: { '200': { description: ok } }
+  /admin/teachers/{id}/monthly-hours:
+    put:
+      tags: [Dashboard]
+      summary: 월별 근무시수 입력(자기 센터/본사급) — 시간당 지표 환산
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [yearMonth, hours]
+              properties:
+                yearMonth: { type: string, example: '2026-06' }
+                hours: { type: number }
+      responses:
+        '200': { description: saved }
+        '403': { $ref: '#/components/responses/Error' }
+  /admin/teachers/{id}/director:
+    put:
+      tags: [Dashboard]
+      summary: 원장/부원장 지정(본사급 L2↑만)
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                directorRole: { type: string, nullable: true, enum: [원장, 부원장, null] }
+      responses:
+        '200': { description: saved }
+        '403': { $ref: '#/components/responses/Error' }
+  /ops/center-comparison:
+    get:
+      tags: [Dashboard]
+      summary: 센터 간 z-score 표준화 0~100 상대점수(센터관리자=자기 센터 위치만)
+      parameters:
+        - { name: period, in: query, schema: { type: string, enum: [all, date, 1w, 2w, 1m, custom] } }
+        - { name: from, in: query, required: false, schema: { type: string, format: date } }
+        - { name: to, in: query, required: false, schema: { type: string, format: date } }
+      responses: { '200': { description: ok } }
+  /ops/pivots/{view}:
+    get:
+      tags: [Dashboard]
+      summary: 5 피벗 뷰(센터/센터내선생님/선생님×센터/선생님월별/센터월별)
+      parameters:
+        - name: view
+          in: path
+          required: true
+          schema: { type: string, enum: [center, teacher-in-center, teacher-x-center, teacher-monthly, center-monthly] }
+        - { name: period, in: query, schema: { type: string, enum: [all, date, 1w, 2w, 1m, custom] } }
+        - { name: centerId, in: query, required: false, schema: { type: string, format: uuid } }
+        - { name: teacherId, in: query, required: false, schema: { type: string, format: uuid } }
+      responses: { '200': { description: 'ok — 중복제거: 동일 T·U·D 1건(상태·분류 우선)' } }
+
 components:
   securitySchemes:
     bearerAuth:

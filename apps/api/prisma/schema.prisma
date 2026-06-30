@@ -121,6 +121,7 @@ model center {
   booking                      booking[]
   category_mode_policy         category_mode_policy[]
   consultation_policy          consultation_policy?
+  evaluation_weight_policy     evaluation_weight_policy[]
   feature_availability         feature_availability[]
   guardian_visibility_policy   guardian_visibility_policy?
   limit_policy                 limit_policy?
@@ -627,6 +628,8 @@ model teacher_profile {
   teacher_category                                                   String?
   type_code                                                          String?
   cancel_count                                                       Int                            @default(0)
+  director_role                                                      String?
+  teacher_monthly_hours                                              teacher_monthly_hours[]
   board_question_board_question_assigned_teacher_idToteacher_profile board_question[]               @relation("board_question_assigned_teacher_idToteacher_profile")
   board_question_board_question_taken_teacher_idToteacher_profile    board_question[]               @relation("board_question_taken_teacher_idToteacher_profile")
   booking                                                            booking[]
@@ -644,6 +647,33 @@ model teacher_profile {
   center                                                             center?                        @relation(fields: [center_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   time_slot                                                          time_slot[]
   work_schedule                                                      work_schedule[]
+}
+
+model evaluation_weight_policy {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  center_id      String?  @db.Uuid
+  w_total        Int      @default(20) @db.SmallInt
+  w_completion   Int      @default(20) @db.SmallInt
+  w_rerequest    Int      @default(15) @db.SmallInt
+  w_reject       Int      @default(10) @db.SmallInt
+  w_noshow       Int      @default(10) @db.SmallInt
+  w_response     Int      @default(10) @db.SmallInt
+  w_satisfaction Int      @default(15) @db.SmallInt
+  updated_by     String?  @db.Uuid
+  updated_at     DateTime @default(now()) @db.Timestamptz(6)
+  center         center?  @relation(fields: [center_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model teacher_monthly_hours {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teacher_id      String          @db.Uuid
+  year_month      String          @db.Char(7)
+  hours           Decimal         @default(0) @db.Decimal(6, 1)
+  updated_by      String?         @db.Uuid
+  updated_at      DateTime        @default(now()) @db.Timestamptz(6)
+  teacher_profile teacher_profile @relation(fields: [teacher_id], references: [account_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([teacher_id, year_month])
 }
 
 model time_slot {
