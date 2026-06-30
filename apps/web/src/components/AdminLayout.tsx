@@ -72,6 +72,9 @@ export function AdminLayout() {
             <NavLink to="/admin/reports" style={navStyle}>
               신고
             </NavLink>
+            <NavLink to="/admin/announcements" style={navStyle}>
+              공지
+            </NavLink>
           </>
         )}
       </nav>
