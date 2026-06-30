@@ -18,11 +18,18 @@ const slotColor: Record<Slot['status'], string> = {
 export function SchedulePage() {
   const { user } = useAuth();
   const teacherId = user!.id;
+  type Win = { start: string; end: string };
   const [date, setDate] = useState(todayStr());
   const [slots, setSlots] = useState<Slot[]>([]);
-  const [tpl, setTpl] = useState<Record<string, { start: string; end: string }>>({});
+  const [tpl, setTpl] = useState<Record<string, Win[]>>({});
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
+
+  const setWin = (d: number, i: number, patch: Partial<Win>) =>
+    setTpl((p) => ({ ...p, [d]: (p[d] ?? []).map((w, idx) => (idx === i ? { ...w, ...patch } : w)) }));
+  const addWin = (d: number) => setTpl((p) => ({ ...p, [d]: [...(p[d] ?? []), { start: '', end: '' }] }));
+  const delWin = (d: number, i: number) =>
+    setTpl((p) => ({ ...p, [d]: (p[d] ?? []).filter((_, idx) => idx !== i) }));
 
   const loadSlots = useCallback(async () => {
     setError('');
@@ -42,9 +49,9 @@ export function SchedulePage() {
     api
       .get<WorkSchedule>(`/teachers/${teacherId}/work-schedule`)
       .then((ws) => {
-        const t: Record<string, { start: string; end: string }> = {};
+        const t: Record<string, Win[]> = {};
         const rt = ws.recurring_template ?? {};
-        for (let d = 0; d < 7; d++) t[d] = rt[d]?.[0] ?? { start: '', end: '' };
+        for (let d = 0; d < 7; d++) t[d] = rt[d] ?? [];
         setTpl(t);
       })
       .catch(() => undefined);
@@ -53,8 +60,11 @@ export function SchedulePage() {
   async function saveSchedule() {
     setMsg('');
     setError('');
-    const recurringTemplate: Record<string, { start: string; end: string }[]> = {};
-    for (const [d, w] of Object.entries(tpl)) if (w.start && w.end) recurringTemplate[d] = [w];
+    const recurringTemplate: Record<string, Win[]> = {};
+    for (const [d, wins] of Object.entries(tpl)) {
+      const valid = wins.filter((w) => w.start && w.end);
+      if (valid.length) recurringTemplate[d] = valid;
+    }
     try {
       await api.put(`/teachers/${teacherId}/work-schedule`, { recurringTemplate });
       setMsg('근무표가 저장되었습니다.');
@@ -64,15 +74,12 @@ export function SchedulePage() {
     }
   }
 
-  const availCount = slots.filter((s) => s.status === 'avail').length;
-
   return (
     <div>
       <PageHeader title="가용 슬롯" sub="10분 단위 · 초록=가용/파랑=예약/회색=휴게·근무외/빨강=차단" />
       <input className="input" type="date" style={{ width: 200 }} value={date} onChange={(e) => setDate(e.target.value)} />
       <ErrorText>{error}</ErrorText>
-      <p style={{ color: 'var(--muted)', fontSize: 13 }}>가용 {availCount}칸</p>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 20 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 20, marginTop: 8 }}>
         {slots.map((s) => (
           <span
             key={s.index}
@@ -93,26 +100,39 @@ export function SchedulePage() {
         {slots.length === 0 && !error && <span style={{ color: 'var(--muted)' }}>근무 시간이 없습니다.</span>}
       </div>
 
-      <Card title="근무표(요일별, 1구간)">
-        <div style={{ display: 'grid', gap: 8 }}>
+      <Card title="근무표(요일별 · 여러 구간 가능)">
+        <div style={{ display: 'grid', gap: 10 }}>
           {WEEKDAYS.map((label, d) => (
-            <div key={d} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ width: 24 }}>{label}</span>
-              <input
-                className="input"
-                style={{ width: 120 }}
-                placeholder="09:00"
-                value={tpl[d]?.start ?? ''}
-                onChange={(e) => setTpl((p) => ({ ...p, [d]: { ...p[d], start: e.target.value } }))}
-              />
-              <span>~</span>
-              <input
-                className="input"
-                style={{ width: 120 }}
-                placeholder="18:00"
-                value={tpl[d]?.end ?? ''}
-                onChange={(e) => setTpl((p) => ({ ...p, [d]: { ...p[d], end: e.target.value } }))}
-              />
+            <div key={d} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              <span style={{ width: 24, paddingTop: 6 }}>{label}</span>
+              <div style={{ display: 'grid', gap: 6 }}>
+                {(tpl[d] ?? []).map((w, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input
+                      className="input"
+                      type="time"
+                      style={{ width: 130 }}
+                      value={w.start}
+                      onChange={(e) => setWin(d, i, { start: e.target.value })}
+                    />
+                    <span>~</span>
+                    <input
+                      className="input"
+                      type="time"
+                      style={{ width: 130 }}
+                      value={w.end}
+                      onChange={(e) => setWin(d, i, { end: e.target.value })}
+                    />
+                    <Button size="sm" variant="ghost" onClick={() => delWin(d, i)}>삭제</Button>
+                  </div>
+                ))}
+                <div>
+                  <Button size="sm" variant="ghost" onClick={() => addWin(d)}>+ 구간 추가</Button>
+                  {(tpl[d]?.length ?? 0) === 0 && (
+                    <span style={{ marginLeft: 8, color: 'var(--muted)', fontSize: 13 }}>근무 없음</span>
+                  )}
+                </div>
+              </div>
             </div>
           ))}
         </div>
