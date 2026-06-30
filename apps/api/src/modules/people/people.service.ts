@@ -26,11 +26,21 @@ export class PeopleService {
       where,
       include: { account: { select: { name: true, center_id: true } } },
     });
+    // 취소 가중치는 센터별 penalty_policy.ranking_weight_down 정책값에서(없으면 상수 폴백).
+    // — §5-7 "랭킹 가중치 하락"을 하드코딩이 아닌 정책으로 구동.
+    const policies = await this.prisma.penalty_policy.findMany({
+      select: { center_id: true, ranking_weight_down: true },
+    });
+    const weightByCenter = new Map(
+      policies.map((pp) => [pp.center_id, pp.ranking_weight_down == null ? RANK_CANCEL_WEIGHT : Number(pp.ranking_weight_down)]),
+    );
+    const cancelWeight = (centerId: string | null | undefined) =>
+      (centerId && weightByCenter.has(centerId) ? weightByCenter.get(centerId)! : RANK_CANCEL_WEIGHT);
     const scored = all
       .map((t) => ({
         t,
         score:
-          Number(t.rating ?? 0) - (t.cancel_count ?? 0) * RANK_CANCEL_WEIGHT,
+          Number(t.rating ?? 0) - (t.cancel_count ?? 0) * cancelWeight(t.center_id),
       }))
       .sort((a, b) => {
         const g =
