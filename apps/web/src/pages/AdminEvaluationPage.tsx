@@ -3,6 +3,21 @@ import { api, ApiError } from '../api/client';
 import type { Center, RankingRow, WeightPolicy } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { isHq } from '../auth/roleHome';
+import {
+  PageHeader,
+  Button,
+  Badge,
+  Spinner,
+  ErrorText,
+  Meter,
+  Table,
+  Modal,
+  ConfirmFooter,
+  SelectField,
+  TextField,
+} from '../components/ui';
+import type { Column } from '../components/ui';
+import { SectionCard } from '../components/dashboard/widgets';
 
 const WEIGHT_FIELDS: { key: keyof WeightPolicy; label: string; reverse?: boolean }[] = [
   { key: 'w_total', label: '누적 상담' },
@@ -14,10 +29,10 @@ const WEIGHT_FIELDS: { key: keyof WeightPolicy; label: string; reverse?: boolean
   { key: 'w_satisfaction', label: '만족도' },
 ];
 const PERIODS = [
-  { v: 'all', t: '전체' },
-  { v: '1w', t: '최근 1주' },
-  { v: '2w', t: '최근 2주' },
-  { v: '1m', t: '최근 1달' },
+  { value: 'all', label: '전체' },
+  { value: '1w', label: '최근 1주' },
+  { value: '2w', label: '최근 2주' },
+  { value: '1m', label: '최근 1달' },
 ];
 
 export function AdminEvaluationPage() {
@@ -36,6 +51,12 @@ export function AdminEvaluationPage() {
 
   const [weights, setWeights] = useState<WeightPolicy | null>(null);
   const [showWeights, setShowWeights] = useState(false);
+
+  // 모달: 직무/시수 편집 대상
+  const [dirEdit, setDirEdit] = useState<RankingRow | null>(null);
+  const [dirVal, setDirVal] = useState('');
+  const [hourEdit, setHourEdit] = useState<RankingRow | null>(null);
+  const [hourVal, setHourVal] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -60,105 +81,167 @@ export function AdminEvaluationPage() {
     if (hq) api.get<Center[]>('/centers').then(setCenters).catch(() => undefined);
   }, [hq]);
 
-  const loadWeights = useCallback(async () => {
-    const q = hq && centerId ? `?centerId=${centerId}` : '';
-    setWeights(await api.get<WeightPolicy>(`/admin/evaluation/weights${q}`));
-  }, [hq, centerId]);
-
   const weightSum = useMemo(
     () => (weights ? WEIGHT_FIELDS.reduce((s, f) => s + Number(weights[f.key] || 0), 0) : 0),
     [weights],
   );
 
   async function openWeights() {
-    if (!showWeights && !weights) await loadWeights();
+    if (!showWeights && !weights) {
+      const q = hq && centerId ? `?centerId=${centerId}` : '';
+      setWeights(await api.get<WeightPolicy>(`/admin/evaluation/weights${q}`));
+    }
     setShowWeights((v) => !v);
   }
 
   async function saveWeights() {
-    if (!weights) return;
-    if (weightSum !== 100) {
-      alert(`가중치 합계가 ${weightSum} 입니다. 정확히 100 이어야 합니다.`);
-      return;
-    }
+    if (!weights || weightSum !== 100) return;
     try {
       const body: Record<string, unknown> = { centerId: hq && centerId ? centerId : null };
       WEIGHT_FIELDS.forEach((f) => (body[f.key] = Number(weights[f.key])));
       await api.put('/admin/evaluation/weights', body);
-      alert('가중치 저장 완료');
+      setShowWeights(false);
       await load();
     } catch (e) {
-      alert(e instanceof ApiError ? e.message : '저장 실패');
+      setError(e instanceof ApiError ? e.message : '저장 실패');
     }
   }
 
-  async function setDirectorRole(t: RankingRow) {
-    const cur = t.directorRole ?? '';
-    const next = window.prompt('직무 (원장 / 부원장 / 빈칸=해제):', cur);
-    if (next === null) return;
-    const role = next.trim() === '' ? null : next.trim();
-    if (role && role !== '원장' && role !== '부원장') return alert('원장 또는 부원장만 가능');
+  function openDir(t: RankingRow) {
+    setDirEdit(t);
+    setDirVal(t.directorRole ?? '');
+  }
+  async function saveDir() {
+    if (!dirEdit) return;
     try {
-      await api.put(`/admin/teachers/${t.teacherId}/director`, { directorRole: role });
+      await api.put(`/admin/teachers/${dirEdit.teacherId}/director`, {
+        directorRole: dirVal || null,
+      });
+      setDirEdit(null);
       await load();
     } catch (e) {
       alert(e instanceof ApiError ? e.message : '지정 실패');
     }
   }
 
-  async function setHours(t: RankingRow) {
-    const ym = new Date().toISOString().slice(0, 7);
-    const h = window.prompt(`${t.name ?? t.teacherId} ${ym} 근무시수(시간):`, String(t.hours ?? ''));
-    if (h === null) return;
-    const hours = Number(h);
-    if (!Number.isFinite(hours) || hours < 0) return alert('숫자를 입력하세요');
+  function openHour(t: RankingRow) {
+    setHourEdit(t);
+    setHourVal(String(t.hours ?? ''));
+  }
+  async function saveHour() {
+    if (!hourEdit) return;
+    const hours = Number(hourVal);
+    if (!Number.isFinite(hours) || hours < 0) return;
     try {
-      await api.put(`/admin/teachers/${t.teacherId}/monthly-hours`, { yearMonth: ym, hours });
+      await api.put(`/admin/teachers/${hourEdit.teacherId}/monthly-hours`, {
+        yearMonth: new Date().toISOString().slice(0, 7),
+        hours,
+      });
+      setHourEdit(null);
       await load();
     } catch (e) {
       alert(e instanceof ApiError ? e.message : '입력 실패');
     }
   }
 
+  const columns: Column<RankingRow>[] = [
+    { key: 'rank', header: '#', render: (r) => <strong>{r.rank}</strong> },
+    {
+      key: 'name',
+      header: '선생님',
+      render: (r) => (
+        <>
+          {r.name ?? r.teacherId.slice(0, 8)}
+          {r.directorRole && (
+            <span style={{ marginLeft: 6 }}>
+              <Badge kind="confirmed">{r.directorRole}</Badge>
+            </span>
+          )}
+        </>
+      ),
+    },
+    { key: 'center', header: '센터', render: (r) => r.center ?? '-' },
+    {
+      key: 'score',
+      header: '종합점수',
+      render: (r) => (
+        <span>
+          <strong style={{ color: 'var(--teal)' }}>{r.score}</strong>{' '}
+          <Meter value={r.score} />
+        </span>
+      ),
+    },
+    {
+      key: 'metrics',
+      header: '완료/거부/노쇼',
+      render: (r) => `${r.metrics.completion}% / ${r.metrics.reject}% / ${r.metrics.noshow}%`,
+    },
+    { key: 'satisfaction', header: '만족도', render: (r) => r.metrics.satisfaction },
+    { key: 'perHour', header: '시간당', render: (r) => r.perHour ?? '–' },
+    ...(isAdmin
+      ? [
+          {
+            key: 'actions',
+            header: '관리',
+            align: 'right' as const,
+            render: (r: RankingRow) => (
+              <span style={{ whiteSpace: 'nowrap' }}>
+                {canEdit && (
+                  <Button size="sm" variant="ghost" onClick={() => openDir(r)}>
+                    직무
+                  </Button>
+                )}{' '}
+                <Button size="sm" variant="ghost" onClick={() => openHour(r)}>
+                  시수
+                </Button>
+              </span>
+            ),
+          },
+        ]
+      : []),
+  ];
+
   return (
     <div>
-      <h2 style={{ color: 'var(--teal)' }}>선생님 평가·순위</h2>
-      <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: -6 }}>
-        가중 종합점수(0~100) 기준 순위. {hq ? '전체 센터' : '자기 센터'} 범위.
-      </p>
+      <PageHeader
+        title="선생님 평가·순위"
+        sub={`가중 종합점수(0~100) 기준 · ${hq ? '전체 센터' : '자기 센터'}`}
+        actions={
+          canEdit ? (
+            <Button variant="ghost" onClick={openWeights}>
+              가중치 {showWeights ? '닫기' : '설정'}
+            </Button>
+          ) : undefined
+        }
+      />
 
-      {/* 필터 */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', margin: '12px 0' }}>
-        <select className="input" value={period} onChange={(e) => setPeriod(e.target.value)}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+        <select className="input" style={{ width: 130 }} value={period} onChange={(e) => setPeriod(e.target.value)}>
           {PERIODS.map((p) => (
-            <option key={p.v} value={p.v}>{p.t}</option>
+            <option key={p.value} value={p.value}>{p.label}</option>
           ))}
         </select>
-        <select className="input" value={director} onChange={(e) => setDirector(e.target.value)}>
+        <select className="input" style={{ width: 130 }} value={director} onChange={(e) => setDirector(e.target.value)}>
           <option value="">직무 전체</option>
           <option value="원장">원장</option>
           <option value="부원장">부원장</option>
         </select>
         {hq && (
-          <select className="input" value={centerId} onChange={(e) => setCenterId(e.target.value)}>
+          <select className="input" style={{ width: 160 }} value={centerId} onChange={(e) => setCenterId(e.target.value)}>
             <option value="">전체 센터</option>
             {centers.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
         )}
-        {canEdit && (
-          <button className="btn" style={{ marginLeft: 'auto' }} onClick={openWeights}>
-            가중치 {showWeights ? '닫기' : '설정'}
-          </button>
-        )}
       </div>
 
-      {/* 가중치 편집 */}
       {showWeights && weights && (
-        <div className="card" style={{ marginBottom: 14 }}>
-          <strong>평가 가중치 {hq && centerId ? '(선택 센터)' : '(전사 기본)'}</strong>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', margin: '10px 0' }}>
+        <SectionCard
+          title={`평가 가중치 ${hq && centerId ? '(선택 센터)' : '(전사 기본)'}`}
+          desc="합계 100 이어야 저장됩니다. ↓ 표시는 낮을수록 좋은 역지표."
+        >
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
             {WEIGHT_FIELDS.map((f) => (
               <label key={f.key} style={{ fontSize: 13 }}>
                 {f.label}{f.reverse ? ' ↓' : ''}
@@ -168,80 +251,61 @@ export function AdminEvaluationPage() {
                   type="number"
                   style={{ width: 76 }}
                   value={weights[f.key] as number}
-                  onChange={(e) =>
-                    setWeights({ ...weights, [f.key]: Number(e.target.value) })
-                  }
+                  onChange={(e) => setWeights({ ...weights, [f.key]: Number(e.target.value) })}
                 />
               </label>
             ))}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ color: weightSum === 100 ? 'var(--teal)' : '#d23b3b', fontWeight: 700 }}>
+            <span style={{ color: weightSum === 100 ? 'var(--teal)' : 'var(--chip-danger)', fontWeight: 700 }}>
               합계 {weightSum} / 100
             </span>
-            <button className="btn" disabled={weightSum !== 100} onClick={saveWeights}>
-              저장
-            </button>
+            <Button disabled={weightSum !== 100} onClick={saveWeights}>저장</Button>
           </div>
-        </div>
+        </SectionCard>
       )}
 
-      {error && <p className="error">{error}</p>}
-      {loading ? (
-        <p>불러오는 중…</p>
-      ) : rows.length === 0 ? (
-        <p style={{ color: 'var(--muted)' }}>표시할 선생님이 없습니다.</p>
-      ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid var(--line)', textAlign: 'left' }}>
-              <th style={{ padding: 6 }}>#</th>
-              <th>선생님</th>
-              <th>센터</th>
-              <th>종합점수</th>
-              <th>완료/거부/노쇼</th>
-              <th>만족도</th>
-              <th>시간당</th>
-              {isAdmin && <th>관리</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.teacherId} style={{ borderBottom: '1px solid var(--line)' }}>
-                <td style={{ padding: 6, fontWeight: 700 }}>{r.rank}</td>
-                <td>
-                  {r.name ?? r.teacherId.slice(0, 8)}
-                  {r.directorRole && (
-                    <span className="chip confirmed" style={{ marginLeft: 6 }}>{r.directorRole}</span>
-                  )}
-                </td>
-                <td style={{ color: 'var(--muted)' }}>{r.center ?? '-'}</td>
-                <td>
-                  <strong style={{ color: 'var(--teal)' }}>{r.score}</strong>
-                  <span style={{ display: 'inline-block', width: 60, height: 6, background: 'var(--line)', borderRadius: 4, marginLeft: 6, verticalAlign: 'middle' }}>
-                    <span style={{ display: 'block', width: `${r.score}%`, height: 6, background: 'var(--teal)', borderRadius: 4 }} />
-                  </span>
-                </td>
-                <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                  {r.metrics.completion}% / {r.metrics.reject}% / {r.metrics.noshow}%
-                </td>
-                <td>{r.metrics.satisfaction}</td>
-                <td>{r.perHour ?? '–'}</td>
-                {isAdmin && (
-                  <td style={{ whiteSpace: 'nowrap' }}>
-                    {canEdit && (
-                      <>
-                        <button className="btn ghost sm" onClick={() => setDirectorRole(r)}>직무</button>{' '}
-                      </>
-                    )}
-                    <button className="btn ghost sm" onClick={() => setHours(r)}>시수</button>
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <ErrorText>{error}</ErrorText>
+      {loading ? <Spinner /> : <Table columns={columns} rows={rows} rowKey={(r) => r.teacherId} empty="표시할 선생님이 없습니다." />}
+
+      {/* 직무 지정 모달 */}
+      <Modal
+        title="원장/부원장 지정"
+        open={!!dirEdit}
+        onClose={() => setDirEdit(null)}
+        footer={<ConfirmFooter onCancel={() => setDirEdit(null)} onConfirm={saveDir} confirmLabel="저장" />}
+      >
+        <p style={{ marginTop: 0 }}>{dirEdit?.name}</p>
+        <SelectField
+          label="직무"
+          value={dirVal}
+          onChange={(e) => setDirVal(e.target.value)}
+          options={[
+            { value: '', label: '— 해제 —' },
+            { value: '원장', label: '원장' },
+            { value: '부원장', label: '부원장' },
+          ]}
+        />
+      </Modal>
+
+      {/* 시수 입력 모달 */}
+      <Modal
+        title="월별 근무시수"
+        open={!!hourEdit}
+        onClose={() => setHourEdit(null)}
+        footer={<ConfirmFooter onCancel={() => setHourEdit(null)} onConfirm={saveHour} confirmLabel="저장" />}
+      >
+        <p style={{ marginTop: 0 }}>
+          {hourEdit?.name} · {new Date().toISOString().slice(0, 7)}
+        </p>
+        <TextField
+          label="근무시수(시간)"
+          type="number"
+          value={hourVal}
+          onChange={(e) => setHourVal(e.target.value)}
+          placeholder="80"
+        />
+      </Modal>
     </div>
   );
 }

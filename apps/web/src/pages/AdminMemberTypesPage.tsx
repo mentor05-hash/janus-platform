@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { isHq } from '../auth/roleHome';
+import { PageHeader, Card, Button, Badge, ErrorText, TextField, SelectField } from '../components/ui';
 
 type MemberType = { id: string; kind: 'teacher' | 'student'; code: string; label: string; sort_order: number; active: boolean };
 type Teacher = { id: string; name: string };
@@ -43,7 +44,7 @@ export function AdminMemberTypesPage() {
     try {
       await api.post('/admin/member-types', { kind: nt.kind, code: nt.code, label: nt.label });
       setNt({ kind: nt.kind, code: '', label: '' });
-      setMsg('분류 추가됨');
+      setMsg('분류가 추가되었습니다.');
       await load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : '분류 추가 실패');
@@ -70,88 +71,111 @@ export function AdminMemberTypesPage() {
   };
 
   const TypeList = ({ rows }: { rows: MemberType[] }) => (
-    <ul style={{ display: 'grid', gap: 4, listStyle: 'none', padding: 0, fontSize: 14 }}>
+    <div style={{ display: 'grid', gap: 6 }}>
+      {rows.length === 0 && <span style={{ color: 'var(--muted)', fontSize: 13 }}>유형이 없습니다.</span>}
       {rows.map((t) => (
-        <li key={t.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div key={t.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <strong>{t.label}</strong>
-          <code style={{ color: 'var(--muted)', fontSize: 12 }}>{t.code}</code>
+          <Badge kind="soft">{t.code}</Badge>
           <span style={{ flex: 1 }} />
           {canManage && (
-            <button className="btn ghost sm" onClick={() => deactivate(t.id)}>
+            <Button size="sm" variant="ghost" onClick={() => deactivate(t.id)}>
               비활성
-            </button>
+            </Button>
           )}
-        </li>
+        </div>
       ))}
-    </ul>
+    </div>
   );
 
   const asTypes = as.kind === 'teacher' ? tTypes : sTypes;
 
   return (
-    <div style={{ display: 'grid', gap: 24 }}>
-      <h2 style={{ margin: 0 }}>회원 분류</h2>
-      {msg && <div style={{ color: 'var(--teal)', fontSize: 14 }}>{msg}</div>}
-      {error && <div style={{ color: '#c0392b', fontSize: 14 }}>{error}</div>}
+    <div>
+      <PageHeader title="회원 분류" sub="선생님·학생 유형(확장 가능) 관리 및 배정" />
+      {msg && <p style={{ color: 'var(--teal)', fontSize: 14 }}>{msg}</p>}
+      <ErrorText>{error}</ErrorText>
 
-      <div style={{ display: 'grid', gap: 16, gridTemplateColumns: '1fr 1fr' }}>
-        <section className="card" style={{ padding: 16 }}>
-          <h3 style={{ marginTop: 0, fontSize: 15 }}>선생님 유형</h3>
+      <div style={{ display: 'grid', gap: 16, gridTemplateColumns: '1fr 1fr', marginBottom: 16 }}>
+        <Card title="선생님 유형">
           <TypeList rows={tTypes} />
-        </section>
-        <section className="card" style={{ padding: 16 }}>
-          <h3 style={{ marginTop: 0, fontSize: 15 }}>학생 유형</h3>
+        </Card>
+        <Card title="학생 유형">
           <TypeList rows={sTypes} />
-        </section>
+        </Card>
       </div>
 
       {canManage && (
-        <section className="card" style={{ display: 'flex', gap: 8, padding: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-          <strong style={{ fontSize: 14 }}>분류 추가</strong>
-          <select className="input" value={nt.kind} onChange={(e) => setNt({ ...nt, kind: e.target.value as 'teacher' | 'student' })}>
-            <option value="teacher">선생님</option>
-            <option value="student">학생</option>
-          </select>
-          <input className="input" style={{ width: 130 }} placeholder="코드(영문)" value={nt.code} onChange={(e) => setNt({ ...nt, code: e.target.value })} />
-          <input className="input" style={{ width: 130 }} placeholder="표시 이름" value={nt.label} onChange={(e) => setNt({ ...nt, label: e.target.value })} />
-          <button className="btn" disabled={!nt.code.trim() || !nt.label.trim()} onClick={addType}>
-            추가
-          </button>
-        </section>
+        <Card title="분류 추가" style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div style={{ width: 120 }}>
+              <SelectField
+                label="대상"
+                value={nt.kind}
+                onChange={(e) => setNt({ ...nt, kind: e.target.value as 'teacher' | 'student' })}
+                options={[
+                  { value: 'teacher', label: '선생님' },
+                  { value: 'student', label: '학생' },
+                ]}
+              />
+            </div>
+            <div style={{ width: 130 }}>
+              <TextField label="코드(영문)" value={nt.code} onChange={(e) => setNt({ ...nt, code: e.target.value })} />
+            </div>
+            <div style={{ width: 130 }}>
+              <TextField label="표시 이름" value={nt.label} onChange={(e) => setNt({ ...nt, label: e.target.value })} />
+            </div>
+            <Button disabled={!nt.code.trim() || !nt.label.trim()} onClick={addType} style={{ marginBottom: 12 }}>
+              추가
+            </Button>
+          </div>
+        </Card>
       )}
 
-      <section className="card" style={{ display: 'flex', gap: 8, padding: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-        <strong style={{ fontSize: 14 }}>분류 배정</strong>
-        <select className="input" value={as.kind} onChange={(e) => setAs({ kind: e.target.value as 'teacher' | 'student', memberId: '', typeCode: '' })}>
-          <option value="teacher">선생님</option>
-          <option value="student">학생</option>
-        </select>
-        <select className="input" value={as.memberId} onChange={(e) => setAs({ ...as, memberId: e.target.value })}>
-          <option value="">대상 선택</option>
-          {as.kind === 'teacher'
-            ? teachers.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
-                </option>
-              ))
-            : students.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} ({s.login_id})
+      <Card title="분류 배정">
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div style={{ width: 120 }}>
+            <SelectField
+              label="대상"
+              value={as.kind}
+              onChange={(e) => setAs({ kind: e.target.value as 'teacher' | 'student', memberId: '', typeCode: '' })}
+              options={[
+                { value: 'teacher', label: '선생님' },
+                { value: 'student', label: '학생' },
+              ]}
+            />
+          </div>
+          <div style={{ width: 200 }}>
+            <SelectField label="대상 회원" value={as.memberId} onChange={(e) => setAs({ ...as, memberId: e.target.value })}>
+              <option value="">대상 선택</option>
+              {as.kind === 'teacher'
+                ? teachers.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))
+                : students.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.login_id})
+                    </option>
+                  ))}
+            </SelectField>
+          </div>
+          <div style={{ width: 150 }}>
+            <SelectField label="유형" value={as.typeCode} onChange={(e) => setAs({ ...as, typeCode: e.target.value })}>
+              <option value="">유형 선택</option>
+              {asTypes.map((t) => (
+                <option key={t.id} value={t.code}>
+                  {t.label}
                 </option>
               ))}
-        </select>
-        <select className="input" value={as.typeCode} onChange={(e) => setAs({ ...as, typeCode: e.target.value })}>
-          <option value="">유형 선택</option>
-          {asTypes.map((t) => (
-            <option key={t.id} value={t.code}>
-              {t.label}
-            </option>
-          ))}
-        </select>
-        <button className="btn" disabled={!as.memberId || !as.typeCode} onClick={assign}>
-          배정
-        </button>
-      </section>
+            </SelectField>
+          </div>
+          <Button disabled={!as.memberId || !as.typeCode} onClick={assign} style={{ marginBottom: 12 }}>
+            배정
+          </Button>
+        </div>
+      </Card>
     </div>
   );
 }
