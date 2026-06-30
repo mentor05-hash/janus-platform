@@ -8,6 +8,14 @@ export interface Me {
   name: string;
   center_id: string | null;
   status: string;
+  permLevel?: 'L1' | 'L2' | 'L3' | null;
+  adminTier?: string | null; // 마스터 / 본사관리자 / 센터관리자
+}
+
+export interface Center {
+  id: string;
+  name: string;
+  region: string | null;
 }
 
 export interface Booking {

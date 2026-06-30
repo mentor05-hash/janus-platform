@@ -75,6 +75,12 @@ export function AdminLayout() {
             <NavLink to="/admin/announcements" style={navStyle}>
               공지
             </NavLink>
+            {/* 조직 관리는 본사 이상(전사) 전용 */}
+            {hq && (
+              <NavLink to="/admin/org" style={navStyle}>
+                조직 관리
+              </NavLink>
+            )}
           </>
         )}
       </nav>
