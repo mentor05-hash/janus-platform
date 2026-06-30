@@ -1,10 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, Quote, Slot, Teacher } from '../api';
 import { C, R, SP, ui } from '../theme';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const DURATION = 3; // 30분 (10분 슬롯 3칸)
+const WD = ['일', '월', '화', '수', '목', '금', '토'];
+
+// 슬롯 상태별 표시(학생 관점). avail 만 신청 가능, 나머지는 안내용.
+const SLOT_UI: Record<Slot['status'], { label: string; bg: string; fg: string; bd: string }> = {
+  avail: { label: '가능', bg: '#E3F4EA', fg: '#15803D', bd: '#B7E0C6' },
+  booked: { label: '예약', bg: '#EAF0FC', fg: '#2563EB', bd: '#C7D8F6' },
+  rest: { label: '휴게', bg: '#EEF1F3', fg: '#8B9BA3', bd: '#E0E5E8' },
+  off: { label: '근무외', bg: '#F4F6F8', fg: '#B6C0C6', bd: '#EAEEF0' },
+  blocked: { label: '차단', bg: '#FBE7E7', fg: '#C92A2A', bd: '#F1C9C9' },
+};
 
 const SUBJECTS = ['국어', '수학', '영어', '탐구'];
 const UPLOADS = [
@@ -64,12 +74,38 @@ export function SlotsScreen({ teacher, onBack }: { teacher: Teacher; onBack: () 
   const avail = slots.filter((s) => s.status === 'avail');
   const modeLabel = MODES.find((m) => m.mode === mode)?.label ?? mode;
 
+  // 날짜 스트립(오늘부터 14일) — 선생님 근무일이 아닌 날은 빈 표로 안내됨.
+  const dateOptions = useMemo(() => {
+    const base = new Date();
+    return Array.from({ length: 14 }, (_, i) => {
+      const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      return { iso, md: `${d.getMonth() + 1}/${d.getDate()}`, wd: WD[d.getDay()], dow: d.getDay() };
+    });
+  }, []);
+
+  // 시간대(시)별 그룹 — 컴팩트 표
+  const byHour = useMemo(() => {
+    const m = new Map<number, Slot[]>();
+    for (const s of slots) {
+      const h = Math.floor((s.index * 10) / 60);
+      if (!m.has(h)) m.set(h, []);
+      m.get(h)!.push(s);
+    }
+    return [...m.entries()].sort((a, b) => a[0] - b[0]);
+  }, [slots]);
+
+  // 30분(3칸) 연속 가능해야 시작 가능 — 학생이 '진짜 신청 가능'한 시작점만 활성화
+  const availSet = useMemo(() => new Set(slots.filter((s) => s.status === 'avail').map((s) => s.index)), [slots]);
+  const canStart = (idx: number) => availSet.has(idx) && availSet.has(idx + 1) && availSet.has(idx + 2);
+  const selectedTime = start !== null ? slots.find((s) => s.index === start)?.time ?? '' : '';
+
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
       <TouchableOpacity onPress={onBack}><Text style={styles.back}>‹ 선생님 목록</Text></TouchableOpacity>
       <View style={styles.head}>
         <Text style={ui.h}>상담 신청</Text>
-        <Text style={ui.sub}>{teacher.name}{start !== null ? ` · ${avail.find((s) => s.index === start)?.time ?? ''}` : ''}</Text>
+        <Text style={ui.sub}>{teacher.name}{selectedTime ? ` · ${selectedTime}` : ''}</Text>
       </View>
 
       {/* 과목 */}
@@ -112,19 +148,69 @@ export function SlotsScreen({ teacher, onBack }: { teacher: Teacher; onBack: () 
         })}
       </View>
 
-      {/* 시간 선택 */}
-      <Text style={styles.sec}>시간 ({date})</Text>
-      <View style={styles.slotWrap}>
-        {avail.map((s) => {
-          const sel = start === s.index;
+      {/* 날짜 선택 */}
+      <Text style={styles.sec}>날짜</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
+        {dateOptions.map((d) => {
+          const on = d.iso === date;
+          const we = d.dow === 0 || d.dow === 6;
           return (
-            <TouchableOpacity key={s.index} style={[styles.slot, sel && styles.slotSel]} onPress={() => setStart(s.index)}>
-              <Text style={[styles.slotText, sel && styles.slotTextSel]}>{s.time}</Text>
+            <TouchableOpacity key={d.iso} style={[styles.dateChip, on && styles.dateChipOn]} onPress={() => setDate(d.iso)}>
+              <Text style={[styles.dateWd, on && styles.dateOnT, we && !on && { color: d.dow === 0 ? '#DC2626' : '#2563EB' }]}>{d.wd}</Text>
+              <Text style={[styles.dateMd, on && styles.dateOnT]}>{d.md}</Text>
             </TouchableOpacity>
           );
         })}
-        {avail.length === 0 && <Text style={ui.sub}>가용 시간이 없습니다.</Text>}
-      </View>
+      </ScrollView>
+
+      {/* 시간 — 시간대별 컴팩트 표(선생님 근무·체류 반영) */}
+      <Text style={styles.sec}>시간 (30분 단위 · 가능 시간만 선택)</Text>
+      {slots.length === 0 ? (
+        <Text style={ui.sub}>이 날짜에는 선생님 근무 시간이 없어요. 다른 날짜를 선택해 주세요.</Text>
+      ) : (
+        <>
+          <View style={{ gap: 4 }}>
+            {byHour.map(([h, cells]) => (
+              <View key={h} style={styles.hourRow}>
+                <Text style={styles.hourLabel}>{h}시</Text>
+                <View style={styles.hourCells}>
+                  {cells.map((s) => {
+                    const inRange = start !== null && s.index >= start && s.index < start + DURATION;
+                    const startable = canStart(s.index);
+                    const u = SLOT_UI[s.status];
+                    return (
+                      <TouchableOpacity
+                        key={s.index}
+                        activeOpacity={startable ? 0.6 : 1}
+                        disabled={!startable}
+                        onPress={() => setStart(s.index)}
+                        style={[
+                          styles.cell,
+                          { backgroundColor: u.bg, borderColor: u.bd },
+                          inRange && styles.cellSel,
+                          s.status === 'avail' && !startable && { opacity: 0.45 },
+                        ]}
+                      >
+                        <Text style={[styles.cellT, { color: inRange ? '#fff' : u.fg }]}>{s.time}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            ))}
+          </View>
+          {/* 범례 */}
+          <View style={styles.legend}>
+            {(['avail', 'booked', 'rest', 'off'] as Slot['status'][]).map((k) => (
+              <View key={k} style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: SLOT_UI[k].bg, borderColor: SLOT_UI[k].bd }]} />
+                <Text style={styles.legendT}>{SLOT_UI[k].label}</Text>
+              </View>
+            ))}
+          </View>
+          {avail.length === 0 && <Text style={[ui.sub, { marginTop: 6 }]}>이 날은 신청 가능한 빈 시간이 없어요.</Text>}
+        </>
+      )}
 
       {error ? <Text style={ui.error}>{error}</Text> : null}
 
@@ -166,11 +252,21 @@ const styles = StyleSheet.create({
   modeLabel: { fontSize: 14, fontWeight: '800', color: C.ink },
   modeSub: { fontSize: 12, color: C.muted, marginTop: 2 },
   modePrice: { fontSize: 12, fontWeight: '700', color: C.muted, marginTop: 8 },
-  slotWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: SP.sm, marginTop: 2 },
-  slot: { backgroundColor: C.teal50, borderWidth: 1, borderColor: C.teal100, borderRadius: R.md, paddingHorizontal: 14, paddingVertical: 9 },
-  slotSel: { backgroundColor: C.teal, borderColor: C.teal },
-  slotText: { color: C.teal, fontWeight: '700', fontSize: 13 },
-  slotTextSel: { color: C.white },
+  dateChip: { minWidth: 52, alignItems: 'center', backgroundColor: C.white, borderWidth: 1, borderColor: C.line, borderRadius: R.md, paddingVertical: 8, paddingHorizontal: 10 },
+  dateChipOn: { backgroundColor: C.teal, borderColor: C.teal },
+  dateWd: { fontSize: 11, fontWeight: '700', color: C.muted },
+  dateMd: { fontSize: 14, fontWeight: '800', color: C.ink, marginTop: 2 },
+  dateOnT: { color: '#fff' },
+  hourRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  hourLabel: { width: 30, fontSize: 11, color: C.muted, textAlign: 'right', fontWeight: '600' },
+  hourCells: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, flex: 1 },
+  cell: { width: 46, paddingVertical: 6, borderRadius: 7, borderWidth: 1, alignItems: 'center' },
+  cellSel: { backgroundColor: C.teal, borderColor: C.teal },
+  cellT: { fontSize: 11, fontWeight: '700' },
+  legend: { flexDirection: 'row', gap: 14, marginTop: 10, flexWrap: 'wrap' },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  legendDot: { width: 12, height: 12, borderRadius: 3, borderWidth: 1 },
+  legendT: { fontSize: 11, color: C.muted },
   warn: { borderWidth: 1, borderRadius: 10, padding: 12, marginTop: SP.lg },
   payRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: C.white, borderWidth: 1, borderColor: C.line, borderRadius: 12, padding: 14, marginTop: SP.lg, marginBottom: SP.md },
 });

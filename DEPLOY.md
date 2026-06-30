@@ -35,8 +35,8 @@ npm run build --workspace apps/web     # → apps/web/dist  (정적 파일)
 **웹 형태(권장, 위 1·2번에 포함):** expo-web 정적 export 를 nginx(`mobile` 컨테이너, 8090)로 서빙.
 브라우저(모바일/PC)에서 바로 접속 — 설치 불필요. `/api` 프록시로 같은 백엔드 사용.
 ```bash
-# 재빌드가 필요할 때(앱 소스 변경 후):
-cd apps/mobile && EXPO_PUBLIC_API_BASE=/api/v1 npx expo export -p web   # → apps/mobile/dist
+# 재빌드가 필요할 때(앱 소스 변경 후): export + meta 주입을 한 번에
+npm run export:web --workspace apps/mobile        # → apps/mobile/dist (API=/api/v1)
 docker compose -f docker-compose.full.yml build mobile && docker compose -f docker-compose.full.yml up -d mobile
 ```
 **네이티브(Expo Go / 설치형):**
