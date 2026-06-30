@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CreateMemberTypeDto, SetMemberTypeDto } from './dto/member-type.dto';
@@ -57,7 +57,7 @@ export class MemberTypeService {
   private assertCenter(targetCenter: string | null, actor: AuthUser) {
     // 센터관리자/HR 은 자기 센터만. 본사/마스터(center 미소속)는 전체.
     if (actor.centerId && targetCenter !== actor.centerId) {
-      throw new BadRequestException('다른 센터 회원의 분류는 변경할 수 없습니다.');
+      throw new ForbiddenException('다른 센터 회원의 분류는 변경할 수 없습니다.');
     }
   }
 }

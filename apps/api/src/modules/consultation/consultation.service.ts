@@ -102,7 +102,14 @@ export class ConsultationService {
   }
 
   private async assertStudentAccess(studentId: string, user: AuthUser) {
-    if (user.role === AccountRole.ADMIN || user.role === AccountRole.HR) return;
+    if (user.role === AccountRole.ADMIN || user.role === AccountRole.HR) {
+      // 센터 관리자(centerId 보유)는 자기 센터 학생만. 본사/마스터(centerId null)는 전체.
+      if (user.centerId) {
+        const sp = await this.prisma.student_profile.findUnique({ where: { account_id: studentId }, select: { center_id: true } });
+        if (sp?.center_id !== user.centerId) throw new ForbiddenException('다른 센터 학생은 열람할 수 없습니다.');
+      }
+      return;
+    }
     if (user.role === AccountRole.STUDENT && user.id === studentId) return;
     if (user.role === AccountRole.TEACHER) return; // 행 자체를 teacher_id 로 제한(listForStudent)
     if (user.role === AccountRole.GUARDIAN) {

@@ -41,6 +41,8 @@ describe('근무·체류·상담실(시뮬 회귀)', () => {
     // 체류: 월요일('1')만
     await prisma.student_profile.create({ data: { account_id: STU, center_id: C1, stay_time: { '1': [{ start: '09:00', end: '18:00' }] } as object } });
     await prisma.credit_account.create({ data: { student_id: STU, purchased_balance: 500000, granted_balance: 0, reserved_credits: 0 } });
+    // 공유 DB 의 기존 C1 상담실(시드/시뮬) 제거 → 이 테스트 방만 남겨 배정 결정성 보장
+    await prisma.room.deleteMany({ where: { center_id: C1 } });
     const room = await prisma.room.create({ data: { center_id: C1, type: 'offline', capacity: 1, status: 'available' } });
     roomId = room.id;
   });
