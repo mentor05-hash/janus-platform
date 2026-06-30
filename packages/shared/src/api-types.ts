@@ -2058,6 +2058,79 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/students/{id}/record-overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** T6 뷰어 개요 — 담임 공백 플래그 + 거부 이력(관리자·HR·선생님 전용, 선생님=본인 담당) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ok */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** Format: uuid */
+                            studentId?: string;
+                            /** Format: uuid */
+                            homeroomTeacherId?: string | null;
+                            homeroomGap?: {
+                                /** Format: date-time */
+                                lastHomeroomAt?: string | null;
+                                daysSince?: number | null;
+                                /** @enum {string} */
+                                level?: "none" | "ok" | "warn" | "danger";
+                                cycleDays?: number | null;
+                                warnDays?: number | null;
+                                dangerDays?: number | null;
+                            };
+                            rejections?: {
+                                /** Format: uuid */
+                                bookingId?: string;
+                                /** Format: uuid */
+                                teacherId?: string;
+                                teacherName?: string | null;
+                                consultType?: string | null;
+                                /** Format: date-time */
+                                startAt?: string | null;
+                                /** Format: date-time */
+                                createdAt?: string | null;
+                            }[];
+                            rejectCount?: number;
+                        };
+                    };
+                };
+                /** @description 권한 없음(학생·보호자) */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/credits/account": {
         parameters: {
             query?: never;
@@ -3409,6 +3482,431 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/evaluation/weights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 평가 가중치 조회(관리자, 조회는 센터 스코프) */
+        get: {
+            parameters: {
+                query?: {
+                    centerId?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ok */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        /** 평가 가중치 조정 — 합계 100 검증 (본사급 L2↑만, 센터관리자 조회만) */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /**
+                         * Format: uuid
+                         * @description null=전사 기본
+                         */
+                        centerId?: string | null;
+                        w_total: number;
+                        w_completion: number;
+                        w_rerequest: number;
+                        w_reject: number;
+                        w_noshow: number;
+                        w_response: number;
+                        w_satisfaction: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description saved */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                400: components["responses"]["Error"];
+                403: components["responses"]["Error"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/evaluation/ranking": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 선생님 가중 종합점수·순위(범위는 역할 스코프 — 센터관리자=자기 센터) */
+        get: {
+            parameters: {
+                query?: {
+                    period?: "all" | "date" | "1w" | "2w" | "1m" | "custom";
+                    from?: string;
+                    to?: string;
+                    centerId?: string;
+                    director?: "원장" | "부원장";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ok */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/teachers/{id}/monthly-hours": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 월별 근무시수 입력(자기 센터/본사급) — 시간당 지표 환산 */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @example 2026-06 */
+                        yearMonth: string;
+                        hours: number;
+                    };
+                };
+            };
+            responses: {
+                /** @description saved */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                403: components["responses"]["Error"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/teachers/{id}/director": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 원장/부원장 지정(본사급 L2↑만) */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @enum {string|null} */
+                        directorRole?: "원장" | "부원장" | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description saved */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                403: components["responses"]["Error"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/center-comparison": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 센터 간 z-score 표준화 0~100 상대점수(센터관리자=자기 센터 위치만) */
+        get: {
+            parameters: {
+                query?: {
+                    period?: "all" | "date" | "1w" | "2w" | "1m" | "custom";
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ok */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ops/pivots/{view}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 5 피벗 뷰(센터/센터내선생님/선생님×센터/선생님월별/센터월별) */
+        get: {
+            parameters: {
+                query?: {
+                    period?: "all" | "date" | "1w" | "2w" | "1m" | "custom";
+                    centerId?: string;
+                    teacherId?: string;
+                };
+                header?: never;
+                path: {
+                    view: "center" | "teacher-in-center" | "teacher-x-center" | "teacher-monthly" | "center-monthly";
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ok — 중복제거: 동일 T·U·D 1건(상태·분류 우선) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/materials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 자료 목록(공개범위 스코프) — mine=true 면 본인 게시물 */
+        get: {
+            parameters: {
+                query?: {
+                    subject?: string;
+                    mine?: "true";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ok */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /** 자료 게시(선생님, multipart 파일 선택) — visibility public|center|private */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "multipart/form-data": {
+                        title: string;
+                        description?: string;
+                        subject?: string;
+                        /** @enum {string} */
+                        visibility?: "public" | "center" | "private";
+                        /** Format: binary */
+                        file?: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                403: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/materials/{id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 자료 다운로드(공개범위 게이트 후 원본 바이트) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description file bytes */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/octet-stream": string;
+                    };
+                };
+                403: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/materials/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 자료 삭제(작성자 또는 관리자) */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description ok */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                403: components["responses"]["Error"];
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
