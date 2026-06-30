@@ -24,6 +24,7 @@ import { PricingPolicyModule } from './modules/pricing-policy/pricing-policy.mod
 import { EvaluationModule } from './modules/evaluation/evaluation.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
 import { OpsModule } from './modules/ops/ops.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { QnaModule } from './modules/qna/qna.module';
 import { ReportModule } from './modules/report/report.module';
@@ -53,6 +54,7 @@ import { StorageModule } from './modules/storage/storage.module';
     EvaluationModule,
     PayrollModule,
     OpsModule,
+    DashboardModule,
     NotificationModule,
     QnaModule,
     ReportModule,

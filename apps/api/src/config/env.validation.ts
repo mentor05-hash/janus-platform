@@ -75,7 +75,23 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   CACHE_PROVIDER?: string;
+
+  // 대시보드 권한 정책(§E 결정, 기본 OFF=본사급 독점). 'true' 일 때만 센터관리자에 확장.
+  @IsOptional()
+  @IsString()
+  DASH_BENCHMARK_ANON?: string; // 센터관리자에 타 센터 익명 평균 노출
+
+  @IsOptional()
+  @IsString()
+  DASH_CENTER_PAYROLL?: string; // 센터관리자 급여표 열람
+
+  @IsOptional()
+  @IsString()
+  DASH_CENTER_WEIGHT_EDIT?: string; // 센터관리자 가중치 조정
 }
+
+/** 대시보드 권한 ENV 플래그 — 'true' 만 활성, 그 외/부재는 false(fail-closed). */
+export const dashFlag = (v: string | undefined): boolean => v === 'true';
 
 export function validateEnv(config: Record<string, unknown>) {
   const validated = plainToInstance(EnvironmentVariables, config, {
