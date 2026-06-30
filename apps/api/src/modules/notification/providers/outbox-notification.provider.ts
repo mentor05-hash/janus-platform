@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import type {
   ChannelGateway,
@@ -30,8 +31,8 @@ export class OutboxNotificationProvider implements NotificationProvider {
         recipient_id: msg.recipientId,
         type: msg.type,
         channels: msg.channels,
-        payload: msg.payload,
-        delivery: delivery,
+        payload: msg.payload as Prisma.InputJsonValue,
+        delivery: delivery as Prisma.InputJsonValue,
         attempts: 1,
         last_attempt_at: new Date(),
       },

@@ -6,6 +6,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccountRole } from '../../config/enums';
@@ -37,7 +38,7 @@ export class ReportService {
         reason: dto.reason,
         status: 'received',
         center_id: reporter.centerId ?? null, // 센터 스코프(M2)
-        ai_review: review, // AI 1차 검토 결과 보존(M3) — action 과 분리
+        ai_review: review as unknown as Prisma.InputJsonValue, // AI 1차 검토 결과 보존(M3)
       },
     });
     return {
