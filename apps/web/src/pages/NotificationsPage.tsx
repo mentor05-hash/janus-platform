@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import type { Notification } from '../api/types';
+import { PageHeader, Card, Button, Spinner, ErrorText, EmptyState } from '../components/ui';
 
 export function NotificationsPage() {
   const [rows, setRows] = useState<Notification[]>([]);
@@ -32,33 +33,34 @@ export function NotificationsPage() {
     }
   }
 
-  if (loading) return <p>불러오는 중…</p>;
+  if (loading) return <Spinner />;
 
   return (
     <div>
-      <h2 style={{ color: 'var(--teal)' }}>알림</h2>
-      {error && <p className="error">{error}</p>}
-      <div style={{ display: 'grid', gap: 8 }}>
-        {rows.map((n) => (
-          <div
-            className="card"
-            key={n.id}
-            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: n.read_at ? 0.55 : 1 }}
-          >
-            <div>
-              <strong>{n.type ?? '알림'}</strong>{' '}
-              <span style={{ color: 'var(--muted)', fontSize: 12 }}>{new Date(n.created_at).toLocaleString('ko-KR')}</span>
-              <div style={{ color: 'var(--muted)', fontSize: 13 }}>{JSON.stringify(n.payload ?? {})}</div>
-            </div>
-            {!n.read_at && (
-              <button className="btn ghost sm" onClick={() => read(n.id)}>
-                읽음
-              </button>
-            )}
-          </div>
-        ))}
-        {rows.length === 0 && <p style={{ color: 'var(--muted)' }}>알림이 없습니다.</p>}
-      </div>
+      <PageHeader title="알림" />
+      <ErrorText>{error}</ErrorText>
+      {rows.length === 0 ? (
+        <EmptyState>알림이 없습니다.</EmptyState>
+      ) : (
+        <div style={{ display: 'grid', gap: 8 }}>
+          {rows.map((n) => (
+            <Card key={n.id} style={{ opacity: n.read_at ? 0.55 : 1 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <strong>{n.type ?? '알림'}</strong>{' '}
+                  <span style={{ color: 'var(--muted)', fontSize: 12 }}>{new Date(n.created_at).toLocaleString('ko-KR')}</span>
+                  <div style={{ color: 'var(--muted)', fontSize: 13 }}>{JSON.stringify(n.payload ?? {})}</div>
+                </div>
+                {!n.read_at && (
+                  <Button size="sm" variant="ghost" onClick={() => read(n.id)}>
+                    읽음
+                  </Button>
+                )}
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

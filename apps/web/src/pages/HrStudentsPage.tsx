@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import type { HrStudent } from '../api/types';
+import { PageHeader, Card, Button, Badge, Spinner, ErrorText, EmptyState } from '../components/ui';
 
 export function HrStudentsPage() {
   const [rows, setRows] = useState<HrStudent[]>([]);
@@ -32,28 +33,35 @@ export function HrStudentsPage() {
     }
   }
 
-  if (loading) return <p>불러오는 중…</p>;
+  if (loading) return <Spinner />;
 
   return (
     <div>
-      <h2 style={{ color: 'var(--teal)' }}>학생 등록 승인</h2>
-      {error && <p className="error">{error}</p>}
-      <div style={{ display: 'grid', gap: 8 }}>
-        {rows.map((s) => (
-          <div className="card" key={s.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <strong>{s.name}</strong> <span style={{ color: 'var(--muted)' }}>({s.login_id})</span>{' '}
-              <span className={`chip ${s.status === 'approved' ? 'done' : 'confirmed'}`}>{s.status}</span>
-            </div>
-            {s.status !== 'approved' && (
-              <button className="btn sm" onClick={() => approve(s.id)}>
-                승인
-              </button>
-            )}
-          </div>
-        ))}
-        {rows.length === 0 && <p style={{ color: 'var(--muted)' }}>학생이 없습니다.</p>}
-      </div>
+      <PageHeader title="학생 등록 승인" />
+      <ErrorText>{error}</ErrorText>
+      {rows.length === 0 ? (
+        <EmptyState>학생이 없습니다.</EmptyState>
+      ) : (
+        <div style={{ display: 'grid', gap: 8 }}>
+          {rows.map((s) => (
+            <Card key={s.id}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <strong>{s.name}</strong> <span style={{ color: 'var(--muted)' }}>({s.login_id})</span>{' '}
+                  <Badge kind={s.status === 'approved' ? 'done' : 'confirmed'}>
+                    {s.status === 'approved' ? '승인됨' : '대기'}
+                  </Badge>
+                </div>
+                {s.status !== 'approved' && (
+                  <Button size="sm" onClick={() => approve(s.id)}>
+                    승인
+                  </Button>
+                )}
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
