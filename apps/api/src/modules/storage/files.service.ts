@@ -61,4 +61,17 @@ export class FilesService {
     const data = await this.storage.get(row.storage_key);
     return { data, filename: row.filename, contentType: row.content_type };
   }
+
+  /**
+   * 인증 게이트 없이 파일 바이트+메타 반환(내부용). 호출측이 자체 접근제어를 수행해야 함
+   * (예: MaterialsService 의 공개범위 검증 후 다운로드).
+   */
+  async readBytes(storedFileId: string) {
+    const row = await this.prisma.stored_file.findUnique({
+      where: { id: storedFileId },
+    });
+    if (!row) throw new NotFoundException('파일을 찾을 수 없습니다.');
+    const data = await this.storage.get(row.storage_key);
+    return { data, filename: row.filename, contentType: row.content_type };
+  }
 }

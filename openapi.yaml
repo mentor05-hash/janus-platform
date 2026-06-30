@@ -1187,6 +1187,52 @@ paths:
         - { name: teacherId, in: query, required: false, schema: { type: string, format: uuid } }
       responses: { '200': { description: 'ok — 중복제거: 동일 T·U·D 1건(상태·분류 우선)' } }
 
+  # ── 자료실(§material) — 선생님 업로드·게시, 공개범위 열람 ──
+  /materials:
+    post:
+      tags: [Material]
+      summary: 자료 게시(선생님, multipart 파일 선택) — visibility public|center|private
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title: { type: string }
+                description: { type: string }
+                subject: { type: string }
+                visibility: { type: string, enum: [public, center, private] }
+                file: { type: string, format: binary }
+      responses: { '201': { description: created }, '403': { $ref: '#/components/responses/Error' } }
+    get:
+      tags: [Material]
+      summary: 자료 목록(공개범위 스코프) — mine=true 면 본인 게시물
+      parameters:
+        - { name: subject, in: query, required: false, schema: { type: string } }
+        - { name: mine, in: query, required: false, schema: { type: string, enum: ['true'] } }
+      responses: { '200': { description: ok } }
+  /materials/{id}/download:
+    get:
+      tags: [Material]
+      summary: 자료 다운로드(공개범위 게이트 후 원본 바이트)
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      responses:
+        '200':
+          description: file bytes
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /materials/{id}:
+    delete:
+      tags: [Material]
+      summary: 자료 삭제(작성자 또는 관리자)
+      parameters: [ { $ref: '#/components/parameters/Id' } ]
+      responses: { '200': { description: ok }, '403': { $ref: '#/components/responses/Error' } }
+
 components:
   securitySchemes:
     bearerAuth:
