@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
+  Post,
   Put,
   Query,
 } from '@nestjs/common';
@@ -13,6 +15,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { AccountRole } from '../../config/enums';
 import { AvailabilityService } from './availability.service';
 import {
+  LeaveDto,
   OfflineAvailabilityDto,
   WorkScheduleDto,
 } from './dto/work-schedule.dto';
@@ -47,6 +50,35 @@ export class AvailabilityController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.availability.putWorkSchedule(id, dto, user);
+  }
+
+  /** GET /teachers/{id}/leave — 사유 제외(연차/반차/병가) 목록. */
+  @Get(':id/leave')
+  @Roles('teacher', 'admin', 'hr')
+  listLeave(@Param('id', ParseUUIDPipe) id: string) {
+    return this.availability.listLeave(id);
+  }
+
+  /** POST /teachers/{id}/leave — 사유 제외 등록(본인/관리자). */
+  @Post(':id/leave')
+  @Roles('teacher', 'admin', 'hr')
+  addLeave(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: LeaveDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.availability.addLeave(id, dto, user);
+  }
+
+  /** DELETE /teachers/{id}/leave/{date} — 사유 제외 해제(본인/관리자). */
+  @Delete(':id/leave/:date')
+  @Roles('teacher', 'admin', 'hr')
+  removeLeave(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('date') date: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.availability.removeLeave(id, date, user);
   }
 
   /** PUT /teachers/{id}/offline-availability — 오프라인 가능 센터·시간(본인/관리자). */

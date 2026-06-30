@@ -23,6 +23,7 @@ interface DayWindow {
   end: string;
 }
 type WeeklyTemplate = Record<string, DayWindow[]>; // key '0'..'6' (일~토)
+export interface LeaveEntry { date: string; type: string } // 사유 제외(연차/반차/병가)
 
 const ACTIVE_STATUSES: BookingStatus[] = [
   BookingStatus.NEW,
@@ -73,7 +74,10 @@ export class AvailabilityService {
     const ws = teacher.work_schedule[0];
     const template =
       (ws?.recurring_template as unknown as WeeklyTemplate) ?? {};
-    const work = this.windowsToIntervals(template[weekday]);
+    let work = this.windowsToIntervals(template[weekday]);
+    // 사유 제외(연차·반차·병가): 연차·병가=종일 제외, 반차=오후(13:00~) 제외.
+    const leave = this.readLeaves(ws?.weekly_overrides).find((l) => l.date === dateStr);
+    if (leave) work = leave.type === '반차' ? work.filter((w) => w.end <= 780) : [];
 
     // 학생 체류시간(있으면 교집합, 없으면 종일)
     const stay = await this.resolveStay(studentId, weekday);
@@ -117,7 +121,10 @@ export class AvailabilityService {
     const ws = teacher.work_schedule[0];
     const template =
       (ws?.recurring_template as unknown as WeeklyTemplate) ?? {};
-    const work = this.windowsToIntervals(template[weekday]);
+    let work = this.windowsToIntervals(template[weekday]);
+    // 사유 제외(연차·반차·병가): 연차·병가=종일 제외, 반차=오후(13:00~) 제외.
+    const leave = this.readLeaves(ws?.weekly_overrides).find((l) => l.date === dateStr);
+    if (leave) work = leave.type === '반차' ? work.filter((w) => w.end <= 780) : [];
 
     const stay = await this.resolveStay(studentId, weekday);
 
@@ -217,7 +224,8 @@ export class AvailabilityService {
     });
     const data = {
       recurring_template: dto.recurringTemplate ?? {},
-      weekly_overrides: dto.weeklyOverrides ?? [],
+      // 근무표만 저장할 때 사유 제외(연차) 가 지워지지 않도록 기존값 보존.
+      weekly_overrides: dto.weeklyOverrides ?? existing?.weekly_overrides ?? [],
       pre_book_horizon_days: dto.preBookHorizonDays ?? 30,
     };
     if (existing) {
@@ -229,6 +237,46 @@ export class AvailabilityService {
     return this.prisma.work_schedule.create({
       data: { teacher_id: teacherId, ...data },
     });
+  }
+
+  // ── 사유 제외(연차/반차/병가) — work_schedule.weekly_overrides 에 저장 ──
+  private readLeaves(raw: unknown): LeaveEntry[] {
+    return Array.isArray(raw)
+      ? (raw as LeaveEntry[]).filter((l) => l && typeof l.date === 'string')
+      : [];
+  }
+  private assertScheduleOwner(teacherId: string, actor: { id: string; role: string }) {
+    const isSelf = actor.role === 'teacher' && actor.id === teacherId;
+    const isAdmin = actor.role === 'admin' || actor.role === 'hr';
+    if (!isSelf && !isAdmin) {
+      throw new ForbiddenException('본인 또는 관리자만 변경할 수 있습니다.');
+    }
+  }
+  async listLeave(teacherId: string): Promise<LeaveEntry[]> {
+    const ws = await this.prisma.work_schedule.findFirst({ where: { teacher_id: teacherId } });
+    return this.readLeaves(ws?.weekly_overrides).sort((a, b) => a.date.localeCompare(b.date));
+  }
+  async addLeave(teacherId: string, dto: { date: string; type: string }, actor: { id: string; role: string }) {
+    this.assertScheduleOwner(teacherId, actor);
+    const ws = await this.prisma.work_schedule.findFirst({ where: { teacher_id: teacherId } });
+    const next = [
+      ...this.readLeaves(ws?.weekly_overrides).filter((l) => l.date !== dto.date),
+      { date: dto.date, type: dto.type },
+    ].sort((a, b) => a.date.localeCompare(b.date));
+    if (ws) {
+      await this.prisma.work_schedule.update({ where: { id: ws.id }, data: { weekly_overrides: next as never } });
+    } else {
+      await this.prisma.work_schedule.create({ data: { teacher_id: teacherId, recurring_template: {}, weekly_overrides: next as never } });
+    }
+    return { data: next };
+  }
+  async removeLeave(teacherId: string, date: string, actor: { id: string; role: string }) {
+    this.assertScheduleOwner(teacherId, actor);
+    const ws = await this.prisma.work_schedule.findFirst({ where: { teacher_id: teacherId } });
+    if (!ws) return { data: [] };
+    const next = this.readLeaves(ws.weekly_overrides).filter((l) => l.date !== date);
+    await this.prisma.work_schedule.update({ where: { id: ws.id }, data: { weekly_overrides: next as never } });
+    return { data: next };
   }
 
   /** 오프라인 가능 센터·시간 설정(본인 또는 관리자/HR). teacher 의 센터 기준 upsert. */
