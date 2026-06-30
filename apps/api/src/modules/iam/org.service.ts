@@ -1,4 +1,10 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -14,35 +20,68 @@ export class OrgService {
   constructor(private readonly prisma: PrismaService) {}
 
   listCenters() {
-    return this.prisma.center.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true, region: true } });
+    return this.prisma.center.findMany({
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, region: true },
+    });
   }
 
   createCenter(dto: CreateCenterDto) {
-    return this.prisma.center.create({ data: { name: dto.name, region: dto.region ?? null }, select: { id: true, name: true, region: true } });
+    return this.prisma.center.create({
+      data: { name: dto.name, region: dto.region ?? null },
+      select: { id: true, name: true, region: true },
+    });
   }
 
   async createStaff(actor: AuthUser, dto: CreateStaffDto) {
     // L2(본사관리자) 생성은 마스터(L1)만.
     if (dto.permLevel === 'L2' && !permAtLeast(actor.permLevel, 'L1')) {
-      throw new ForbiddenException('본사관리자(L2) 생성은 마스터(L1)만 가능합니다.');
+      throw new ForbiddenException(
+        '본사관리자(L2) 생성은 마스터(L1)만 가능합니다.',
+      );
     }
     if (dto.permLevel === 'L3') {
-      if (!dto.centerId) throw new BadRequestException('센터관리자(L3)는 centerId 가 필요합니다.');
-      const center = await this.prisma.center.findUnique({ where: { id: dto.centerId } });
+      if (!dto.centerId)
+        throw new BadRequestException(
+          '센터관리자(L3)는 centerId 가 필요합니다.',
+        );
+      const center = await this.prisma.center.findUnique({
+        where: { id: dto.centerId },
+      });
       if (!center) throw new NotFoundException('센터를 찾을 수 없습니다.');
     }
-    const exists = await this.prisma.account.findUnique({ where: { login_id: dto.loginId } });
+    const exists = await this.prisma.account.findUnique({
+      where: { login_id: dto.loginId },
+    });
     if (exists) throw new ConflictException('이미 사용 중인 아이디입니다.');
 
     const centerId = dto.permLevel === 'L3' ? dto.centerId! : null;
     const pwHash = await bcrypt.hash(dto.password, 10);
     const account = await this.prisma.account.create({
-      data: { role: 'admin', center_id: centerId, login_id: dto.loginId, pw_hash: pwHash, name: dto.name, status: 'approved' },
+      data: {
+        role: 'admin',
+        center_id: centerId,
+        login_id: dto.loginId,
+        pw_hash: pwHash,
+        name: dto.name,
+        status: 'approved',
+      },
       select: { id: true },
     });
     await this.prisma.staff_profile.create({
-      data: { account_id: account.id, staff_role: PERM_TIER[dto.permLevel], perm_level: dto.permLevel, center_id: centerId },
+      data: {
+        account_id: account.id,
+        staff_role: PERM_TIER[dto.permLevel],
+        perm_level: dto.permLevel,
+        center_id: centerId,
+      },
     });
-    return { id: account.id, loginId: dto.loginId, permLevel: dto.permLevel, tier: PERM_TIER[dto.permLevel], centerId };
+    return {
+      id: account.id,
+      loginId: dto.loginId,
+      permLevel: dto.permLevel,
+      tier: PERM_TIER[dto.permLevel],
+      centerId,
+    };
   }
 }

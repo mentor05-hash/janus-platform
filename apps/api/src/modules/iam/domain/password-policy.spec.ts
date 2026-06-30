@@ -17,7 +17,9 @@ describe('비밀번호 정책(§10)', () => {
   });
 
   it('동일문자 반복 거부', () => {
-    expect(validatePassword('aaaaaaaa').reasons).toContain('동일문자 반복 불가');
+    expect(validatePassword('aaaaaaaa').reasons).toContain(
+      '동일문자 반복 불가',
+    );
   });
 
   it('아이디 포함 거부', () => {

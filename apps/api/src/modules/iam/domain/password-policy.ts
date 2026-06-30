@@ -23,7 +23,8 @@ export function validatePassword(pw: string, loginId?: string): PasswordCheck {
   if (!/[A-Za-z]/.test(v)) reasons.push('영문 포함');
   if (!/[0-9]/.test(v)) reasons.push('숫자 포함');
   if (/^(.)\1+$/.test(v)) reasons.push('동일문자 반복 불가');
-  if (loginId && v.toLowerCase().includes(loginId.toLowerCase())) reasons.push('아이디 미포함');
+  if (loginId && v.toLowerCase().includes(loginId.toLowerCase()))
+    reasons.push('아이디 미포함');
   if (COMMON_WEAK.has(v.toLowerCase())) reasons.push('너무 흔한 비밀번호');
   return { ok: reasons.length === 0, reasons };
 }

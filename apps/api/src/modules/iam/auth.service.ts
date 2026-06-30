@@ -32,9 +32,13 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    const account = await this.prisma.account.findUnique({ where: { login_id: dto.loginId } });
+    const account = await this.prisma.account.findUnique({
+      where: { login_id: dto.loginId },
+    });
     if (!account || !(await bcrypt.compare(dto.password, account.pw_hash))) {
-      throw new UnauthorizedException('아이디 또는 비밀번호가 올바르지 않습니다.');
+      throw new UnauthorizedException(
+        '아이디 또는 비밀번호가 올바르지 않습니다.',
+      );
     }
     if (dto.centerId && account.center_id !== dto.centerId) {
       throw new UnauthorizedException('선택한 센터 소속이 아닙니다.');
@@ -46,7 +50,9 @@ export class AuthService {
   }
 
   async signup(dto: SignupDto) {
-    const exists = await this.prisma.account.findUnique({ where: { login_id: dto.loginId } });
+    const exists = await this.prisma.account.findUnique({
+      where: { login_id: dto.loginId },
+    });
     if (exists) throw new ConflictException('이미 사용 중인 아이디입니다.');
 
     const pwHash = await bcrypt.hash(dto.password, 10);
@@ -72,13 +78,18 @@ export class AuthService {
     } catch {
       throw new UnauthorizedException('유효하지 않은 refresh 토큰입니다.');
     }
-    if (payload.typ !== 'refresh') throw new UnauthorizedException('refresh 토큰이 아닙니다.');
+    if (payload.typ !== 'refresh')
+      throw new UnauthorizedException('refresh 토큰이 아닙니다.');
     // 서버측 회전/무효화(§10): 저장된 현재 jti 와 일치해야 함(재사용·로그아웃된 토큰 거부).
     const current = await this.cache.get<string>(this.refreshKey(payload.sub));
     if (!current || current !== payload.jti) {
-      throw new UnauthorizedException('재사용되었거나 무효화된 refresh 토큰입니다.');
+      throw new UnauthorizedException(
+        '재사용되었거나 무효화된 refresh 토큰입니다.',
+      );
     }
-    const account = await this.prisma.account.findUnique({ where: { id: payload.sub } });
+    const account = await this.prisma.account.findUnique({
+      where: { id: payload.sub },
+    });
     if (!account) throw new UnauthorizedException();
     if (account.status !== AccountStatus.APPROVED) {
       throw new ForbiddenException('비활성 계정입니다.');
@@ -95,17 +106,39 @@ export class AuthService {
   async me(accountId: string) {
     const account = await this.prisma.account.findUnique({
       where: { id: accountId },
-      select: { id: true, role: true, center_id: true, login_id: true, name: true, status: true },
+      select: {
+        id: true,
+        role: true,
+        center_id: true,
+        login_id: true,
+        name: true,
+        status: true,
+      },
     });
     if (!account) throw new UnauthorizedException();
-    const staff = await this.prisma.staff_profile.findUnique({ where: { account_id: accountId }, select: { perm_level: true } });
+    const staff = await this.prisma.staff_profile.findUnique({
+      where: { account_id: accountId },
+      select: { perm_level: true },
+    });
     const tier = permTier(staff?.perm_level);
-    return { ...account, permLevel: staff?.perm_level ?? null, adminTier: tier };
+    return {
+      ...account,
+      permLevel: staff?.perm_level ?? null,
+      adminTier: tier,
+    };
   }
 
-  private async issueTokens(account: { id: string; role: string; center_id: string | null; login_id: string }) {
+  private async issueTokens(account: {
+    id: string;
+    role: string;
+    center_id: string | null;
+    login_id: string;
+  }) {
     // 관리자/직원 권한레벨(L1/L2/L3) — staff_profile 에서 로드해 토큰에 포함(§iam).
-    const staff = await this.prisma.staff_profile.findUnique({ where: { account_id: account.id }, select: { perm_level: true } });
+    const staff = await this.prisma.staff_profile.findUnique({
+      where: { account_id: account.id },
+      select: { perm_level: true },
+    });
     const base = {
       sub: account.id,
       role: account.role as AccountRole,
