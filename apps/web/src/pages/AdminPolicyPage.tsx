@@ -3,6 +3,7 @@ import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { isHq } from '../auth/roleHome';
 import type { FeatureRule, LimitPolicy, PenaltyPolicy, PricingPolicy } from '../api/types';
+import { PageHeader, Card, Button, Badge, ErrorText } from '../components/ui';
 
 const MODES = ['board', 'chat', 'zoom', 'hand', 'offline'];
 type Row = { perHour: number; surchargePct: number; enabled: boolean };
@@ -25,7 +26,6 @@ export function AdminPolicyPage() {
       const pricing = await api.get<PricingPolicy[]>('/admin/pricing');
       const map: Record<string, Row> = {};
       for (const m of MODES) {
-        // 센터 override 우선, 없으면 전사 기본
         const center = pricing.find((p) => p.mode === m && p.center_id === myCenter);
         const base = pricing.find((p) => p.mode === m && p.center_id === null);
         const p = center ?? base;
@@ -105,113 +105,71 @@ export function AdminPolicyPage() {
     setPenalty((p) => ({ ...p, [k]: v === '' ? null : Number(v) }));
 
   return (
-    <div style={{ display: 'grid', gap: 20 }}>
-      <section>
-        <h2 style={{ color: 'var(--teal)' }}>요금 정책 ({hq ? '전사 기본' : '센터 적용'})</h2>
-        {error && <p className="error">{error}</p>}
-        {msg && <p style={{ color: 'var(--chip-done)', fontSize: 13 }}>{msg}</p>}
-        <div style={{ display: 'grid', gap: 8 }}>
-          {MODES.map((m) => {
-            const r = rows[m];
-            if (!r) return null;
-            return (
-              <div className="card" key={m} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+    <div>
+      <PageHeader title={`요금 정책 (${hq ? '전사 기본' : '센터 적용'})`} />
+      <ErrorText>{error}</ErrorText>
+      {msg && <p style={{ color: 'var(--chip-done)', fontSize: 13 }}>{msg}</p>}
+
+      <div style={{ display: 'grid', gap: 8, marginBottom: 20 }}>
+        {MODES.map((m) => {
+          const r = rows[m];
+          if (!r) return null;
+          return (
+            <Card key={m}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                 <strong style={{ width: 70 }}>{m}</strong>
-                <label className="label" style={{ margin: 0 }}>
-                  시간당
-                </label>
-                <input
-                  className="input"
-                  style={{ width: 110 }}
-                  type="number"
-                  value={r.perHour}
-                  onChange={(e) => setRow(m, 'perHour', Number(e.target.value))}
-                />
-                <label className="label" style={{ margin: 0 }}>
-                  S급 할증%
-                </label>
-                <input
-                  className="input"
-                  style={{ width: 80 }}
-                  type="number"
-                  value={r.surchargePct}
-                  onChange={(e) => setRow(m, 'surchargePct', Number(e.target.value))}
-                />
+                <label className="label" style={{ margin: 0 }}>시간당</label>
+                <input className="input" style={{ width: 110 }} type="number" value={r.perHour} onChange={(e) => setRow(m, 'perHour', Number(e.target.value))} />
+                <label className="label" style={{ margin: 0 }}>S급 할증%</label>
+                <input className="input" style={{ width: 80 }} type="number" value={r.surchargePct} onChange={(e) => setRow(m, 'surchargePct', Number(e.target.value))} />
                 <label style={{ fontSize: 13 }}>
                   <input type="checkbox" checked={r.enabled} onChange={(e) => setRow(m, 'enabled', e.target.checked)} /> 활성
                 </label>
-                <button className="btn sm" style={{ marginLeft: 'auto' }} onClick={() => savePricing(m)}>
-                  저장
-                </button>
+                <Button size="sm" style={{ marginLeft: 'auto' }} onClick={() => savePricing(m)}>저장</Button>
               </div>
-            );
-          })}
-        </div>
-      </section>
+            </Card>
+          );
+        })}
+      </div>
 
       {!hq && (
-      <section className="card">
-        <h3 style={{ marginTop: 0 }}>한도 정책 (§5-9 축소 시 기존 동결·신규만 차단)</h3>
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          <div>
-            <label className="label">맞는 선생님 한도</label>
-            <input
-              className="input"
-              style={{ width: 120 }}
-              type="number"
-              value={limits.classify_fit_limit ?? 10}
-              onChange={(e) => setLimits((p) => ({ ...p, classify_fit_limit: Number(e.target.value) }))}
-            />
-          </div>
-          <div>
-            <label className="label">맞지 않는 선생님 한도</label>
-            <input
-              className="input"
-              style={{ width: 120 }}
-              type="number"
-              value={limits.classify_unfit_limit ?? 30}
-              onChange={(e) => setLimits((p) => ({ ...p, classify_unfit_limit: Number(e.target.value) }))}
-            />
-          </div>
-        </div>
-        <button className="btn" style={{ marginTop: 12 }} onClick={saveLimits}>
-          한도 저장
-        </button>
-      </section>
-      )}
-
-      {!hq && (
-      <section className="card">
-        <h3 style={{ marginTop: 0 }}>가중 제한 임계 (§5-7, 빈칸=미설정)</h3>
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          {(
-            [
-              ['cancel_threshold', '당일취소'],
-              ['noshow_threshold', '노쇼'],
-              ['reject_threshold', '과다거절'],
-              ['ranking_weight_down', '랭킹 가중치↓'],
-            ] as const
-          ).map(([k, label]) => (
-            <div key={k}>
-              <label className="label">{label}</label>
-              <input
-                className="input"
-                style={{ width: 110 }}
-                type="number"
-                value={penalty[k] ?? ''}
-                onChange={(e) => setPen(k, e.target.value)}
-              />
+        <Card title="한도 정책 (§5-9 축소 시 기존 동결·신규만 차단)" style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+            <div>
+              <label className="label">맞는 선생님 한도</label>
+              <input className="input" style={{ width: 120 }} type="number" value={limits.classify_fit_limit ?? 10} onChange={(e) => setLimits((p) => ({ ...p, classify_fit_limit: Number(e.target.value) }))} />
             </div>
-          ))}
-        </div>
-        <button className="btn" style={{ marginTop: 12 }} onClick={savePenalty}>
-          가중 제한 저장
-        </button>
-      </section>
+            <div>
+              <label className="label">맞지 않는 선생님 한도</label>
+              <input className="input" style={{ width: 120 }} type="number" value={limits.classify_unfit_limit ?? 30} onChange={(e) => setLimits((p) => ({ ...p, classify_unfit_limit: Number(e.target.value) }))} />
+            </div>
+          </div>
+          <Button style={{ marginTop: 12 }} onClick={saveLimits}>한도 저장</Button>
+        </Card>
       )}
 
-      <section className="card">
-        <h3 style={{ marginTop: 0 }}>기능 열기/닫기 (전사 강제 + 센터 자율, 충돌 시 전사 우선)</h3>
+      {!hq && (
+        <Card title="가중 제한 임계 (§5-7, 빈칸=미설정)" style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+            {(
+              [
+                ['cancel_threshold', '당일취소'],
+                ['noshow_threshold', '노쇼'],
+                ['reject_threshold', '과다거절'],
+                ['ranking_weight_down', '랭킹 가중치↓'],
+              ] as const
+            ).map(([k, label]) => (
+              <div key={k}>
+                <label className="label">{label}</label>
+                <input className="input" style={{ width: 110 }} type="number" value={penalty[k] ?? ''} onChange={(e) => setPen(k, e.target.value)} />
+              </div>
+            ))}
+          </div>
+          <Button style={{ marginTop: 12 }} onClick={savePenalty}>가중 제한 저장</Button>
+        </Card>
+      )}
+
+      <Card title="기능 열기/닫기 (전사 강제 + 센터 자율, 충돌 시 전사 우선)">
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div>
             <label className="label">범위</label>
@@ -232,18 +190,18 @@ export function AdminPolicyPage() {
           <label style={{ fontSize: 13 }}>
             <input type="checkbox" checked={feat.enabled} onChange={(e) => setFeat((p) => ({ ...p, enabled: e.target.checked }))} /> 열림
           </label>
-          <button className="btn sm" onClick={saveFeature}>
-            토글 저장
-          </button>
+          <Button size="sm" onClick={saveFeature}>토글 저장</Button>
         </div>
-        <ul style={{ marginTop: 12, color: 'var(--muted)', fontSize: 13 }}>
+        <div style={{ marginTop: 12, display: 'grid', gap: 4 }}>
           {features.map((f) => (
-            <li key={f.id}>
-              [{f.scope}] {f.target_type}:{f.target_value} → {f.enabled ? '열림' : '닫힘'}
-            </li>
+            <div key={f.id} style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Badge kind="soft">{f.scope}</Badge>
+              <span style={{ color: 'var(--muted)' }}>{f.target_type}:{f.target_value}</span>
+              <Badge kind={f.enabled ? 'done' : 'cancelled'}>{f.enabled ? '열림' : '닫힘'}</Badge>
+            </div>
           ))}
-        </ul>
-      </section>
+        </div>
+      </Card>
     </div>
   );
 }
