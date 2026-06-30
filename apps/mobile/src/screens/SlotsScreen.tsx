@@ -297,14 +297,25 @@ export function SlotsScreen({ teacher, onBack }: { teacher: Teacher; onBack: () 
             <View style={styles.notice}><Text style={styles.noticeT}>ⓘ {notice}</Text></View>
           ) : null}
 
-          {/* 선택 요약 + 시간 조정 안내 + 초기화 */}
+          {/* 선택 요약(시간·크레딧 함께) + 시간 ± 조정 + 초기화 */}
           {selStart !== null && selEnd !== null ? (
             <View style={styles.selBar}>
-              <View style={{ flex: 1 }}>
+              <View style={styles.selTop}>
                 <Text style={styles.selTime}>{minToTime(selStart)} ~ {minToTime(selEnd + 1)} · {selLen * 10}분</Text>
-                <Text style={styles.selHint}>시작(↤)·끝(↦) 칸을 누르면 10분씩 줄어요</Text>
+                <Text style={styles.selCredit}>{quote ? `${quote.credits.toLocaleString()} 크레딧` : '계산 중…'}</Text>
               </View>
-              <TouchableOpacity onPress={resetSel} style={styles.resetBtn}><Text style={styles.resetT}>선택 초기화</Text></TouchableOpacity>
+              <View style={styles.selBottom}>
+                <View style={styles.stepRow}>
+                  <TouchableOpacity style={[styles.stepBtn, selLen <= MIN_LEN && styles.stepOff]} disabled={selLen <= MIN_LEN} onPress={() => selEnd !== null && setSelEnd(selEnd - 1)}>
+                    <Text style={styles.stepT}>−10분</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.stepBtn, !availSet.has(selEnd + 1) && styles.stepOff]} disabled={!availSet.has(selEnd + 1)} onPress={() => selEnd !== null && setSelEnd(selEnd + 1)}>
+                    <Text style={styles.stepT}>＋10분</Text>
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity onPress={resetSel} style={styles.resetBtn}><Text style={styles.resetT}>초기화</Text></TouchableOpacity>
+              </View>
+              <Text style={styles.selHint}>시간을 늘리거나 줄이면 크레딧도 함께 바뀝니다(끝 칸 탭으로도 조정).</Text>
             </View>
           ) : (
             <Text style={[ui.sub, { marginTop: 8 }]}>가능(초록) 시간을 누르면 30분이 선택돼요.</Text>
@@ -373,10 +384,17 @@ const styles = StyleSheet.create({
   edgeMark: { color: '#fff', fontSize: 9, marginTop: -1, fontWeight: '800' },
   notice: { marginTop: 8, backgroundColor: '#FEF6E7', borderColor: '#F0DCAE', borderWidth: 1, borderRadius: 9, padding: 9 },
   noticeT: { color: '#92600a', fontSize: 12, fontWeight: '600', lineHeight: 17 },
-  selBar: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, backgroundColor: C.teal50, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12 },
+  selBar: { marginTop: 10, backgroundColor: C.teal50, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12 },
+  selTop: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   selTime: { color: C.ink, fontWeight: '800', fontSize: 14 },
-  selHint: { color: C.muted, fontSize: 11, marginTop: 2 },
-  resetBtn: { borderWidth: 1, borderColor: C.teal, borderRadius: 8, paddingVertical: 7, paddingHorizontal: 11 },
+  selCredit: { color: C.teal, fontWeight: '800', fontSize: 15 },
+  selBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
+  stepRow: { flexDirection: 'row', gap: 8 },
+  stepBtn: { borderWidth: 1, borderColor: C.teal, borderRadius: 8, paddingVertical: 7, paddingHorizontal: 12, backgroundColor: C.white },
+  stepOff: { borderColor: C.line, opacity: 0.45 },
+  stepT: { color: C.teal, fontWeight: '800', fontSize: 13 },
+  selHint: { color: C.muted, fontSize: 11, marginTop: 8 },
+  resetBtn: { borderWidth: 1, borderColor: C.teal, borderRadius: 8, paddingVertical: 7, paddingHorizontal: 12 },
   resetT: { color: C.teal, fontWeight: '700', fontSize: 12 },
   legend: { flexDirection: 'row', gap: 14, marginTop: 10, flexWrap: 'wrap' },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
