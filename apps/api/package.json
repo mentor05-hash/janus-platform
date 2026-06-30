@@ -23,7 +23,8 @@
     "prisma:pull": "prisma db pull",
     "prisma:generate": "prisma generate",
     "db:init": "npm run migrate:all && npm run prisma:generate",
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "ts-node prisma/seed.ts",
+    "seed:sim": "prisma db execute --file prisma/seed-sim.sql --schema prisma/schema.prisma"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
