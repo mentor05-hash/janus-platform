@@ -1,4 +1,8 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccountRole, NoteSaveState } from '../../config/enums';
@@ -31,10 +35,14 @@ export class ConsultationService {
 
   /** 선생님이 상담 기록 저장(draft/final). 본인 담당 예약만. */
   async upsert(bookingId: string, dto: NoteDto, user: AuthUser) {
-    const booking = await this.prisma.booking.findUnique({ where: { id: bookingId } });
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+    });
     if (!booking) throw new NotFoundException('예약을 찾을 수 없습니다.');
     if (user.role !== AccountRole.TEACHER || booking.teacher_id !== user.id) {
-      throw new ForbiddenException('담당 선생님만 상담 기록을 작성할 수 있습니다.');
+      throw new ForbiddenException(
+        '담당 선생님만 상담 기록을 작성할 수 있습니다.',
+      );
     }
     const data = {
       student_id: booking.student_id,
@@ -50,18 +58,27 @@ export class ConsultationService {
       author_id: user.id,
       updated_at: new Date(),
     };
-    const existing = await this.prisma.consultation_note.findUnique({ where: { booking_id: bookingId } });
+    const existing = await this.prisma.consultation_note.findUnique({
+      where: { booking_id: bookingId },
+    });
     const saved = existing
-      ? await this.prisma.consultation_note.update({ where: { booking_id: bookingId }, data })
-      : await this.prisma.consultation_note.create({ data: { booking_id: bookingId, ...data } });
-    return this.maskForViewer(saved as NoteRow, user, booking.student_id);
+      ? await this.prisma.consultation_note.update({
+          where: { booking_id: bookingId },
+          data,
+        })
+      : await this.prisma.consultation_note.create({
+          data: { booking_id: bookingId, ...data },
+        });
+    return this.maskForViewer(saved, user, booking.student_id);
   }
 
   async getByBooking(bookingId: string, user: AuthUser) {
-    const note = await this.prisma.consultation_note.findUnique({ where: { booking_id: bookingId } });
+    const note = await this.prisma.consultation_note.findUnique({
+      where: { booking_id: bookingId },
+    });
     if (!note) throw new NotFoundException('상담 기록이 없습니다.');
-    await this.assertCanView(note as NoteRow, user);
-    return this.maskForViewer(note as NoteRow, user, note.student_id);
+    await this.assertCanView(note, user);
+    return this.maskForViewer(note, user, note.student_id);
   }
 
   /** 학생별 상담 기록 목록. 보호자는 final + guardian_visible 만. */
@@ -74,7 +91,9 @@ export class ConsultationService {
         student_id: studentId,
         // 학생·보호자에게는 final 만 공개(draft 비공개)
         ...(isGuardianOrStudent ? { save_state: NoteSaveState.FINAL } : {}),
-        ...(user.role === AccountRole.GUARDIAN ? { guardian_visible: true } : {}),
+        ...(user.role === AccountRole.GUARDIAN
+          ? { guardian_visible: true }
+          : {}),
         // 교사는 본인이 담당한(작성 주체인) 예약의 기록만 — 타 교사 학생 메모 차단(§5-5/§5-10)
         ...(user.role === AccountRole.TEACHER ? { teacher_id: user.id } : {}),
       },
@@ -86,14 +105,19 @@ export class ConsultationService {
   // ── 권한 ──
   private async assertCanView(note: NoteRow, user: AuthUser) {
     if (user.role === AccountRole.ADMIN || user.role === AccountRole.HR) return;
-    if (user.role === AccountRole.TEACHER && note.teacher_id === user.id) return;
+    if (user.role === AccountRole.TEACHER && note.teacher_id === user.id)
+      return;
     if (user.role === AccountRole.STUDENT && note.student_id === user.id) {
-      if (note.save_state !== NoteSaveState.FINAL) throw new ForbiddenException('아직 공개되지 않은 기록입니다.');
+      if (note.save_state !== NoteSaveState.FINAL)
+        throw new ForbiddenException('아직 공개되지 않은 기록입니다.');
       return;
     }
     if (user.role === AccountRole.GUARDIAN) {
       await this.assertGuardianLink(user.id, note.student_id);
-      if (note.save_state !== NoteSaveState.FINAL || note.guardian_visible === false) {
+      if (
+        note.save_state !== NoteSaveState.FINAL ||
+        note.guardian_visible === false
+      ) {
         throw new ForbiddenException('보호자에게 공개되지 않은 기록입니다.');
       }
       return;
@@ -105,8 +129,12 @@ export class ConsultationService {
     if (user.role === AccountRole.ADMIN || user.role === AccountRole.HR) {
       // 센터 관리자(centerId 보유)는 자기 센터 학생만. 본사/마스터(centerId null)는 전체.
       if (user.centerId) {
-        const sp = await this.prisma.student_profile.findUnique({ where: { account_id: studentId }, select: { center_id: true } });
-        if (sp?.center_id !== user.centerId) throw new ForbiddenException('다른 센터 학생은 열람할 수 없습니다.');
+        const sp = await this.prisma.student_profile.findUnique({
+          where: { account_id: studentId },
+          select: { center_id: true },
+        });
+        if (sp?.center_id !== user.centerId)
+          throw new ForbiddenException('다른 센터 학생은 열람할 수 없습니다.');
       }
       return;
     }
@@ -121,14 +149,21 @@ export class ConsultationService {
 
   private async assertGuardianLink(guardianId: string, studentId: string) {
     const link = await this.prisma.guardian_student_link.findFirst({
-      where: { guardian_id: guardianId, student_id: studentId, status: 'approved' },
+      where: {
+        guardian_id: guardianId,
+        student_id: studentId,
+        status: 'approved',
+      },
     });
     if (!link) throw new ForbiddenException('연결된 자녀가 아닙니다.');
   }
 
   /** §5-5 마스킹: memo 는 내부(선생님/관리자)만. */
   private maskForViewer(note: NoteRow, user: AuthUser, _studentId: string) {
-    const internal = user.role === AccountRole.TEACHER || user.role === AccountRole.ADMIN || user.role === AccountRole.HR;
+    const internal =
+      user.role === AccountRole.TEACHER ||
+      user.role === AccountRole.ADMIN ||
+      user.role === AccountRole.HR;
     return {
       bookingId: note.booking_id,
       studentId: note.student_id,

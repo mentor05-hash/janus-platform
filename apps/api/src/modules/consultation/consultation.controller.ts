@@ -1,4 +1,11 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Put } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Put,
+} from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { ConsultationService } from './consultation.service';
@@ -20,13 +27,19 @@ export class ConsultationController {
 
   /** GET /bookings/{id}/note */
   @Get('bookings/:id/note')
-  getNote(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  getNote(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.consultation.getByBooking(id, user);
   }
 
   /** GET /students/{id}/notes — 학생/보호자/선생님/관리자 권한별. */
   @Get('students/:id/notes')
-  studentNotes(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  studentNotes(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.consultation.listForStudent(id, user);
   }
 
