@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
+import { PageHeader, Card, Button, Badge, ErrorText, EmptyState, TextField, TextareaField } from '../components/ui';
 
 type Target = 'teacher' | 'student' | 'guardian';
 type Channel = 'app' | 'sms' | 'kakao';
@@ -49,7 +50,7 @@ export function AnnouncementsPage() {
       const dto: Record<string, unknown> = { targets: [...targets], title, body, channels: [...channels] };
       if (scheduledAt) dto.scheduledAt = new Date(scheduledAt).toISOString();
       const r = await api.post<{ sent?: number; scheduledId?: string; byTarget?: Record<string, number> }>('/admin/announcements', dto);
-      setMsg(r.scheduledId ? `예약 등록됨 (${new Date(scheduledAt).toLocaleString()})` : `발송 완료 — ${r.sent}건 ${JSON.stringify(r.byTarget)}`);
+      setMsg(r.scheduledId ? `예약 등록됨 (${new Date(scheduledAt).toLocaleString()})` : `발송 완료 — ${r.sent}건`);
       setTitle('');
       setBody('');
       setScheduledAt('');
@@ -65,7 +66,7 @@ export function AnnouncementsPage() {
     try {
       await api.post('/admin/announcement-templates', { name: tmplName, targets: [...targets], title, body, channels: [...channels] });
       setTmplName('');
-      setMsg('템플릿 저장됨');
+      setMsg('템플릿이 저장되었습니다.');
       await load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : '템플릿 저장 실패');
@@ -91,82 +92,80 @@ export function AnnouncementsPage() {
   const canSend = targets.size > 0 && title.trim() && body.trim();
 
   return (
-    <div style={{ display: 'grid', gap: 24 }}>
-      <h2 style={{ margin: 0 }}>공지 알림</h2>
-      {msg && <div style={{ color: 'var(--teal)', fontSize: 14 }}>{msg}</div>}
-      {error && <div style={{ color: '#c0392b', fontSize: 14 }}>{error}</div>}
+    <div>
+      <PageHeader title="공지 알림" sub="대상·채널을 선택해 즉시 또는 예약 발송" />
+      {msg && <p style={{ color: 'var(--teal)', fontSize: 14 }}>{msg}</p>}
+      <ErrorText>{error}</ErrorText>
 
-      <section className="card" style={{ display: 'grid', gap: 12, padding: 16 }}>
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-          <strong style={{ width: 60 }}>대상</strong>
+      <Card title="새 공지" style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 10 }}>
+          <strong style={{ width: 50 }}>대상</strong>
           {TARGETS.map((t) => (
             <label key={t.k} style={{ fontSize: 14 }}>
               <input type="checkbox" checked={targets.has(t.k)} onChange={() => toggle(targets, t.k, setTargets)} /> {t.label}
             </label>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-          <strong style={{ width: 60 }}>채널</strong>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 10 }}>
+          <strong style={{ width: 50 }}>채널</strong>
           {CHANNELS.map((c) => (
             <label key={c} style={{ fontSize: 14 }}>
               <input type="checkbox" checked={channels.has(c)} onChange={() => toggle(channels, c, setChannels)} /> {c}
             </label>
           ))}
         </div>
-        <input className="input" placeholder="제목" value={title} onChange={(e) => setTitle(e.target.value)} />
-        <textarea className="input" placeholder="본문" rows={4} value={body} onChange={(e) => setBody(e.target.value)} />
+        <TextField label="제목" value={title} onChange={(e) => setTitle(e.target.value)} />
+        <TextareaField label="본문" rows={4} value={body} onChange={(e) => setBody(e.target.value)} />
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <label style={{ fontSize: 14 }}>
-            예약 발송: <input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
+            예약 발송: <input className="input" style={{ width: 'auto', display: 'inline-block' }} type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} />
           </label>
-          <button className="btn" disabled={!canSend} onClick={send}>
+          <Button disabled={!canSend} onClick={send}>
             {scheduledAt ? '예약 등록' : '즉시 발송'}
-          </button>
+          </Button>
           <span style={{ flex: 1 }} />
           <input className="input" style={{ width: 160 }} placeholder="템플릿 이름" value={tmplName} onChange={(e) => setTmplName(e.target.value)} />
-          <button className="btn ghost sm" disabled={!tmplName.trim() || !canSend} onClick={saveTemplate}>
+          <Button size="sm" variant="ghost" disabled={!tmplName.trim() || !canSend} onClick={saveTemplate}>
             템플릿 저장
-          </button>
+          </Button>
         </div>
-      </section>
+      </Card>
 
-      <section>
-        <h3 style={{ fontSize: 15 }}>저장된 템플릿</h3>
+      <Card title="저장된 템플릿" style={{ marginBottom: 16 }}>
         {templates.length === 0 ? (
-          <p style={{ color: 'var(--muted)', fontSize: 13 }}>없음</p>
+          <EmptyState>없음</EmptyState>
         ) : (
-          <ul style={{ display: 'grid', gap: 6, listStyle: 'none', padding: 0 }}>
+          <div style={{ display: 'grid', gap: 6 }}>
             {templates.map((t) => (
-              <li key={t.id} style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 14 }}>
+              <div key={t.id} style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 14 }}>
                 <strong>{t.name}</strong>
                 <span style={{ color: 'var(--muted)' }}>{t.title}</span>
                 <span style={{ flex: 1 }} />
-                <button className="btn ghost sm" onClick={() => applyTemplate(t)}>불러오기</button>
-                <button className="btn ghost sm" onClick={() => deleteTemplate(t.id)}>삭제</button>
-              </li>
+                <Button size="sm" variant="ghost" onClick={() => applyTemplate(t)}>불러오기</Button>
+                <Button size="sm" variant="ghost" onClick={() => deleteTemplate(t.id)}>삭제</Button>
+              </div>
             ))}
-          </ul>
+          </div>
         )}
-      </section>
+      </Card>
 
-      <section>
-        <h3 style={{ fontSize: 15 }}>예약된 공지</h3>
+      <Card title="예약된 공지">
         {scheduled.length === 0 ? (
-          <p style={{ color: 'var(--muted)', fontSize: 13 }}>대기 중 없음</p>
+          <EmptyState>대기 중 없음</EmptyState>
         ) : (
-          <ul style={{ display: 'grid', gap: 6, listStyle: 'none', padding: 0 }}>
+          <div style={{ display: 'grid', gap: 6 }}>
             {scheduled.map((s) => (
-              <li key={s.id} style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 14 }}>
+              <div key={s.id} style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 14 }}>
                 <span style={{ color: 'var(--muted)' }}>{new Date(s.scheduled_at).toLocaleString()}</span>
                 <strong>{s.title}</strong>
-                <span style={{ color: 'var(--muted)' }}>[{s.targets.join(',')}]</span>
+                <Badge kind="soft">{s.targets.join(',')}</Badge>
                 <span style={{ flex: 1 }} />
-                <button className="btn ghost sm" onClick={() => cancelScheduled(s.id)}>취소</button>
-              </li>
+                <Button size="sm" variant="ghost" onClick={() => cancelScheduled(s.id)}>취소</Button>
+              </div>
             ))}
-          </ul>
+          </div>
         )}
-      </section>
+      </Card>
     </div>
   );
 }
