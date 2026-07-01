@@ -6,6 +6,8 @@ import { NotificationController } from './notification.controller';
 import { NotificationService } from './notification.service';
 import { NotificationOutboxService } from './notification-outbox.service';
 import { NotifyService } from './notify.service';
+import { PushController } from './push.controller';
+import { PushService } from './push.service';
 import { OutboxNotificationProvider } from './providers/outbox-notification.provider';
 import { StubChannelGateway } from './providers/stub-channel-gateway';
 import { CHANNEL_GATEWAY, NOTIFICATION_PROVIDER } from './notification.types';
@@ -17,12 +19,13 @@ import type { ChannelGateway } from './notification.types';
  * notification.delivery 에 기록하고 실패분은 NotificationOutboxService 가 재시도.
  */
 @Module({
-  controllers: [NotificationController, AnnouncementController],
+  controllers: [NotificationController, AnnouncementController, PushController],
   providers: [
     NotificationService,
     NotificationOutboxService,
     NotifyService,
     AnnouncementService,
+    PushService,
     { provide: CHANNEL_GATEWAY, useClass: StubChannelGateway },
     {
       provide: NOTIFICATION_PROVIDER,

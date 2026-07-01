@@ -4,7 +4,7 @@
  */
 export const NOTIFICATION_PROVIDER = Symbol('NOTIFICATION_PROVIDER');
 
-export type NotifyChannel = 'app' | 'sms' | 'kakao';
+export type NotifyChannel = 'app' | 'sms' | 'kakao' | 'push';
 
 export interface NotifyMessage {
   recipientId: string; // account id

@@ -33,11 +33,33 @@ export function LegalPage() {
   const [vCode, setVCode] = useState('');
   const [vSent, setVSent] = useState(false);
 
+  // 푸시 토큰
+  const [pushCount, setPushCount] = useState<number | null>(null);
+
   const load = () => {
     api.get<Consent>('/legal/consent').then(setConsent).catch(() => {});
     api.get<typeof contact>('/me/contact').then(setContact).catch(() => {});
   };
   useEffect(() => { void load(); }, []);
+
+  // 이 브라우저를 푸시 기기로 등록(데모 토큰) + 기기 수 로드
+  useEffect(() => {
+    (async () => {
+      try {
+        const KEY = 'itall_push_token';
+        let token = localStorage.getItem(KEY);
+        if (!token) { token = `ExponentPushToken[web-${Math.random().toString(36).slice(2, 10)}]`; localStorage.setItem(KEY, token); }
+        await api.post('/me/push-token', { token, platform: 'web' });
+      } catch { /* noop */ }
+      try { const r = await api.get<{ count: number }>('/me/push-token'); setPushCount(r.count); } catch { /* noop */ }
+    })();
+  }, []);
+
+  async function testPush() {
+    setError(''); setMsg('');
+    try { const r = await api.post<{ message: string }>('/me/push-token/test', {}); setMsg(r.message); }
+    catch (e) { setError(e instanceof ApiError ? e.message : '발송 실패'); }
+  }
 
   async function verifyRequest() {
     setError(''); setMsg('');
@@ -154,6 +176,15 @@ export function LegalPage() {
               <Button onClick={verifyConfirm} disabled={!vCode.trim()}>인증 확인</Button>
             </div>
           )}
+        </Card>
+
+        {/* 푸시 알림 */}
+        <Card>
+          <h3 style={{ margin: '0 0 6px', fontSize: 15 }}>푸시 알림</h3>
+          <p style={{ fontSize: 13, color: 'var(--muted)', margin: '0 0 10px' }}>
+            이 기기가 푸시 알림 기기로 등록되었습니다{pushCount !== null ? ` (등록 기기 ${pushCount}대)` : ''}. 실제 앱은 expo-notifications 로 발송됩니다.
+          </p>
+          <Button variant="ghost" onClick={testPush}>테스트 푸시 발송</Button>
         </Card>
 
         {/* 데이터 내보내기 */}
