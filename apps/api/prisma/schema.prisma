@@ -674,6 +674,8 @@ model student_profile {
   guardian_student_link  guardian_student_link[]
   match_request          match_request[]
   payment_request        payment_request[]
+  goal_tier              String?
+  goal_avg               Int?
   qna_post               qna_post[]
   review                 review[]
   score_report           score_report[]

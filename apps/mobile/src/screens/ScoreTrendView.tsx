@@ -3,8 +3,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import { R, useTheme, useUI, type Palette } from '../theme';
 
 export type Placement = { tier?: string; line?: string; universities?: string[]; departments?: string[]; source?: string } | null;
-export type TrendPoint = { period: string; examType: string | null; avg: number | null; placement: Placement };
-export type Trend = { student: { name?: string; loginId?: string }; points: TrendPoint[] };
+export type TrendPoint = { period: string; examType: string | null; avg: number | null; subjects?: { subject: string; score: number | null }[]; placement: Placement };
+export type Trend = { student: { name?: string; loginId?: string }; points: TrendPoint[]; goal?: { tier?: string | null; avg?: number | null } };
 
 const TIER_COLOR = (C: Palette, tier?: string) =>
   tier === '최상위' || tier === '상위' ? C.done : tier === '중상위' ? C.confirmed : tier === '중위' ? C.newC : C.muted;
@@ -16,9 +16,17 @@ export function ScoreTrendView({ trend, showPlacement = true }: { trend: Trend; 
   const styles = useMemo(() => makeStyles(C), [C]);
   const pts = trend.points;
   if (!pts.length) return <Text style={ui.sub}>성적 기록이 없어요.</Text>;
+  const goalAvg = trend.goal?.avg ?? null;
+  const lastAvg = pts[pts.length - 1]?.avg ?? null;
+  const subjects = Array.from(new Set(pts.flatMap((p) => (p.subjects ?? []).map((s) => s.subject))));
+  const scoreAt = (pt: TrendPoint, subj: string) => (pt.subjects ?? []).find((s) => s.subject === subj)?.score ?? null;
 
   return (
     <View>
+      {(goalAvg != null || trend.goal?.tier) && (
+        <Text style={styles.goal}>🎯 목표 {trend.goal?.tier ?? ''}{goalAvg != null ? ` · 평균 ${goalAvg}` : ''}
+          {goalAvg != null && lastAvg != null ? (lastAvg >= goalAvg ? ' · 목표 달성' : ` · 목표까지 +${Math.round((goalAvg - lastAvg) * 10) / 10}`) : ''}</Text>
+      )}
       {/* 막대 차트 (평균, 40~100 스케일) */}
       <View style={styles.chart}>
         {pts.map((p, i) => {
@@ -33,6 +41,22 @@ export function ScoreTrendView({ trend, showPlacement = true }: { trend: Trend; 
           );
         })}
       </View>
+
+      {/* 과목별 추이 */}
+      {subjects.length > 0 && (
+        <View style={styles.subjTable}>
+          <View style={styles.subjHead}>
+            <Text style={[styles.subjCell, styles.subjName, styles.subjHeadT]}>과목</Text>
+            {pts.map((p, i) => <Text key={i} style={[styles.subjCell, styles.subjHeadT]}>{p.examType ?? p.period.slice(-4)}</Text>)}
+          </View>
+          {subjects.map((subj) => (
+            <View key={subj} style={styles.subjRow}>
+              <Text style={[styles.subjCell, styles.subjName]}>{subj}</Text>
+              {pts.map((p, i) => <Text key={i} style={styles.subjCell}>{scoreAt(p, subj) ?? '-'}</Text>)}
+            </View>
+          ))}
+        </View>
+      )}
 
       {showPlacement && (
         <View style={{ gap: 8, marginTop: 8 }}>
@@ -64,6 +88,13 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   avg: { fontSize: 13, fontWeight: '800', color: C.ink, marginBottom: 4 },
   bar: { width: 30, borderTopLeftRadius: 6, borderTopRightRadius: 6, backgroundColor: C.teal },
   xlabel: { fontSize: 11, color: C.muted, marginTop: 6 },
+  goal: { fontSize: 13, color: C.muted, marginBottom: 6, fontWeight: '600' },
+  subjTable: { marginTop: 10, borderWidth: 1, borderColor: C.line, borderRadius: R.md, overflow: 'hidden' },
+  subjHead: { flexDirection: 'row', backgroundColor: C.fill },
+  subjRow: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: C.lineSoft },
+  subjCell: { flex: 1, textAlign: 'center', fontSize: 12, color: C.ink, paddingVertical: 7 },
+  subjName: { flex: 1.2, textAlign: 'left', paddingLeft: 10, fontWeight: '600' },
+  subjHeadT: { color: C.muted, fontWeight: '700', fontSize: 11 },
   card: { borderWidth: 1, borderColor: C.line, borderRadius: R.md, padding: 12, backgroundColor: C.white },
   period: { fontSize: 12, color: C.muted, marginBottom: 4 },
   tagRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

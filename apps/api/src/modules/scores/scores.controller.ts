@@ -25,6 +25,11 @@ class ManualScoreDto {
   @IsArray() @ArrayMaxSize(30) @ValidateNested({ each: true }) @Type(() => ScoreItemDto) items!: ScoreItemDto[];
 }
 class OcrDto { @IsString() fileId!: string; }
+class GoalDto {
+  @IsString() studentLoginId!: string;
+  @IsOptional() @IsString() tier?: string | null;
+  @IsOptional() @IsNumber() avg?: number | null;
+}
 class PlacementDto {
   @IsOptional() @IsString() tier?: string;
   @IsOptional() @IsString() line?: string;
@@ -78,6 +83,12 @@ export class ScoresController {
   @Post(':id/placement')
   placement(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: PlacementDto) {
     return this.scores.setPlacement(user, id, { ...dto });
+  }
+
+  /** POST /admin/scores/goal — 학생 목표(대학 라인/평균) 설정. */
+  @Post('goal')
+  goal(@CurrentUser() user: AuthUser, @Body() dto: GoalDto) {
+    return this.scores.setGoal(user, dto.studentLoginId, dto.tier ?? null, dto.avg ?? null);
   }
 
   /** GET /admin/scores/template — 업로드용 엑셀 템플릿 다운로드. */

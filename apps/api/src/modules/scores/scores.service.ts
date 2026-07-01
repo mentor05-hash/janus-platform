@@ -168,6 +168,14 @@ export class ScoresService {
     return { ok: true };
   }
 
+  /** 학생 목표(대학 라인/평균) 설정. */
+  async setGoal(actor: AuthUser, studentLoginId: string, tier: string | null, avg: number | null) {
+    this.assertAdmin(actor);
+    const sp = await this.resolveStudent(actor, undefined, studentLoginId);
+    await this.prisma.student_profile.update({ where: { account_id: sp.account_id }, data: { goal_tier: tier, goal_avg: avg } });
+    return { ok: true };
+  }
+
   /** 데모 배치 추정 — 평균 → 등급/라인/샘플 대학·학과. 실 배치표 서비스가 덮어쓸 자리. */
   private static estimateLine(avg: number): { tier: string; line: string; universities: string[]; departments: string[] } {
     if (avg >= 95) return { tier: '최상위', line: '서울 최상위·의약학 라인', universities: ['서울대', '연세대', '고려대'], departments: ['의예', '컴퓨터공학', '경영'] };
@@ -205,8 +213,10 @@ export class ScoresService {
       orderBy: { created_at: 'asc' },
     });
     const student = await this.prisma.account.findUnique({ where: { id: studentAccountId }, select: { name: true, login_id: true } });
+    const sp = await this.prisma.student_profile.findUnique({ where: { account_id: studentAccountId }, select: { goal_tier: true, goal_avg: true } });
     return {
       student: { name: student?.name, loginId: student?.login_id },
+      goal: { tier: sp?.goal_tier ?? null, avg: sp?.goal_avg ?? null },
       points: reports.map((r) => {
         const s = r.items.map((i) => (i.score ? Number(i.score) : null)).filter((x): x is number => x != null);
         const avg = s.length ? Math.round((s.reduce((a, b) => a + b, 0) / s.length) * 10) / 10 : null;

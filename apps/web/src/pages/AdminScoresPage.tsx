@@ -36,12 +36,43 @@ export function AdminScoresPage() {
   // 성적·배치 추이
   const [trendId, setTrendId] = useState('');
   const [trend, setTrend] = useState<Trend | null>(null);
+  const [goalTier, setGoalTier] = useState('');
+  const [goalAvg, setGoalAvg] = useState('');
+  // 배치 수동 입력(관리자/배치표 서비스 결과)
+  const [plReport, setPlReport] = useState<Report | null>(null);
+  const [pl, setPl] = useState({ tier: '', line: '', universities: '', departments: '' });
+
+  async function saveGoal() {
+    if (!trendId.trim()) return;
+    setMsg(''); setError('');
+    try { await api.post('/admin/scores/goal', { studentLoginId: trendId.trim(), tier: goalTier || null, avg: goalAvg ? Number(goalAvg) : null }); setMsg('목표가 저장되었습니다.'); loadTrend(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : '목표 저장 실패'); }
+  }
+  function openPlacement(r: Report) {
+    setPlReport(r);
+    const p = r.placement;
+    setPl({ tier: p?.tier ?? '', line: p?.line ?? '', universities: (p?.universities ?? []).join(', '), departments: (p?.departments ?? []).join(', ') });
+  }
+  async function savePlacement() {
+    if (!plReport) return;
+    setMsg(''); setError('');
+    try {
+      await api.post(`/admin/scores/${plReport.id}/placement`, {
+        tier: pl.tier || undefined, line: pl.line || undefined, source: 'manual',
+        universities: pl.universities ? pl.universities.split(',').map((x) => x.trim()).filter(Boolean) : [],
+        departments: pl.departments ? pl.departments.split(',').map((x) => x.trim()).filter(Boolean) : [],
+      });
+      setPlReport(null); setMsg('배치 라인이 저장되었습니다.'); loadList(); if (trend) loadTrend();
+    } catch (e) { setError(e instanceof ApiError ? e.message : '배치 저장 실패'); }
+  }
 
   async function loadTrend() {
     if (!trendId.trim()) return;
     setError(''); setTrend(null);
-    try { setTrend(await api.get<Trend>(`/admin/scores/trend?studentLoginId=${encodeURIComponent(trendId.trim())}`)); }
-    catch (e) { setError(e instanceof ApiError ? e.message : '추이 조회 실패'); }
+    try {
+      const t = await api.get<Trend>(`/admin/scores/trend?studentLoginId=${encodeURIComponent(trendId.trim())}`);
+      setTrend(t); setGoalTier(t.goal?.tier ?? ''); setGoalAvg(t.goal?.avg != null ? String(t.goal.avg) : '');
+    } catch (e) { setError(e instanceof ApiError ? e.message : '추이 조회 실패'); }
   }
   async function downloadTemplate() {
     try { await api.downloadPath('/admin/scores/template', 'score-template.xlsx'); }
@@ -210,6 +241,12 @@ export function AdminScoresPage() {
         {trend && (
           <>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{trend.student.name} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>{trend.student.loginId}</span></div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 10 }}>
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>목표</span>
+              <input className="input" style={{ width: 150 }} value={goalTier} onChange={(e) => setGoalTier(e.target.value)} placeholder="목표 라인(예: 인서울 상위)" />
+              <input className="input" style={{ width: 90 }} type="number" value={goalAvg} onChange={(e) => setGoalAvg(e.target.value)} placeholder="목표 평균" />
+              <Button size="sm" variant="ghost" onClick={saveGoal}>목표 저장</Button>
+            </div>
             <ScoreTrend trend={trend} />
           </>
         )}
@@ -234,7 +271,10 @@ export function AdminScoresPage() {
                     <td style={td}>{r.examType ?? '-'}</td>
                     <td style={{ ...td, fontSize: 12 }}>{r.items.map((i) => `${i.subject} ${i.score ?? '-'}`).join(' · ')}</td>
                     <td style={td}><b>{r.avg ?? '-'}</b></td>
-                    <td style={{ ...td, fontSize: 12 }}>{r.placement ? <><Badge kind={TIER_KIND[r.placement.tier ?? ''] ?? 'soft'}>{r.placement.tier}</Badge> <span style={{ color: 'var(--muted)' }}>{r.placement.line}</span></> : <span style={{ color: 'var(--caption)' }}>-</span>}</td>
+                    <td style={{ ...td, fontSize: 12 }}>
+                      {r.placement ? <><Badge kind={TIER_KIND[r.placement.tier ?? ''] ?? 'soft'}>{r.placement.tier}</Badge> <span style={{ color: 'var(--muted)' }}>{r.placement.line}</span></> : <span style={{ color: 'var(--caption)' }}>-</span>}
+                      <button onClick={() => openPlacement(r)} title="배치 입력" style={{ marginLeft: 6, border: 'none', background: 'none', color: 'var(--teal)', cursor: 'pointer', fontSize: 12 }}>✎</button>
+                    </td>
                     <td style={td}><Badge kind="soft">{r.source === 'excel' ? '엑셀' : r.source === 'ocr' ? 'OCR' : '수동'}</Badge></td>
                   </tr>
                 ))}
@@ -266,6 +306,26 @@ export function AdminScoresPage() {
             )}
           </Card>
         )
+      )}
+
+      {/* 배치 라인 수동 입력(관리자/배치표 서비스 결과) */}
+      {plReport && (
+        <div onClick={() => setPlReport(null)} style={{ position: 'fixed', inset: 0, zIndex: 900, background: 'rgba(8,16,20,0.5)', display: 'grid', placeItems: 'center', padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} className="card" style={{ width: '100%', maxWidth: 460 }}>
+            <h3 style={{ margin: '0 0 4px', fontSize: 16 }}>배치 라인 입력</h3>
+            <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 12px' }}>{plReport.studentName} · {plReport.period}{plReport.avg != null ? ` · 평균 ${plReport.avg}` : ''}</p>
+            <div style={{ display: 'grid', gap: 8 }}>
+              <div><label className="label">등급/티어</label><input className="input" value={pl.tier} onChange={(e) => setPl({ ...pl, tier: e.target.value })} placeholder="예: 상위" /></div>
+              <div><label className="label">라인</label><input className="input" value={pl.line} onChange={(e) => setPl({ ...pl, line: e.target.value })} placeholder="예: 서성한·중경외시 라인" /></div>
+              <div><label className="label">대학(쉼표 구분)</label><input className="input" value={pl.universities} onChange={(e) => setPl({ ...pl, universities: e.target.value })} placeholder="성균관대, 한양대, 중앙대" /></div>
+              <div><label className="label">학과(쉼표 구분)</label><input className="input" value={pl.departments} onChange={(e) => setPl({ ...pl, departments: e.target.value })} placeholder="전자공학, 경영" /></div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+              <Button onClick={savePlacement}>저장</Button>
+              <Button variant="ghost" onClick={() => setPlReport(null)}>취소</Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
