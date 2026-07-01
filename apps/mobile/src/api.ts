@@ -157,6 +157,7 @@ export interface Child {
   name: string | null;
   relation: string | null;
   centerName?: string | null;
+  schoolGrade?: string | null;
   isHomeroom?: boolean;
   membershipGrade?: string | null;
   weeklyCredits?: number;

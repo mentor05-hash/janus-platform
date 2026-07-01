@@ -556,6 +556,7 @@ model student_profile {
   active_subscription_id String?                 @db.Uuid
   homeroom_teacher_id    String?                 @db.Uuid
   homeroom_assigned_at   DateTime?               @db.Timestamptz(6)
+  school_grade           String?
   total_consult          Int?                    @default(0)
   done_count             Int?                    @default(0)
   rejected_count         Int?                    @default(0)

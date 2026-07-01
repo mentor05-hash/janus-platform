@@ -22,6 +22,7 @@ import {
   BulkStudentsDto,
   CreateTeacherDto,
   HrLimitsDto,
+  ImportExternalDto,
   StaffPermDto,
 } from './dto/hr.dto';
 
@@ -53,7 +54,10 @@ export class HrController {
         created_at: true,
         center: { select: { name: true } },
         student_profile: {
-          select: { membership_grade: { select: { name: true } } },
+          select: {
+            school_grade: true,
+            membership_grade: { select: { name: true } },
+          },
         },
       },
       orderBy: { created_at: 'desc' },
@@ -65,6 +69,7 @@ export class HrController {
       status: s.status,
       created_at: s.created_at,
       centerName: s.center?.name ?? null,
+      schoolGrade: s.student_profile?.school_grade ?? null,
       membershipGrade: s.student_profile?.membership_grade?.name ?? null,
     }));
   }
@@ -117,7 +122,11 @@ export class HrController {
           },
         });
         await this.prisma.student_profile.create({
-          data: { account_id: acc.id, center_id: user.centerId ?? null },
+          data: {
+            account_id: acc.id,
+            center_id: user.centerId ?? null,
+            school_grade: row.schoolGrade?.trim() || null,
+          },
         });
         created += 1;
       } catch {
@@ -125,6 +134,71 @@ export class HrController {
       }
     }
     return { created, failed: errors.length, errors };
+  }
+
+  /** POST /hr/students/import-external — 외부 시스템 명부 동기화(upsert: 있으면 갱신, 없으면 생성). */
+  @Post('students/import-external')
+  async importExternal(
+    @Body() dto: ImportExternalDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    let created = 0;
+    let updated = 0;
+    const errors: { loginId: string; reason: string }[] = [];
+    for (const rec of dto.records) {
+      const loginId = rec.loginId.trim();
+      if (!loginId || !rec.name.trim()) {
+        errors.push({ loginId, reason: '아이디·이름 필수' });
+        continue;
+      }
+      try {
+        const existing = await this.prisma.account.findUnique({
+          where: { login_id: loginId },
+        });
+        if (existing) {
+          if (existing.role !== AccountRole.STUDENT) {
+            errors.push({ loginId, reason: '학생이 아닌 계정' });
+            continue;
+          }
+          await this.prisma.account.update({
+            where: { id: existing.id },
+            data: { name: rec.name.trim() },
+          });
+          await this.prisma.student_profile.upsert({
+            where: { account_id: existing.id },
+            update: { school_grade: rec.schoolGrade?.trim() || undefined },
+            create: {
+              account_id: existing.id,
+              center_id: user.centerId ?? null,
+              school_grade: rec.schoolGrade?.trim() || null,
+            },
+          });
+          updated += 1;
+        } else {
+          const acc = await this.prisma.account.create({
+            data: {
+              role: AccountRole.STUDENT,
+              login_id: loginId,
+              pw_hash: await bcrypt.hash(`itall-${loginId}`, 10),
+              name: rec.name.trim(),
+              center_id: user.centerId ?? null,
+              status: AccountStatus.APPROVED,
+            },
+          });
+          await this.prisma.student_profile.create({
+            data: {
+              account_id: acc.id,
+              center_id: user.centerId ?? null,
+              school_grade: rec.schoolGrade?.trim() || null,
+            },
+          });
+          created += 1;
+        }
+      } catch {
+        errors.push({ loginId, reason: '동기화 실패' });
+      }
+    }
+    return { source: dto.source, created, updated, failed: errors.length, errors };
   }
 
   /** POST /hr/teachers — 선생님 등록(계정+프로필). 급여(T5) 연동 필드 포함. */

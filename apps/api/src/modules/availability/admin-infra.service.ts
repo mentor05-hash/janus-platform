@@ -7,6 +7,16 @@ import { Prisma } from '@prisma/client';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import {
+  hhmmToMin,
+  kstDateString,
+  kstMinutesInDay,
+  weekdayKst,
+} from '../../common/time/kst';
+import {
+  mondayOf,
+  WeeklyTemplate,
+} from './availability.service';
+import {
   CreateBlockedTimeDto,
   CreateRoomDto,
   SetZoomPolicyDto,
@@ -72,6 +82,63 @@ export class AdminInfraService {
     return this.prisma.room.findMany({
       where: { center_id: this.requireCenter(actor) },
     });
+  }
+
+  /**
+   * 상담실 가용 자동 계산(§ROOMS): 이용 가능 = 총 − 현재 근무 중인 과목 선생님 수.
+   * 수동 설정 방은 상태값(available)으로, 자동 방은 근무 교사 수 차감으로 계산.
+   */
+  async roomAvailability(actor: AuthUser, now = new Date()) {
+    const centerId = this.requireCenter(actor);
+    const [rooms, teachers] = await Promise.all([
+      this.prisma.room.findMany({ where: { center_id: centerId } }),
+      this.prisma.teacher_profile.findMany({
+        where: { center_id: centerId },
+        select: { work_schedule: true },
+      }),
+    ]);
+    const dateStr = kstDateString(now);
+    const nowMin = kstMinutesInDay(now, dateStr);
+    const weekday = String(weekdayKst(dateStr));
+    const monday = mondayOf(dateStr);
+
+    let workingTeachers = 0;
+    for (const t of teachers) {
+      const ws = t.work_schedule[0];
+      if (!ws) continue;
+      const recurring = (ws.recurring_template as unknown as WeeklyTemplate) ?? {};
+      const plans = Array.isArray(ws.week_plans)
+        ? (ws.week_plans as unknown as { weekStart: string; template: WeeklyTemplate }[])
+        : [];
+      const plan = plans.find((p) => p && p.weekStart === monday);
+      const tpl: WeeklyTemplate = plan
+        ? { ...recurring, ...plan.template }
+        : recurring;
+      const wins = tpl[weekday] ?? [];
+      const onShift = wins.some(
+        (w) => nowMin >= hhmmToMin(w.start) && nowMin < hhmmToMin(w.end),
+      );
+      if (onShift) workingTeachers += 1;
+    }
+
+    const total = rooms.length;
+    const manualAvailable = rooms.filter(
+      (r) => r.setting === 'manual' && (r.status === 'available' || r.status === 'open'),
+    ).length;
+    const autoRooms = rooms.filter((r) => r.setting !== 'manual').length;
+    const autoAvailable = Math.max(0, autoRooms - workingTeachers);
+    const available = manualAvailable + autoAvailable;
+    const inUse = Math.max(0, total - available);
+    return {
+      total,
+      workingTeachers,
+      autoRooms,
+      manualAvailable,
+      autoAvailable,
+      available,
+      inUse,
+      util: total ? Math.round((inUse / total) * 100) : 0,
+    };
   }
 
   async createRoom(dto: CreateRoomDto, actor: AuthUser) {

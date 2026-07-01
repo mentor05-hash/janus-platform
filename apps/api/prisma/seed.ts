@@ -151,6 +151,11 @@ async function main() {
     await client.query(
       `UPDATE teacher_profile SET rating = CASE grade WHEN 'S' THEN 4.9 WHEN 'A' THEN 4.6 WHEN 'B' THEN 4.2 ELSE 4.4 END WHERE rating IS NULL OR rating = 0`,
     );
+    // 더미 학생 학년(HR·학부모 표시용)
+    await client.query(
+      `UPDATE student_profile SET school_grade = '고2' WHERE account_id = $1 AND school_grade IS NULL`,
+      [ID.acStudent],
+    );
 
     // 5) 더미 계정(역할별 1) + 프로필
     const accounts: [string, string, string, string][] = [

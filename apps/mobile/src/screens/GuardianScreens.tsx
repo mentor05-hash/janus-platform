@@ -59,7 +59,7 @@ export function GuardianHome({ children, setActiveId, goTab }: Props) {
                 <Text style={s.name}>{c.name}</Text>
                 {c.isHomeroom && <View style={s.badge}><Text style={s.badgeT}>담임 배정</Text></View>}
               </View>
-              <Text style={s.sub}>{c.centerName ?? '-'}{c.membershipGrade ? ` · ${c.membershipGrade}` : ''}</Text>
+              <Text style={s.sub}>{c.centerName ?? '-'}{c.schoolGrade ? ` · ${c.schoolGrade}` : ''}{c.membershipGrade ? ` · ${c.membershipGrade}` : ''}</Text>
             </View>
           </View>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 12 }}>

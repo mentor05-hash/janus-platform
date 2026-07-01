@@ -93,6 +93,7 @@ export class GuardianService {
             where: { account_id: l.student_id },
             select: {
               homeroom_teacher_id: true,
+              school_grade: true,
               center: { select: { name: true } },
               membership_grade: { select: { name: true, weekly_credits: true } },
             },
@@ -117,6 +118,7 @@ export class GuardianService {
           name: acc?.name ?? null,
           relation: l.relation,
           centerName: sp?.center?.name ?? null,
+          schoolGrade: sp?.school_grade ?? null,
           isHomeroom: !!sp?.homeroom_teacher_id,
           membershipGrade: sp?.membership_grade?.name ?? null,
           weeklyCredits: sp?.membership_grade?.weekly_credits ?? 0,

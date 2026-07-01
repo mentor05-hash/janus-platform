@@ -16,6 +16,8 @@ const STATUS: Record<string, { label: string; kind: 'done' | 'confirmed' | 'canc
 
 export function AdminRoomsPage() {
   const [rooms, setRooms] = useState<Room[]>([]);
+  type Avail = { total: number; workingTeachers: number; available: number; inUse: number; util: number; autoAvailable: number; manualAvailable: number };
+  const [avail, setAvail] = useState<Avail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
@@ -25,6 +27,7 @@ export function AdminRoomsPage() {
     setLoading(true);
     try {
       setRooms(await api.get<Room[]>('/admin/rooms'));
+      setAvail(await api.get<Avail>('/admin/rooms/availability').catch(() => null));
       setError('');
     } catch (e) {
       setError(e instanceof ApiError ? e.message : '조회 실패');
@@ -59,11 +62,10 @@ export function AdminRoomsPage() {
   }
   const nextStatus = (s: string | null) => (s === 'available' || s === 'open' ? 'inuse' : s === 'inuse' || s === 'busy' || s === 'occupied' ? 'closed' : 'available');
 
-  const total = rooms.length;
-  const inUse = rooms.filter((r) => r.status === 'busy' || r.status === 'occupied' || r.status === 'inuse').length;
-  const closed = rooms.filter((r) => r.status === 'closed').length;
-  const available = total - inUse - closed;
-  const util = total ? Math.round((inUse / total) * 100) : 0;
+  const total = avail?.total ?? rooms.length;
+  const available = avail?.available ?? (rooms.length - rooms.filter((r) => r.status === 'closed').length);
+  const inUse = avail?.inUse ?? 0;
+  const util = avail?.util ?? (total ? Math.round((inUse / total) * 100) : 0);
 
   const columns: Column<Room>[] = [
     { key: 'name', header: '상담실', render: (r) => <strong>{r.type ?? '상담실'}</strong> },
@@ -94,7 +96,8 @@ export function AdminRoomsPage() {
       </StatGrid>
 
       <div style={{ background: 'var(--teal-50)', border: '1px solid var(--teal-100)', borderRadius: 12, padding: '12px 14px', margin: '16px 0', fontSize: 13, color: 'var(--ink-body)' }}>
-        💡 <b>자동 계산 안내</b> — 방별 가능 시간을 직접 설정하지 않으면, 이용 가능 상담실은 <b>해당 시간대 총 상담실 수 − 같은 시간 근무 중인 과목 선생님 수</b>로 자동 계산됩니다.
+        💡 <b>자동 계산</b> — 자동 설정 상담실의 이용 가능 = <b>자동 상담실 수 − 현재 근무 중인 과목 선생님 수</b>로 실시간 계산됩니다.
+        {avail && <span> 지금 근무 중 선생님 <b>{avail.workingTeachers}명</b> · 자동 가용 <b>{avail.autoAvailable}</b> · 수동 가용 <b>{avail.manualAvailable}</b>.</span>}
       </div>
 
       <Card title="상담실 목록" actions={

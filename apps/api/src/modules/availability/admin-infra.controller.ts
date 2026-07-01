@@ -38,6 +38,10 @@ export class AdminInfraController {
   rooms(@CurrentUser() user: AuthUser) {
     return this.infra.listRooms(user);
   }
+  @Get('rooms/availability')
+  roomAvailability(@CurrentUser() user: AuthUser) {
+    return this.infra.roomAvailability(user);
+  }
   @Post('rooms')
   createRoom(@Body() dto: CreateRoomDto, @CurrentUser() user: AuthUser) {
     return this.infra.createRoom(dto, user);

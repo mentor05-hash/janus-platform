@@ -17,6 +17,7 @@ export class BulkStudentRow {
   @IsString() loginId!: string;
   @IsString() name!: string;
   @IsOptional() @IsString() password?: string;
+  @IsOptional() @IsString() schoolGrade?: string;
 }
 export class BulkStudentsDto {
   @IsArray()
@@ -24,6 +25,21 @@ export class BulkStudentsDto {
   @ValidateNested({ each: true })
   @Type(() => BulkStudentRow)
   students!: BulkStudentRow[];
+}
+
+/** 외부 시스템 명부 동기화(HR). source 명 + 레코드 upsert(있으면 갱신, 없으면 생성). */
+export class ExternalStudentRow {
+  @IsString() loginId!: string;
+  @IsString() name!: string;
+  @IsOptional() @IsString() schoolGrade?: string;
+}
+export class ImportExternalDto {
+  @IsString() source!: string; // 외부 시스템/앱 이름
+  @IsArray()
+  @ArrayMaxSize(1000)
+  @ValidateNested({ each: true })
+  @Type(() => ExternalStudentRow)
+  records!: ExternalStudentRow[];
 }
 
 /** HR 선생님 등록. 계정(pending) + teacher_profile 생성. */

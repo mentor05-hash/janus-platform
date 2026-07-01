@@ -104,6 +104,7 @@ export interface HrStudent {
   status: string;
   created_at: string;
   centerName?: string | null;
+  schoolGrade?: string | null;
   membershipGrade?: string | null;
 }
 
