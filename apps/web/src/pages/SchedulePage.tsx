@@ -374,7 +374,7 @@ export function SchedulePage() {
         </div>
         <div className="form-row">
           <label className="label">날짜</label>
-          <input className="input" type="date" value={leaveDate} onChange={(e) => setLeaveDate(e.target.value)} />
+          <input className="input compact" type="date" value={leaveDate} onChange={(e) => setLeaveDate(e.target.value)} />
         </div>
         <Button block style={{ marginTop: 4 }} onClick={addLeave}>제외 등록</Button>
         {leaves.length > 0 && (
@@ -416,11 +416,11 @@ function TimeSel({ value, onChange }: { value: string; onChange: (v: string) => 
   const [h, m] = (value || '09:00').split(':');
   return (
     <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
-      <select className="input" style={{ width: 68 }} value={h} onChange={(e) => onChange(`${e.target.value}:${m}`)}>
+      <select className="input compact" style={{ width: 64 }} value={h} onChange={(e) => onChange(`${e.target.value}:${m}`)}>
         {HOUR_OPTS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
       <span>:</span>
-      <select className="input" style={{ width: 68 }} value={m} onChange={(e) => onChange(`${h}:${e.target.value}`)}>
+      <select className="input compact" style={{ width: 64 }} value={m} onChange={(e) => onChange(`${h}:${e.target.value}`)}>
         {MIN_OPTS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     </span>

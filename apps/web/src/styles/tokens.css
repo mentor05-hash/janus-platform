@@ -105,5 +105,7 @@ a { color: var(--teal); }
   border-radius: 9px; font-size: 14px; color: var(--ink); background: #fff;
 }
 .input:focus, .textarea:focus { border-color: var(--teal); outline: none; }
+/* 버튼(.btn.sm)과 높이·서체를 맞춘 콤팩트 입력(근무시간 드롭다운·날짜 등) */
+.input.compact { height: 32px; padding: 0 10px; font-size: 12px; font-weight: 600; line-height: 1.1; border-radius: 7px; box-sizing: border-box; }
 .label { font-size: 13px; font-weight: 500; color: var(--ink-body); margin-bottom: 6px; display: block; }
 .error { color: var(--chip-danger); font-size: 13px; }
