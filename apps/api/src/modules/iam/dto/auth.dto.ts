@@ -49,3 +49,22 @@ export class RefreshDto {
   @IsNotEmpty()
   refreshToken!: string;
 }
+
+export class PasswordResetRequestDto {
+  @IsString() @IsNotEmpty() loginId!: string;
+}
+
+export class PasswordResetConfirmDto {
+  @IsString() @IsNotEmpty() token!: string;
+  @IsString() @IsStrongPassword() newPassword!: string;
+}
+
+export class VerifyRequestDto {
+  @IsIn(['email', 'phone']) channel!: 'email' | 'phone';
+  @IsString() @IsNotEmpty() target!: string;
+}
+
+export class VerifyConfirmDto {
+  @IsIn(['email', 'phone']) channel!: 'email' | 'phone';
+  @IsString() @IsNotEmpty() code!: string;
+}

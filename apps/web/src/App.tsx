@@ -42,6 +42,7 @@ import { StudentQnaPage } from './pages/StudentQnaPage';
 import { StudentCommunityPage } from './pages/StudentCommunityPage';
 import { LegalDocPage } from './pages/LegalDocPage';
 import { LegalPage } from './pages/LegalPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { StudentMembershipPage } from './pages/StudentMembershipPage';
 import { StudentNotificationsPage } from './pages/StudentNotificationsPage';
 import { StudentMaterialsPage } from './pages/StudentMaterialsPage';
@@ -67,6 +68,7 @@ export function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
+      <Route path="/forgot" element={<ForgotPasswordPage />} />
       <Route path="/terms" element={<LegalDocPage which="terms" />} />
       <Route path="/privacy" element={<LegalDocPage which="privacy" />} />
 

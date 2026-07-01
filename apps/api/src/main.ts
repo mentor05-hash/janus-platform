@@ -1,5 +1,6 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -17,6 +18,16 @@ async function bootstrap() {
   });
 
   app.use(requestIdMiddleware); // 요청 ID 전파(§10 관측성) — 최선행
+
+  // 보안 헤더(helmet) + HSTS — API는 JSON 전용이라 CSP/COEP는 완화, HSTS는 prod에서 강제
+  const isProd = (process.env.APP_ENV ?? process.env.NODE_ENV) === 'prod';
+  app.use(
+    helmet({
+      contentSecurityPolicy: false, // API(JSON) — 문서 CSP 불필요, 프론트에서 관리
+      crossOriginResourcePolicy: { policy: 'cross-origin' }, // 웹/모바일 크로스 오리진 첨부 허용
+      hsts: isProd ? { maxAge: 15552000, includeSubDomains: true, preload: true } : false,
+    }),
+  );
 
   // CORS: web(React)·mobile(RN) 클라이언트 오리진 허용(ENV 분기, §10 설정 외부화)
   const corsOrigins = process.env.CORS_ORIGINS;

@@ -26,8 +26,36 @@ export function LegalPage() {
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [reason, setReason] = useState('');
 
-  const load = () => api.get<Consent>('/legal/consent').then(setConsent).catch(() => {});
+  // 연락처 인증
+  const [contact, setContact] = useState<{ email: string | null; phone: string | null; email_verified: boolean; phone_verified: boolean } | null>(null);
+  const [vTarget, setVTarget] = useState('');
+  const [vChannel, setVChannel] = useState<'email' | 'phone'>('email');
+  const [vCode, setVCode] = useState('');
+  const [vSent, setVSent] = useState(false);
+
+  const load = () => {
+    api.get<Consent>('/legal/consent').then(setConsent).catch(() => {});
+    api.get<typeof contact>('/me/contact').then(setContact).catch(() => {});
+  };
   useEffect(() => { void load(); }, []);
+
+  async function verifyRequest() {
+    setError(''); setMsg('');
+    try {
+      const r = await api.post<{ message: string; devCode?: string }>('/me/verify/request', { channel: vChannel, target: vTarget });
+      setVSent(true);
+      setMsg(r.devCode ? `${r.message} (데모 코드: ${r.devCode})` : r.message);
+      if (r.devCode) setVCode(r.devCode);
+    } catch (e) { setError(e instanceof ApiError ? e.message : '요청 실패'); }
+  }
+  async function verifyConfirm() {
+    setError(''); setMsg('');
+    try {
+      const r = await api.post<{ message: string }>('/me/verify/confirm', { channel: vChannel, code: vCode });
+      setMsg(r.message); setVSent(false); setVCode(''); setVTarget('');
+      api.get<typeof contact>('/me/contact').then(setContact).catch(() => {});
+    } catch (e) { setError(e instanceof ApiError ? e.message : '인증 실패'); }
+  }
 
   async function saveConsent() {
     setError(''); setMsg('');
@@ -101,6 +129,29 @@ export function LegalPage() {
                 </div>
               )}
               <div><Button onClick={saveConsent} disabled={!terms || !privacy}>동의 저장</Button></div>
+            </div>
+          )}
+        </Card>
+
+        {/* 연락처 인증 */}
+        <Card>
+          <h3 style={{ margin: '0 0 8px', fontSize: 15 }}>연락처 인증</h3>
+          <div style={{ display: 'flex', gap: 12, marginBottom: 10, fontSize: 13, flexWrap: 'wrap' }}>
+            <span>이메일: {contact?.email ?? '미등록'} {contact?.email_verified && <Badge kind="done">인증됨</Badge>}</span>
+            <span>휴대폰: {contact?.phone ?? '미등록'} {contact?.phone_verified && <Badge kind="done">인증됨</Badge>}</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <select className="input" style={{ width: 110 }} value={vChannel} onChange={(e) => { setVChannel(e.target.value as 'email' | 'phone'); setVSent(false); }}>
+              <option value="email">이메일</option>
+              <option value="phone">휴대폰</option>
+            </select>
+            <input className="input" style={{ maxWidth: 220 }} placeholder={vChannel === 'email' ? '이메일 주소' : '휴대폰 번호'} value={vTarget} onChange={(e) => setVTarget(e.target.value)} />
+            <Button variant="ghost" onClick={verifyRequest} disabled={!vTarget.trim()}>인증코드 발송</Button>
+          </div>
+          {vSent && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
+              <input className="input" style={{ maxWidth: 140 }} placeholder="인증코드 6자리" value={vCode} onChange={(e) => setVCode(e.target.value)} />
+              <Button onClick={verifyConfirm} disabled={!vCode.trim()}>인증 확인</Button>
             </div>
           )}
         </Card>
