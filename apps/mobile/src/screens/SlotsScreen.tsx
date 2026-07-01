@@ -183,6 +183,19 @@ export function SlotsScreen({ teacher, onBack }: { teacher: Teacher; onBack: () 
         <Text style={ui.sub}>{teacher.name}{selectedTime ? ` · ${selectedTime}` : ''}</Text>
       </View>
 
+      {/* 선생님 액션: 찜·차단·신고 */}
+      <View style={styles.actRow}>
+        <TouchableOpacity style={styles.actBtn} onPress={async () => { try { await api.post('/me/teacher-lists', { teacherId: teacher.id, type: 'fit' }); Alert.alert('찜', '내 선생님(찜)에 추가했어요.'); } catch (e) { Alert.alert('실패', e instanceof ApiError ? e.message : '오류'); } }}>
+          <Text style={styles.actT}>☆ 찜</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.actBtn} onPress={async () => { try { await api.post('/teacher-blocks', { teacherId: teacher.id }); Alert.alert('차단', '차단했어요.'); } catch (e) { Alert.alert('실패', e instanceof ApiError ? e.message : '오류'); } }}>
+          <Text style={styles.actT}>🚫 차단</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.actBtn} onPress={() => { const reason = typeof prompt !== 'undefined' ? prompt('신고 사유') : '부적절'; if (reason) api.post('/reports', { targetType: 'teacher', targetId: teacher.id, reason }).then(() => Alert.alert('신고', '접수되었습니다.')).catch((e) => Alert.alert('실패', e instanceof ApiError ? e.message : '오류')); }}>
+          <Text style={styles.actT}>🚩 신고</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* 과목 */}
       <Text style={styles.sec}>과목</Text>
       <View style={styles.row}>
@@ -350,6 +363,9 @@ export function SlotsScreen({ teacher, onBack }: { teacher: Teacher; onBack: () 
 const styles = StyleSheet.create({
   back: { color: C.teal, marginBottom: SP.sm, fontWeight: '700', fontSize: 15 },
   head: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: SP.sm },
+  actRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  actBtn: { flex: 1, borderWidth: 1, borderColor: C.line, borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
+  actT: { fontSize: 12, color: C.muted, fontWeight: '700' },
   sec: { fontSize: 13, fontWeight: '800', color: C.ink, marginTop: SP.lg, marginBottom: 8 },
   row: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   pill: { flex: 1, minWidth: 64, alignItems: 'center', backgroundColor: C.white, borderWidth: 1, borderColor: C.line, borderRadius: R.md, paddingVertical: 11 },

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, Booking, Note, Teacher } from '../api';
 import { C, R, SP, ui } from '../theme';
 
@@ -14,7 +14,38 @@ const STATUS: Record<string, { label: string; bg: string; fg: string }> = {
   noshow: { label: '노쇼', bg: C.dangerBg, fg: C.danger },
 };
 
-function Detail({ id }: { id: string }) {
+function ReviewBox({ id }: { id: string }) {
+  const [r, setR] = useState({ ratingAttitude: 5, ratingContent: 5, ratingSkill: 5, ratingAgain: 5, text: '' });
+  const [done, setDone] = useState(false);
+  const [err, setErr] = useState('');
+  const items: [keyof typeof r, string][] = [['ratingAttitude', '태도'], ['ratingContent', '내용'], ['ratingSkill', '실력'], ['ratingAgain', '재신청']];
+  async function submit() {
+    setErr('');
+    try { await api.post(`/bookings/${id}/review`, r); setDone(true); }
+    catch (e) { setErr(e instanceof ApiError ? e.message : '후기 등록 실패'); }
+  }
+  if (done) return <Text style={{ color: C.done, fontSize: 13, marginTop: 8, fontWeight: '600' }}>후기가 등록되었습니다. 감사합니다!</Text>;
+  return (
+    <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.line, borderStyle: 'dashed' }}>
+      <Text style={{ fontSize: 13, fontWeight: '800', color: C.ink, marginBottom: 6 }}>상담 후기 작성</Text>
+      {items.map(([k, label]) => (
+        <View key={k} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+          <Text style={{ width: 52, fontSize: 13, color: C.muted }}>{label}</Text>
+          {[1, 2, 3, 4, 5].map((n) => (
+            <TouchableOpacity key={n} onPress={() => setR((p) => ({ ...p, [k]: n }))}>
+              <Text style={{ fontSize: 20, color: n <= (r[k] as number) ? '#F5A623' : C.line }}>★</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      ))}
+      <TextInput style={[ui.input, { height: 60, textAlignVertical: 'top', marginTop: 6 }]} multiline placeholder="후기(선택)" placeholderTextColor={C.caption} value={r.text} onChangeText={(t) => setR((p) => ({ ...p, text: t }))} />
+      {err ? <Text style={ui.error}>{err}</Text> : null}
+      <TouchableOpacity style={[ui.btn, { marginTop: 8 }]} onPress={submit}><Text style={ui.btnText}>후기 등록</Text></TouchableOpacity>
+    </View>
+  );
+}
+
+function Detail({ id, status }: { id: string; status: string }) {
   const [b, setB] = useState<Booking | null>(null);
   const [note, setNote] = useState<Note | null>(null);
   useEffect(() => {
@@ -51,6 +82,7 @@ function Detail({ id }: { id: string }) {
       ) : (
         <Text style={styles.dMuted}>아직 공개된 상담 기록이 없어요(완료 후 열람).</Text>
       )}
+      {status === 'done' && <ReviewBox id={id} />}
     </View>
   );
 }
@@ -131,7 +163,7 @@ export function BookingsScreen() {
                 </View>
                 <Text style={styles.more}>{open === b.id ? '접기 ▲' : '상담 상세 ▼'}</Text>
               </TouchableOpacity>
-              {open === b.id && <Detail id={b.id} />}
+              {open === b.id && <Detail id={b.id} status={b.status} />}
             </View>
           );
         })
