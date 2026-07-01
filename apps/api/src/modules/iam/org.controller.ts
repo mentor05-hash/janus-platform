@@ -23,8 +23,8 @@ export class OrgController {
   /** POST /centers — 센터 생성(본사 이상). */
   @Post('centers')
   @MinPerm('L2')
-  createCenter(@Body() dto: CreateCenterDto) {
-    return this.org.createCenter(dto);
+  createCenter(@Body() dto: CreateCenterDto, @CurrentUser() user: AuthUser) {
+    return this.org.createCenter(dto, user);
   }
 
   /** POST /admin/staff — 관리자 계정 생성(본사 이상; L2 생성은 마스터만). */

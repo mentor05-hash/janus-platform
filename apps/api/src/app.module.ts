@@ -33,6 +33,7 @@ import { MaterialModule } from './modules/material/material.module';
 import { CategoryModule } from './modules/category/category.module';
 import { CommunityModule } from './modules/community/community.module';
 import { LegalModule } from './modules/legal/legal.module';
+import { AuditModule } from './modules/audit/audit.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { LegalModule } from './modules/legal/legal.module';
     CategoryModule,
     CommunityModule,
     LegalModule,
+    AuditModule,
   ],
   providers: [
     // 전역 가드: rate limit(§10) → 인증 → 인가 순. @Public() 은 인증 통과, @Roles() 로 역할 제한.

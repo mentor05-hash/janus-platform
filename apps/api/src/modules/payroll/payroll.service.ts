@@ -23,6 +23,7 @@ import {
   IncentivePolicy,
   PayrollRates,
 } from './domain/payroll';
+import { AuditService } from '../audit/audit.service';
 
 const STALE_ANSWER_HOURS = 48; // 48시간 미답 → 답변 보상 기준(T5c)
 
@@ -35,6 +36,7 @@ export class PayrollService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly audit: AuditService,
   ) {}
 
   async estimate(teacherId: string, actor: AuthUser) {
@@ -82,6 +84,11 @@ export class PayrollService {
       : await this.prisma.payroll_estimate.create({
           data: { teacher_id: teacherId, ...data },
         });
+    await this.audit.record(actor, {
+      action: 'payroll.settle', targetType: 'teacher', targetId: teacherId,
+      summary: `급여 정산 확정(확정 ${est.confirmedAmount.toLocaleString()}원)`,
+      meta: { confirmed: est.confirmedAmount, expected: est.expectedAmount, period: periodStart.toISOString().slice(0, 7) },
+    });
     return { id: row.id, ...est };
   }
 

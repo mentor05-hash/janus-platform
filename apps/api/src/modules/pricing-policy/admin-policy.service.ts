@@ -8,6 +8,7 @@ import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { CACHE_PROVIDER } from '../../common/cache/cache.types';
 import type { CacheProvider } from '../../common/cache/cache.types';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
 import {
   FeatureRule,
   resolveFeatureEnabled,
@@ -29,6 +30,7 @@ export class AdminPolicyService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(CACHE_PROVIDER) private readonly cache: CacheProvider,
+    private readonly audit: AuditService,
   ) {}
 
   /** 본사(HQ) 슈퍼관리자 = admin + 센터 미소속(center_id NULL). 전사 정책을 편집·전역 권한. */
@@ -95,6 +97,13 @@ export class AdminPolicyService {
       this.cache,
       saved.updated_at?.getTime() ?? Date.now(),
     ); // §10 캐시 무효화
+    await this.audit.record(actor, {
+      action: 'pricing.update',
+      targetType: 'pricing_policy',
+      targetId: saved.id,
+      summary: `요금 정책 변경(${this.isHq(actor) ? '전사' : '센터'} · ${dto.mode})`,
+      meta: { mode: dto.mode, perHour: data.per_hour, surchargePct: data.surcharge_pct, enabled: data.enabled },
+    });
     return saved;
   }
 
@@ -134,11 +143,16 @@ export class AdminPolicyService {
       classify_unfit_limit:
         dto.classifyUnfitLimit ?? existing?.classify_unfit_limit ?? 30,
     };
-    return this.prisma.limit_policy.upsert({
+    const saved = await this.prisma.limit_policy.upsert({
       where: { center_id: centerId },
       update: data,
       create: { center_id: centerId, ...data },
     });
+    await this.audit.record(actor, {
+      action: 'limits.update', targetType: 'limit_policy', targetId: centerId,
+      summary: '한도 정책 변경(센터)', meta: data,
+    });
+    return saved;
   }
 
   // ── 가중 제한 임계(센터, §5-7) ── HQ 는 기본값만(편집은 센터 관리자)
@@ -185,11 +199,16 @@ export class AdminPolicyService {
       ranking_weight_down:
         dto.rankingWeightDown ?? existing?.ranking_weight_down ?? null,
     };
-    return this.prisma.penalty_policy.upsert({
+    const saved = await this.prisma.penalty_policy.upsert({
       where: { center_id: centerId },
       update: data,
       create: { center_id: centerId, ...data },
     });
+    await this.audit.record(actor, {
+      action: 'penalty.update', targetType: 'penalty_policy', targetId: centerId,
+      summary: '가중 제한 임계 변경(센터)', meta: data,
+    });
+    return saved;
   }
 
   // ── 기능 토글(전사 강제 + 센터 자율) ──
@@ -213,21 +232,26 @@ export class AdminPolicyService {
         target_value: dto.targetValue,
       },
     });
-    if (existing) {
-      return this.prisma.feature_availability.update({
-        where: { id: existing.id },
-        data: { enabled: dto.enabled },
-      });
-    }
-    return this.prisma.feature_availability.create({
-      data: {
-        scope: dto.scope,
-        center_id: centerId,
-        target_type: dto.targetType,
-        target_value: dto.targetValue,
-        enabled: dto.enabled,
-      },
+    const saved = existing
+      ? await this.prisma.feature_availability.update({
+          where: { id: existing.id },
+          data: { enabled: dto.enabled },
+        })
+      : await this.prisma.feature_availability.create({
+          data: {
+            scope: dto.scope,
+            center_id: centerId,
+            target_type: dto.targetType,
+            target_value: dto.targetValue,
+            enabled: dto.enabled,
+          },
+        });
+    await this.audit.record(actor, {
+      action: 'feature.toggle', targetType: 'feature_availability', targetId: saved.id,
+      summary: `기능 토글 ${dto.enabled ? '열림' : '닫힘'}(${dto.scope} · ${dto.targetType}:${dto.targetValue})`,
+      meta: { scope: dto.scope, targetType: dto.targetType, targetValue: dto.targetValue, enabled: dto.enabled },
     });
+    return saved;
   }
 
   /** 특정 대상의 기능 활성 여부(전사 우선). */

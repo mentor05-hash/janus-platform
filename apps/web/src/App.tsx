@@ -31,6 +31,7 @@ import { AdminOrgPage } from './pages/AdminOrgPage';
 import { AdminMemberTypesPage } from './pages/AdminMemberTypesPage';
 import { AdminEvaluationPage } from './pages/AdminEvaluationPage';
 import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
+import { AdminAuditPage } from './pages/AdminAuditPage';
 import { AdminReversePage } from './pages/AdminReversePage';
 import { TeacherDashboardPage } from './pages/TeacherDashboardPage';
 import { StudentLayout } from './components/StudentLayout';
@@ -124,6 +125,7 @@ export function App() {
         <Route path="membership" element={<AdminMembershipPage />} />
         <Route path="evaluation" element={<AdminEvaluationPage />} />
         <Route path="analytics" element={<AdminAnalyticsPage />} />
+        <Route path="audit" element={<AdminAuditPage />} />
         <Route path="legal" element={<LegalPage />} />
       </Route>
 

@@ -32,6 +32,24 @@ model account {
   user_consent      user_consent?
 }
 
+model audit_log {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actor_id    String?  @db.Uuid
+  actor_name  String?
+  actor_role  String?
+  action      String
+  target_type String?
+  target_id   String?
+  summary     String?
+  meta        Json?
+  center_id   String?  @db.Uuid
+  request_id  String?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([created_at(sort: Desc)])
+  @@index([center_id])
+}
+
 model user_consent {
   account_id       String   @id @db.Uuid
   terms_version    String
