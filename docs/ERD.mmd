@@ -1,0 +1,683 @@
+erDiagram
+  account {
+    uuid id PK
+    USER-DEFINED role
+    uuid center_id
+    text login_id
+    text pw_hash
+    text name
+    USER-DEFINED status
+    timestamp_with_time_zone created_at
+    timestamp_with_time_zone withdrawn_at
+    text withdrawal_reason
+    text email
+    text phone
+    boolean email_verified
+    boolean phone_verified
+  }
+  announcement_template {
+    uuid id PK
+    uuid created_by
+    uuid center_id
+    text name
+    ARRAY targets
+    text title
+    text body
+    ARRAY channels
+    timestamp_with_time_zone created_at
+  }
+  audit_log {
+    uuid id PK
+    uuid actor_id
+    text actor_name
+    text actor_role
+    text action
+    text target_type
+    text target_id
+    text summary
+    jsonb meta
+    uuid center_id
+    text request_id
+    timestamp_with_time_zone created_at
+  }
+  blocked_time {
+    uuid id PK
+    uuid center_id
+    text type
+    timestamp_with_time_zone start_at
+    timestamp_with_time_zone end_at
+    text scope
+    USER-DEFINED set_by_level
+  }
+  board_question {
+    uuid id PK
+    uuid student_id
+    USER-DEFINED consult_type
+    USER-DEFINED q_type
+    USER-DEFINED scope
+    uuid assigned_teacher_id
+    text difficulty
+    jsonb attachments
+    integer charge
+    text status
+    uuid taken_teacher_id
+    timestamp_with_time_zone created_at
+  }
+  booking {
+    uuid id PK
+    uuid student_id
+    uuid teacher_id
+    uuid center_id
+    USER-DEFINED consult_type
+    text sub_type
+    USER-DEFINED mode
+    USER-DEFINED session_mode
+    USER-DEFINED direction
+    timestamp_with_time_zone start_at
+    timestamp_with_time_zone end_at
+    smallint buffer_before
+    smallint buffer_after
+    USER-DEFINED status
+    uuid room_id
+    jsonb attachments
+    text content
+    integer charged_credits
+    text origin
+    timestamp_with_time_zone created_at
+    text meeting_url
+  }
+  cancellation_event {
+    uuid id PK
+    uuid booking_id
+    text reason
+    USER-DEFINED route
+    ARRAY notify_targets
+    ARRAY channels
+    integer credit_refunded
+    timestamp_with_time_zone created_at
+    uuid cancelled_by
+    ARRAY substitute_candidates
+  }
+  category {
+    uuid id PK
+    text kind
+    text name
+    integer sort_order
+    timestamp_with_time_zone created_at
+  }
+  category_mode_policy {
+    uuid id PK
+    uuid center_id
+    USER-DEFINED consult_type
+    ARRAY allowed_modes
+  }
+  center {
+    uuid id PK
+    text name
+    text region
+    timestamp_with_time_zone created_at
+  }
+  consultation_note {
+    uuid id PK
+    uuid booking_id
+    uuid student_id
+    uuid teacher_id
+    USER-DEFINED consult_type
+    text sub_type
+    text core_summary
+    text memo
+    text homework
+    text future_dir
+    boolean guardian_visible
+    USER-DEFINED save_state
+    uuid author_id
+    timestamp_with_time_zone created_at
+    timestamp_with_time_zone updated_at
+  }
+  consultation_policy {
+    uuid center_id PK
+    smallint homeroom_cycle_days
+    smallint warn_days
+    smallint danger_days
+  }
+  credit_account {
+    uuid id PK
+    uuid student_id
+    integer purchased_balance
+    integer granted_balance
+    timestamp_with_time_zone grant_expire_at
+    integer reserved_credits
+  }
+  credit_transaction {
+    uuid id PK
+    uuid account_id
+    USER-DEFINED type
+    integer amount
+    integer balance
+    text description
+    text method
+    text ref_type
+    uuid ref_id
+    timestamp_with_time_zone created_at
+    jsonb meta
+  }
+  evaluation_weight_policy {
+    uuid id PK
+    uuid center_id
+    smallint w_total
+    smallint w_completion
+    smallint w_rerequest
+    smallint w_reject
+    smallint w_noshow
+    smallint w_response
+    smallint w_satisfaction
+    uuid updated_by
+    timestamp_with_time_zone updated_at
+  }
+  feature_availability {
+    uuid id PK
+    text scope
+    uuid center_id
+    text target_type
+    text target_value
+    date period_start
+    date period_end
+    boolean enabled
+  }
+  guardian {
+    uuid account_id PK
+    jsonb notify_settings
+  }
+  guardian_student_link {
+    uuid id PK
+    uuid guardian_id
+    uuid student_id
+    text relation
+    text status
+    text link_method
+  }
+  guardian_visibility_policy {
+    uuid center_id PK
+    text base_policy
+  }
+  limit_policy {
+    uuid center_id PK
+    smallint reservation_limit
+    smallint classify_fit_limit
+    smallint classify_unfit_limit
+  }
+  match_request {
+    uuid id PK
+    uuid student_id
+    USER-DEFINED direction
+    USER-DEFINED consult_type
+    text sub_type
+    text mode_pref
+    jsonb stay_time
+    uuid result_booking_id
+    text fallback
+    timestamp_with_time_zone created_at
+  }
+  material {
+    uuid id PK
+    uuid teacher_id
+    uuid center_id
+    uuid file_id
+    text title
+    text description
+    text subject
+    text visibility
+    timestamp_with_time_zone created_at
+    text category
+    integer view_count
+  }
+  member_type {
+    uuid id PK
+    text kind
+    text code
+    text label
+    integer sort_order
+    boolean active
+    timestamp_with_time_zone created_at
+  }
+  membership_grade {
+    uuid id PK
+    text name
+    smallint tier
+    integer weekly_credits
+    text expire_policy
+    smallint priority
+    boolean active
+  }
+  notification {
+    uuid id PK
+    uuid recipient_id
+    text type
+    ARRAY channels
+    jsonb payload
+    timestamp_with_time_zone read_at
+    timestamp_with_time_zone created_at
+    jsonb delivery
+    integer attempts
+    timestamp_with_time_zone last_attempt_at
+  }
+  ops_stat {
+    uuid id PK
+    uuid center_id
+    text period
+    integer active_users
+    numeric match_rate
+    numeric avg_satisfaction
+    integer weekly_consult
+    jsonb grade_dist
+    jsonb weekly_trend
+    jsonb teacher_stats
+  }
+  payment {
+    uuid id PK
+    uuid payer_account_id
+    integer amount
+    text pg_provider
+    text pg_txn_id
+    text target
+    text status
+    timestamp_with_time_zone created_at
+  }
+  payment_request {
+    uuid id PK
+    uuid student_id
+    uuid guardian_id
+    integer needed_credits
+    text ref_type
+    uuid ref_id
+    USER-DEFINED status
+    USER-DEFINED origin
+    timestamp_with_time_zone expire_at
+    ARRAY channels
+    timestamp_with_time_zone created_at
+  }
+  payroll_estimate {
+    uuid id PK
+    uuid teacher_id
+    text cycle
+    integer confirmed_amount
+    integer expected_amount
+    jsonb breakdown
+    date period_start
+    date period_end
+    text status
+    jsonb deductions
+    integer net_amount
+    timestamp_with_time_zone paid_at
+    uuid settled_by
+  }
+  payroll_policy {
+    uuid id PK
+    uuid center_id
+    text teacher_category
+    text cycle
+    integer per_case_rate
+    integer qna_rate
+    jsonb grade_allowance
+    integer hourly_rate
+    jsonb auto_incentive
+  }
+  penalty_policy {
+    uuid center_id PK
+    smallint cancel_threshold
+    smallint noshow_threshold
+    smallint reject_threshold
+    integer restrict_minutes
+    numeric ranking_weight_down
+  }
+  pricing_policy {
+    uuid id PK
+    uuid center_id
+    USER-DEFINED mode
+    boolean enabled
+    boolean paid
+    integer per_hour
+    smallint surcharge_pct
+    integer board_item_fee
+    integer board_general_fee
+    integer offline_occupancy_fee
+    integer paid_consulting_fee
+    uuid updated_by
+    timestamp_with_time_zone updated_at
+  }
+  push_token {
+    uuid id PK
+    uuid account_id
+    text token
+    text platform
+    timestamp_with_time_zone created_at
+    timestamp_with_time_zone last_seen_at
+  }
+  qna_answer {
+    uuid id PK
+    uuid post_id
+    uuid teacher_id
+    text body
+    boolean accepted
+    boolean pay_eligible
+    timestamp_with_time_zone created_at
+    numeric similarity
+    uuid similar_to_id
+    boolean sim_flagged
+  }
+  qna_post {
+    uuid id PK
+    uuid student_id
+    text subject
+    text difficulty
+    USER-DEFINED scope
+    uuid assigned_teacher_id
+    text body
+    jsonb attachments
+    text status
+    timestamp_with_time_zone created_at
+  }
+  report {
+    uuid id PK
+    text target_type
+    uuid target_id
+    text reason
+    text status
+    text action
+    timestamp_with_time_zone created_at
+    uuid center_id
+    jsonb ai_review
+  }
+  review {
+    uuid id PK
+    uuid booking_id
+    uuid student_id
+    uuid teacher_id
+    smallint rating_attitude
+    smallint rating_content
+    smallint rating_skill
+    smallint rating_again
+    text text
+    boolean done_confirmed
+    boolean reported
+    timestamp_with_time_zone created_at
+  }
+  room {
+    uuid id PK
+    uuid center_id
+    text type
+    smallint capacity
+    text operating_hours
+    text setting
+    text status
+  }
+  scheduled_announcement {
+    uuid id PK
+    uuid created_by
+    ARRAY targets
+    text title
+    text body
+    uuid center_id
+    ARRAY channels
+    timestamp_with_time_zone scheduled_at
+    text status
+    timestamp_with_time_zone sent_at
+    integer sent_count
+    timestamp_with_time_zone created_at
+    boolean reminder_sent
+  }
+  schema_migrations {
+    text name PK
+    timestamp_with_time_zone applied_at
+  }
+  score_item {
+    uuid id PK
+    uuid report_id
+    text subject
+    numeric score
+    numeric max_score
+    text grade
+    timestamp_with_time_zone created_at
+  }
+  score_report {
+    uuid id PK
+    uuid student_id
+    uuid center_id
+    text period
+    text exam_type
+    uuid report_file_id
+    text source
+    text note
+    uuid created_by
+    timestamp_with_time_zone created_at
+    timestamp_with_time_zone updated_at
+    jsonb placement
+  }
+  staff_profile {
+    uuid account_id PK
+    text staff_role
+    uuid center_id
+    USER-DEFINED perm_level
+  }
+  stored_file {
+    uuid id PK
+    uuid owner_id
+    text storage_key
+    text filename
+    text content_type
+    integer size
+    timestamp_with_time_zone created_at
+  }
+  student_profile {
+    uuid account_id PK
+    uuid center_id
+    jsonb stay_time
+    uuid membership_grade_id
+    uuid active_subscription_id
+    uuid homeroom_teacher_id
+    timestamp_with_time_zone homeroom_assigned_at
+    integer total_consult
+    integer done_count
+    integer rejected_count
+    integer noshow_count
+    timestamp_with_time_zone last_consult_at
+    timestamp_with_time_zone last_homeroom_at
+    integer same_day_cancel_count
+    timestamp_with_time_zone penalty_since
+    text type_code
+    boolean reverse_admin
+    boolean reverse_self
+    text school_grade
+    text goal_tier
+    integer goal_avg
+  }
+  student_subscription {
+    uuid id PK
+    uuid student_id
+    uuid plan_id
+    text status
+    timestamp_with_time_zone started_at
+    timestamp_with_time_zone next_billing_at
+  }
+  subscription_plan {
+    uuid id PK
+    text name
+    integer price
+    USER-DEFINED billing_cycle
+    USER-DEFINED payer
+    uuid grade_id
+  }
+  system_setting {
+    text key PK
+    jsonb value
+    uuid updated_by
+    timestamp_with_time_zone updated_at
+  }
+  teacher_block {
+    uuid student_id PK
+    uuid teacher_id PK
+  }
+  teacher_grade {
+    uuid teacher_id PK
+    USER-DEFINED grade
+    numeric top_percent
+    date next_review_at
+    jsonb allowance
+  }
+  teacher_list_entry {
+    uuid id PK
+    uuid student_id
+    uuid teacher_id
+    USER-DEFINED list_kind
+  }
+  teacher_monthly_hours {
+    uuid id PK
+    uuid teacher_id
+    character year_month
+    numeric hours
+    uuid updated_by
+    timestamp_with_time_zone updated_at
+  }
+  teacher_offline_availability {
+    uuid id PK
+    uuid teacher_id
+    uuid center_id
+    boolean enabled
+    jsonb time_windows
+  }
+  teacher_profile {
+    uuid account_id PK
+    uuid center_id
+    ARRAY subjects
+    ARRAY sub_subjects
+    USER-DEFINED grade
+    text career
+    numeric rating
+    integer total_consult
+    numeric re_request_rate
+    integer avg_response_min
+    integer pay_base
+    text teacher_category
+    text type_code
+    integer cancel_count
+    text director_role
+    text intro
+    ARRAY strengths
+    ARRAY consult_types
+  }
+  time_slot {
+    uuid id PK
+    uuid teacher_id
+    date slot_date
+    smallint slot_index
+    text status
+    uuid booking_id
+  }
+  user_consent {
+    uuid account_id PK
+    text terms_version
+    text privacy_version
+    boolean marketing_agreed
+    boolean is_minor
+    text guardian_name
+    text guardian_contact
+    timestamp_with_time_zone agreed_at
+  }
+  weekly_credit_grant {
+    uuid id PK
+    uuid account_id
+    uuid grade_id
+    integer amount
+    timestamp_with_time_zone granted_at
+    timestamp_with_time_zone expire_at
+    integer remaining
+  }
+  work_schedule {
+    uuid id PK
+    uuid teacher_id
+    jsonb recurring_template
+    jsonb weekly_overrides
+    integer pre_book_horizon_days
+    jsonb week_plans
+  }
+  zoom_policy {
+    uuid center_id PK
+    smallint concurrent_limit
+    jsonb allow_map
+  }
+  account ||--o{ cancellation_event : "cancelled_by"
+  teacher_profile ||--o{ material : "teacher_id"
+  center ||--o{ material : "center_id"
+  stored_file ||--o{ material : "file_id"
+  center ||--o{ report : "center_id"
+  account ||--o{ user_consent : "account_id"
+  account ||--o{ stored_file : "owner_id"
+  account ||--o{ notification : "recipient_id"
+  account ||--o{ push_token : "account_id"
+  center ||--o{ account : "center_id"
+  center ||--o{ feature_availability : "center_id"
+  membership_grade ||--o{ subscription_plan : "grade_id"
+  account ||--o{ teacher_profile : "account_id"
+  center ||--o{ teacher_profile : "center_id"
+  account ||--o{ student_profile : "account_id"
+  center ||--o{ student_profile : "center_id"
+  membership_grade ||--o{ student_profile : "membership_grade_id"
+  teacher_profile ||--o{ student_profile : "homeroom_teacher_id"
+  account ||--o{ staff_profile : "account_id"
+  center ||--o{ staff_profile : "center_id"
+  account ||--o{ guardian : "account_id"
+  guardian ||--o{ guardian_student_link : "guardian_id"
+  student_profile ||--o{ guardian_student_link : "student_id"
+  teacher_profile ||--o{ work_schedule : "teacher_id"
+  teacher_profile ||--o{ teacher_offline_availability : "teacher_id"
+  center ||--o{ teacher_offline_availability : "center_id"
+  center ||--o{ room : "center_id"
+  center ||--o{ zoom_policy : "center_id"
+  center ||--o{ blocked_time : "center_id"
+  center ||--o{ category_mode_policy : "center_id"
+  center ||--o{ pricing_policy : "center_id"
+  center ||--o{ limit_policy : "center_id"
+  center ||--o{ consultation_policy : "center_id"
+  center ||--o{ guardian_visibility_policy : "center_id"
+  center ||--o{ penalty_policy : "center_id"
+  center ||--o{ payroll_policy : "center_id"
+  student_profile ||--o{ match_request : "student_id"
+  student_profile ||--o{ booking : "student_id"
+  teacher_profile ||--o{ booking : "teacher_id"
+  center ||--o{ booking : "center_id"
+  room ||--o{ booking : "room_id"
+  teacher_profile ||--o{ time_slot : "teacher_id"
+  booking ||--o{ time_slot : "booking_id"
+  booking ||--o{ consultation_note : "booking_id"
+  student_profile ||--o{ consultation_note : "student_id"
+  teacher_profile ||--o{ consultation_note : "teacher_id"
+  student_profile ||--o{ board_question : "student_id"
+  teacher_profile ||--o{ board_question : "assigned_teacher_id"
+  booking ||--o{ cancellation_event : "booking_id"
+  student_profile ||--o{ credit_account : "student_id"
+  credit_account ||--o{ credit_transaction : "account_id"
+  credit_account ||--o{ weekly_credit_grant : "account_id"
+  membership_grade ||--o{ weekly_credit_grant : "grade_id"
+  student_profile ||--o{ payment_request : "student_id"
+  guardian ||--o{ payment_request : "guardian_id"
+  account ||--o{ payment : "payer_account_id"
+  student_profile ||--o{ teacher_list_entry : "student_id"
+  teacher_profile ||--o{ teacher_list_entry : "teacher_id"
+  booking ||--o{ review : "booking_id"
+  student_profile ||--o{ review : "student_id"
+  teacher_profile ||--o{ review : "teacher_id"
+  teacher_profile ||--o{ teacher_grade : "teacher_id"
+  teacher_profile ||--o{ payroll_estimate : "teacher_id"
+  center ||--o{ ops_stat : "center_id"
+  student_profile ||--o{ student_subscription : "student_id"
+  subscription_plan ||--o{ student_subscription : "plan_id"
+  student_profile ||--o{ qna_post : "student_id"
+  teacher_profile ||--o{ qna_post : "assigned_teacher_id"
+  qna_post ||--o{ qna_answer : "post_id"
+  teacher_profile ||--o{ qna_answer : "teacher_id"
+  student_profile ||--o{ teacher_block : "student_id"
+  teacher_profile ||--o{ teacher_block : "teacher_id"
+  center ||--o{ evaluation_weight_policy : "center_id"
+  teacher_profile ||--o{ teacher_monthly_hours : "teacher_id"
+  account ||--o{ score_report : "student_id"
+  score_report ||--o{ score_item : "report_id"
