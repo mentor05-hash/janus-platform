@@ -44,4 +44,13 @@ export class MemoryCacheProvider implements CacheProvider {
     e.value = next; // 만료시각은 최초 증가 기준 유지(고정 윈도우)
     return next;
   }
+
+  async acquireLock(key: string, ttlSeconds: number): Promise<boolean> {
+    // 단일 인스턴스(메모리) — NX 의미: 미만료 키 있으면 실패, 없으면 획득.
+    const e = this.store.get(key);
+    const now = Date.now();
+    if (e && e.expiresAt > now) return false;
+    this.store.set(key, { value: 1, expiresAt: now + ttlSeconds * 1000 });
+    return true;
+  }
 }

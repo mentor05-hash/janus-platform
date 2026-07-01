@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -8,6 +9,9 @@ import {
 import { Cron } from '@nestjs/schedule';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { CACHE_PROVIDER } from '../../common/cache/cache.types';
+import type { CacheProvider } from '../../common/cache/cache.types';
+import { withCronLock } from '../../common/cache/cron-lock';
 import { AccountRole, AccountStatus } from '../../config/enums';
 import { NotifyService } from './notify.service';
 import {
@@ -30,6 +34,7 @@ export class AnnouncementService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notify: NotifyService,
+    @Inject(CACHE_PROVIDER) private readonly cache: CacheProvider,
   ) {}
 
   /** scheduledAt 있으면 예약 등록, 없으면 즉시 발송. templateId 지정 시 내용 채움. */
@@ -172,10 +177,12 @@ export class AnnouncementService {
   /** 매분: 발송 전날 사전알림 + 도래분 발송. 선점(updateMany)으로 중복 방지. */
   @Cron('* * * * *')
   async scheduledTick() {
-    const rem = await this.runReminders();
-    if (rem.reminded) this.logger.log(`예약 공지 사전알림: ${rem.reminded}건`);
-    const r = await this.runDue();
-    if (r.processed) this.logger.log(`예약 공지 발송: ${r.processed}건`);
+    await withCronLock(this.cache, 'announcement-tick', 55, async () => {
+      const rem = await this.runReminders();
+      if (rem.reminded) this.logger.log(`예약 공지 사전알림: ${rem.reminded}건`);
+      const r = await this.runDue();
+      if (r.processed) this.logger.log(`예약 공지 발송: ${r.processed}건`);
+    }, this.logger);
   }
 
   /**

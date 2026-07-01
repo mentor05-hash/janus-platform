@@ -1,6 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { CACHE_PROVIDER } from '../../common/cache/cache.types';
+import type { CacheProvider } from '../../common/cache/cache.types';
+import { withCronLock } from '../../common/cache/cron-lock';
 import { CreditTxnType } from '../../config/enums';
 
 /**
@@ -12,22 +15,29 @@ import { CreditTxnType } from '../../config/enums';
 export class WeeklyGrantService {
   private readonly logger = new Logger(WeeklyGrantService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(CACHE_PROVIDER) private readonly cache: CacheProvider,
+  ) {}
 
   @Cron(process.env.WEEKLY_GRANT_CRON ?? '0 0 * * 1', {
     timeZone: 'Asia/Seoul',
   })
   async scheduledGrant() {
-    const n = await this.runGrant();
-    this.logger.log(`주간 부여 완료: ${n}건`);
+    await withCronLock(this.cache, 'weekly-grant', 600, async () => {
+      const n = await this.runGrant();
+      this.logger.log(`주간 부여 완료: ${n}건`);
+    }, this.logger);
   }
 
   @Cron(process.env.GRANT_EXPIRE_CRON ?? '59 23 * * 0', {
     timeZone: 'Asia/Seoul',
   })
   async scheduledExpire() {
-    const n = await this.runExpire();
-    this.logger.log(`주간 소멸 완료: ${n}건`);
+    await withCronLock(this.cache, 'weekly-expire', 600, async () => {
+      const n = await this.runExpire();
+      this.logger.log(`주간 소멸 완료: ${n}건`);
+    }, this.logger);
   }
 
   /**

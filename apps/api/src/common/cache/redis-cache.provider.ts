@@ -55,6 +55,16 @@ export class RedisCacheProvider implements CacheProvider, OnModuleDestroy {
     }
   }
 
+  async acquireLock(key: string, ttlSeconds: number): Promise<boolean> {
+    try {
+      // SET key 1 NX EX ttl — 이미 있으면 null(획득 실패)
+      const res = await this.redis.set(key, '1', 'EX', ttlSeconds, 'NX');
+      return res === 'OK';
+    } catch {
+      return false; // degrade: 락 획득 실패로 간주(중복발사 방지 우선)
+    }
+  }
+
   async onModuleDestroy() {
     await this.redis.quit().catch(() => undefined);
   }

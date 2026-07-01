@@ -10,4 +10,6 @@ export interface CacheProvider {
   del(key: string): Promise<void>;
   /** 원자적 증가(rate limit 등). 최초 증가 시 ttlSeconds 만료 설정. 증가 후 값 반환. */
   incr(key: string, ttlSeconds: number): Promise<number>;
+  /** 분산 락 획득(SET NX). 성공 시 true. 크론 리더락(다중 인스턴스 중복발사 방지). */
+  acquireLock(key: string, ttlSeconds: number): Promise<boolean>;
 }

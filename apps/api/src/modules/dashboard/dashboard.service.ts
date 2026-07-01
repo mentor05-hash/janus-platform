@@ -171,48 +171,60 @@ export class DashboardService {
     }
 
     const yearMonth = now.toISOString().slice(0, 7);
-    // 선생님별 원천 지표 수집
-    const rows = await Promise.all(
-      teachers.map(async (t) => {
-        const where = { teacher_id: t.account_id, ...startAt };
-        const [total, done, rejected, noshow, reviewAgg, hours] = await Promise.all([
-          this.prisma.booking.count({ where }),
-          this.prisma.booking.count({ where: { ...where, status: BookingStatus.DONE } }),
-          this.prisma.booking.count({ where: { ...where, status: BookingStatus.REJECTED } }),
-          this.prisma.booking.count({ where: { ...where, status: BookingStatus.NOSHOW } }),
-          this.prisma.review.aggregate({
-            where: { teacher_id: t.account_id },
-            _avg: { rating_attitude: true, rating_content: true, rating_skill: true },
-          }),
-          this.prisma.teacher_monthly_hours.findFirst({
-            where: { teacher_id: t.account_id, year_month: yearMonth },
-          }),
-        ]);
-        const sat =
-          ((Number(reviewAgg._avg.rating_attitude ?? 0) +
-            Number(reviewAgg._avg.rating_content ?? 0) +
-            Number(reviewAgg._avg.rating_skill ?? 0)) /
-            3) *
-          20; // 5점 → 100점 환산
-        return {
-          teacherId: t.account_id,
-          name: t.account?.name ?? null,
-          center: t.center?.name ?? null,
-          centerId: t.center_id,
-          directorRole: t.director_role,
-          metrics: {
-            total,
-            completion: pct(done, total),
-            rerequest: Number(t.re_request_rate ?? 0),
-            reject: pct(rejected, total),
-            noshow: pct(noshow, total),
-            response: t.avg_response_min ?? 0,
-            satisfaction: Math.round(sat * 10) / 10,
-          },
-          hours: hours ? Number(hours.hours) : null,
-        };
+    const ids = teachers.map((t) => t.account_id);
+    // N+1 제거: 선생님별 예약/후기/근무시간을 groupBy 3쿼리로 일괄 집계
+    const [bookingGroups, reviewGroups, hoursRows] = await Promise.all([
+      this.prisma.booking.groupBy({
+        by: ['teacher_id', 'status'],
+        where: { teacher_id: { in: ids }, ...startAt },
+        _count: { _all: true },
       }),
-    );
+      this.prisma.review.groupBy({
+        by: ['teacher_id'],
+        where: { teacher_id: { in: ids } },
+        _avg: { rating_attitude: true, rating_content: true, rating_skill: true },
+      }),
+      this.prisma.teacher_monthly_hours.findMany({
+        where: { teacher_id: { in: ids }, year_month: yearMonth },
+        select: { teacher_id: true, hours: true },
+      }),
+    ]);
+    const bkt = new Map<string, { total: number; done: number; rejected: number; noshow: number }>();
+    for (const g of bookingGroups) {
+      const e = bkt.get(g.teacher_id) ?? { total: 0, done: 0, rejected: 0, noshow: 0 };
+      const c = g._count._all;
+      e.total += c;
+      if (g.status === BookingStatus.DONE) e.done += c;
+      else if (g.status === BookingStatus.REJECTED) e.rejected += c;
+      else if (g.status === BookingStatus.NOSHOW) e.noshow += c;
+      bkt.set(g.teacher_id, e);
+    }
+    const rev = new Map(reviewGroups.map((g) => [g.teacher_id, g._avg]));
+    const hrs = new Map(hoursRows.map((h) => [h.teacher_id, Number(h.hours)]));
+
+    const rows = teachers.map((t) => {
+      const b = bkt.get(t.account_id) ?? { total: 0, done: 0, rejected: 0, noshow: 0 };
+      const a = rev.get(t.account_id);
+      const sat =
+        ((Number(a?.rating_attitude ?? 0) + Number(a?.rating_content ?? 0) + Number(a?.rating_skill ?? 0)) / 3) * 20;
+      return {
+        teacherId: t.account_id,
+        name: t.account?.name ?? null,
+        center: t.center?.name ?? null,
+        centerId: t.center_id,
+        directorRole: t.director_role,
+        metrics: {
+          total: b.total,
+          completion: pct(b.done, b.total),
+          rerequest: Number(t.re_request_rate ?? 0),
+          reject: pct(b.rejected, b.total),
+          noshow: pct(b.noshow, b.total),
+          response: t.avg_response_min ?? 0,
+          satisfaction: Math.round(sat * 10) / 10,
+        },
+        hours: hrs.has(t.account_id) ? hrs.get(t.account_id)! : null,
+      };
+    });
 
     // 표본 내 지표별 정규화(역지표 반전)
     const metricKeys = [

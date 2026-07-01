@@ -1,6 +1,9 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { CACHE_PROVIDER } from '../../common/cache/cache.types';
+import type { CacheProvider } from '../../common/cache/cache.types';
+import { withCronLock } from '../../common/cache/cron-lock';
 import {
   CHANNEL_GATEWAY,
   DeliveryMap,
@@ -23,13 +26,16 @@ export class NotificationOutboxService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(CHANNEL_GATEWAY) private readonly gateway: ChannelGateway,
+    @Inject(CACHE_PROVIDER) private readonly cache: CacheProvider,
   ) {}
 
   @Cron(process.env.NOTIFICATION_RETRY_CRON ?? '*/5 * * * *')
   async scheduledRetry() {
-    const n = await this.retryFailed();
-    if (n.retried)
-      this.logger.log(`알림 재시도: ${n.recovered}/${n.retried} 복구`);
+    await withCronLock(this.cache, 'notification-retry', 240, async () => {
+      const n = await this.retryFailed();
+      if (n.retried)
+        this.logger.log(`알림 재시도: ${n.recovered}/${n.retried} 복구`);
+    }, this.logger);
   }
 
   /** 실패 채널이 남은 알림을 재발송. 반환: {retried 알림 수, recovered 완전복구 수}. */

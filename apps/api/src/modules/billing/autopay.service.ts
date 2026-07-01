@@ -1,6 +1,9 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { CACHE_PROVIDER } from '../../common/cache/cache.types';
+import type { CacheProvider } from '../../common/cache/cache.types';
+import { withCronLock } from '../../common/cache/cron-lock';
 import { BillingCycle } from '../../config/enums';
 import { computeNextBilling } from '../membership/domain/billing-cycle';
 import { PG_PROVIDER } from './pg/pg.types';
@@ -18,14 +21,17 @@ export class AutopayService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(PG_PROVIDER) private readonly pg: PgProvider,
+    @Inject(CACHE_PROVIDER) private readonly cache: CacheProvider,
   ) {}
 
   @Cron(process.env.SUBSCRIPTION_BILLING_CRON ?? '0 1 * * *', {
     timeZone: 'Asia/Seoul',
   })
   async scheduledBilling() {
-    const r = await this.runDue();
-    this.logger.log(`정기결제 처리: 성공 ${r.charged} / 실패 ${r.failed}`);
+    await withCronLock(this.cache, 'subscription-billing', 600, async () => {
+      const r = await this.runDue();
+      this.logger.log(`정기결제 처리: 성공 ${r.charged} / 실패 ${r.failed}`);
+    }, this.logger);
   }
 
   /** 도래한 구독을 청구. 반환: {charged, failed}. now 주입 가능(테스트). */
