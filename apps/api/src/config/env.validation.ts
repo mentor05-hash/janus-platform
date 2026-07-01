@@ -70,6 +70,10 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
+  ANTHROPIC_API_KEY?: string; // LLM_PROVIDER=claude 시 실모델 자격증명(후결합)
+
+  @IsOptional()
+  @IsString()
   ZOOM_PROVIDER?: string;
 
   @IsOptional()

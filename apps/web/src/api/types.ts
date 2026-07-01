@@ -209,7 +209,7 @@ export interface Report {
   reason: string | null;
   status: string | null;
   action: string | null;
-  ai_review: { flagged?: boolean; summary?: string; suggestedAction?: string } | null;
+  ai_review: { flagged?: boolean; severity?: 'none' | 'low' | 'high'; category?: string; summary?: string; suggestedAction?: string } | null;
   created_at: string;
 }
 

@@ -15,6 +15,9 @@ import { CreditService } from '../billing/credit.service';
 import { PricingService } from '../pricing-policy/pricing.service';
 import { canAnswerQuestion, QnaScope } from './domain/qna';
 import { CreateAnswerDto, CreateQuestionDto } from './dto/qna.dto';
+import { Inject } from '@nestjs/common';
+import { LLM_PROVIDER } from '../llm/llm.types';
+import type { LlmProvider } from '../llm/llm.types';
 
 interface QnaRow {
   id: string; subject: string | null; difficulty: string | null; scope: string | null;
@@ -32,6 +35,7 @@ export class QnaService {
     private readonly prisma: PrismaService,
     private readonly pricing: PricingService,
     private readonly credit: CreditService,
+    @Inject(LLM_PROVIDER) private readonly llm: LlmProvider,
   ) {}
 
   /** 질문 등록(학생) — 게시판 건당 과금. 부족 시 결제요청+402. */
@@ -223,6 +227,17 @@ export class QnaService {
           : '지정된 선생님만 답변할 수 있습니다.',
       );
     }
+    // AI 1차 답변 유사도(표절·중복) — 같은 질문의 다른 답변 + 이 선생님의 최근 답변과 비교
+    const priorRows = await this.prisma.qna_answer.findMany({
+      where: { OR: [{ post_id: postId }, { teacher_id: teacher.id }] },
+      select: { id: true, body: true },
+      orderBy: { created_at: 'desc' },
+      take: 100,
+    });
+    const sim = await this.llm.checkAnswerSimilarity({
+      body: dto.body ?? '',
+      priors: priorRows.filter((r) => r.body).map((r) => ({ id: r.id, body: r.body! })),
+    });
     const ans = await this.prisma.qna_answer.create({
       data: {
         post_id: postId,
@@ -230,9 +245,12 @@ export class QnaService {
         body: dto.body,
         accepted: false,
         pay_eligible: false,
+        similarity: sim.maxSimilarity,
+        similar_to_id: sim.similarToId ?? null,
+        sim_flagged: sim.flagged,
       },
     });
-    return { id: ans.id, postId, accepted: false };
+    return { id: ans.id, postId, accepted: false, simFlagged: sim.flagged, similarity: sim.maxSimilarity, simSummary: sim.summary };
   }
 
   /** 답변 채택(질문 학생) — 채택 답변 급여 적격(pay_eligible), 질문 마감. */

@@ -12,8 +12,8 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccountRole } from '../../config/enums';
 import { canReportTransition, ReportStatus } from './domain/report';
 import { CreateReportDto, HandleReportDto } from './dto/report.dto';
-import { LLM_PROVIDER } from './llm/llm.types';
-import type { LlmProvider } from './llm/llm.types';
+import { LLM_PROVIDER } from '../llm/llm.types';
+import type { LlmProvider } from '../llm/llm.types';
 
 /**
  * 신고 (CLAUDE.md §6 Phase 3). 등록 시 LlmProvider 로 AI 1차 검토 결과 첨부,
@@ -45,6 +45,7 @@ export class ReportService {
       id: report.id,
       status: report.status,
       aiFlagged: review.flagged,
+      aiSeverity: review.severity,
       aiSummary: review.summary,
     };
   }

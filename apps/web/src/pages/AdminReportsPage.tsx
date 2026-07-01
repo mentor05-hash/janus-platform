@@ -84,7 +84,11 @@ export function AdminReportsPage() {
                   </Badge>
                   {r.ai_review?.flagged && (
                     <span style={{ marginLeft: 6 }}>
-                      <Badge kind="danger">AI 위반소지</Badge>
+                      <Badge kind={r.ai_review.severity === 'high' ? 'danger' : 'confirmed'}>
+                        {r.ai_review.severity === 'high'
+                          ? `AI 심각${r.ai_review.category ? `·${r.ai_review.category}` : ''}`
+                          : 'AI 경미'}
+                      </Badge>
                     </span>
                   )}
                 </div>

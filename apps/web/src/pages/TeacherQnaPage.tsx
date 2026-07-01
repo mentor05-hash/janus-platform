@@ -46,8 +46,9 @@ export function TeacherQnaPage() {
     if (!body) return;
     setBusy(id); setError(''); setMsg('');
     try {
-      await api.post(`/qna/posts/${id}/answers`, { body });
-      setMsg('답변이 등록되었습니다.'); setDraft((d) => ({ ...d, [id]: '' })); load();
+      const r = await api.post<{ simFlagged?: boolean; simSummary?: string }>(`/qna/posts/${id}/answers`, { body });
+      setMsg(r?.simFlagged ? `답변 등록됨 — ⚠️ ${r.simSummary}` : '답변이 등록되었습니다.');
+      setDraft((d) => ({ ...d, [id]: '' })); load();
     } catch (e) { setError(e instanceof ApiError ? e.message : '답변 실패'); } finally { setBusy(null); }
   }
 
