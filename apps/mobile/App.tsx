@@ -3,6 +3,7 @@ import { ActivityIndicator, SafeAreaView, StyleSheet, Text, TouchableOpacity, Vi
 import { StatusBar } from 'expo-status-bar';
 import { api, Child, hasSession, loadTokens, Me, Teacher } from './src/api';
 import { backStack } from './src/webBack';
+import { registerPushToken } from './src/push';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { SearchScreen } from './src/screens/SearchScreen';
 import { TeacherDetailScreen } from './src/screens/TeacherDetailScreen';
@@ -56,20 +57,10 @@ function AppInner() {
     }
   }, [me]);
 
-  // 푸시 토큰 등록(expo-notifications) — 네이티브는 실 토큰, 데모(web)는 기기별 가상 토큰.
+  // 푸시 토큰 등록 — 네이티브는 expo-notifications 실 토큰, 웹은 데모 토큰.
   useEffect(() => {
     if (!me) return;
-    (async () => {
-      try {
-        const KEY = 'itall_push_token';
-        let token = typeof localStorage !== 'undefined' ? localStorage.getItem(KEY) : null;
-        if (!token) {
-          token = `ExponentPushToken[demo-${Math.random().toString(36).slice(2, 10)}]`;
-          if (typeof localStorage !== 'undefined') localStorage.setItem(KEY, token);
-        }
-        await api.post('/me/push-token', { token, platform: 'web' });
-      } catch { /* 등록 실패는 무시(다음 로그인 재시도) */ }
-    })();
+    void registerPushToken();
   }, [me]);
 
   // 뒤로가기(웹) → 앱 내부 이전 화면. 하위 화면 스택 우선, 없으면 예약/선생님/탭 순으로 복귀.

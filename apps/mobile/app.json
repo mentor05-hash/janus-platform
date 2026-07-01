@@ -4,12 +4,33 @@
     "slug": "itall-mentoring",
     "version": "0.0.1",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
+    "scheme": "itall",
     "splash": { "backgroundColor": "#0E5C7C" },
-    "ios": { "supportsTablet": true },
-    "android": {},
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.itall.mentoring",
+      "buildNumber": "1",
+      "infoPlist": {
+        "UIBackgroundModes": ["remote-notification"]
+      }
+    },
+    "android": {
+      "package": "com.itall.mentoring",
+      "versionCode": 1,
+      "permissions": ["POST_NOTIFICATIONS"]
+    },
+    "notification": {
+      "color": "#0E5C7C",
+      "iosDisplayInForeground": true
+    },
+    "plugins": ["expo-notifications"],
     "extra": {
-      "apiBase": "http://localhost:3000/api/v1"
-    }
+      "apiBase": "http://localhost:3000/api/v1",
+      "eas": {
+        "projectId": "00000000-0000-0000-0000-000000000000"
+      }
+    },
+    "runtimeVersion": { "policy": "sdkVersion" }
   }
 }
