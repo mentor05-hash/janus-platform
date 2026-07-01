@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
-import { IsInt, IsPositive } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsPositive } from 'class-validator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -10,6 +10,10 @@ class ChargeDto {
   @IsInt()
   @IsPositive()
   amount!: number;
+
+  @IsOptional()
+  @IsIn(['card', 'voucher'])
+  method?: 'card' | 'voucher';
 }
 
 @Controller()
@@ -41,7 +45,7 @@ export class BillingController {
   @Post('payments/charge')
   @Roles('student')
   charge(@CurrentUser() user: AuthUser, @Body() dto: ChargeDto) {
-    return this.credit.charge(user.id, dto.amount);
+    return this.credit.charge(user.id, dto.amount, dto.method);
   }
 
   /** POST /credits/run-weekly-grant — 운영/테스트용 수동 주간부여(관리자). */

@@ -19,6 +19,7 @@ import {
   BookingListQueryDto,
   CancelDto,
   QuoteDto,
+  RescheduleDto,
   ReverseFlagDto,
   ReverseProposeDto,
   ReverseRespondDto,
@@ -162,6 +163,17 @@ export class BookingController {
       );
     }
     return this.booking.cancel(id, user);
+  }
+
+  /** 시간 변경(학생) — 예정 예약을 같은 길이의 다른 시간으로 이동. */
+  @Patch(':id/reschedule')
+  @Roles(AccountRole.STUDENT)
+  reschedule(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RescheduleDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.booking.reschedule(id, dto, user);
   }
 
   @Patch(':id/noshow')

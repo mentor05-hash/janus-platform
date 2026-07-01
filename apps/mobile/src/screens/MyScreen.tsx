@@ -37,6 +37,7 @@ export function MyScreen() {
   const [notis, setNotis] = useState<Noti[]>([]);
   const [txs, setTxs] = useState<Tx[]>([]);
   const [reverse, setReverse] = useState<boolean | null>(null);
+  const [payMethod, setPayMethod] = useState<'card' | 'voucher'>('card');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
@@ -58,7 +59,7 @@ export function MyScreen() {
 
   async function charge(amount: number) {
     setBusy(true); setError(''); setMsg('');
-    try { await api.post('/payments/charge', { amount }); setMsg(`${won(amount)} 충전 완료`); load(); }
+    try { await api.post('/payments/charge', { amount, method: payMethod }); setMsg(`${won(amount)} 충전 완료(${payMethod === 'voucher' ? '상품권' : '카드'})`); load(); }
     catch (e) { setError(e instanceof ApiError ? e.message : '충전 실패'); } finally { setBusy(false); }
   }
   async function subscribe(planId: string) {
@@ -81,6 +82,11 @@ export function MyScreen() {
       <View style={[ui.card, { marginTop: SP.md }]}>
         <Text style={styles.credit}>{acc ? acc.total.toLocaleString() : '…'} <Text style={styles.creditU}>크레딧</Text></Text>
         <Text style={styles.sub}>주간부여 {acc?.grantedBalance.toLocaleString() ?? 0} · 구매 {acc?.purchasedBalance.toLocaleString() ?? 0}</Text>
+        <View style={styles.payRowSel}>
+          {([['card', '💳 카드'], ['voucher', '🎟️ 상품권']] as const).map(([v, l]) => (
+            <TouchableOpacity key={v} style={[styles.payOpt, payMethod === v && styles.payOptOn]} onPress={() => setPayMethod(v)}><Text style={[styles.payOptT, payMethod === v && { color: C.teal }]}>{l}</Text></TouchableOpacity>
+          ))}
+        </View>
         <View style={styles.chargeRow}>
           {CHARGE.map((a) => (
             <TouchableOpacity key={a} style={styles.chargeBtn} disabled={busy} onPress={() => charge(a)}><Text style={styles.chargeT}>{(a / 10000)}만 충전</Text></TouchableOpacity>
@@ -172,7 +178,11 @@ const styles = StyleSheet.create({
   ok: { color: C.done, fontSize: 13, marginTop: 6, fontWeight: '600' },
   credit: { fontSize: 26, fontWeight: '800', color: C.teal },
   creditU: { fontSize: 14, color: C.muted, fontWeight: '600' },
-  chargeRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  payRowSel: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  payOpt: { flex: 1, borderWidth: 1, borderColor: C.line, borderRadius: 9, paddingVertical: 9, alignItems: 'center' },
+  payOptOn: { borderColor: C.teal, backgroundColor: C.teal50 },
+  payOptT: { color: C.muted, fontWeight: '700', fontSize: 13 },
+  chargeRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
   chargeBtn: { flex: 1, borderWidth: 1, borderColor: C.teal, borderRadius: 9, paddingVertical: 9, alignItems: 'center' },
   chargeT: { color: C.teal, fontWeight: '700', fontSize: 13 },
   planRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },

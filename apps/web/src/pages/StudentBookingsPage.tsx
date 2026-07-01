@@ -1,10 +1,82 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, ApiError } from '../api/client';
-import type { Booking, ConsultationNote, Teacher } from '../api/types';
+import type { Booking, ConsultationNote, Slot, Teacher } from '../api/types';
 import { PageHeader, Card, Button, Badge, ErrorText, Spinner, EmptyState } from '../components/ui';
 
 const KST = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '-';
+const WD = ['일', '월', '화', '수', '목', '금', '토'];
+const slotLen = (b: Booking) => (b.start && b.end ? Math.max(1, Math.round((new Date(b.end).getTime() - new Date(b.start).getTime()) / 600000)) : 3);
+
+function RescheduleBox({ booking, onDone }: { booking: Booking; onDone: () => void }) {
+  const duration = slotLen(booking);
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [slots, setSlots] = useState<Slot[] | null>(null);
+  const [selStart, setSelStart] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const dates = useMemo(() => {
+    const base = new Date();
+    return Array.from({ length: 14 }, (_, i) => {
+      const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
+      return { iso: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, md: `${d.getMonth() + 1}/${d.getDate()}`, wd: WD[d.getDay()] };
+    });
+  }, []);
+  useEffect(() => {
+    setSlots(null); setSelStart(null);
+    api.get<Slot[]>(`/teachers/${booking.teacherId}/slots?date=${date}`).then(setSlots).catch(() => setSlots([]));
+  }, [booking.teacherId, date]);
+  const availSet = useMemo(() => new Set((slots ?? []).filter((s) => s.status === 'avail').map((s) => s.index)), [slots]);
+  const selValid = selStart !== null && Array.from({ length: duration }, (_, k) => selStart + k).every((i) => availSet.has(i));
+  const byHour = useMemo(() => {
+    const m = new Map<number, Slot[]>();
+    for (const s of slots ?? []) { const h = Math.floor((s.index * 10) / 60); if (!m.has(h)) m.set(h, []); m.get(h)!.push(s); }
+    return [...m.entries()].sort((a, b) => a[0] - b[0]);
+  }, [slots]);
+
+  async function submit() {
+    if (selStart === null || !selValid) return;
+    setBusy(true); setErr('');
+    try { await api.patch(`/bookings/${booking.id}/reschedule`, { date, slotStart: selStart, slotEnd: selStart + duration }); onDone(); }
+    catch (e) { setErr(e instanceof ApiError ? (e.status === 409 ? '선택한 시간은 예약할 수 없어요. 다른 시간을 골라주세요.' : e.message) : '시간 변경 실패'); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--line)' }}>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>시간 변경 · {duration * 10}분 (같은 길이로 이동)</div>
+      <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
+        {dates.map((d) => (
+          <button key={d.iso} onClick={() => setDate(d.iso)} style={{ minWidth: 48, padding: '5px 6px', borderRadius: 8, cursor: 'pointer',
+            border: d.iso === date ? '2px solid var(--teal)' : '1px solid var(--line)', background: d.iso === date ? 'var(--teal)' : '#fff', color: d.iso === date ? '#fff' : 'var(--ink)' }}>
+            <div style={{ fontSize: 10 }}>{d.wd}</div><div style={{ fontSize: 13, fontWeight: 700 }}>{d.md}</div>
+          </button>
+        ))}
+      </div>
+      {slots === null ? <Spinner /> : slots.length === 0 ? <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 8 }}>이 날짜엔 근무 시간이 없어요.</div> : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 8 }}>
+          {byHour.map(([h, cells]) => (
+            <div key={h} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 26, fontSize: 11, color: 'var(--muted)', textAlign: 'right' }}>{h}시</span>
+              <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                {cells.map((s) => {
+                  const inSel = selStart !== null && selValid && s.index >= selStart && s.index < selStart + duration;
+                  return <button key={s.index} disabled={s.status !== 'avail'} onClick={() => setSelStart(s.index)}
+                    style={{ width: 48, padding: '4px 0', fontSize: 11, borderRadius: 6, border: 'none', cursor: s.status === 'avail' ? 'pointer' : 'default',
+                      background: inSel ? 'var(--teal)' : s.status === 'avail' ? '#CDEBDD' : '#EEF1F3', color: inSel ? '#fff' : 'var(--ink)' }}>{s.time}</button>;
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {selStart !== null && !selValid && <p style={{ fontSize: 12, color: '#92600a', marginTop: 6 }}>이 시작 시간부터 {duration * 10}분 연속으로 비어있지 않아요.</p>}
+      {err && <ErrorText>{err}</ErrorText>}
+      <Button size="sm" disabled={!selValid || busy} onClick={submit} style={{ marginTop: 8 }}>이 시간으로 변경</Button>
+    </div>
+  );
+}
 
 const STATUS_LABEL: Record<string, string> = {
   new: '대기', confirmed: '예약됨', done: '완료', cancelled: '취소', rejected: '거절', noshow: '노쇼',
@@ -89,6 +161,7 @@ export function StudentBookingsPage() {
   const [bookings, setBookings] = useState<Booking[] | null>(null);
   const [teachers, setTeachers] = useState<Record<string, string>>({});
   const [open, setOpen] = useState<string | null>(null);
+  const [rescheduling, setRescheduling] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
@@ -125,7 +198,20 @@ export function StudentBookingsPage() {
     }
   }
 
+  async function cancel(id: string) {
+    setBusy(id); setError(''); setMsg('');
+    try { await api.patch(`/bookings/${id}/cancel`, {}); setMsg('예약을 취소했습니다. 크레딧은 환원됩니다.'); load(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : '취소 실패'); } finally { setBusy(null); }
+  }
+  async function reportNoshow(id: string) {
+    if (!window.confirm('이 상담이 실제로 진행되지 않았나요? 관리자에게 신고됩니다.')) return;
+    setBusy(id); setError(''); setMsg('');
+    try { await api.post('/reports', { targetType: 'booking', targetId: id, reason: '미진행(노쇼) 신고 — 상담이 실제로 진행되지 않았습니다.' }); setMsg('미진행 신고가 접수되었습니다. 관리자가 확인합니다.'); }
+    catch (e) { setError(e instanceof ApiError ? e.message : '신고 실패'); } finally { setBusy(null); }
+  }
+
   const tName = (id: string) => teachers[id] ?? '선생님';
+  const UPCOMING = new Set(['new', 'confirmed']);
 
   return (
     <div>
@@ -169,11 +255,15 @@ export function StudentBookingsPage() {
                 {b.direction === 'reverse' && <Badge kind="soft">역상담</Badge>}
                 <div style={{ fontSize: 13, color: 'var(--muted)' }}>{KST(b.start)} · {b.consultType ?? ''} · {b.mode} · {b.chargedCredits.toLocaleString()}크레딧</div>
               </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <Badge kind={badgeKind(b.status)}>{STATUS_LABEL[b.status] ?? b.status}</Badge>
+                {UPCOMING.has(b.status) && <Button variant="ghost" size="sm" disabled={busy === b.id} onClick={() => setRescheduling(rescheduling === b.id ? null : b.id)}>시간 변경</Button>}
+                {UPCOMING.has(b.status) && <Button variant="ghost" size="sm" disabled={busy === b.id} onClick={() => cancel(b.id)} style={{ color: 'var(--danger)' }}>예약 취소</Button>}
+                {b.status === 'done' && <Button variant="ghost" size="sm" disabled={busy === b.id} onClick={() => reportNoshow(b.id)} style={{ color: 'var(--danger)' }}>미진행 신고</Button>}
                 <Button variant="ghost" size="sm" onClick={() => setOpen(open === b.id ? null : b.id)}>{open === b.id ? '접기' : '상세'}</Button>
               </div>
             </div>
+            {rescheduling === b.id && <RescheduleBox booking={b} onDone={() => { setRescheduling(null); setMsg('시간이 변경되었습니다. 선생님 재확인 후 확정됩니다.'); load(); }} />}
             {open === b.id && <Detail bookingId={b.id} status={b.status} />}
           </Card>
         ))

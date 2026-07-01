@@ -40,6 +40,7 @@ import type { ZoomProvider } from '../zoom/zoom.types';
 import {
   BookingCreateDto,
   QuoteDto,
+  RescheduleDto,
   ReverseProposeDto,
 } from './dto/booking.dto';
 import {
@@ -563,6 +564,115 @@ export class BookingService {
       AccountRole.TEACHER,
       AccountRole.ADMIN,
     ]);
+  }
+
+  /**
+   * 시간 변경(학생) — 예정(new/confirmed) 예약만, 동일 상담 길이로 이동.
+   * 기존 슬롯 해제 후 새 창의 예약 가능성 재검증(휴게버퍼·근무·줌한도·상담실),
+   * 동일 트랜잭션에서 슬롯 재점유. 길이 동일이라 크레딧 변동 없음. 변경 후 재확정 위해 status=new.
+   */
+  async reschedule(id: string, dto: RescheduleDto, user: AuthUser) {
+    if (user.role !== AccountRole.STUDENT) {
+      throw new ForbiddenException('학생만 예약 시간을 변경할 수 있습니다.');
+    }
+    const b = await this.prisma.booking.findUnique({ where: { id } });
+    if (!b) throw new NotFoundException('예약을 찾을 수 없습니다.');
+    if (b.student_id !== user.id)
+      throw new ForbiddenException('본인 예약이 아닙니다.');
+    if (b.direction === 'reverse')
+      throw new BadRequestException('역상담 제안은 시간을 변경할 수 없습니다.');
+    if (b.status !== BookingStatus.NEW && b.status !== BookingStatus.CONFIRMED)
+      throw new BadRequestException('예정된 예약만 시간을 변경할 수 있습니다.');
+
+    const newLen = dto.slotEnd - dto.slotStart;
+    if (newLen <= 0)
+      throw new BadRequestException('slotEnd 는 slotStart 보다 커야 합니다.');
+    if (!b.start_at || !b.end_at)
+      throw new BadRequestException('시간 정보가 없는 예약입니다.');
+    const oldLen = Math.round(
+      (b.end_at.getTime() - b.start_at.getTime()) /
+        60000 /
+        SLOT_GRANULARITY_MINUTES,
+    );
+    if (newLen !== oldLen)
+      throw new BadRequestException(
+        '시간 변경은 기존과 같은 상담 길이로만 가능합니다. 길이를 바꾸려면 취소 후 다시 예약해 주세요.',
+      );
+
+    const startMin = dto.slotStart * SLOT_GRANULARITY_MINUTES;
+    const endMin = dto.slotEnd * SLOT_GRANULARITY_MINUTES;
+    const startAt = utcFromKst(dto.date, startMin);
+    const endAt = utcFromKst(dto.date, endMin);
+    const mode = b.mode as ConsultMode;
+
+    try {
+      const updated = await this.prisma.$transaction(async (tx) => {
+        await this.lockTeacherDate(tx, b.teacher_id, dto.date);
+        // 기존 슬롯 먼저 해제(트랜잭션 내 가시) → 새 창 점유 시 자기 자신과 P2002 회피.
+        await tx.time_slot.deleteMany({ where: { booking_id: id } });
+        const ok = await this.availability.assertBookable(
+          b.teacher_id,
+          dto.date,
+          startMin,
+          endMin,
+          user.id,
+        );
+        if (!ok)
+          throw new ConflictException(
+            '선택한 시간은 예약할 수 없습니다(휴게/근무/체류 위반). 겹치는 시간이면 취소 후 다시 예약해 주세요.',
+          );
+        if (mode === ConsultMode.ZOOM)
+          await this.assertZoomCapacity(
+            tx,
+            b.center_id,
+            dto.date,
+            startAt,
+            endAt,
+          );
+        let roomId = b.room_id;
+        if (mode === ConsultMode.OFFLINE)
+          roomId = await this.assignRoom(
+            tx,
+            b.center_id,
+            dto.date,
+            startAt,
+            endAt,
+          );
+        const upd = await tx.booking.update({
+          where: { id },
+          data: {
+            start_at: startAt,
+            end_at: endAt,
+            room_id: roomId,
+            status: BookingStatus.NEW,
+          },
+        });
+        await tx.time_slot.createMany({
+          data: this.sessionSlotIndices(dto.slotStart, dto.slotEnd).map((i) => ({
+            teacher_id: b.teacher_id,
+            slot_date: new Date(dto.date),
+            slot_index: i,
+            status: 'booked',
+            booking_id: id,
+          })),
+        });
+        return upd;
+      });
+      await this.notify.notify(b.teacher_id, 'booking_requested', {
+        bookingId: id,
+        studentId: user.id,
+        date: dto.date,
+      });
+      return this.toBookingDto(updated);
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
+        throw new ConflictException('이미 예약된 시간입니다.');
+      }
+      throw e;
+    }
   }
 
   private async transition(

@@ -17,6 +17,7 @@ export function StudentMembershipPage() {
   const [sub, setSub] = useState<Sub>(null);
   const [pays, setPays] = useState<Pay[] | null>(null);
   const [busy, setBusy] = useState(false);
+  const [payMethod, setPayMethod] = useState<'card' | 'voucher'>('card');
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
 
@@ -35,7 +36,7 @@ export function StudentMembershipPage() {
   }
   async function charge(amount: number) {
     setBusy(true); setError(''); setMsg('');
-    try { await api.post('/payments/charge', { amount }); setMsg(`${won(amount)} 충전되었습니다.`); load(); }
+    try { await api.post('/payments/charge', { amount, method: payMethod }); setMsg(`${won(amount)} 충전되었습니다(${payMethod === 'voucher' ? '상품권' : '카드'}).`); load(); }
     catch (e) { setError(e instanceof ApiError ? e.message : '충전 실패'); } finally { setBusy(false); }
   }
 
@@ -52,6 +53,12 @@ export function StudentMembershipPage() {
 
       {/* 크레딧 충전 */}
       <Card title="크레딧 충전" style={{ marginTop: 16, maxWidth: 620 }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+          {([['card', '💳 카드'], ['voucher', '🎟️ 상품권']] as const).map(([v, l]) => (
+            <button key={v} onClick={() => setPayMethod(v)} style={{ cursor: 'pointer', padding: '7px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700,
+              border: payMethod === v ? '1px solid var(--teal)' : '1px solid var(--line)', background: payMethod === v ? 'var(--teal-50,#F0F7FA)' : '#fff', color: payMethod === v ? 'var(--teal)' : 'var(--muted)' }}>{l}</button>
+          ))}
+        </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {CHARGE.map((a) => <Button key={a} variant="ghost" disabled={busy} onClick={() => charge(a)}>{won(a)} 충전</Button>)}
         </div>

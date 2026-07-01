@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, Booking, Note, Teacher } from '../api';
 import { C, R, SP, ui } from '../theme';
+import { RescheduleScreen } from './RescheduleScreen';
+
+const slotLen = (b: Booking) => (b.start && b.end ? Math.max(1, Math.round((new Date(b.end).getTime() - new Date(b.start).getTime()) / 600000)) : 3);
 
 const KST = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '-';
@@ -93,6 +96,7 @@ export function BookingsScreen() {
   const [open, setOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [tab, setTab] = useState<'upcoming' | 'done'>('upcoming');
+  const [reschedule, setReschedule] = useState<Booking | null>(null);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
 
@@ -129,12 +133,32 @@ export function BookingsScreen() {
     finally { setBusy(null); }
   }
 
+  async function reportNoshow(id: string) {
+    setBusy(id); setError(''); setMsg('');
+    try {
+      await api.post('/reports', { targetType: 'booking', targetId: id, reason: '미진행(노쇼) 신고 — 상담이 실제로 진행되지 않았습니다.' });
+      setMsg('미진행 신고가 접수되었습니다. 관리자가 확인합니다.');
+    } catch (e) { setError(e instanceof ApiError ? e.message : '신고 실패'); }
+    finally { setBusy(null); }
+  }
+  function confirmNoshow(id: string) {
+    Alert.alert('미진행 신고', '이 상담이 실제로 진행되지 않았나요? 관리자에게 신고됩니다.', [
+      { text: '취소', style: 'cancel' },
+      { text: '신고', style: 'destructive', onPress: () => reportNoshow(id) },
+    ]);
+  }
+
   const all = bookings ?? [];
   const incoming = all.filter((b) => b.direction === 'reverse' && b.status === 'new');
   const mine = all.filter((b) => !(b.direction === 'reverse' && b.status === 'new'));
   const UPCOMING = new Set(['new', 'confirmed']);
   const shown = mine.filter((b) => (tab === 'upcoming' ? UPCOMING.has(b.status) : !UPCOMING.has(b.status)));
   const tName = (id: string) => teachers[id] ?? '선생님';
+
+  if (reschedule) return (
+    <RescheduleScreen bookingId={reschedule.id} teacherId={reschedule.teacherId} teacherName={tName(reschedule.teacherId)} duration={slotLen(reschedule)}
+      onBack={() => setReschedule(null)} onDone={() => { setReschedule(null); setMsg('시간이 변경되었습니다. 선생님 재확인 후 확정됩니다.'); load(); }} />
+  );
 
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
@@ -185,8 +209,18 @@ export function BookingsScreen() {
               </TouchableOpacity>
               {open === b.id && <Detail id={b.id} status={b.status} />}
               {UPCOMING.has(b.status) && (
-                <TouchableOpacity style={styles.cancelBtn} disabled={busy === b.id} onPress={() => cancel(b.id)}>
-                  <Text style={styles.cancelT}>{busy === b.id ? '취소 중…' : '예약 취소'}</Text>
+                <View style={styles.actionRow}>
+                  <TouchableOpacity style={styles.changeBtn} disabled={busy === b.id} onPress={() => setReschedule(b)}>
+                    <Text style={styles.changeT}>시간 변경</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.cancelBtn2} disabled={busy === b.id} onPress={() => cancel(b.id)}>
+                    <Text style={styles.cancelT}>{busy === b.id ? '취소 중…' : '예약 취소'}</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              {b.status === 'done' && (
+                <TouchableOpacity style={styles.reportBtn} disabled={busy === b.id} onPress={() => confirmNoshow(b.id)}>
+                  <Text style={styles.reportT}>미진행(노쇼) 신고</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -226,4 +260,10 @@ const styles = StyleSheet.create({
   tabTOn: { color: C.teal, fontWeight: '800' },
   cancelBtn: { marginTop: 10, borderWidth: 1, borderColor: C.dangerBorder, borderRadius: 9, paddingVertical: 10, alignItems: 'center' },
   cancelT: { color: C.danger, fontWeight: '700', fontSize: 13 },
+  actionRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
+  changeBtn: { flex: 1, borderWidth: 1, borderColor: C.line, borderRadius: 9, paddingVertical: 10, alignItems: 'center' },
+  changeT: { color: C.muted, fontWeight: '700', fontSize: 13 },
+  cancelBtn2: { flex: 1, borderWidth: 1, borderColor: C.dangerBorder, borderRadius: 9, paddingVertical: 10, alignItems: 'center' },
+  reportBtn: { marginTop: 10, borderWidth: 1, borderColor: C.dangerBorder, borderRadius: 9, paddingVertical: 10, alignItems: 'center' },
+  reportT: { color: C.danger, fontWeight: '700', fontSize: 13 },
 });

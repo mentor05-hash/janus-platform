@@ -71,8 +71,10 @@ export class CreditService {
     tx: Prisma.TransactionClient,
     studentId: string,
     amount: number,
+    method?: string,
   ) {
     this.assertChargeable();
+    const label = method === 'voucher' ? '상품권' : method === 'card' ? '카드' : null;
     const acct = await this.lockAccount(tx, studentId);
     const balance = acct.purchased_balance + acct.granted_balance + amount;
     const updated = await tx.credit_account.update({
@@ -85,8 +87,8 @@ export class CreditService {
         type: CreditTxnType.CHARGE,
         amount,
         balance,
-        description: '크레딧 충전(모의 PG)',
-        method: 'mock',
+        description: label ? `크레딧 충전(${label}·모의 PG)` : '크레딧 충전(모의 PG)',
+        method: method ?? 'mock',
       },
     });
     // 결제 내역(payment) 기록 — /payments/history 노출
@@ -115,10 +117,10 @@ export class CreditService {
   }
 
   /** 충전(모의 PG). 구매 크레딧 증가 + charge 트랜잭션 기록. */
-  async charge(studentId: string, amount: number) {
+  async charge(studentId: string, amount: number, method?: string) {
     this.assertChargeable();
     return this.prisma.$transaction((tx) =>
-      this.chargeWithin(tx, studentId, amount),
+      this.chargeWithin(tx, studentId, amount, method),
     );
   }
 

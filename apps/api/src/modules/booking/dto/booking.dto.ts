@@ -149,6 +149,22 @@ export class ReverseProposeDto {
   content?: string;
 }
 
+/** 시간 변경 (PATCH /bookings/{id}/reschedule). 학생, 예정 예약 한정·동일 길이. */
+export class RescheduleDto {
+  @Matches(DATE_RE, { message: 'date 는 YYYY-MM-DD 형식이어야 합니다.' })
+  date!: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  slotStart!: number;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  slotEnd!: number;
+}
+
 /** 역상담 대상 지정/신청 토글 (관리자·학생). */
 export class ReverseFlagDto {
   @IsBoolean()
