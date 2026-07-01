@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { roleHome } from '../auth/roleHome';
@@ -39,6 +39,9 @@ export function LoginPage() {
         <Button type="submit" block loading={busy} style={{ marginTop: 12 }}>
           로그인
         </Button>
+        <p style={{ fontSize: 12, textAlign: 'center', margin: '12px 0 0' }}>
+          계정이 없으신가요? <Link to="/signup" style={{ color: 'var(--teal)', fontWeight: 700 }}>회원가입</Link>
+        </p>
       </form>
     </div>
   );

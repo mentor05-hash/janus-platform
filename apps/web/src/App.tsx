@@ -4,6 +4,7 @@ import { roleHome } from './auth/roleHome';
 import { AppLayout } from './components/AppLayout';
 import { AdminLayout } from './components/AdminLayout';
 import { LoginPage } from './pages/LoginPage';
+import { SignupPage } from './pages/SignupPage';
 import { TeacherBookingsPage } from './pages/TeacherBookingsPage';
 import { NotePage } from './pages/NotePage';
 import { SchedulePage } from './pages/SchedulePage';
@@ -38,6 +39,7 @@ import { StudentMembershipPage } from './pages/StudentMembershipPage';
 import { StudentNotificationsPage } from './pages/StudentNotificationsPage';
 import { StudentMaterialsPage } from './pages/StudentMaterialsPage';
 import { AdminCategoriesPage } from './pages/AdminCategoriesPage';
+import { AdminMembershipPage } from './pages/AdminMembershipPage';
 import { AdminSchedulesPage } from './pages/AdminSchedulesPage';
 
 function Protected({ roles, children }: { roles?: string[]; children: JSX.Element }) {
@@ -57,6 +59,7 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<SignupPage />} />
 
       <Route
         path="/app"
@@ -102,6 +105,7 @@ export function App() {
         <Route path="categories" element={<AdminCategoriesPage />} />
         <Route path="schedules" element={<AdminSchedulesPage />} />
         <Route path="member-types" element={<AdminMemberTypesPage />} />
+        <Route path="membership" element={<AdminMembershipPage />} />
         <Route path="evaluation" element={<AdminEvaluationPage />} />
         <Route path="analytics" element={<AdminAnalyticsPage />} />
       </Route>

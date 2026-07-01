@@ -129,5 +129,7 @@ export const api = {
     );
     tokens.set(data.accessToken, data.refreshToken);
   },
+  signup: (body: { loginId: string; password: string; name: string; role: 'student' | 'teacher' | 'guardian'; centerId?: string }) =>
+    raw<{ id: string; status: string }>('POST', '/auth/signup', body, false),
   logout: () => tokens.clear(),
 };
