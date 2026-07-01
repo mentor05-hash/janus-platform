@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { PageHeader, Card, Button, Badge, ErrorText, Spinner, EmptyState, TextareaField, SelectField } from '../components/ui';
 
+type Answer = { id: string; body: string; accepted: boolean; teacherName: string };
 type Post = {
   id: string;
   subject: string | null;
@@ -11,6 +12,7 @@ type Post = {
   status: string;
   q_type?: string | null;
   created_at: string;
+  answers?: Answer[];
 };
 
 const SUBJECTS = ['국어', '수학', '영어', '탐구'];
@@ -27,6 +29,12 @@ export function StudentQnaPage() {
     api.get<Post[]>('/qna/posts').then(setPosts).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
   }
   useEffect(load, []);
+
+  async function accept(answerId: string) {
+    setError(''); setMsg('');
+    try { await api.patch(`/qna/answers/${answerId}/accept`, {}); setMsg('답변을 채택했습니다.'); load(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : '채택 실패'); }
+  }
 
   async function submit() {
     setError(''); setMsg('');
@@ -70,11 +78,24 @@ export function StudentQnaPage() {
                 <Badge kind="soft">{p.subject ?? '질문'}</Badge>
                 <Badge kind="soft">{p.scope === 'open' ? '공개' : '지정'}</Badge>
                 {p.difficulty && <Badge kind="soft">난이도 {p.difficulty}</Badge>}
-                <Badge kind={p.status === 'answered' || p.status === 'accepted' ? 'done' : 'confirmed'}>{p.status === 'accepted' ? '채택완료' : p.status === 'answered' ? '답변옴' : '답변대기'}</Badge>
+                <Badge kind={p.status === 'resolved' ? 'done' : (p.answers?.length ?? 0) > 0 ? 'confirmed' : 'new'}>{p.status === 'resolved' ? '채택완료' : (p.answers?.length ?? 0) > 0 ? '답변옴' : '답변대기'}</Badge>
               </div>
               <span style={{ fontSize: 12, color: 'var(--muted)' }}>{new Date(p.created_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}</span>
             </div>
-            <p style={{ fontSize: 14, whiteSpace: 'pre-wrap', margin: '8px 0 0' }}>{p.body}</p>
+            <p style={{ fontSize: 14, whiteSpace: 'pre-wrap', margin: '8px 0 10px' }}>{p.body}</p>
+            {(p.answers?.length ?? 0) > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {p.answers!.map((a) => (
+                  <div key={a.id} style={{ background: 'var(--fill,#f6f8fa)', borderRadius: 8, padding: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                      <b style={{ fontSize: 13 }}>{a.teacherName} 선생님 답변 {a.accepted && <Badge kind="done">채택</Badge>}</b>
+                      {!a.accepted && p.status !== 'resolved' && <Button size="sm" onClick={() => accept(a.id)}>채택</Button>}
+                    </div>
+                    <div style={{ fontSize: 14, whiteSpace: 'pre-wrap', marginTop: 4 }}>{a.body}</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </Card>
         ))
       )}

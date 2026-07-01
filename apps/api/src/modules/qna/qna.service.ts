@@ -16,6 +16,12 @@ import { PricingService } from '../pricing-policy/pricing.service';
 import { canAnswerQuestion, QnaScope } from './domain/qna';
 import { CreateAnswerDto, CreateQuestionDto } from './dto/qna.dto';
 
+interface QnaRow {
+  id: string; subject: string | null; difficulty: string | null; scope: string | null;
+  body: string | null; status: string | null; created_at: Date;
+  qna_answer?: { id: string; body: string | null; accepted: boolean | null; created_at: Date; teacher_profile?: { account?: { name?: string } } }[];
+}
+
 /**
  * 온라인 Q&A (CLAUDE.md §6 Phase 3). 질문 건당 과금(§5-2), 공개질문 수임 게이트(§5-9),
  * 채택 시 답변 급여 적격(pay_eligible) — payroll 정산에서 합산.
@@ -103,31 +109,43 @@ export class QnaService {
     }
   }
 
-  /** 목록: 학생=본인 질문, 교사=공개(open)+나에게 지정된 것, 관리자=전체. */
+  /** 목록: 학생=본인 질문, 교사=공개(open)+나에게 지정된 것, 관리자=전체. 답변 포함. */
   async listPosts(user: AuthUser) {
+    const answersInclude = {
+      qna_answer: {
+        orderBy: { created_at: 'asc' as const },
+        include: { teacher_profile: { include: { account: { select: { name: true } } } } },
+      },
+    };
+    const shape = (rows: Awaited<ReturnType<typeof this.prisma.qna_post.findMany>>) =>
+      (rows as unknown as QnaRow[]).map((p) => ({
+        id: p.id,
+        subject: p.subject ?? null,
+        difficulty: p.difficulty ?? null,
+        scope: p.scope ?? 'open',
+        body: p.body ?? '',
+        status: p.status ?? 'open',
+        created_at: p.created_at,
+        answers: (p.qna_answer ?? []).map((a) => ({
+          id: a.id,
+          body: a.body ?? '',
+          accepted: !!a.accepted,
+          teacherName: a.teacher_profile?.account?.name ?? '선생님',
+          createdAt: a.created_at,
+        })),
+      }));
+
     if (user.role === AccountRole.STUDENT) {
-      return this.prisma.qna_post.findMany({
-        where: { student_id: user.id },
-        orderBy: { created_at: 'desc' },
-      });
+      return shape(await this.prisma.qna_post.findMany({ where: { student_id: user.id }, orderBy: { created_at: 'desc' }, include: answersInclude }));
     }
     if (user.role === AccountRole.TEACHER) {
-      return this.prisma.qna_post.findMany({
-        where: {
-          OR: [
-            { scope: 'open', status: 'open' },
-            { assigned_teacher_id: user.id },
-          ],
-        },
-        orderBy: { created_at: 'desc' },
-      });
+      return shape(await this.prisma.qna_post.findMany({
+        where: { OR: [{ scope: 'open', status: 'open' }, { assigned_teacher_id: user.id }] },
+        orderBy: { created_at: 'desc' }, include: answersInclude,
+      }));
     }
-    // 운영(관리자/HR)만 전체 조회. 그 외(보호자 등)는 차단(§5-10 누출 방지).
     if (user.role === AccountRole.ADMIN || user.role === AccountRole.HR) {
-      return this.prisma.qna_post.findMany({
-        orderBy: { created_at: 'desc' },
-        take: 200,
-      });
+      return shape(await this.prisma.qna_post.findMany({ orderBy: { created_at: 'desc' }, take: 200, include: answersInclude }));
     }
     throw new ForbiddenException('Q&A 목록 조회 권한이 없습니다.');
   }

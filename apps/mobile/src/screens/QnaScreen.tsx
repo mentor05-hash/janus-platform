@@ -3,9 +3,11 @@ import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 
 import { api, ApiError } from '../api';
 import { C, R, SP, ui } from '../theme';
 
-type Post = { id: string; subject: string | null; difficulty: string | null; scope: string; body: string; status: string; created_at: string };
+type Answer = { id: string; body: string; accepted: boolean; teacherName: string };
+type Post = { id: string; subject: string | null; difficulty: string | null; scope: string; body: string; status: string; created_at: string; answers?: Answer[] };
 const SUBJECTS = ['국어', '수학', '영어', '탐구'];
-const statusLabel = (s: string) => (s === 'accepted' ? '채택완료' : s === 'answered' ? '답변옴' : '답변대기');
+const statusLabel = (p: Post) => (p.status === 'resolved' ? '채택완료' : (p.answers?.length ?? 0) > 0 ? '답변옴' : '답변대기');
+const isDone = (p: Post) => p.status === 'resolved' || (p.answers?.length ?? 0) > 0;
 
 export function QnaScreen() {
   const [posts, setPosts] = useState<Post[] | null>(null);
@@ -18,6 +20,12 @@ export function QnaScreen() {
 
   function load() { api.get<Post[]>('/qna/posts').then(setPosts).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패')); }
   useEffect(load, []);
+
+  async function accept(answerId: string) {
+    setError(''); setMsg('');
+    try { await api.patch(`/qna/answers/${answerId}/accept`, {}); setMsg('답변을 채택했습니다.'); load(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : '채택 실패'); }
+  }
 
   async function submit() {
     setError(''); setMsg('');
@@ -62,11 +70,22 @@ export function QnaScreen() {
           <View style={styles.tagRow}>
             <View style={styles.tag}><Text style={styles.tagT}>{p.subject ?? '질문'}</Text></View>
             <View style={styles.tag}><Text style={styles.tagT}>{p.scope === 'open' ? '공개' : '지정'}</Text></View>
-            <View style={[styles.tag, { backgroundColor: p.status === 'answered' || p.status === 'accepted' ? C.doneBg : C.confirmedBg }]}>
-              <Text style={[styles.tagT, { color: p.status === 'answered' || p.status === 'accepted' ? C.done : C.confirmed }]}>{statusLabel(p.status)}</Text>
+            <View style={[styles.tag, { backgroundColor: isDone(p) ? C.doneBg : C.confirmedBg }]}>
+              <Text style={[styles.tagT, { color: isDone(p) ? C.done : C.confirmed }]}>{statusLabel(p)}</Text>
             </View>
           </View>
           <Text style={styles.body}>{p.body}</Text>
+          {(p.answers ?? []).map((a) => (
+            <View key={a.id} style={styles.answer}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={styles.ansT}>{a.teacherName} 선생님 답변{a.accepted ? ' · 채택됨' : ''}</Text>
+                {!a.accepted && p.status !== 'resolved' && (
+                  <TouchableOpacity style={styles.acceptBtn} onPress={() => accept(a.id)}><Text style={styles.acceptT}>채택</Text></TouchableOpacity>
+                )}
+              </View>
+              <Text style={styles.ansBody}>{a.body}</Text>
+            </View>
+          ))}
         </View>
       ))}
     </ScrollView>
@@ -87,4 +106,9 @@ const styles = StyleSheet.create({
   tag: { backgroundColor: C.fill, borderRadius: R.pill, paddingHorizontal: 9, paddingVertical: 3 },
   tagT: { fontSize: 11, fontWeight: '700', color: C.muted },
   body: { fontSize: 14, color: C.ink, lineHeight: 20 },
+  answer: { backgroundColor: C.fill, borderRadius: R.md, padding: 10, marginTop: 8 },
+  ansT: { fontSize: 13, fontWeight: '800', color: C.ink },
+  ansBody: { fontSize: 14, color: C.ink, marginTop: 4, lineHeight: 20 },
+  acceptBtn: { backgroundColor: C.teal, borderRadius: 8, paddingVertical: 5, paddingHorizontal: 12 },
+  acceptT: { color: C.white, fontWeight: '800', fontSize: 12 },
 });

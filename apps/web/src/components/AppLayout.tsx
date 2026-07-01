@@ -9,6 +9,7 @@ const NAV = [
   { to: '/app/schedule', label: '근무·슬롯' },
   { to: '/app/evaluations', label: '받은 평가' },
   { to: '/app/reverse', label: '역상담 제안' },
+  { to: '/app/qna', label: '질문 답변' },
   { to: '/app/payroll', label: '예상급여' },
   { to: '/app/materials', label: '자료실' },
   { to: '/app/notifications', label: '알림' },
