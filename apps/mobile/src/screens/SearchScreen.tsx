@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { FlatList, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, Teacher } from '../api';
 import { C, R, SP, ui, gradeColor } from '../theme';
 
-const SORTS: [string, string][] = [['grade', '기본'], ['rating', '만족도'], ['consult', '상담수'], ['question', '질문답변가능'], ['offline', '오프라인가능']];
+const SORTS: [string, string][] = [['grade', '기본'], ['rating', '만족도'], ['consult', '상담수'], ['question', '질문답변'], ['offline', '오프라인']];
 const CTYPES: [string, string][] = [['담임', '🏫'], ['교과', '📐'], ['입시', '🎯'], ['심리', '💬']];
 const SUBTYPES: Record<string, string[]> = {
   담임: ['생활전반', '학습전반'],
@@ -104,14 +104,14 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher) => void
               ))}
             </View>
           </View>
-          {/* 선생님 배열방법 — 라벨 왼쪽, 정렬 버튼 오른쪽 */}
-          <View style={styles.inlineRow}>
-            <Text style={styles.inlineLbl}>선생님{'\n'}배열방법</Text>
-            <View style={styles.inlinePills}>
+          {/* 선생님 배열 — 라벨 왼쪽, 정렬 버튼 오른쪽(가로 스크롤, 줄바꿈 없음) */}
+          <View style={[styles.inlineRow, { alignItems: 'center' }]}>
+            <Text style={[styles.inlineLbl, { paddingTop: 0 }]}>선생님배열</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ gap: 6, alignItems: 'center', paddingRight: 4 }}>
               {SORTS.map(([v, l]) => (
                 <TouchableOpacity key={v} style={[styles.sortPill, sort === v && styles.sortOn]} onPress={() => setSort(v)}><Text style={[styles.sortT, sort === v && { color: C.teal }]}>{l}</Text></TouchableOpacity>
               ))}
-            </View>
+            </ScrollView>
           </View>
         </>
       )}

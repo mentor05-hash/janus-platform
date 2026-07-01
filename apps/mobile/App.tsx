@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { api, Child, hasSession, loadTokens, Me, Teacher } from './src/api';
+import { backStack } from './src/webBack';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { SearchScreen } from './src/screens/SearchScreen';
 import { TeacherDetailScreen } from './src/screens/TeacherDetailScreen';
@@ -43,6 +44,27 @@ export default function App() {
       }).catch(() => {});
     }
   }, [me]);
+
+  // 뒤로가기(웹) → 앱 내부 이전 화면. 하위 화면 스택 우선, 없으면 예약/선생님/탭 순으로 복귀.
+  const appBackRef = useRef<() => boolean>(() => false);
+  appBackRef.current = () => {
+    if (backStack.pop()) return true; // 하위 화면(자동매칭·기록·분류·시간변경 등) 닫기
+    if (booking) { setBooking(false); return true; }
+    if (teacher) { setTeacher(null); return true; }
+    if (tab !== 'a') { setTab('a'); return true; }
+    return false; // 홈 최상위 — 이탈 대신 그대로 유지
+  };
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.history?.pushState) return;
+    window.history.pushState({ itall: true }, '');
+    const onPop = () => {
+      appBackRef.current();
+      // 버퍼 엔트리를 다시 쌓아 다음 뒤로가기도 앱 내부에서 처리(링크 이탈 방지).
+      window.history.pushState({ itall: true }, '');
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   if (!ready)
     return (

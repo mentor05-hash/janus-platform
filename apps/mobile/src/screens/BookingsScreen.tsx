@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, Booking, Note, Teacher } from '../api';
 import { C, R, SP, ui } from '../theme';
+import { useWebBack } from '../webBack';
 import { RescheduleScreen } from './RescheduleScreen';
 
 const slotLen = (b: Booking) => (b.start && b.end ? Math.max(1, Math.round((new Date(b.end).getTime() - new Date(b.start).getTime()) / 600000)) : 3);
@@ -99,6 +100,7 @@ export function BookingsScreen() {
   const [reschedule, setReschedule] = useState<Booking | null>(null);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
+  useWebBack(reschedule !== null, () => setReschedule(null));
 
   function load() {
     api.get<{ data?: Booking[] } | Booking[]>('/bookings?role=student')

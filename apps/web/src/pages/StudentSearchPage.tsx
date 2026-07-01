@@ -309,6 +309,21 @@ export function StudentSearchPage() {
     setTeachers(null);
     api.get<{ data?: Teacher[] } | Teacher[]>(`/teachers?${params}`).then((r) => setTeachers(Array.isArray(r) ? r : (r.data ?? []))).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
   }, [category, sort, subjectFilter]);
+  // 뒤로가기: 목록↔상세↔예약을 브라우저 히스토리와 동기화(뒤로가기 시 이전 단계로).
+  const pickedRef = useRef(picked); pickedRef.current = picked;
+  const phaseRef = useRef(phase); phaseRef.current = phase;
+  useEffect(() => {
+    const onPop = () => {
+      if (!pickedRef.current) return;
+      if (phaseRef.current === 'book') setPhase('detail');
+      else setPicked(null);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+  const openDetail = (t: Teacher) => { setPicked(t); setPhase('detail'); window.history.pushState({ itall: 'detail' }, ''); };
+  const openBook = () => { setPhase('book'); window.history.pushState({ itall: 'book' }, ''); };
+
   useEffect(() => {
     api.get<CreditAccount>('/credits/account').then(setCredit).catch(() => {});
     api.get<{ id: string; name: string }[]>('/categories?kind=teacher').then(setCats).catch(() => {});
@@ -333,8 +348,8 @@ export function StudentSearchPage() {
     catch (e) { setNote(e instanceof ApiError ? e.message : '실패'); }
   }
 
-  if (picked && phase === 'book') return <BookingForm teacher={picked} onBack={() => setPhase('detail')} onDone={() => { setPicked(null); setPhase('detail'); }} />;
-  if (picked) return <TeacherDetailView teacher={picked} onBook={() => setPhase('book')} onBack={() => setPicked(null)} />;
+  if (picked && phase === 'book') return <BookingForm teacher={picked} onBack={() => window.history.back()} onDone={() => { setPicked(null); setPhase('detail'); }} />;
+  if (picked) return <TeacherDetailView teacher={picked} onBook={openBook} onBack={() => window.history.back()} />;
 
   const rows = (teachers ?? []).filter((t) => !q.trim() || t.name.toLowerCase().includes(q.toLowerCase()) || t.subjects.join(',').includes(q));
   return (
@@ -388,7 +403,7 @@ export function StudentSearchPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
           {rows.map((t) => (
             <Card key={t.id}>
-              <button onClick={() => { setPicked(t); setPhase('detail'); }} style={{ all: 'unset', cursor: 'pointer', display: 'block', width: '100%' }}>
+              <button onClick={() => openDetail(t)} style={{ all: 'unset', cursor: 'pointer', display: 'block', width: '100%' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <b style={{ fontSize: 15 }}>{t.name}</b>
                   <GradeBadge grade={t.grade} />

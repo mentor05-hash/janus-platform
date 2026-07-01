@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, CreditAccount } from '../api';
 import { C, R, SP, ui } from '../theme';
+import { useWebBack } from '../webBack';
 import { AutomatchScreen } from './AutomatchScreen';
 import { RecordsScreen } from './RecordsScreen';
 import { ClassifyScreen } from './ClassifyScreen';
@@ -52,6 +53,7 @@ export function MyScreen() {
     api.get<{ reverseSelf: boolean }>('/bookings/reverse/self').then((r) => setReverse(r.reverseSelf)).catch(() => {});
   }
   useEffect(load, []);
+  useWebBack(sub !== null, () => setSub(null));
 
   if (sub === 'automatch') return <AutomatchScreen onBack={() => setSub(null)} onBooked={() => { setSub(null); setMsg('자동 매칭으로 예약이 신청되었습니다. 내 예약에서 확인하세요.'); load(); }} />;
   if (sub === 'records') return <RecordsScreen onBack={() => setSub(null)} />;
