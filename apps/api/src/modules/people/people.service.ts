@@ -97,6 +97,37 @@ export class PeopleService {
     };
   }
 
+  /**
+   * 선생님 랭킹(이달의 우수 선생님). 만족도·재요청률·누적상담 가중 합산 점수로 정렬.
+   * Teachus '리그'와 달리 기관형 인정 지표 — 공개 리더보드.
+   */
+  async leaderboard(centerId: string | null, limit = 10) {
+    const teachers = await this.prisma.teacher_profile.findMany({
+      where: centerId ? { center_id: centerId } : {},
+      include: { account: { select: { name: true, center_id: true } } },
+      take: 300,
+    });
+    const scored = teachers
+      .map((t) => {
+        const rating = t.rating == null ? 0 : Number(t.rating);
+        const reReq = t.re_request_rate == null ? 0 : Number(t.re_request_rate);
+        const consult = t.total_consult ?? 0;
+        // 만족도(0~100) + 재요청률(0~100)*0.6 + 누적상담(최대 100점)
+        const score =
+          rating * 20 + reReq * 0.6 + Math.min(consult, 200) / 2;
+        return {
+          ...this.toTeacherCard(t),
+          strengths: t.strengths ?? [],
+          reRequestRate: reReq || null,
+          score: Math.round(score * 10) / 10,
+        };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map((t, i) => ({ ...t, rank: i + 1 }));
+    return scored;
+  }
+
   /** 선생님 본인 프로필 편집(소개·강점·과목·경력·직군). */
   async updateMyProfile(
     teacherId: string,

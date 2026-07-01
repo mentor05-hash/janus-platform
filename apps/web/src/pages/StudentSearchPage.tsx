@@ -306,6 +306,7 @@ export function StudentSearchPage() {
   const [q, setQ] = useState('');
   const [needs, setNeeds] = useState<string[]>([]);
   const [recs, setRecs] = useState<(Teacher & { matchedNeeds?: string[]; strengths?: string[] })[] | null>(null);
+  const [board, setBoard] = useState<(Teacher & { rank: number; score: number })[]>([]);
   const [error, setError] = useState('');
 
   const subjectFilter = consultType === '교과' ? subType : null;
@@ -345,6 +346,7 @@ export function StudentSearchPage() {
   useEffect(() => {
     api.get<CreditAccount>('/credits/account').then(setCredit).catch(() => {});
     api.get<{ id: string; name: string }[]>('/categories?kind=teacher').then(setCats).catch(() => {});
+    api.get<(Teacher & { rank: number; score: number })[]>('/teachers/leaderboard').then(setBoard).catch(() => {});
   }, []);
 
   const [note, setNote] = useState('');
@@ -391,6 +393,22 @@ export function StudentSearchPage() {
         </Card>
       ) : (
       <>
+      {board.length > 0 && (
+        <Card style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 10 }}>🏆 이달의 우수 선생님</div>
+          <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
+            {board.slice(0, 5).map((t) => (
+              <button key={t.id} onClick={() => openDetail(t)} style={{ all: 'unset', cursor: 'pointer', flex: '0 0 auto' }}>
+                <div style={{ width: 150, background: t.rank <= 3 ? 'var(--teal-50,#F0F7FA)' : '#fff', border: '1px solid var(--line)', borderRadius: 12, padding: 12, textAlign: 'center' }}>
+                  <div style={{ fontSize: 20 }}>{t.rank === 1 ? '🥇' : t.rank === 2 ? '🥈' : t.rank === 3 ? '🥉' : `#${t.rank}`}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 4 }}><b style={{ fontSize: 14 }}>{t.name}</b><GradeBadge grade={t.grade} /></div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{t.subjects.join(',')} · ⭐ {t.rating ?? 0}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
       {/* 상담 유형 → 세부 유형 */}
       <label className="label">상담 유형</label>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>

@@ -28,6 +28,12 @@ export class TeachersController {
     return this.people.listTeachers(q);
   }
 
+  /** GET /teachers/leaderboard — 이달의 우수 선생님 랭킹(센터 스코프). */
+  @Get('leaderboard')
+  leaderboard(@CurrentUser() user: AuthUser) {
+    return this.people.leaderboard(user.centerId ?? null);
+  }
+
   /** GET /teachers/me/profile — 내 프로필(선생님 편집용). */
   @Get('me/profile')
   @Roles('teacher')

@@ -26,6 +26,7 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher) => void
   const [needs, setNeeds] = useState<string[]>([]);
   const [recs, setRecs] = useState<Rec[] | null>(null);
   const [recOpen, setRecOpen] = useState(false);
+  const [board, setBoard] = useState<(Teacher & { rank: number })[]>([]);
   const [error, setError] = useState('');
 
   async function recommend() {
@@ -40,6 +41,7 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher) => void
 
   useEffect(() => {
     api.get<{ name: string }[]>('/categories?kind=teacher').then((r) => setCats(r.map((c) => c.name))).catch(() => {});
+    api.get<(Teacher & { rank: number })[]>('/teachers/leaderboard').then(setBoard).catch(() => {});
   }, []);
   useEffect(() => {
     const p = new URLSearchParams();
@@ -125,6 +127,21 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher) => void
               ))}
             </ScrollView>
           </View>
+          {/* 이달의 우수 선생님 */}
+          {board.length > 0 && (
+            <View style={{ marginTop: 12 }}>
+              <Text style={styles.boardTitle}>🏆 이달의 우수 선생님</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
+                {board.slice(0, 5).map((t) => (
+                  <TouchableOpacity key={t.id} style={[styles.boardCard, t.rank <= 3 && { backgroundColor: C.teal50, borderColor: C.teal100 }]} onPress={() => onPick(t)}>
+                    <Text style={styles.boardRank}>{t.rank === 1 ? '🥇' : t.rank === 2 ? '🥈' : t.rank === 3 ? '🥉' : `#${t.rank}`}</Text>
+                    <Text style={styles.boardName}>{t.name}</Text>
+                    <Text style={styles.boardMeta}>{t.subjects.join(',')} · ⭐{t.rating ?? 0}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
           {/* 맞춤 추천 */}
           <TouchableOpacity style={styles.recToggle} onPress={() => setRecOpen((o) => !o)}>
             <Text style={styles.recToggleT}>✨ 맞춤 추천 {recOpen ? '▲' : '▼'}</Text>
@@ -228,4 +245,9 @@ const styles = StyleSheet.create({
   recPillT: { color: C.muted, fontWeight: '700', fontSize: 12 },
   recCard: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.teal50, borderRadius: 10, padding: 11, marginTop: 8 },
   matched: { fontSize: 12, color: C.teal, fontWeight: '700', marginTop: 3 },
+  boardTitle: { fontSize: 13, fontWeight: '800', color: C.ink, marginBottom: 8 },
+  boardCard: { width: 120, backgroundColor: C.white, borderWidth: 1, borderColor: C.line, borderRadius: 12, padding: 10, alignItems: 'center' },
+  boardRank: { fontSize: 18 },
+  boardName: { fontSize: 14, fontWeight: '800', color: C.ink, marginTop: 2 },
+  boardMeta: { fontSize: 11, color: C.muted, marginTop: 2 },
 });
