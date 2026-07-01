@@ -87,7 +87,7 @@ export function LegalPage() {
     } catch (e) { setError(e instanceof ApiError ? e.message : '저장 실패'); }
   }
   async function exportData() {
-    try { await api.downloadPath('/me/data-export', 'itall-mydata.json'); }
+    try { await api.downloadPath('/me/data-export', 'mydata.json'); }
     catch (e) { setError(e instanceof ApiError ? e.message : '내보내기 실패'); }
   }
   async function withdraw() {

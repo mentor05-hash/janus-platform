@@ -60,8 +60,8 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
     <ScrollView style={{ flex: 1, backgroundColor: C.teal }} contentContainerStyle={{ flexGrow: 1 }}>
       {/* 히어로 */}
       <View style={styles.hero}>
-        <View style={styles.mark}><Text style={styles.markText}>it</Text></View>
-        <Text style={styles.brand}>잇올 멘토링</Text>
+        <View style={styles.mark}><Text style={styles.markText}>멘</Text></View>
+        <Text style={styles.brand}>멘토링 플랫폼</Text>
         <Text style={styles.heroSub}>우리 센터를 선택하면{'\n'}계정에 자동으로 연동돼요.</Text>
       </View>
 

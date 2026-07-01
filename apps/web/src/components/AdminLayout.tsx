@@ -18,9 +18,9 @@ export function AdminLayout() {
     <div className="shell">
       <aside className="sidebar navy">
         <div className="sidebar-logo">
-          <span className="mark">잇</span>
+          <span className="mark">멘</span>
           <div>
-            <div className="title">잇올 멘토링</div>
+            <div className="title">멘토링 플랫폼</div>
             <div className="center">{isMaster ? '마스터' : hq ? '본사' : '관리자'} · {scopeLabel}</div>
           </div>
         </div>

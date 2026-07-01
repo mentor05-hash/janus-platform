@@ -113,7 +113,7 @@ function AppInner() {
     <SafeAreaView style={styles.app}>
       <StatusBar style="light" />
       <View style={styles.header}>
-        <Text style={styles.brand}>잇올 멘토링 · {isGuardian ? '학부모' : '학생'}</Text>
+        <Text style={styles.brand}>멘토링 플랫폼 · {isGuardian ? '학부모' : '학생'}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
           <TouchableOpacity onPress={toggle}>
             <Text style={styles.logout}>{dark ? '☀️ 라이트' : '🌙 다크'}</Text>

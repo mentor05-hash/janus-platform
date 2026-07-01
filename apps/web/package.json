@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "description": "잇올 멘토링 — 웹(선생님·관리자·HR)",
+  "description": "멘토링 플랫폼 — 웹(선생님·관리자·HR)",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

@@ -72,7 +72,7 @@ export function LegalScreen({ onBack, onWithdrawn }: { onBack: () => void; onWit
 
   async function exportData() {
     setExportError('');
-    try { await api.downloadWebPath('/me/data-export', 'itall-mydata.json'); }
+    try { await api.downloadWebPath('/me/data-export', 'mydata.json'); }
     catch (e) { setExportError(e instanceof ApiError ? e.message : '내보내기 실패'); }
   }
 

@@ -64,7 +64,7 @@ export function LoginPage() {
   return (
     <div style={{ display: 'grid', placeItems: 'center', height: '100vh' }}>
       <form className="card" style={{ width: 340 }} onSubmit={onSubmit}>
-        <h2 style={{ marginTop: 0, color: 'var(--teal)' }}>잇올 멘토링 로그인</h2>
+        <h2 style={{ marginTop: 0, color: 'var(--teal)' }}>멘토링 플랫폼 로그인</h2>
         <label className="label" style={{ marginBottom: 6 }}>역할 선택(원터치 채움)</label>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
           {ROLES.map((r) => {
