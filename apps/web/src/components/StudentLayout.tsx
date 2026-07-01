@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
+import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -7,6 +9,7 @@ const navCls = ({ isActive }: { isActive: boolean }) => (isActive ? 'nav-item ac
 const NAV = [
   { to: '/student/search', label: '선생님 찾기' },
   { to: '/student/bookings', label: '내 예약·상담' },
+  { to: '/student/scores', label: '내 성적·배치', flag: 'scores' as const },
   { to: '/student/materials', label: '자료실' },
   { to: '/student/qna', label: '질문 게시판' },
   { to: '/student/community', label: '커뮤니티' },
@@ -20,6 +23,9 @@ const NAV = [
 export function StudentLayout() {
   const { user, logout } = useAuth();
   const initial = (user?.name ?? '학').slice(0, 1);
+  const [showScores, setShowScores] = useState(false);
+  useEffect(() => { api.get<{ showTrend: boolean }>('/me/scores/access').then((a) => setShowScores(!!a.showTrend)).catch(() => setShowScores(false)); }, []);
+  const nav = NAV.filter((n) => n.flag !== 'scores' || showScores);
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -31,7 +37,7 @@ export function StudentLayout() {
           </div>
         </div>
         <nav className="sidebar-nav">
-          {NAV.map((n) => (
+          {nav.map((n) => (
             <NavLink key={n.to} to={n.to} className={navCls}>
               {n.label}
             </NavLink>
