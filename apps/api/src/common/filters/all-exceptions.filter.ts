@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { getRequestId } from '../observability/request-context';
+import { errorsTotal, normalizeRoute } from '../observability/metrics';
 
 /**
  * 표준 오류 응답 형식 (CLAUDE.md §7): { error: { code, message } }.
@@ -46,9 +47,21 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     const requestId = getRequestId();
+    // 에러 메트릭(로컬 에러추적) — 코드·상태별 카운터
+    errorsTotal.inc({ code, status });
     if (status >= 500) {
+      // 구조적 에러 로그(JSON 로거) — 스택·경로·상관 requestId 포함
       this.logger.error(
-        `${req.method} ${req.url} → ${status} ${code} rid=${requestId}`,
+        JSON.stringify({
+          event: 'error',
+          method: req.method,
+          route: normalizeRoute(req.path),
+          status,
+          code,
+          requestId,
+          message,
+          stack: exception instanceof Error ? exception.stack?.split('\n').slice(0, 4).join(' | ') : undefined,
+        }),
       );
     }
 
