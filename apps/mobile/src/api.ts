@@ -97,11 +97,11 @@ export const api = {
     await setTokens(d.accessToken, d.refreshToken);
   },
   logout: clearTokens,
-  /** 웹(expo-web) 첨부 다운로드(인증 헤더 포함). */
-  downloadWeb: async (id: string, name: string) => {
+  /** 웹(expo-web) 임의 경로 다운로드(인증 헤더 포함). 예: /files/:id, /materials/:id/download */
+  downloadWebPath: async (path: string, name: string) => {
     const headers: Record<string, string> = {};
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-    const res = await fetch(BASE + '/files/' + id, { headers });
+    const res = await fetch(BASE + path, { headers });
     if (!res.ok) throw new ApiError('ERROR', '다운로드 실패', res.status);
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
@@ -109,6 +109,8 @@ export const api = {
     a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
   },
+  /** 첨부 파일(/files/:id) 다운로드. */
+  downloadWeb: async (id: string, name: string) => api.downloadWebPath('/files/' + id, name),
   /** 웹(expo-web) 파일 업로드 → stored_file. 첨부 id 를 예약에 연결. */
   uploadWeb: async (file: Blob, name: string) => {
     const form = new FormData();

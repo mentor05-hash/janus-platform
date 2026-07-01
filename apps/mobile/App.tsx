@@ -7,6 +7,7 @@ import { SearchScreen } from './src/screens/SearchScreen';
 import { SlotsScreen } from './src/screens/SlotsScreen';
 import { BookingsScreen } from './src/screens/BookingsScreen';
 import { QnaScreen } from './src/screens/QnaScreen';
+import { MaterialsScreen } from './src/screens/MaterialsScreen';
 import { MyScreen } from './src/screens/MyScreen';
 import { ChildrenScreen } from './src/screens/ChildrenScreen';
 import { ChildNotesScreen } from './src/screens/ChildNotesScreen';
@@ -54,8 +55,8 @@ export default function App() {
 
   const isGuardian = me.role === 'guardian';
   const isStudent = me.role === 'student';
-  const tabs = isGuardian ? ['a', 'b'] : ['a', 'b', 'c', 'd'];
-  const studentLabel: Record<string, string> = { a: '선생님 찾기', b: '내 예약', c: 'Q&A', d: '마이' };
+  const tabs = isGuardian ? ['a', 'b'] : ['a', 'b', 'e', 'c', 'd'];
+  const studentLabel: Record<string, string> = { a: '선생님', b: '내 예약', e: '자료실', c: 'Q&A', d: '마이' };
   const tabLabel = (t: string) => (isGuardian ? (t === 'a' ? '자녀' : '결제요청') : studentLabel[t] ?? '');
 
   return (
@@ -85,6 +86,8 @@ export default function App() {
             )
           ) : tab === 'b' ? (
             <BookingsScreen />
+          ) : tab === 'e' ? (
+            <MaterialsScreen />
           ) : tab === 'c' ? (
             <QnaScreen />
           ) : (
