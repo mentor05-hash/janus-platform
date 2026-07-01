@@ -373,6 +373,11 @@ model payroll_estimate {
   confirmed_amount Int?            @default(0)
   expected_amount  Int?            @default(0)
   breakdown        Json?
+  status           String          @default("draft") // draft|confirmed|paid
+  deductions       Json?
+  net_amount       Int?
+  paid_at          DateTime?       @db.Timestamptz(6)
+  settled_by       String?         @db.Uuid
   period_start     DateTime?       @db.Date
   period_end       DateTime?       @db.Date
   teacher_profile  teacher_profile @relation(fields: [teacher_id], references: [account_id], onDelete: Cascade, onUpdate: NoAction)

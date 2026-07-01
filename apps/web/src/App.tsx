@@ -32,6 +32,7 @@ import { AdminMemberTypesPage } from './pages/AdminMemberTypesPage';
 import { AdminEvaluationPage } from './pages/AdminEvaluationPage';
 import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
 import { AdminAuditPage } from './pages/AdminAuditPage';
+import { AdminPayrollPage } from './pages/AdminPayrollPage';
 import { AdminReversePage } from './pages/AdminReversePage';
 import { TeacherDashboardPage } from './pages/TeacherDashboardPage';
 import { StudentLayout } from './components/StudentLayout';
@@ -126,6 +127,7 @@ export function App() {
         <Route path="evaluation" element={<AdminEvaluationPage />} />
         <Route path="analytics" element={<AdminAnalyticsPage />} />
         <Route path="audit" element={<AdminAuditPage />} />
+        <Route path="payroll" element={<AdminPayrollPage />} />
         <Route path="legal" element={<LegalPage />} />
       </Route>
 

@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { PayrollController } from './payroll.controller';
+import { PayrollAdminController, PayrollController } from './payroll.controller';
 import { PayrollService } from './payroll.service';
 
 /**
@@ -7,7 +7,7 @@ import { PayrollService } from './payroll.service';
  * 예상급여(확정분+예상분). 단가는 payroll_policy 또는 ENV(O20).
  */
 @Module({
-  controllers: [PayrollController],
+  controllers: [PayrollController, PayrollAdminController],
   providers: [PayrollService],
   exports: [PayrollService],
 })

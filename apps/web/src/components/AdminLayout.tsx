@@ -44,6 +44,7 @@ export function AdminLayout() {
               <NavLink to="/admin/schedules" className={navCls}>근무 일괄업로드</NavLink>
               <NavLink to="/admin/evaluation" className={navCls}>평가·순위</NavLink>
               <NavLink to="/admin/analytics" className={navCls}>센터 분석</NavLink>
+              <NavLink to="/admin/payroll" className={navCls}>급여 정산</NavLink>
               <NavLink to="/admin/audit" className={navCls}>감사 로그</NavLink>
               {/* 조직 관리는 본사 이상(전사) 전용 */}
               {hq && <NavLink to="/admin/org" className={navCls}>조직 관리</NavLink>}

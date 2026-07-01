@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -24,6 +25,7 @@ import {
   PayrollRates,
 } from './domain/payroll';
 import { AuditService } from '../audit/audit.service';
+import { computeDeductions } from './domain/deductions';
 
 const STALE_ANSWER_HOURS = 48; // 48시간 미답 → 답변 보상 기준(T5c)
 
@@ -60,11 +62,16 @@ export class PayrollService {
     const periodEnd = new Date(
       Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0),
     );
+    const deductions = computeDeductions(est.confirmedAmount);
     const data = {
       cycle: 'monthly',
       confirmed_amount: est.confirmedAmount,
       expected_amount: est.expectedAmount,
       breakdown: est.breakdown as object,
+      status: 'confirmed',
+      deductions: deductions as object,
+      net_amount: deductions.net,
+      settled_by: actor.id,
       period_start: periodStart,
       period_end: periodEnd,
     };
@@ -86,10 +93,112 @@ export class PayrollService {
         });
     await this.audit.record(actor, {
       action: 'payroll.settle', targetType: 'teacher', targetId: teacherId,
-      summary: `급여 정산 확정(확정 ${est.confirmedAmount.toLocaleString()}원)`,
-      meta: { confirmed: est.confirmedAmount, expected: est.expectedAmount, period: periodStart.toISOString().slice(0, 7) },
+      summary: `급여 정산 확정(실지급 ${deductions.net.toLocaleString()}원 · 공제 ${deductions.total.toLocaleString()}원)`,
+      meta: { gross: est.confirmedAmount, net: deductions.net, period: periodStart.toISOString().slice(0, 7) },
     });
-    return { id: row.id, ...est };
+    return { id: row.id, status: 'confirmed', deductions, netAmount: deductions.net, ...est };
+  }
+
+  private periodBounds(period?: string, now = new Date()) {
+    const y = period ? Number(period.slice(0, 4)) : now.getUTCFullYear();
+    const m = period ? Number(period.slice(5, 7)) - 1 : now.getUTCMonth();
+    return {
+      start: new Date(Date.UTC(y, m, 1)),
+      end: new Date(Date.UTC(y, m + 1, 0)),
+      label: `${y}-${String(m + 1).padStart(2, '0')}`,
+    };
+  }
+
+  /** 지급완료 처리(관리자/HR) — 확정 정산을 실지급 상태로 전환(가상 이체). */
+  async markPaid(teacherId: string, actor: AuthUser, period?: string) {
+    if (actor.role !== AccountRole.ADMIN && actor.role !== AccountRole.HR) {
+      throw new ForbiddenException('관리자만 지급 처리를 할 수 있습니다.');
+    }
+    const { start } = this.periodBounds(period);
+    const row = await this.prisma.payroll_estimate.findFirst({
+      where: { teacher_id: teacherId, cycle: 'monthly', period_start: start },
+    });
+    if (!row) throw new NotFoundException('먼저 정산을 확정하세요.');
+    if (row.status === 'paid') throw new BadRequestException('이미 지급 완료된 정산입니다.');
+    const updated = await this.prisma.payroll_estimate.update({
+      where: { id: row.id },
+      data: { status: 'paid', paid_at: new Date() },
+    });
+    await this.audit.record(actor, {
+      action: 'payroll.pay', targetType: 'teacher', targetId: teacherId,
+      summary: `급여 지급 완료(실지급 ${(row.net_amount ?? 0).toLocaleString()}원)`,
+      meta: { net: row.net_amount, period: this.periodBounds(period).label },
+    });
+    return { id: updated.id, status: updated.status, paidAt: updated.paid_at };
+  }
+
+  /** 재무 정산 리포트(관리자/HR) — 기간 확정/지급 집계 + 공제 합계 + 센터별. */
+  async financeReport(actor: AuthUser, period?: string) {
+    if (actor.role !== AccountRole.ADMIN && actor.role !== AccountRole.HR) {
+      throw new ForbiddenException('관리자만 재무 리포트를 볼 수 있습니다.');
+    }
+    const { start, label } = this.periodBounds(period);
+    const rows = await this.prisma.payroll_estimate.findMany({
+      where: { cycle: 'monthly', period_start: start, status: { in: ['confirmed', 'paid'] } },
+      include: { teacher_profile: { include: { account: { select: { name: true, center_id: true } }, center: { select: { name: true } } } } },
+    });
+    // HQ(센터 미소속)는 전사, 그 외는 자기 센터만
+    const isHq = actor.role === AccountRole.ADMIN && !actor.centerId;
+    const scoped = rows.filter((r) => isHq || r.teacher_profile.account.center_id === actor.centerId);
+    const sum = (f: (r: (typeof scoped)[number]) => number) => scoped.reduce((a, r) => a + f(r), 0);
+    const ded = (r: (typeof scoped)[number], k: string) => Number((r.deductions as Record<string, number> | null)?.[k] ?? 0);
+    const byCenter = new Map<string, { center: string; count: number; gross: number; net: number; paid: number }>();
+    for (const r of scoped) {
+      const c = r.teacher_profile.center?.name ?? '(미지정)';
+      const e = byCenter.get(c) ?? { center: c, count: 0, gross: 0, net: 0, paid: 0 };
+      e.count += 1; e.gross += r.confirmed_amount ?? 0; e.net += r.net_amount ?? 0;
+      if (r.status === 'paid') e.paid += r.net_amount ?? 0;
+      byCenter.set(c, e);
+    }
+    return {
+      period: label,
+      headcount: scoped.length,
+      gross: sum((r) => r.confirmed_amount ?? 0),
+      net: sum((r) => r.net_amount ?? 0),
+      paid: scoped.filter((r) => r.status === 'paid').reduce((a, r) => a + (r.net_amount ?? 0), 0),
+      pending: scoped.filter((r) => r.status !== 'paid').reduce((a, r) => a + (r.net_amount ?? 0), 0),
+      deductions: {
+        국민연금: sum((r) => ded(r, '국민연금')), 건강보험: sum((r) => ded(r, '건강보험')),
+        장기요양: sum((r) => ded(r, '장기요양')), 고용보험: sum((r) => ded(r, '고용보험')),
+        소득세: sum((r) => ded(r, '소득세')), 지방소득세: sum((r) => ded(r, '지방소득세')),
+        total: sum((r) => Number((r.deductions as Record<string, number> | null)?.total ?? 0)),
+      },
+      byCenter: [...byCenter.values()].sort((a, b) => b.net - a.net),
+      rows: scoped.map((r) => ({
+        teacherId: r.teacher_id, name: r.teacher_profile.account.name,
+        center: r.teacher_profile.center?.name ?? '-',
+        gross: r.confirmed_amount ?? 0, net: r.net_amount ?? 0, status: r.status,
+      })).sort((a, b) => b.net - a.net),
+    };
+  }
+
+  /** 명세서 데이터(본인 또는 관리자) — 인쇄·PDF 저장용. */
+  async payslip(teacherId: string, actor: AuthUser, period?: string) {
+    const isSelf = actor.role === AccountRole.TEACHER && actor.id === teacherId;
+    const isAdmin = actor.role === AccountRole.ADMIN || actor.role === AccountRole.HR;
+    if (!isSelf && !isAdmin) throw new ForbiddenException('명세서 조회 권한이 없습니다.');
+    const { start, label } = this.periodBounds(period);
+    const row = await this.prisma.payroll_estimate.findFirst({
+      where: { teacher_id: teacherId, cycle: 'monthly', period_start: start },
+      include: { teacher_profile: { include: { account: { select: { name: true } }, center: { select: { name: true } } } } },
+    });
+    if (!row) throw new NotFoundException('해당 기간 확정 정산이 없습니다.');
+    return {
+      period: label,
+      teacherName: row.teacher_profile.account.name,
+      center: row.teacher_profile.center?.name ?? '-',
+      status: row.status,
+      paidAt: row.paid_at,
+      gross: row.confirmed_amount ?? 0,
+      deductions: row.deductions,
+      net: row.net_amount ?? 0,
+      breakdown: row.breakdown,
+    };
   }
 
   private async compute(teacherId: string, actor: AuthUser) {
