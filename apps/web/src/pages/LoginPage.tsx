@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
@@ -14,6 +14,28 @@ export function LoginPage() {
   const [busy, setBusy] = useState(false);
 
   if (user) navigate(roleHome(user.role), { replace: true });
+
+  // URL ?u=아이디&p=비번 → 자동 로그인(데모 편의). 예: /login?u=admin01&p=dev-password!
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const u = q.get('u');
+    const p = q.get('p');
+    if (!u || !p) return;
+    setLoginId(u);
+    setPassword(p);
+    (async () => {
+      setBusy(true);
+      try {
+        const me = await login(u, p);
+        navigate(roleHome(me.role), { replace: true });
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : '자동 로그인 실패');
+      } finally {
+        setBusy(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api, ApiError } from '../api';
 import { C, R, SP, ui } from '../theme';
@@ -29,6 +29,23 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
       setBusy(false);
     }
   }
+
+  // URL ?u=아이디&p=비번 → 자동 로그인(데모 편의). 예: /?u=student01&p=dev-password!
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const q = new URLSearchParams(window.location.search);
+    const u = q.get('u');
+    const p = q.get('p');
+    if (!u || !p) return;
+    setLoginId(u);
+    setPassword(p);
+    (async () => {
+      setBusy(true);
+      try { await api.login(u, p); onLogin(); }
+      catch (e) { setError(e instanceof ApiError ? e.message : '자동 로그인 실패'); }
+      finally { setBusy(false); }
+    })();
+  }, []);
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: C.teal }} contentContainerStyle={{ flexGrow: 1 }}>
