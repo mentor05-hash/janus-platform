@@ -37,6 +37,7 @@ import { StudentMembershipPage } from './pages/StudentMembershipPage';
 import { StudentNotificationsPage } from './pages/StudentNotificationsPage';
 import { StudentMaterialsPage } from './pages/StudentMaterialsPage';
 import { AdminCategoriesPage } from './pages/AdminCategoriesPage';
+import { AdminSchedulesPage } from './pages/AdminSchedulesPage';
 
 function Protected({ roles, children }: { roles?: string[]; children: JSX.Element }) {
   const { user, loading } = useAuth();
@@ -97,6 +98,7 @@ export function App() {
         <Route path="announcements" element={<AnnouncementsPage />} />
         <Route path="org" element={<AdminOrgPage />} />
         <Route path="categories" element={<AdminCategoriesPage />} />
+        <Route path="schedules" element={<AdminSchedulesPage />} />
         <Route path="member-types" element={<AdminMemberTypesPage />} />
         <Route path="evaluation" element={<AdminEvaluationPage />} />
         <Route path="analytics" element={<AdminAnalyticsPage />} />

@@ -89,7 +89,9 @@ export class AvailabilityService {
     // 주별 근무계획(week_plans)이 있으면 그 주 템플릿, 없으면 기본(recurring_template)
     const plans = readWeekPlans((ws as { week_plans?: unknown } | undefined)?.week_plans);
     const plan = plans.find((p) => p.weekStart === mondayOf(dateStr));
-    const template = (plan?.template ?? (ws?.recurring_template as unknown as WeeklyTemplate)) ?? {};
+    const recurring = (ws?.recurring_template as unknown as WeeklyTemplate) ?? {};
+    // 주계획은 부분 override — 지정한 요일만 덮어쓰고(휴무=빈 배열), 미지정 요일은 기본 유지.
+    const template: WeeklyTemplate = plan ? { ...recurring, ...plan.template } : recurring;
     let work = this.windowsToIntervals(template[weekday]);
     // 사유 제외(연차·반차·병가): 연차·병가=종일 제외, 반차=오후(13:00~) 제외.
     const leave = this.readLeaves(ws?.weekly_overrides).find((l) => l.date === dateStr);
@@ -138,7 +140,9 @@ export class AvailabilityService {
     // 주별 근무계획(week_plans)이 있으면 그 주 템플릿, 없으면 기본(recurring_template)
     const plans = readWeekPlans((ws as { week_plans?: unknown } | undefined)?.week_plans);
     const plan = plans.find((p) => p.weekStart === mondayOf(dateStr));
-    const template = (plan?.template ?? (ws?.recurring_template as unknown as WeeklyTemplate)) ?? {};
+    const recurring = (ws?.recurring_template as unknown as WeeklyTemplate) ?? {};
+    // 주계획은 부분 override — 지정한 요일만 덮어쓰고(휴무=빈 배열), 미지정 요일은 기본 유지.
+    const template: WeeklyTemplate = plan ? { ...recurring, ...plan.template } : recurring;
     let work = this.windowsToIntervals(template[weekday]);
     // 사유 제외(연차·반차·병가): 연차·병가=종일 제외, 반차=오후(13:00~) 제외.
     const leave = this.readLeaves(ws?.weekly_overrides).find((l) => l.date === dateStr);
@@ -270,6 +274,38 @@ export class AvailabilityService {
     };
   }
 
+  /** 관리자: 선생님별 근무시간 일괄 적용(아이디로 매칭). 기본/주계획 함께. */
+  async bulkApplySchedules(
+    actor: { id: string; role: string; centerId?: string | null },
+    items: { loginId: string; recurringTemplate?: WeeklyTemplate; weekPlans?: WeekPlan[] }[],
+    todayStr: string,
+  ) {
+    if (!(actor.role === 'admin' || actor.role === 'hr')) {
+      throw new ForbiddenException('관리자/HR만 일괄 적용할 수 있습니다.');
+    }
+    const results: { loginId: string; ok: boolean; error?: string }[] = [];
+    for (const it of items) {
+      try {
+        const acc = await this.prisma.account.findUnique({ where: { login_id: it.loginId } });
+        if (!acc || acc.role !== 'teacher') { results.push({ loginId: it.loginId, ok: false, error: '선생님 계정 없음' }); continue; }
+        // 센터 관리자는 자기 센터 소속만(본사 admin=센터無 는 전체 허용)
+        if (actor.role !== 'hr' && actor.centerId && acc.center_id && acc.center_id !== actor.centerId) {
+          results.push({ loginId: it.loginId, ok: false, error: '다른 센터 소속' }); continue;
+        }
+        if (it.recurringTemplate && Object.keys(it.recurringTemplate).length) {
+          await this.putWorkSchedule(acc.id, { recurringTemplate: it.recurringTemplate }, actor);
+        }
+        if (it.weekPlans && it.weekPlans.length) {
+          await this.saveWeekPlans(acc.id, it.weekPlans, actor, todayStr);
+        }
+        results.push({ loginId: it.loginId, ok: true });
+      } catch (e) {
+        results.push({ loginId: it.loginId, ok: false, error: e instanceof Error ? e.message : '적용 실패' });
+      }
+    }
+    return { results, applied: results.filter((r) => r.ok).length, total: results.length };
+  }
+
   /** 주계획 저장. 다음 주 이후(미래)만 허용, 최대 8주(약 2달). */
   async saveWeekPlans(teacherId: string, plans: WeekPlan[], actor: { id: string; role: string }, todayStr: string) {
     this.assertScheduleOwner(teacherId, actor);
@@ -298,7 +334,10 @@ export class AvailabilityService {
       where: { teacher_id: teacherId, status: { in: ACTIVE_STATUSES }, start_at: { gte: rangeStart, lt: rangeEnd } },
       include: { student_profile: { include: { account: { select: { name: true } } } } },
     });
-    const planByWeek = new Map(clean.map((p) => [p.weekStart, p.template]));
+    const wsRow = await this.prisma.work_schedule.findFirst({ where: { teacher_id: teacherId } });
+    const recurring = (wsRow?.recurring_template as unknown as WeeklyTemplate) ?? {};
+    // 부분 override 반영: 계획 요일만 덮고 미지정 요일은 기본
+    const planByWeek = new Map(clean.map((p) => [p.weekStart, { ...recurring, ...p.template } as WeeklyTemplate]));
     const conflicts: {
       bookingId: string; date: string; startMin: number; endMin: number;
       studentId: string; studentName: string; consultType: string | null; mode: string;

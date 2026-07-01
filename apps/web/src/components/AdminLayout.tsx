@@ -37,6 +37,7 @@ export function AdminLayout() {
               <NavLink to="/admin/reports" className={navCls}>신고</NavLink>
               <NavLink to="/admin/announcements" className={navCls}>공지</NavLink>
               <NavLink to="/admin/member-types" className={navCls}>회원 분류</NavLink>
+              <NavLink to="/admin/schedules" className={navCls}>근무 일괄업로드</NavLink>
               <NavLink to="/admin/evaluation" className={navCls}>평가·순위</NavLink>
               <NavLink to="/admin/analytics" className={navCls}>센터 분석</NavLink>
               {/* 조직 관리는 본사 이상(전사) 전용 */}

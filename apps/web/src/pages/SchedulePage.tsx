@@ -55,7 +55,8 @@ function cellsToTpl(cells: Record<number, Set<number>>): Tpl {
       else { wins.push({ start: hhmm(rowMin(start)), end: hhmm(rowMin(prev as number) + STEP) }); start = i; prev = i; }
     }
     if (start !== null) wins.push({ start: hhmm(rowMin(start)), end: hhmm(rowMin(prev as number) + STEP) });
-    if (wins.length) tpl[String(wd)] = wins;
+    // 시각 편집기는 전체 주를 나타냄 — 빈 요일도 []로 명시(그 주 휴무). 주계획 저장 시 부분 override 로 정확히 반영.
+    tpl[String(wd)] = wins;
   }
   return tpl;
 }
@@ -124,33 +125,73 @@ export function SchedulePage() {
   function delWin(wd: number, i: number) { applyTpl({ ...timeTpl, [String(wd)]: (timeTpl[String(wd)] ?? []).filter((_, idx) => idx !== i) }); }
   function applyTpl(tpl: Tpl) { setCells(tplToCells(tpl)); }
 
-  // ── 엑셀(CSV) ──
+  // ── 엑셀(CSV) — 기본 + 주별을 한 파일로. '주'=기본 또는 그 주 월요일 날짜, 하루 여러 줄=분할근무, 휴무=시간 비움 ──
   function downloadTemplate() {
-    const rows = [['요일', '시작', '종료'], ...DAY_ORDER.flatMap((wd) => {
-      const wins = timeTpl[String(wd)] ?? [];
-      return wins.length ? wins.map((w) => [WD_LABEL[wd], w.start, w.end]) : [[WD_LABEL[wd], '', '']];
-    })];
-    const csv = '﻿' + rows.map((r) => r.join(',')).join('\n');
+    const nm1 = mondayOf(new Date()); nm1.setDate(nm1.getDate() + 7);
+    const nm2 = new Date(nm1); nm2.setDate(nm1.getDate() + 7);
+    const d1 = iso(nm1), d2 = iso(nm2);
+    const rows: string[][] = [
+      ['주', '요일', '시작', '종료', '설명'],
+      ['# 주=기본(매주 반복) 또는 특정 주 월요일 날짜(YYYY-MM-DD). 하루에 여러 줄이면 분할근무. 휴무는 시작·종료를 비웁니다. 설명 칸은 참고용(무시).', '', '', '', ''],
+      ['기본', '월', '09:00', '18:00', '종일 근무'],
+      ['기본', '화', '09:00', '12:00', '오전 근무(분할)'],
+      ['기본', '화', '17:00', '21:00', '오전 근무 후 쉬고 저녁 근무(분할)'],
+      ['기본', '수', '13:00', '21:00', '오후~저녁 근무'],
+      ['기본', '목', '09:00', '13:00', '오전(분할)'],
+      ['기본', '목', '14:00', '18:00', '오후(분할)'],
+      ['기본', '금', '09:00', '12:00', '오전만 근무'],
+      ['기본', '토', '10:00', '14:00', '주말 근무'],
+      ['기본', '일', '', '', '휴무(시작·종료 비움)'],
+      [d1, '월', '10:00', '15:00', `${d1} 주만 다르게 — 그 주 월요일 날짜로 지정`],
+      [d1, '수', '', '', '그 주 수요일 휴무'],
+      [d2, '화', '18:00', '22:00', `${d2} 주 화요일 저녁만`],
+    ];
+    const csv = '﻿' + rows.map((r) => r.map((c) => (/[,"]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c)).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = '근무시간_양식.csv'; a.click(); URL.revokeObjectURL(a.href);
   }
-  function onExcel(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0]; if (!f) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const text = String(reader.result).replace(/^﻿/, '');
-        const tpl: Tpl = {};
-        text.split(/\r?\n/).slice(1).forEach((line) => {
-          const [wdName, s, en] = line.split(',').map((x) => x?.trim());
-          const wd = WD_LABEL.indexOf(wdName);
-          if (wd < 0 || !/^\d{1,2}:\d{2}$/.test(s ?? '') || !/^\d{1,2}:\d{2}$/.test(en ?? '')) return;
-          (tpl[String(wd)] ??= []).push({ start: s, end: en });
-        });
-        applyTpl(tpl); setMsg('엑셀(CSV) 근무시간을 적용했어요. 저장을 눌러 반영하세요.');
-      } catch { setError('엑셀 파싱 실패 — 양식(요일,시작,종료)을 확인하세요.'); }
-    };
-    reader.readAsText(f); e.target.value = '';
+  function parseCsvLine(line: string): string[] {
+    const out: string[] = []; let cur = '', q = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (q) { if (c === '"' && line[i + 1] === '"') { cur += '"'; i++; } else if (c === '"') q = false; else cur += c; }
+      else if (c === '"') q = true; else if (c === ',') { out.push(cur); cur = ''; } else cur += c;
+    }
+    out.push(cur); return out.map((x) => x.trim());
+  }
+  async function onExcel(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]; e.target.value = ''; if (!f) return;
+    setError(''); setMsg('');
+    try {
+      const text = (await f.text()).replace(/^﻿/, '');
+      const recur: Tpl = {};
+      const byWeek: Record<string, Tpl> = {};
+      let hasRecur = false;
+      for (const line of text.split(/\r?\n/).slice(1)) {
+        if (!line.trim() || line.trim().startsWith('#')) continue;
+        const [wk, wdName, s, en] = parseCsvLine(line);
+        if (!wk) continue;
+        const wd = WD_LABEL.indexOf(wdName);
+        if (wd < 0) continue;
+        const valid = /^\d{1,2}:\d{2}$/.test(s ?? '') && /^\d{1,2}:\d{2}$/.test(en ?? ''); // 휴무행=빈칸 → []로 명시(그 날 off)
+        if (wk === '기본') { const arr = (recur[String(wd)] ??= []); if (valid) arr.push({ start: s, end: en }); hasRecur = true; }
+        else if (/^\d{4}-\d{2}-\d{2}$/.test(wk)) { const key = iso(mondayOf(new Date(wk + 'T00:00:00'))); const t = (byWeek[key] ??= {}); const arr = (t[String(wd)] ??= []); if (valid) arr.push({ start: s, end: en }); }
+      }
+      const uploadedPlans: WeekPlan[] = Object.entries(byWeek).map(([weekStart, template]) => ({ weekStart, template }));
+      const parts: string[] = [];
+      if (hasRecur) parts.push('기본 근무시간');
+      if (uploadedPlans.length) parts.push(`${uploadedPlans.length}개 주 계획`);
+      if (!parts.length) { setError('엑셀에서 유효한 근무시간을 찾지 못했어요. 양식(주,요일,시작,종료)을 확인하세요.'); return; }
+      if (!window.confirm(`엑셀로 ${parts.join(' + ')}을 일괄 적용·저장할까요?`)) return;
+      setBusy(true);
+      if (hasRecur) await api.put(`/teachers/${teacherId}/work-schedule`, { recurringTemplate: recur });
+      if (uploadedPlans.length) {
+        const merged = [...plans.filter((p) => !uploadedPlans.some((u) => u.weekStart === p.weekStart)), ...uploadedPlans];
+        await api.put(`/teachers/${teacherId}/week-plans`, { weekPlans: merged });
+      }
+      await load();
+      setMsg(`엑셀 적용 완료 — ${parts.join(' + ')} 저장됨.`);
+    } catch (er) { setError(er instanceof ApiError ? er.message : '엑셀 처리 실패'); } finally { setBusy(false); }
   }
 
   // ── 저장(충돌 검사 포함) ──
@@ -167,6 +208,15 @@ export function SchedulePage() {
         else await commitWeek(tpl);
       }
     } catch (e) { setError(e instanceof ApiError ? e.message : '저장 실패'); } finally { setBusy(false); }
+  }
+  async function deleteWeekPlan() {
+    if (isDefault) return;
+    setBusy(true); setError(''); setMsg('');
+    try {
+      const next = plans.filter((p) => p.weekStart !== week);
+      await api.put(`/teachers/${teacherId}/week-plans`, { weekPlans: next });
+      setMsg('이 주 계획을 삭제했어요. 기본 근무시간이 적용됩니다.'); await load();
+    } catch (e) { setError(e instanceof ApiError ? e.message : '삭제 실패'); } finally { setBusy(false); }
   }
   async function commitWeek(tpl: Tpl) {
     const next = [...plans.filter((p) => p.weekStart !== week), { weekStart: week, template: tpl }];
@@ -220,6 +270,12 @@ export function SchedulePage() {
           <p style={{ marginTop: 10, marginBottom: 0, fontSize: 13, color: '#92600a', background: '#FEF6E7', border: '1px solid #F0DCAE', borderRadius: 9, padding: '8px 10px' }}>
             ⓘ 이 주는 아직 설정되지 않아 <b>기본 근무시간</b>이 적용됩니다. 아래에서 변경 후 저장하면 이 주에만 적용됩니다.
           </p>
+        )}
+        {!isDefault && planForWeek && (
+          <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13, color: 'var(--muted)' }}>이 주는 개별 근무계획이 저장되어 있어요.</span>
+            <Button size="sm" variant="ghost" onClick={deleteWeekPlan} loading={busy}>이 주 계획 삭제(기본으로 되돌리기)</Button>
+          </div>
         )}
       </Card>
 
@@ -279,20 +335,34 @@ export function SchedulePage() {
         )}
 
         {mode === 'excel' && (
-          <div style={{ display: 'grid', gap: 10, maxWidth: 520 }}>
-            <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>엑셀(CSV) 양식을 내려받아 <b>요일,시작,종료</b> 형식으로 채운 뒤 업로드하면 적용됩니다. (예: <code>월,09:00,18:00</code>)</p>
+          <div style={{ display: 'grid', gap: 10, maxWidth: 620 }}>
+            <p style={{ fontSize: 13, color: 'var(--muted)', margin: 0 }}>
+              양식을 내려받아 <b>기본 근무 + 주별 근무</b>를 한 파일로 채운 뒤 업로드하면 <b>일괄 적용·저장</b>됩니다.
+              <br />· <b>주</b> = <code>기본</code>(매주 반복) 또는 특정 주 월요일 날짜(<code>YYYY-MM-DD</code>)
+              <br />· 하루에 <b>여러 줄</b>이면 <b>분할근무</b>(예: 오전 근무 후 쉬고 저녁 근무)
+              <br />· <b>휴무</b>는 시작·종료를 비웁니다 · 설명 칸은 참고용(무시)
+            </p>
             <div style={{ display: 'flex', gap: 8 }}>
-              <Button variant="ghost" onClick={downloadTemplate}>⬇ 엑셀 양식 내려받기</Button>
+              <Button variant="ghost" onClick={downloadTemplate}>⬇ 엑셀 양식(예시 포함) 내려받기</Button>
               <label className="btn ghost" style={{ cursor: 'pointer' }}>
-                ⬆ 엑셀 업로드<input type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={onExcel} />
+                ⬆ 엑셀 업로드(일괄 적용)<input type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={onExcel} />
               </label>
             </div>
-            <div style={{ fontSize: 12, color: 'var(--muted)', background: 'var(--fill,#f6f8fa)', borderRadius: 8, padding: 10, fontFamily: 'monospace' }}>
-              요일,시작,종료<br />월,09:00,18:00<br />화,09:00,13:00<br />화,14:00,18:00
+            <div style={{ fontSize: 12, color: 'var(--muted)', background: 'var(--fill,#f6f8fa)', borderRadius: 8, padding: 10, fontFamily: 'monospace', whiteSpace: 'pre', overflowX: 'auto' }}>
+{`주,요일,시작,종료,설명
+기본,월,09:00,18:00,종일 근무
+기본,화,09:00,12:00,오전 근무(분할)
+기본,화,17:00,21:00,오전 근무 후 쉬고 저녁 근무
+기본,수,13:00,21:00,오후~저녁
+기본,금,09:00,12:00,오전만
+기본,토,10:00,14:00,주말 근무
+기본,일,,,휴무(비움)
+2026-07-13,월,10:00,15:00,그 주만 다르게
+2026-07-13,수,,,그 주 수요일 휴무`}
             </div>
           </div>
         )}
-        <div style={{ marginTop: 14 }}><Button onClick={save} loading={busy}>{isDefault ? '기본 근무 저장' : '이 주 저장'}</Button></div>
+        {mode !== 'excel' && <div style={{ marginTop: 14 }}><Button onClick={save} loading={busy}>{isDefault ? '기본 근무 저장' : '이 주 저장'}</Button></div>}
       </Card>
 
       {/* 사유로 제외 */}
