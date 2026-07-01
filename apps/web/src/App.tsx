@@ -26,6 +26,7 @@ import { AdminMemberTypesPage } from './pages/AdminMemberTypesPage';
 import { AdminEvaluationPage } from './pages/AdminEvaluationPage';
 import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
 import { AdminReversePage } from './pages/AdminReversePage';
+import { TeacherDashboardPage } from './pages/TeacherDashboardPage';
 import { StudentLayout } from './components/StudentLayout';
 import { StudentBookingsPage } from './pages/StudentBookingsPage';
 import { StudentSearchPage } from './pages/StudentSearchPage';
@@ -58,7 +59,8 @@ export function App() {
           </Protected>
         }
       >
-        <Route index element={<Navigate to="bookings" replace />} />
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard" element={<TeacherDashboardPage />} />
         <Route path="bookings" element={<TeacherBookingsPage />} />
         <Route path="bookings/:id/note" element={<NotePage />} />
         <Route path="schedule" element={<SchedulePage />} />

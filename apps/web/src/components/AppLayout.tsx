@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 const navCls = ({ isActive }: { isActive: boolean }) => (isActive ? 'nav-item active' : 'nav-item');
 
 const NAV = [
+  { to: '/app/dashboard', label: '대시보드' },
   { to: '/app/bookings', label: '예약' },
   { to: '/app/schedule', label: '근무·슬롯' },
   { to: '/app/evaluations', label: '받은 평가' },
