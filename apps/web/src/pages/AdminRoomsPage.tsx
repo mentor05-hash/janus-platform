@@ -10,6 +10,7 @@ const STATUS: Record<string, { label: string; kind: 'done' | 'confirmed' | 'canc
   available: { label: '이용 가능', kind: 'done' },
   busy: { label: '사용 중', kind: 'confirmed' },
   occupied: { label: '사용 중', kind: 'confirmed' },
+  inuse: { label: '사용 중', kind: 'confirmed' },
   closed: { label: '운영 종료', kind: 'cancelled' },
 };
 
@@ -45,9 +46,21 @@ export function AdminRoomsPage() {
       setError(e instanceof ApiError ? e.message : '추가 실패');
     }
   }
+  async function saveRoom(id: string, patch: Record<string, unknown>) {
+    setMsg('');
+    try { await api.put(`/admin/rooms/${id}`, patch); await load(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : '수정 실패'); }
+  }
+  async function delRoom(id: string) {
+    if (!window.confirm('이 상담실을 삭제할까요?')) return;
+    setMsg('');
+    try { await api.del(`/admin/rooms/${id}`); setMsg('상담실이 삭제되었습니다.'); await load(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : '삭제 실패'); }
+  }
+  const nextStatus = (s: string | null) => (s === 'available' || s === 'open' ? 'inuse' : s === 'inuse' || s === 'busy' || s === 'occupied' ? 'closed' : 'available');
 
   const total = rooms.length;
-  const inUse = rooms.filter((r) => r.status === 'busy' || r.status === 'occupied').length;
+  const inUse = rooms.filter((r) => r.status === 'busy' || r.status === 'occupied' || r.status === 'inuse').length;
   const closed = rooms.filter((r) => r.status === 'closed').length;
   const available = total - inUse - closed;
   const util = total ? Math.round((inUse / total) * 100) : 0;
@@ -57,7 +70,14 @@ export function AdminRoomsPage() {
     { key: 'type', header: '유형', render: (r) => r.type ?? '-' },
     { key: 'cap', header: '수용', render: (r) => `${r.capacity ?? 1}명` },
     { key: 'hours', header: '운영 시간', render: (r) => r.operating_hours ?? '자동' },
-    { key: 'status', header: '상태', render: (r) => { const s = STATUS[r.status ?? 'open'] ?? STATUS.open; return <Badge kind={s.kind}>{s.label}</Badge>; } },
+    { key: 'setting', header: '설정', render: (r) => (
+      <button onClick={() => saveRoom(r.id, { setting: r.setting === 'manual' ? 'auto' : 'manual' })}
+        style={{ cursor: 'pointer', border: '1px solid var(--line)', borderRadius: 7, padding: '3px 9px', fontSize: 12, fontWeight: 700, background: r.setting === 'manual' ? 'var(--teal-50,#F0F7FA)' : '#fff', color: r.setting === 'manual' ? 'var(--teal)' : 'var(--muted)' }}>
+        {r.setting === 'manual' ? '수동 설정' : '자동 계산'}
+      </button>
+    ) },
+    { key: 'status', header: '상태', render: (r) => { const s = STATUS[r.status ?? 'open'] ?? STATUS.open; return <button onClick={() => saveRoom(r.id, { status: nextStatus(r.status) })} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}><Badge kind={s.kind}>{s.label} ⟳</Badge></button>; } },
+    { key: 'actions', header: '', align: 'right', render: (r) => <Button size="sm" variant="danger" onClick={() => delRoom(r.id)}>삭제</Button> },
   ];
 
   return (

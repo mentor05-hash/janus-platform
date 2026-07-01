@@ -10,6 +10,7 @@ import {
   CreateBlockedTimeDto,
   CreateRoomDto,
   SetZoomPolicyDto,
+  UpdateRoomDto,
 } from './dto/admin-infra.dto';
 
 /**
@@ -29,10 +30,22 @@ export class AdminInfraService {
   // ── 줌 정책(center PK) ──
   async getZoomPolicy(actor: AuthUser) {
     const centerId = this.requireCenter(actor);
-    const zp = await this.prisma.zoom_policy.findUnique({
-      where: { center_id: centerId },
-    });
-    return zp ?? { center_id: centerId, concurrent_limit: 6, allow_map: {} };
+    const now = new Date();
+    const [zp, currentUsage] = await Promise.all([
+      this.prisma.zoom_policy.findUnique({ where: { center_id: centerId } }),
+      // 지금 진행 중인 줌 예약 수(동시 사용량) — 한도 임박 표시용
+      this.prisma.booking.count({
+        where: {
+          center_id: centerId,
+          mode: 'zoom',
+          status: { in: ['new', 'confirmed'] },
+          start_at: { lte: now },
+          end_at: { gt: now },
+        },
+      }),
+    ]);
+    const base = zp ?? { center_id: centerId, concurrent_limit: 6, allow_map: {} };
+    return { ...base, currentUsage };
   }
 
   async setZoomPolicy(dto: SetZoomPolicyDto, actor: AuthUser) {
@@ -71,6 +84,34 @@ export class AdminInfraService {
         setting: dto.setting ?? 'auto',
       },
     });
+  }
+
+  async updateRoom(id: string, dto: UpdateRoomDto, actor: AuthUser) {
+    const centerId = this.requireCenter(actor);
+    const room = await this.prisma.room.findUnique({ where: { id } });
+    if (!room || room.center_id !== centerId)
+      throw new NotFoundException('상담실을 찾을 수 없습니다.');
+    return this.prisma.room.update({
+      where: { id },
+      data: {
+        ...(dto.type !== undefined ? { type: dto.type } : {}),
+        ...(dto.capacity !== undefined ? { capacity: dto.capacity } : {}),
+        ...(dto.operatingHours !== undefined
+          ? { operating_hours: dto.operatingHours }
+          : {}),
+        ...(dto.setting !== undefined ? { setting: dto.setting } : {}),
+        ...(dto.status !== undefined ? { status: dto.status } : {}),
+      },
+    });
+  }
+
+  async deleteRoom(id: string, actor: AuthUser) {
+    const centerId = this.requireCenter(actor);
+    const room = await this.prisma.room.findUnique({ where: { id } });
+    if (!room || room.center_id !== centerId)
+      throw new NotFoundException('상담실을 찾을 수 없습니다.');
+    await this.prisma.room.delete({ where: { id } });
+    return { id };
   }
 
   // ── 차단 시간 ──

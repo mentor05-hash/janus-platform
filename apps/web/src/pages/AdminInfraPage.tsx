@@ -8,6 +8,7 @@ const ZHOURS = [14, 15, 16, 17, 18, 19, 20];
 
 export function AdminInfraPage() {
   const [zoom, setZoom] = useState<number>(6);
+  const [zoomUsage, setZoomUsage] = useState<number>(0);
   const [allowMap, setAllowMap] = useState<Record<string, boolean>>({});
   const [rooms, setRooms] = useState<Room[]>([]);
   const [blocked, setBlocked] = useState<BlockedTime[]>([]);
@@ -21,6 +22,7 @@ export function AdminInfraPage() {
       const zp = await api.get<ZoomPolicy>('/admin/zoom-policy');
       setZoom(zp.concurrent_limit);
       setAllowMap(zp.allow_map ?? {});
+      setZoomUsage(zp.currentUsage ?? 0);
       setRooms(await api.get<Room[]>('/admin/rooms'));
       setBlocked(await api.get<BlockedTime[]>('/admin/blocked-times'));
       setError('');
@@ -56,6 +58,9 @@ export function AdminInfraPage() {
           <label className="label" style={{ margin: 0 }}>동시 줌 한도</label>
           <input className="input" style={{ width: 90 }} type="number" value={zoom} onChange={(e) => setZoom(Number(e.target.value))} />
           <Button size="sm" onClick={() => run(() => api.put('/admin/zoom-policy', { concurrentLimit: zoom, allowMap }), '줌 설정 저장됨')}>저장</Button>
+          <Badge kind={zoomUsage >= zoom ? 'rejected' : zoomUsage >= zoom - 1 ? 'confirmed' : 'soft'}>
+            현재 {zoomUsage}/{zoom}{zoomUsage >= zoom ? ' · 만석' : zoomUsage >= zoom - 1 ? ' · 한도 임박' : ''}
+          </Badge>
           <span style={{ fontSize: 12, color: 'var(--muted)' }}>칸을 클릭해 허용/차단을 토글하세요.</span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: `46px repeat(7, 1fr)`, gap: 4, maxWidth: 560 }}>

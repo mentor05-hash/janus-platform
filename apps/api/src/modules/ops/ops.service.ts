@@ -50,6 +50,48 @@ export class OpsService {
       }),
     ]);
 
+    // 주별 매칭 추이(최근 6주): 신청=생성 주, 성사=완료(done, start_at) 주
+    const WEEKS = 6;
+    const weekMs = 7 * 86_400_000;
+    const trendStart = new Date(now.getTime() - WEEKS * weekMs);
+    const [createdRows, doneRows] = await Promise.all([
+      this.prisma.booking.findMany({
+        where: { ...centerWhere, created_at: { gte: trendStart } },
+        select: { created_at: true },
+      }),
+      this.prisma.booking.findMany({
+        where: {
+          ...centerWhere,
+          status: BookingStatus.DONE,
+          start_at: { gte: trendStart },
+        },
+        select: { start_at: true },
+      }),
+    ]);
+    const bucket = (d: Date) =>
+      Math.min(WEEKS - 1, Math.floor((now.getTime() - d.getTime()) / weekMs));
+    const trend = Array.from({ length: WEEKS }, (_, i) => ({
+      weeksAgo: WEEKS - 1 - i,
+      applied: 0,
+      matched: 0,
+    }));
+    for (const r of createdRows) trend[WEEKS - 1 - bucket(r.created_at)].applied += 1;
+    for (const r of doneRows)
+      if (r.start_at) trend[WEEKS - 1 - bucket(r.start_at)].matched += 1;
+
+    // 등급별 급여표(센터 정책 → 없으면 전사 공통)
+    const policies = await this.prisma.payroll_policy.findMany({
+      where: centerId ? { center_id: centerId } : {},
+    });
+    const pol = policies[0] ?? null;
+    const gradeMap = (pol?.grade_allowance as Record<string, number> | null) ?? {};
+    const gradePayTable = ['S', 'A', 'B'].map((g) => ({
+      grade: g,
+      perCaseRate: pol?.per_case_rate ?? 30000,
+      hourlyRate: pol?.hourly_rate ?? 0,
+      gradeAllowance: gradeMap[g] ?? 0,
+    }));
+
     const matchRate =
       totalBookings === 0
         ? 0
@@ -79,6 +121,8 @@ export class OpsService {
         avgSatisfaction,
         gradeDistribution,
         teacherCount: teachers.length,
+        trend,
+        gradePayTable,
       },
       meta: {
         generatedAt: now.toISOString(),

@@ -16,6 +16,7 @@ import {
   CreateBlockedTimeDto,
   CreateRoomDto,
   SetZoomPolicyDto,
+  UpdateRoomDto,
 } from './dto/admin-infra.dto';
 
 /** 관리자 인프라(줌·상담실·차단). 관리자 전용. */
@@ -40,6 +41,21 @@ export class AdminInfraController {
   @Post('rooms')
   createRoom(@Body() dto: CreateRoomDto, @CurrentUser() user: AuthUser) {
     return this.infra.createRoom(dto, user);
+  }
+  @Put('rooms/:id')
+  updateRoom(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateRoomDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.infra.updateRoom(id, dto, user);
+  }
+  @Delete('rooms/:id')
+  deleteRoom(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.infra.deleteRoom(id, user);
   }
 
   @Get('blocked-times')

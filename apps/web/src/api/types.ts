@@ -137,6 +137,8 @@ export interface Dashboard {
   avgSatisfaction?: number | null;
   gradeDistribution?: Record<string, number>;
   teacherCount?: number;
+  trend?: { weeksAgo: number; applied: number; matched: number }[];
+  gradePayTable?: { grade: string; perCaseRate: number; hourlyRate: number; gradeAllowance: number }[];
 }
 
 export interface PricingPolicy {
@@ -179,6 +181,7 @@ export interface ZoomPolicy {
   center_id: string;
   concurrent_limit: number;
   allow_map?: Record<string, boolean>;
+  currentUsage?: number;
 }
 
 export interface Room {

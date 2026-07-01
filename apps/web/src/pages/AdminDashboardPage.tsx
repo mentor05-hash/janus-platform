@@ -69,6 +69,54 @@ export function AdminDashboardPage() {
           })()}
         </Card>
       )}
+
+      {d.trend && d.trend.length > 0 && (
+        <Card title="주별 매칭 추이 (신청 vs 성사, 최근 6주)" style={{ marginTop: 16, maxWidth: 620 }}>
+          {(() => {
+            const max = Math.max(1, ...d.trend!.flatMap((t) => [t.applied, t.matched]));
+            return (
+              <>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', height: 110 }}>
+                  {d.trend!.map((t, i) => (
+                    <div key={i} style={{ flex: 1, display: 'flex', gap: 3, alignItems: 'flex-end', height: '100%' }}>
+                      <div title={`신청 ${t.applied}`} style={{ flex: 1, background: '#CBD5DA', height: `${(t.applied / max) * 100}%`, borderRadius: '4px 4px 0 0', minHeight: 2 }} />
+                      <div title={`성사 ${t.matched}`} style={{ flex: 1, background: 'var(--teal)', height: `${(t.matched / max) * 100}%`, borderRadius: '4px 4px 0 0', minHeight: 2 }} />
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+                  {d.trend!.map((t, i) => <div key={i} style={{ flex: 1, textAlign: 'center', fontSize: 11, color: 'var(--muted)' }}>{t.weeksAgo === 0 ? '이번주' : `${t.weeksAgo}주전`}</div>)}
+                </div>
+                <div style={{ display: 'flex', gap: 14, marginTop: 8, fontSize: 12, color: 'var(--muted)' }}>
+                  <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: '#CBD5DA', verticalAlign: 'middle', marginRight: 4 }} />신청</span>
+                  <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: 'var(--teal)', verticalAlign: 'middle', marginRight: 4 }} />성사</span>
+                </div>
+              </>
+            );
+          })()}
+        </Card>
+      )}
+
+      {d.gradePayTable && d.gradePayTable.length > 0 && (
+        <Card title="등급별 급여·수당표" style={{ marginTop: 16, maxWidth: 620 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead><tr style={{ textAlign: 'left', color: 'var(--muted)' }}><th style={pth}>등급</th><th style={pth}>건당</th><th style={pth}>시급</th><th style={pth}>등급 수당</th></tr></thead>
+            <tbody>
+              {d.gradePayTable!.map((g) => (
+                <tr key={g.grade} style={{ borderTop: '1px solid var(--line)' }}>
+                  <td style={ptd}><b>{g.grade}</b></td>
+                  <td style={ptd}>{g.perCaseRate.toLocaleString()}원</td>
+                  <td style={ptd}>{g.hourlyRate.toLocaleString()}원</td>
+                  <td style={ptd}>{g.gradeAllowance.toLocaleString()}원</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      )}
     </div>
   );
 }
+
+const pth: React.CSSProperties = { padding: '8px 10px', fontSize: 11, fontWeight: 700 };
+const ptd: React.CSSProperties = { padding: '8px 10px', fontVariantNumeric: 'tabular-nums' };

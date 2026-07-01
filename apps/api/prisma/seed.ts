@@ -147,6 +147,11 @@ async function main() {
       );
     }
 
+    // 4-2) 선생님 평점 기본값(평균 만족도 표시용) — 미설정 시 등급별 시드
+    await client.query(
+      `UPDATE teacher_profile SET rating = CASE grade WHEN 'S' THEN 4.9 WHEN 'A' THEN 4.6 WHEN 'B' THEN 4.2 ELSE 4.4 END WHERE rating IS NULL OR rating = 0`,
+    );
+
     // 5) 더미 계정(역할별 1) + 프로필
     const accounts: [string, string, string, string][] = [
       [ID.acStudent, 'student', 'student01', '학생더미'],
