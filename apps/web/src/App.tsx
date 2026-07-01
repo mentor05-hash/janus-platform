@@ -16,6 +16,7 @@ import { StudentNotesPage } from './pages/StudentNotesPage';
 import { TeacherMaterialsPage } from './pages/TeacherMaterialsPage';
 import { TeacherQnaPage } from './pages/TeacherQnaPage';
 import { TeacherRecordsPage } from './pages/TeacherRecordsPage';
+import { TeacherProfilePage } from './pages/TeacherProfilePage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { AdminPolicyPage } from './pages/AdminPolicyPage';
 import { HrStudentsPage } from './pages/HrStudentsPage';
@@ -83,6 +84,7 @@ export function App() {
         <Route path="payroll" element={<PayrollPage />} />
         <Route path="materials" element={<TeacherMaterialsPage />} />
         <Route path="records" element={<TeacherRecordsPage />} />
+        <Route path="profile" element={<TeacherProfilePage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="students/:studentId/notes" element={<StudentNotesPage />} />
       </Route>

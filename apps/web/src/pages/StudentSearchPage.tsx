@@ -211,7 +211,7 @@ function BookingForm({ teacher, onDone, onBack }: { teacher: Teacher; onDone: ()
   );
 }
 
-type TeacherDetail = Teacher & { career?: string | null; subSubjects?: string[] };
+type TeacherDetail = Teacher & { career?: string | null; subSubjects?: string[]; intro?: string | null; strengths?: string[]; reRequestRate?: number | null; avgResponseMin?: number | null };
 
 function TeacherDetailView({ teacher, onBook, onBack }: { teacher: Teacher; onBook: () => void; onBack: () => void }) {
   const [detail, setDetail] = useState<TeacherDetail>(teacher);
@@ -245,10 +245,17 @@ function TeacherDetailView({ teacher, onBook, onBack }: { teacher: Teacher; onBo
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--line)' }}>
+        {(detail.strengths?.length ?? 0) > 0 && (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12 }}>
+            {detail.strengths!.map((s) => <Badge key={s} kind="soft">#{s}</Badge>)}
+          </div>
+        )}
+        {detail.intro && <p style={{ fontSize: 14, color: 'var(--ink)', margin: '10px 0 0', lineHeight: 1.6 }}>{detail.intro}</p>}
+        <div style={{ display: 'flex', marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--line)', flexWrap: 'wrap' }}>
           {stat('만족도', `★ ${detail.rating ?? 0}`)}
           {stat('누적 상담', `${(detail.totalConsult ?? 0).toLocaleString()}회`)}
-          {stat('질문 답변', `${detail.questionCount ?? 0}회`)}
+          {stat('재요청률', detail.reRequestRate != null ? `${detail.reRequestRate}%` : '-')}
+          {stat('평균 응답', detail.avgResponseMin != null ? `${detail.avgResponseMin}분` : '-')}
         </div>
       </Card>
 
@@ -275,6 +282,7 @@ function TeacherDetailView({ teacher, onBook, onBack }: { teacher: Teacher; onBo
   );
 }
 
+const STRENGTH_POOL = ['개념정리', '문제풀이', '내신대비', '수능대비', '오답관리', '동기부여', '기초탄탄', '심화학습', '입시전략', '멘탈관리'];
 const CTYPES: [string, string][] = [['담임', '🏫'], ['교과', '📐'], ['입시', '🎯'], ['심리', '💬']];
 const SUBTYPES: Record<string, string[]> = {
   담임: ['생활전반', '학습전반'],
@@ -296,9 +304,19 @@ export function StudentSearchPage() {
   const [category, setCategory] = useState('전체');
   const [sort, setSort] = useState('grade');
   const [q, setQ] = useState('');
+  const [needs, setNeeds] = useState<string[]>([]);
+  const [recs, setRecs] = useState<(Teacher & { matchedNeeds?: string[]; strengths?: string[] })[] | null>(null);
   const [error, setError] = useState('');
 
   const subjectFilter = consultType === '교과' ? subType : null;
+
+  async function recommend() {
+    setError('');
+    try {
+      const r = await api.post<(Teacher & { matchedNeeds?: string[] })[]>('/teachers/recommend', { subject: subjectFilter ?? undefined, needs });
+      setRecs(r);
+    } catch (e) { setError(e instanceof ApiError ? e.message : '추천 실패'); }
+  }
 
   useEffect(() => {
     const params = new URLSearchParams();
@@ -399,6 +417,39 @@ export function StudentSearchPage() {
         <div style={{ minWidth: 160 }}><SelectField label="정렬" value={sort} onChange={(e) => setSort(e.target.value)} options={[{ value: 'grade', label: '기본(등급)' }, { value: 'rating', label: '만족도순' }, { value: 'consult', label: '상담횟수순' }, { value: 'question', label: '질문답변순' }, { value: 'offline', label: '오프라인 가능' }]} /></div>
       </div>
       {note && <p style={{ color: 'var(--chip-done)', fontSize: 13 }}>{note}</p>}
+
+      {/* 니즈 기반 맞춤 추천 */}
+      <Card style={{ marginBottom: 14, background: 'var(--teal-50,#F0F7FA)', borderColor: 'var(--teal-100,#DCECF3)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <b style={{ fontSize: 14 }}>✨ 맞춤 추천</b>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>필요한 점을 고르면 선생님 강점·평가로 매칭해 드려요.</span>
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+          {STRENGTH_POOL.map((s) => {
+            const on = needs.includes(s);
+            return <button key={s} onClick={() => setNeeds((p) => on ? p.filter((x) => x !== s) : [...p, s])} style={{ cursor: 'pointer', padding: '5px 12px', borderRadius: 999, fontSize: 13, fontWeight: 700,
+              border: on ? '1px solid var(--teal)' : '1px solid var(--line)', background: on ? 'var(--teal)' : '#fff', color: on ? '#fff' : 'var(--muted)' }}>#{s}</button>;
+          })}
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Button size="sm" onClick={recommend}>맞춤 추천 받기</Button>
+          {recs && <Button size="sm" variant="ghost" onClick={() => setRecs(null)}>추천 닫기</Button>}
+        </div>
+        {recs && (recs.length === 0 ? <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 10 }}>조건에 맞는 선생님이 없어요.</p> : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10, marginTop: 12 }}>
+            {recs.slice(0, 6).map((t) => (
+              <button key={t.id} onClick={() => openDetail(t)} style={{ all: 'unset', cursor: 'pointer' }}>
+                <div style={{ background: '#fff', border: '1px solid var(--line)', borderRadius: 12, padding: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><b style={{ fontSize: 15 }}>{t.name}</b><GradeBadge grade={t.grade} /></div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>{t.subjects.join(', ')} · ⭐ {t.rating ?? 0}</div>
+                  {(t.matchedNeeds?.length ?? 0) > 0 && <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>{t.matchedNeeds!.map((n) => <Badge key={n} kind="done">#{n}</Badge>)}</div>}
+                </div>
+              </button>
+            ))}
+          </div>
+        ))}
+      </Card>
+
       {teachers === null ? <Spinner /> : rows.length === 0 ? <Card><EmptyState>선생님이 없어요.</EmptyState></Card> : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
           {rows.map((t) => (

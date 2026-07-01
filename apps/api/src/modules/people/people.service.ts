@@ -88,7 +88,95 @@ export class PeopleService {
       include: { account: { select: { name: true, center_id: true } } },
     });
     if (!t) throw new NotFoundException('선생님을 찾을 수 없습니다.');
-    return this.toTeacherCard(t);
+    return {
+      ...this.toTeacherCard(t),
+      intro: t.intro ?? null,
+      strengths: t.strengths ?? [],
+      reRequestRate: t.re_request_rate == null ? null : Number(t.re_request_rate),
+      avgResponseMin: t.avg_response_min ?? null,
+    };
+  }
+
+  /** 선생님 본인 프로필 편집(소개·강점·과목·경력·직군). */
+  async updateMyProfile(
+    teacherId: string,
+    dto: {
+      intro?: string;
+      strengths?: string[];
+      subjects?: string[];
+      career?: string;
+      category?: string;
+    },
+  ) {
+    const t = await this.prisma.teacher_profile.findUnique({
+      where: { account_id: teacherId },
+    });
+    if (!t) throw new NotFoundException('선생님 프로필이 없습니다.');
+    const updated = await this.prisma.teacher_profile.update({
+      where: { account_id: teacherId },
+      data: {
+        ...(dto.intro !== undefined ? { intro: dto.intro } : {}),
+        ...(dto.strengths !== undefined ? { strengths: dto.strengths } : {}),
+        ...(dto.subjects !== undefined ? { subjects: dto.subjects } : {}),
+        ...(dto.career !== undefined ? { career: dto.career } : {}),
+        ...(dto.category !== undefined ? { teacher_category: dto.category } : {}),
+      },
+      include: { account: { select: { name: true, center_id: true } } },
+    });
+    return {
+      ...this.toTeacherCard(updated),
+      intro: updated.intro ?? null,
+      strengths: updated.strengths ?? [],
+    };
+  }
+
+  /**
+   * 니즈 기반 선생님 추천(§matching 보강). 학생의 과목·강점 태그와
+   * 선생님 subjects·strengths 교집합 점수 + 평점·상담수로 정렬. 차단 교사 제외.
+   */
+  async recommend(
+    studentId: string,
+    centerId: string | null,
+    dto: { subject?: string; needs?: string[] },
+  ) {
+    const blocked = (
+      await this.prisma.teacher_block.findMany({
+        where: { student_id: studentId },
+        select: { teacher_id: true },
+      })
+    ).map((b) => b.teacher_id);
+    const teachers = await this.prisma.teacher_profile.findMany({
+      where: {
+        ...(centerId ? { center_id: centerId } : {}),
+        ...(blocked.length ? { account_id: { notIn: blocked } } : {}),
+      },
+      include: { account: { select: { name: true, center_id: true } } },
+      take: 300,
+    });
+    const needs = (dto.needs ?? []).map((n) => n.trim()).filter(Boolean);
+    const scored = teachers
+      .map((t) => {
+        const subjectHit = dto.subject && t.subjects.includes(dto.subject) ? 3 : 0;
+        const strengthHits = needs.filter((n) =>
+          (t.strengths ?? []).some((s) => s.includes(n) || n.includes(s)),
+        ).length;
+        const rating = t.rating == null ? 0 : Number(t.rating);
+        const gradeBoost = t.grade === 'S' ? 1.5 : t.grade === 'A' ? 0.8 : 0;
+        const score =
+          subjectHit + strengthHits * 2 + rating + gradeBoost + (t.total_consult ?? 0) / 500;
+        return {
+          ...this.toTeacherCard(t),
+          intro: t.intro ?? null,
+          strengths: t.strengths ?? [],
+          matchScore: Math.round(score * 10) / 10,
+          matchedNeeds: needs.filter((n) =>
+            (t.strengths ?? []).some((s) => s.includes(n) || n.includes(s)),
+          ),
+        };
+      })
+      .sort((a, b) => b.matchScore - a.matchScore)
+      .slice(0, 12);
+    return scored;
   }
 
   private toTeacherCard(t: {

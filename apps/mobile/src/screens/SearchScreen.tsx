@@ -11,6 +11,8 @@ const SUBTYPES: Record<string, string[]> = {
   입시: ['성적별 대학라인', '유리한 전형', '입시정보', '유료컨설팅'],
   심리: ['LCA코칭', '심리상담'],
 };
+const STRENGTH_POOL = ['개념정리', '문제풀이', '내신대비', '수능대비', '오답관리', '동기부여', '기초탄탄', '심화학습'];
+type Rec = Teacher & { matchedNeeds?: string[] };
 
 export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher) => void; onGoQna?: () => void }) {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -21,7 +23,17 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher) => void
   const [category, setCategory] = useState('전체');
   const [sort, setSort] = useState('grade');
   const [q, setQ] = useState('');
+  const [needs, setNeeds] = useState<string[]>([]);
+  const [recs, setRecs] = useState<Rec[] | null>(null);
+  const [recOpen, setRecOpen] = useState(false);
   const [error, setError] = useState('');
+
+  async function recommend() {
+    try {
+      const r = await api.post<Rec[]>('/teachers/recommend', { subject: consultType === '교과' ? subType ?? undefined : undefined, needs });
+      setRecs(r);
+    } catch (e) { setError(e instanceof ApiError ? e.message : '추천 실패'); }
+  }
 
   // 교과 세부유형은 실제 subject 필터로 동작. 그 외 유형의 세부는 안내·프리필용.
   const subjectFilter = consultType === '교과' ? subType : null;
@@ -113,6 +125,36 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher) => void
               ))}
             </ScrollView>
           </View>
+          {/* 맞춤 추천 */}
+          <TouchableOpacity style={styles.recToggle} onPress={() => setRecOpen((o) => !o)}>
+            <Text style={styles.recToggleT}>✨ 맞춤 추천 {recOpen ? '▲' : '▼'}</Text>
+          </TouchableOpacity>
+          {recOpen && (
+            <View style={styles.recBox}>
+              <Text style={styles.recSub}>필요한 점을 고르면 선생님 강점·평가로 매칭해 드려요.</Text>
+              <View style={styles.pillRow}>
+                {STRENGTH_POOL.map((s) => (
+                  <TouchableOpacity key={s} style={[styles.recPill, needs.includes(s) && styles.recPillOn]} onPress={() => setNeeds((p) => p.includes(s) ? p.filter((x) => x !== s) : [...p, s])}>
+                    <Text style={[styles.recPillT, needs.includes(s) && { color: C.white }]}>#{s}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TouchableOpacity style={[ui.btn, { marginTop: 8 }]} onPress={recommend}><Text style={ui.btnText}>맞춤 추천 받기</Text></TouchableOpacity>
+              {recs && (recs.length === 0 ? <Text style={ui.sub}>조건에 맞는 선생님이 없어요.</Text> : recs.slice(0, 5).map((t) => (
+                <TouchableOpacity key={t.id} style={styles.recCard} onPress={() => onPick(t)}>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={styles.name}>{t.name}</Text>
+                      <View style={[styles.grade, { backgroundColor: gradeColor(t.grade) }]}><Text style={styles.gradeText}>{t.grade}</Text></View>
+                    </View>
+                    <Text style={ui.sub}>{t.subjects.join(', ')} · ⭐ {t.rating ?? 0}</Text>
+                    {(t.matchedNeeds?.length ?? 0) > 0 && <Text style={styles.matched}>{t.matchedNeeds!.map((n) => `#${n}`).join(' ')}</Text>}
+                  </View>
+                  <Text style={{ color: C.caption, fontSize: 18 }}>›</Text>
+                </TouchableOpacity>
+              )))}
+            </View>
+          )}
         </>
       )}
       {error ? <Text style={ui.error}>{error}</Text> : null}
@@ -177,4 +219,13 @@ const styles = StyleSheet.create({
   subOn: { borderColor: C.teal, backgroundColor: C.teal100 },
   subT: { color: C.muted, fontWeight: '700', fontSize: 12, lineHeight: 16 },
   note: { fontSize: 12, color: C.teal, backgroundColor: C.teal50, borderRadius: 8, padding: 9, marginTop: 8 },
+  recToggle: { marginTop: 10, backgroundColor: C.teal50, borderRadius: 9, paddingVertical: 9, alignItems: 'center' },
+  recToggleT: { color: C.teal, fontWeight: '800', fontSize: 13 },
+  recBox: { marginTop: 8, backgroundColor: C.white, borderWidth: 1, borderColor: C.teal100, borderRadius: 12, padding: 12 },
+  recSub: { fontSize: 12, color: C.muted, marginBottom: 8 },
+  recPill: { alignSelf: 'flex-start', borderWidth: 1, borderColor: C.line, borderRadius: R.pill, paddingVertical: 4, paddingHorizontal: 11, backgroundColor: C.white },
+  recPillOn: { backgroundColor: C.teal, borderColor: C.teal },
+  recPillT: { color: C.muted, fontWeight: '700', fontSize: 12 },
+  recCard: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.teal50, borderRadius: 10, padding: 11, marginTop: 8 },
+  matched: { fontSize: 12, color: C.teal, fontWeight: '700', marginTop: 3 },
 });

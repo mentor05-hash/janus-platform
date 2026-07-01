@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { api, ApiError, Teacher } from '../api';
 import { C, R, SP, ui, gradeColor } from '../theme';
 
-type Detail = Teacher & { career?: string | null; subSubjects?: string[] };
+type Detail = Teacher & { career?: string | null; subSubjects?: string[]; intro?: string | null; strengths?: string[]; reRequestRate?: number | null; avgResponseMin?: number | null };
 type Material = { id: string; title: string; description: string | null; subject: string | null; category: string | null; teacherId: string; filename: string | null; downloadUrl: string | null; createdAt: string };
 const KST = (iso: string) => new Date(iso).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit' });
 
@@ -36,8 +36,14 @@ export function TeacherDetailScreen({ teacher, onBack, onBook }: { teacher: Teac
               <Text style={styles.sub}>{detail.subjects.join(', ')}{detail.category ? ` · ${detail.category}` : ''}{detail.career ? ` · ${detail.career}` : ''}</Text>
             </View>
           </View>
+          {(detail.strengths?.length ?? 0) > 0 && (
+            <View style={styles.tagRow}>
+              {detail.strengths!.map((s) => <View key={s} style={styles.tag}><Text style={styles.tagT}>#{s}</Text></View>)}
+            </View>
+          )}
+          {detail.intro ? <Text style={styles.intro}>{detail.intro}</Text> : null}
           <View style={styles.stats}>
-            {[['만족도', `★ ${detail.rating ?? 0}`], ['누적 상담', `${(detail.totalConsult ?? 0).toLocaleString()}회`], ['질문 답변', `${detail.questionCount ?? 0}회`]].map(([l, v]) => (
+            {[['만족도', `★ ${detail.rating ?? 0}`], ['누적 상담', `${(detail.totalConsult ?? 0).toLocaleString()}회`], ['재요청률', detail.reRequestRate != null ? `${detail.reRequestRate}%` : '-'], ['평균 응답', detail.avgResponseMin != null ? `${detail.avgResponseMin}분` : '-']].map(([l, v]) => (
               <View key={l} style={styles.stat}><Text style={styles.statV}>{v}</Text><Text style={styles.statL}>{l}</Text></View>
             ))}
           </View>
@@ -80,7 +86,11 @@ const styles = StyleSheet.create({
   offTag: { backgroundColor: C.doneBg, borderRadius: R.pill, paddingHorizontal: 8, paddingVertical: 2 },
   offT: { color: C.done, fontSize: 10, fontWeight: '800' },
   sub: { fontSize: 13, color: C.muted, marginTop: 4 },
-  stats: { flexDirection: 'row', marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: C.line },
+  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 12 },
+  tag: { backgroundColor: C.teal50, borderRadius: R.pill, paddingHorizontal: 10, paddingVertical: 4 },
+  tagT: { color: C.teal, fontSize: 12, fontWeight: '700' },
+  intro: { fontSize: 14, color: C.ink, lineHeight: 20, marginTop: 10 },
+  stats: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: C.line },
   stat: { flex: 1, alignItems: 'center' },
   statV: { fontSize: 17, fontWeight: '800', color: C.ink },
   statL: { fontSize: 12, color: C.muted, marginTop: 2 },
