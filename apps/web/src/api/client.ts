@@ -104,6 +104,14 @@ export const api = {
   put: <T>(p: string, b?: unknown) => request<T>('PUT', p, b),
   del: <T>(p: string) => request<T>('DELETE', p),
   upload,
+  /** 인증 헤더로 파일을 받아 object URL 반환(이미지 인라인 표시용). 사용 후 revoke 권장. */
+  fileBlobUrl: async (id: string): Promise<string> => {
+    const res = await fetch(`${BASE}/files/${id}`, {
+      headers: tokens.access ? { Authorization: `Bearer ${tokens.access}` } : {},
+    });
+    if (!res.ok) throw new ApiError('ERROR', '이미지 로드 실패', res.status);
+    return URL.createObjectURL(await res.blob());
+  },
   /** 인증 헤더 포함 파일 다운로드 → 브라우저 저장(첨부 열람용). */
   downloadFile: async (id: string, filename?: string) => {
     const res = await fetch(`${BASE}/files/${id}`, {

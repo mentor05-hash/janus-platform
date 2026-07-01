@@ -112,6 +112,14 @@ export const api = {
   },
   /** 첨부 파일(/files/:id) 다운로드. */
   downloadWeb: async (id: string, name: string) => api.downloadWebPath('/files/' + id, name),
+  /** 인증 헤더로 파일을 받아 object URL 반환(이미지 인라인 표시용, expo-web). */
+  fileBlobUrl: async (id: string): Promise<string> => {
+    const headers: Record<string, string> = {};
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+    const res = await fetch(BASE + '/files/' + id, { headers });
+    if (!res.ok) throw new ApiError('ERROR', '이미지 로드 실패', res.status);
+    return URL.createObjectURL(await res.blob());
+  },
   /** 웹(expo-web) 파일 업로드 → stored_file. 첨부 id 를 예약에 연결. */
   uploadWeb: async (file: Blob, name: string) => {
     const form = new FormData();

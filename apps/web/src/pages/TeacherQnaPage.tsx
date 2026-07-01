@@ -2,9 +2,24 @@ import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { PageHeader, Card, Button, Badge, ErrorText, Spinner, EmptyState, TextareaField } from '../components/ui';
+import { AuthImage } from '../components/AuthImage';
 
+type Attachment = { id: string; name: string; type?: string };
 type Answer = { id: string; body: string; accepted: boolean; teacherName: string; createdAt: string };
-type Post = { id: string; subject: string | null; difficulty: string | null; scope: string; assignedTeacherId: string | null; body: string; status: string; created_at: string; answers: Answer[] };
+type Post = { id: string; subject: string | null; difficulty: string | null; scope: string; assignedTeacherId: string | null; body: string; status: string; created_at: string; attachments?: Attachment[]; answers: Answer[] };
+
+const isImage = (a: Attachment) => (a.type ?? '').startsWith('image/') || /\.(png|jpe?g|gif|webp|heic)$/i.test(a.name);
+/** 학생이 첨부한 문제 이미지 — 클릭 시 확대(라이트박스). */
+function QImages({ atts }: { atts?: Attachment[] }) {
+  const imgs = (atts ?? []).filter(isImage);
+  if (!imgs.length) return null;
+  return (
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '0 0 10px' }}>
+      {imgs.map((a) => <AuthImage key={a.id} fileId={a.id} alt={a.name} size={110} />)}
+      <span style={{ fontSize: 11, color: 'var(--caption)', alignSelf: 'flex-end' }}>이미지를 누르면 확대됩니다</span>
+    </div>
+  );
+}
 
 const statusLabel = (p: Post) => (p.status === 'resolved' ? '채택완료' : p.answers.length > 0 ? '답변완료' : '답변대기');
 const statusKind = (p: Post) => (p.status === 'resolved' ? 'done' : p.answers.length > 0 ? 'confirmed' : 'new') as 'new';
@@ -78,6 +93,7 @@ export function TeacherQnaPage() {
           <Card key={p.id} style={{ marginBottom: 8 }}>
             {head(p)}
             <p style={{ fontSize: 14, whiteSpace: 'pre-wrap', margin: '0 0 10px' }}>{p.body}</p>
+            <QImages atts={p.attachments} />
             <AnswerList answers={p.answers} />
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <Button onClick={() => claim(p.id)} disabled={busy === p.id}>답변 가져오기</Button>
@@ -93,6 +109,7 @@ export function TeacherQnaPage() {
           <Card key={p.id} style={{ marginBottom: 8 }}>
             {head(p)}
             <p style={{ fontSize: 14, whiteSpace: 'pre-wrap', margin: '0 0 10px' }}>{p.body}</p>
+            <QImages atts={p.attachments} />
             <AnswerList answers={p.answers} />
             <TextareaField label="답변 작성" rows={3} value={draft[p.id] ?? ''} onChange={(e) => setDraft((d) => ({ ...d, [p.id]: e.target.value }))} placeholder="풀이·설명을 작성하세요." />
             <Button onClick={() => answer(p.id)} disabled={busy === p.id || !(draft[p.id] ?? '').trim()}>답변 등록</Button>
@@ -109,6 +126,7 @@ export function TeacherQnaPage() {
               <Badge kind={statusKind(p)}>{statusLabel(p)}</Badge>
             </div>
             <p style={{ fontSize: 14, whiteSpace: 'pre-wrap', margin: '0 0 8px' }}>{p.body}</p>
+            <QImages atts={p.attachments} />
             <AnswerList answers={p.answers} />
           </Card>
         ))

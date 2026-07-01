@@ -7,6 +7,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { ShortfallError } from '../../common/errors/shortfall.error';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -22,6 +23,7 @@ import type { LlmProvider } from '../llm/llm.types';
 interface QnaRow {
   id: string; subject: string | null; difficulty: string | null; scope: string | null;
   body: string | null; status: string | null; created_at: Date; assigned_teacher_id?: string | null;
+  attachments?: unknown;
   qna_answer?: { id: string; body: string | null; accepted: boolean | null; created_at: Date; teacher_profile?: { account?: { name?: string } } }[];
 }
 
@@ -76,6 +78,7 @@ export class QnaService {
               dto.scope === 'assigned' ? dto.assignedTeacherId! : null,
             body: dto.body,
             status: 'open',
+            attachments: (dto.attachments ?? []) as unknown as Prisma.InputJsonValue,
           },
         });
         if (credits > 0) {
@@ -131,6 +134,9 @@ export class QnaService {
         body: p.body ?? '',
         status: p.status ?? 'open',
         created_at: p.created_at,
+        attachments: Array.isArray(p.attachments)
+          ? (p.attachments as { id: string; name: string; type?: string }[])
+          : [],
         answers: (p.qna_answer ?? []).map((a) => ({
           id: a.id,
           body: a.body ?? '',

@@ -25,12 +25,21 @@ export class FilesService {
 
   /** 이 선생님의 예약 중 해당 파일을 첨부로 가진 건이 있는지(jsonb 포함 검사). */
   private async teacherOwnsAttachment(teacherId: string, fileId: string): Promise<boolean> {
-    const rows = await this.prisma.$queryRaw<{ ok: number }[]>`
+    const match = `[{"id":"${fileId}"}]`;
+    // 담당 예약의 첨부(§5-10)
+    const b = await this.prisma.$queryRaw<{ ok: number }[]>`
       SELECT 1 AS ok FROM booking
       WHERE teacher_id = ${teacherId}::uuid
-        AND attachments @> ${`[{"id":"${fileId}"}]`}::jsonb
+        AND attachments @> ${match}::jsonb
       LIMIT 1`;
-    return rows.length > 0;
+    if (b.length > 0) return true;
+    // Q&A 질문 첨부: 공개 큐(누구나 열람 가능) 또는 나에게 지정된 질문
+    const q = await this.prisma.$queryRaw<{ ok: number }[]>`
+      SELECT 1 AS ok FROM qna_post
+      WHERE attachments @> ${match}::jsonb
+        AND (scope = 'open' OR assigned_teacher_id = ${teacherId}::uuid)
+      LIMIT 1`;
+    return q.length > 0;
   }
 
   async upload(ownerId: string, file: UploadedFileLike) {
