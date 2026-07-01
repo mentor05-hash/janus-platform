@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../../common/prisma/prisma.service';
 import {
   hhmmToMin,
+  kstDateString,
   kstMinutesInDay,
   utcFromKst,
   weekdayKst,
@@ -18,12 +19,25 @@ import {
 import { BookingStatus } from '../../config/enums';
 import { buildDaySlots, Interval, isRangeBookable } from './domain/slots';
 
-interface DayWindow {
+export interface DayWindow {
   start: string; // "HH:MM"
   end: string;
 }
-type WeeklyTemplate = Record<string, DayWindow[]>; // key '0'..'6' (일~토)
+export type WeeklyTemplate = Record<string, DayWindow[]>; // key '0'..'6' (일~토)
 export interface LeaveEntry { date: string; type: string } // 사유 제외(연차/반차/병가)
+export interface WeekPlan { weekStart: string; template: WeeklyTemplate } // 주별 근무 계획(weekStart=월요일)
+
+/** 해당 날짜가 속한 주의 월요일(YYYY-MM-DD, KST 기준 날짜 문자열). */
+export function mondayOf(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  const dow = dt.getUTCDay(); // 0=일..6=토
+  dt.setUTCDate(dt.getUTCDate() + (dow === 0 ? -6 : 1 - dow));
+  return dt.toISOString().slice(0, 10);
+}
+function readWeekPlans(raw: unknown): WeekPlan[] {
+  return Array.isArray(raw) ? (raw as WeekPlan[]).filter((p) => p && p.weekStart && p.template) : [];
+}
 
 const ACTIVE_STATUSES: BookingStatus[] = [
   BookingStatus.NEW,
@@ -72,8 +86,10 @@ export class AvailabilityService {
 
     const weekday = String(weekdayKst(dateStr));
     const ws = teacher.work_schedule[0];
-    const template =
-      (ws?.recurring_template as unknown as WeeklyTemplate) ?? {};
+    // 주별 근무계획(week_plans)이 있으면 그 주 템플릿, 없으면 기본(recurring_template)
+    const plans = readWeekPlans((ws as { week_plans?: unknown } | undefined)?.week_plans);
+    const plan = plans.find((p) => p.weekStart === mondayOf(dateStr));
+    const template = (plan?.template ?? (ws?.recurring_template as unknown as WeeklyTemplate)) ?? {};
     let work = this.windowsToIntervals(template[weekday]);
     // 사유 제외(연차·반차·병가): 연차·병가=종일 제외, 반차=오후(13:00~) 제외.
     const leave = this.readLeaves(ws?.weekly_overrides).find((l) => l.date === dateStr);
@@ -119,8 +135,10 @@ export class AvailabilityService {
 
     const weekday = String(weekdayKst(dateStr));
     const ws = teacher.work_schedule[0];
-    const template =
-      (ws?.recurring_template as unknown as WeeklyTemplate) ?? {};
+    // 주별 근무계획(week_plans)이 있으면 그 주 템플릿, 없으면 기본(recurring_template)
+    const plans = readWeekPlans((ws as { week_plans?: unknown } | undefined)?.week_plans);
+    const plan = plans.find((p) => p.weekStart === mondayOf(dateStr));
+    const template = (plan?.template ?? (ws?.recurring_template as unknown as WeeklyTemplate)) ?? {};
     let work = this.windowsToIntervals(template[weekday]);
     // 사유 제외(연차·반차·병가): 연차·병가=종일 제외, 반차=오후(13:00~) 제외.
     const leave = this.readLeaves(ws?.weekly_overrides).find((l) => l.date === dateStr);
@@ -224,8 +242,9 @@ export class AvailabilityService {
     });
     const data = {
       recurring_template: dto.recurringTemplate ?? {},
-      // 근무표만 저장할 때 사유 제외(연차) 가 지워지지 않도록 기존값 보존.
+      // 근무표만 저장할 때 사유 제외(연차)·주계획 이 지워지지 않도록 기존값 보존.
       weekly_overrides: dto.weeklyOverrides ?? existing?.weekly_overrides ?? [],
+      week_plans: existing?.week_plans ?? [],
       pre_book_horizon_days: dto.preBookHorizonDays ?? 30,
     };
     if (existing) {
@@ -237,6 +256,80 @@ export class AvailabilityService {
     return this.prisma.work_schedule.create({
       data: { teacher_id: teacherId, ...data },
     });
+  }
+
+  // ── 주별 근무 계획(2주~2달 미리 설정) ──
+  /** 현재 계획 + 기본 템플릿. defaultApplies=주계획이 하나도 없으면 true(기본 근무시간 적용 안내용). */
+  async getWeekPlans(teacherId: string) {
+    const ws = await this.prisma.work_schedule.findFirst({ where: { teacher_id: teacherId } });
+    const plans = readWeekPlans(ws?.week_plans);
+    return {
+      recurringTemplate: (ws?.recurring_template as unknown as WeeklyTemplate) ?? {},
+      weekPlans: plans.sort((a, b) => a.weekStart.localeCompare(b.weekStart)),
+      defaultApplies: plans.length === 0,
+    };
+  }
+
+  /** 주계획 저장. 다음 주 이후(미래)만 허용, 최대 8주(약 2달). */
+  async saveWeekPlans(teacherId: string, plans: WeekPlan[], actor: { id: string; role: string }, todayStr: string) {
+    this.assertScheduleOwner(teacherId, actor);
+    const nextMonday = mondayOf(this.addDays(todayStr, 7));
+    const clean = readWeekPlans(plans)
+      .filter((p) => p.weekStart >= nextMonday) // 이번 주·과거는 변경 불가(다음 주부터)
+      .filter((p, i, arr) => arr.findIndex((x) => x.weekStart === p.weekStart) === i);
+    if (clean.length > 8) throw new BadRequestException('최대 8주(약 2달)까지 미리 설정할 수 있습니다.');
+    const ws = await this.prisma.work_schedule.findFirst({ where: { teacher_id: teacherId } });
+    if (ws) {
+      await this.prisma.work_schedule.update({ where: { id: ws.id }, data: { week_plans: clean as unknown as object } });
+    } else {
+      await this.prisma.work_schedule.create({ data: { teacher_id: teacherId, week_plans: clean as unknown as object } });
+    }
+    return { weekPlans: clean };
+  }
+
+  /** 저장하려는 주계획과 학생 예약(confirmed/new)이 충돌하는지 검사. 근무시간 밖으로 밀린 예약을 반환. */
+  async detectConflicts(teacherId: string, plans: WeekPlan[]) {
+    const clean = readWeekPlans(plans);
+    if (!clean.length) return { conflicts: [] };
+    const weekStarts = clean.map((p) => p.weekStart).sort();
+    const rangeStart = utcFromKst(weekStarts[0], 0);
+    const rangeEnd = utcFromKst(this.addDays(weekStarts[weekStarts.length - 1], 7), 0);
+    const rows = await this.prisma.booking.findMany({
+      where: { teacher_id: teacherId, status: { in: ACTIVE_STATUSES }, start_at: { gte: rangeStart, lt: rangeEnd } },
+      include: { student_profile: { include: { account: { select: { name: true } } } } },
+    });
+    const planByWeek = new Map(clean.map((p) => [p.weekStart, p.template]));
+    const conflicts: {
+      bookingId: string; date: string; startMin: number; endMin: number;
+      studentId: string; studentName: string; consultType: string | null; mode: string;
+    }[] = [];
+    for (const b of rows) {
+      if (!b.start_at || !b.end_at) continue;
+      const dateStr = kstDateString(b.start_at);
+      const wk = mondayOf(dateStr);
+      const tpl = planByWeek.get(wk);
+      if (!tpl) continue; // 이 예약 주는 계획 대상 아님
+      const weekday = String(weekdayKst(dateStr));
+      const work = this.windowsToIntervals(tpl[weekday]);
+      const s = kstMinutesInDay(b.start_at, dateStr);
+      const e = kstMinutesInDay(b.end_at, dateStr);
+      const within = work.some((w) => s >= w.start && e <= w.end);
+      if (!within) {
+        conflicts.push({
+          bookingId: b.id, date: dateStr, startMin: s, endMin: e,
+          studentId: b.student_id, studentName: b.student_profile?.account?.name ?? '학생',
+          consultType: b.consult_type, mode: b.mode,
+        });
+      }
+    }
+    return { conflicts };
+  }
+
+  private addDays(dateStr: string, n: number): string {
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() + n);
+    return dt.toISOString().slice(0, 10);
   }
 
   // ── 사유 제외(연차/반차/병가) — work_schedule.weekly_overrides 에 저장 ──

@@ -740,6 +740,7 @@ model work_schedule {
   teacher_id            String          @db.Uuid
   recurring_template    Json            @default("{}")
   weekly_overrides      Json            @default("[]")
+  week_plans            Json            @default("[]")
   pre_book_horizon_days Int             @default(30)
   teacher_profile       teacher_profile @relation(fields: [teacher_id], references: [account_id], onDelete: Cascade, onUpdate: NoAction)
 }

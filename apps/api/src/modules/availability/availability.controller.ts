@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Post,
@@ -50,6 +51,36 @@ export class AvailabilityController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.availability.putWorkSchedule(id, dto, user);
+  }
+
+  /** GET /teachers/{id}/week-plans — 주별 근무 계획 + 기본 템플릿. */
+  @Get(':id/week-plans')
+  @Roles('teacher', 'admin', 'hr')
+  getWeekPlans(@Param('id', ParseUUIDPipe) id: string) {
+    return this.availability.getWeekPlans(id);
+  }
+
+  /** PUT /teachers/{id}/week-plans — 다음 주 이후 근무 계획 저장(최대 8주). */
+  @Put(':id/week-plans')
+  @Roles('teacher', 'admin', 'hr')
+  saveWeekPlans(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { weekPlans?: unknown },
+    @CurrentUser() user: AuthUser,
+  ) {
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
+    return this.availability.saveWeekPlans(id, (body?.weekPlans ?? []) as never, user, today);
+  }
+
+  /** POST /teachers/{id}/week-plans/conflicts — 저장 전 학생 예약 충돌 검사. */
+  @Post(':id/week-plans/conflicts')
+  @HttpCode(200)
+  @Roles('teacher', 'admin', 'hr')
+  weekPlanConflicts(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { weekPlans?: unknown },
+  ) {
+    return this.availability.detectConflicts(id, (body?.weekPlans ?? []) as never);
   }
 
   /** GET /teachers/{id}/leave — 사유 제외(연차/반차/병가) 목록. */
