@@ -178,6 +178,9 @@ export interface Teacher {
   grade: string;
   category: string | null;
   rating: number | null;
+  totalConsult?: number;
+  questionCount?: number;
+  offlineAvailable?: boolean;
 }
 export interface Slot {
   index: number;

@@ -41,6 +41,7 @@ export function AdminLayout() {
               <NavLink to="/admin/analytics" className={navCls}>센터 분석</NavLink>
               {/* 조직 관리는 본사 이상(전사) 전용 */}
               {hq && <NavLink to="/admin/org" className={navCls}>조직 관리</NavLink>}
+              {hq && <NavLink to="/admin/categories" className={navCls}>카테고리 관리</NavLink>}
             </>
           )}
         </nav>

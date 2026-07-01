@@ -30,6 +30,7 @@ import { QnaModule } from './modules/qna/qna.module';
 import { ReportModule } from './modules/report/report.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { MaterialModule } from './modules/material/material.module';
+import { CategoryModule } from './modules/category/category.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { MaterialModule } from './modules/material/material.module';
     ReportModule,
     StorageModule,
     MaterialModule,
+    CategoryModule,
   ],
   providers: [
     // 전역 가드: rate limit(§10) → 인증 → 인가 순. @Public() 은 인증 통과, @Roles() 로 역할 제한.

@@ -45,8 +45,10 @@ export class MaterialController {
     @CurrentUser() user: AuthUser,
     @Query('subject') subject?: string,
     @Query('mine') mine?: string,
+    @Query('category') category?: string,
+    @Query('q') q?: string,
   ) {
-    return this.materials.list(user, { subject, mine });
+    return this.materials.list(user, { subject, mine, category, q });
   }
 
   /** GET /materials/:id/download — 공개범위 게이트 후 원본 바이트. */

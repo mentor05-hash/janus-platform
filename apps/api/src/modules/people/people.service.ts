@@ -22,12 +22,32 @@ export class PeopleService {
     };
     // 랭킹 가중치(§5-7): 등급 우선, 동급은 유효평점(평점 − 취소누적×가중치) 내림차순.
     // 계산 정렬이라 전체 후보를 가져와 JS 정렬 후 페이지네이션(센터 규모상 소량).
-    const all = await this.prisma.teacher_profile.findMany({
+    let all = await this.prisma.teacher_profile.findMany({
       where,
       include: { account: { select: { name: true, center_id: true } } },
     });
+    // 이름·과목 검색(q)
+    const kw = q.q?.trim().toLowerCase();
+    if (kw) {
+      all = all.filter(
+        (t) =>
+          t.account.name.toLowerCase().includes(kw) ||
+          t.subjects.some((s) => s.toLowerCase().includes(kw)) ||
+          (t.teacher_category ?? '').toLowerCase().includes(kw),
+      );
+    }
+    // 질문수(답변 수)·오프라인 가능 집계
+    const ids = all.map((t) => t.account_id);
+    const answers = ids.length
+      ? await this.prisma.qna_answer.groupBy({ by: ['teacher_id'], where: { teacher_id: { in: ids } }, _count: { _all: true } })
+      : [];
+    const offline = ids.length
+      ? await this.prisma.teacher_offline_availability.findMany({ where: { teacher_id: { in: ids } }, select: { teacher_id: true } })
+      : [];
+    const qCount = new Map<string, number>(answers.map((a) => [a.teacher_id, a._count._all]));
+    const offlineSet = new Set<string>(offline.map((o) => o.teacher_id));
+
     // 취소 가중치는 센터별 penalty_policy.ranking_weight_down 정책값에서(없으면 상수 폴백).
-    // — §5-7 "랭킹 가중치 하락"을 하드코딩이 아닌 정책으로 구동.
     const policies = await this.prisma.penalty_policy.findMany({
       select: { center_id: true, ranking_weight_down: true },
     });
@@ -36,21 +56,28 @@ export class PeopleService {
     );
     const cancelWeight = (centerId: string | null | undefined) =>
       (centerId && weightByCenter.has(centerId) ? weightByCenter.get(centerId)! : RANK_CANCEL_WEIGHT);
-    const scored = all
-      .map((t) => ({
-        t,
-        score:
-          Number(t.rating ?? 0) - (t.cancel_count ?? 0) * cancelWeight(t.center_id),
-      }))
-      .sort((a, b) => {
-        const g =
-          (GRADE_ORDER[a.t.grade ?? 'B'] ?? 9) -
-          (GRADE_ORDER[b.t.grade ?? 'B'] ?? 9);
-        return g !== 0 ? g : b.score - a.score;
-      });
+    const scored = all.map((t) => ({
+      t,
+      questionCount: qCount.get(t.account_id) ?? 0,
+      offlineAvailable: offlineSet.has(t.account_id),
+      score: Number(t.rating ?? 0) - (t.cancel_count ?? 0) * cancelWeight(t.center_id),
+    }));
+    // 정렬: 지정 소트 우선, 없으면 등급→유효평점(기본 랭킹 §5-7)
+    scored.sort((a, b) => {
+      switch (q.sort) {
+        case 'rating': return Number(b.t.rating ?? 0) - Number(a.t.rating ?? 0);
+        case 'consult': return (b.t.total_consult ?? 0) - (a.t.total_consult ?? 0);
+        case 'question': return b.questionCount - a.questionCount;
+        case 'offline': return Number(b.offlineAvailable) - Number(a.offlineAvailable) || b.score - a.score;
+        default: {
+          const g = (GRADE_ORDER[a.t.grade ?? 'B'] ?? 9) - (GRADE_ORDER[b.t.grade ?? 'B'] ?? 9);
+          return g !== 0 ? g : b.score - a.score;
+        }
+      }
+    });
     const page = scored.slice((q.page - 1) * q.size, q.page * q.size);
     return {
-      data: page.map((s) => this.toTeacherCard(s.t)),
+      data: page.map((s) => ({ ...this.toTeacherCard(s.t), questionCount: s.questionCount, offlineAvailable: s.offlineAvailable })),
       meta: buildPageMeta(scored.length, q.page, q.size),
     };
   }

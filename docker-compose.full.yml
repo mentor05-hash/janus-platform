@@ -53,6 +53,7 @@ services:
       PG_PROVIDER: mock
       NOTIFICATION_PROVIDER: mock
       STORAGE_PROVIDER: local
+      STORAGE_LOCAL_DIR: /data/storage
       ZOOM_PROVIDER: mock
       LLM_PROVIDER: none
       HOMEROOM_CYCLE_DAYS: "30"
@@ -64,6 +65,8 @@ services:
         condition: service_healthy
     ports:
       - "3000:3000"
+    volumes:
+      - storage:/data/storage   # 업로드 파일(자료·첨부) 영속화 — api 재빌드에도 유지
 
   web:
     build:
@@ -87,3 +90,4 @@ services:
 
 volumes:
   pgdata:   # = itall-mentoring_pgdata (dev compose 와 공유)
+  storage:  # 업로드 파일 영속 저장(자료실·문제 첨부)

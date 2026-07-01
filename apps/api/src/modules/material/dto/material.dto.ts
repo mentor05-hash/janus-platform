@@ -21,6 +21,11 @@ export class CreateMaterialDto {
   subject?: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  category?: string;
+
+  @IsOptional()
   @IsIn(MATERIAL_VISIBILITY)
   visibility?: MaterialVisibility;
 }

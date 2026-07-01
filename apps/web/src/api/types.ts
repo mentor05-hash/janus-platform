@@ -48,6 +48,9 @@ export interface Teacher {
   grade: string;
   category: string | null;
   rating: number | null;
+  totalConsult?: number;
+  questionCount?: number;
+  offlineAvailable?: boolean;
 }
 
 export interface CreditAccount {
@@ -273,6 +276,7 @@ export interface Material {
   title: string;
   description: string | null;
   subject: string | null;
+  category?: string | null;
   visibility: 'public' | 'center' | 'private';
   teacherId: string;
   teacherName: string | null;

@@ -63,6 +63,7 @@ export class MaterialService {
         center_id: profile?.center_id ?? null,
         file_id: fileId,
         title: dto.title,
+        category: dto.category ?? null,
         description: dto.description ?? null,
         subject: dto.subject ?? null,
         visibility: dto.visibility ?? 'center',
@@ -71,11 +72,23 @@ export class MaterialService {
     return { data: this.shape(row) };
   }
 
-  async list(actor: AuthUser, q: { subject?: string; mine?: string }) {
+  async list(actor: AuthUser, q: { subject?: string; mine?: string; category?: string; q?: string }) {
     const centers = await this.viewerCenters(actor);
     const centerIds = [...centers];
     const where: Record<string, unknown> = {};
     if (q.subject) where.subject = q.subject;
+    if (q.category) where.category = q.category;
+    if (q.q && q.q.trim()) {
+      // 검색은 AND 절로(아래 공개범위 OR 와 충돌 방지)
+      where.AND = [
+        {
+          OR: [
+            { title: { contains: q.q.trim(), mode: 'insensitive' } },
+            { description: { contains: q.q.trim(), mode: 'insensitive' } },
+          ],
+        },
+      ];
+    }
 
     if (q.mine === 'true') {
       where.teacher_id = actor.id;
@@ -147,6 +160,7 @@ export class MaterialService {
       title: m.title,
       description: m.description ?? null,
       subject: m.subject ?? null,
+      category: m.category ?? null,
       visibility: m.visibility,
       teacherId: m.teacher_id,
       teacherName: m.teacher?.account?.name ?? null,

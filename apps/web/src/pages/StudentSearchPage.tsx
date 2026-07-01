@@ -205,12 +205,23 @@ export function StudentSearchPage() {
   const [teachers, setTeachers] = useState<Teacher[] | null>(null);
   const [picked, setPicked] = useState<Teacher | null>(null);
   const [credit, setCredit] = useState<CreditAccount | null>(null);
+  const [cats, setCats] = useState<{ id: string; name: string }[]>([]);
+  const [category, setCategory] = useState('전체');
+  const [sort, setSort] = useState('grade');
   const [q, setQ] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
-    api.get<{ data?: Teacher[] } | Teacher[]>('/teachers').then((r) => setTeachers(Array.isArray(r) ? r : (r.data ?? []))).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
+    const params = new URLSearchParams();
+    if (category !== '전체') params.set('category', category);
+    if (sort) params.set('sort', sort);
+    params.set('size', '100');
+    setTeachers(null);
+    api.get<{ data?: Teacher[] } | Teacher[]>(`/teachers?${params}`).then((r) => setTeachers(Array.isArray(r) ? r : (r.data ?? []))).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
+  }, [category, sort]);
+  useEffect(() => {
     api.get<CreditAccount>('/credits/account').then(setCredit).catch(() => {});
+    api.get<{ id: string; name: string }[]>('/categories?kind=teacher').then(setCats).catch(() => {});
   }, []);
 
   const [note, setNote] = useState('');
@@ -239,8 +250,10 @@ export function StudentSearchPage() {
     <div>
       <PageHeader title="선생님 찾기" sub={credit ? `보유 크레딧 ${credit.total.toLocaleString()}` : '선생님을 고르고 상담을 신청하세요.'} />
       {error && <ErrorText>{error}</ErrorText>}
-      <div style={{ maxWidth: 420, marginBottom: 12 }}>
-        <TextField placeholder="이름·과목 검색" value={q} onChange={(e) => setQ(e.target.value)} />
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 12 }}>
+        <div style={{ flex: '1 1 220px', minWidth: 180 }}><TextField label="검색" placeholder="이름·과목" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+        <div style={{ minWidth: 140 }}><SelectField label="카테고리" value={category} onChange={(e) => setCategory(e.target.value)} options={['전체', ...cats.map((c) => c.name)].map((c) => ({ value: c, label: c }))} /></div>
+        <div style={{ minWidth: 160 }}><SelectField label="정렬" value={sort} onChange={(e) => setSort(e.target.value)} options={[{ value: 'grade', label: '기본(등급)' }, { value: 'rating', label: '만족도순' }, { value: 'consult', label: '상담횟수순' }, { value: 'question', label: '질문답변순' }, { value: 'offline', label: '오프라인 가능' }]} /></div>
       </div>
       {note && <p style={{ color: 'var(--chip-done)', fontSize: 13 }}>{note}</p>}
       {teachers === null ? <Spinner /> : rows.length === 0 ? <Card><EmptyState>선생님이 없어요.</EmptyState></Card> : (
@@ -252,7 +265,13 @@ export function StudentSearchPage() {
                   <b style={{ fontSize: 15 }}>{t.name}</b>
                   <GradeBadge grade={t.grade} />
                 </div>
-                <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>{t.subjects.join(', ')} · {t.category ?? '-'} · 평점 {t.rating ?? 0}</div>
+                <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>{t.subjects.join(', ')}{t.category ? ` · ${t.category}` : ''}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <span>⭐ {t.rating ?? 0}</span>
+                  <span>· 상담 {t.totalConsult ?? 0}회</span>
+                  <span>· 질문답변 {t.questionCount ?? 0}</span>
+                  {t.offlineAvailable && <Badge kind="done">오프라인 가능</Badge>}
+                </div>
                 <div style={{ marginTop: 8 }}><Badge kind="confirmed">상담 신청 →</Badge></div>
               </button>
               <div style={{ display: 'flex', gap: 6, marginTop: 8, borderTop: '1px solid var(--line)', paddingTop: 8 }}>
