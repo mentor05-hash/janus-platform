@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
-import type { CreditAccount, Quote, Slot, Teacher } from '../api/types';
+import type { CreditAccount, Material, Quote, Slot, Teacher } from '../api/types';
 import { PageHeader, Card, Button, Badge, GradeBadge, ErrorText, Spinner, EmptyState, TextField, TextareaField, SelectField } from '../components/ui';
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -16,7 +17,9 @@ const SLOT_UI: Record<Slot['status'], { label: string; bg: string; fg: string; b
   blocked: { label: '차단', bg: '#FAD9D9', fg: '#C92A2A', bd: '#F0BEBE' },
 };
 const SUBJECTS = ['국어', '수학', '영어', '탐구'];
-const MODES = ['zoom', 'chat', 'hand'];
+const MODES: { value: string; label: string }[] = [
+  { value: 'zoom', label: '줌 화상' }, { value: 'chat', label: '실시간 채팅' }, { value: 'hand', label: '필기 공유' }, { value: 'offline', label: '오프라인(센터 대면)' },
+];
 type Attachment = { id: string; name: string; type?: string };
 const actBtn: React.CSSProperties = { flex: 1, background: 'none', border: '1px solid var(--line)', borderRadius: 8, padding: '6px 0', fontSize: 12, color: 'var(--muted)', cursor: 'pointer' };
 
@@ -102,6 +105,10 @@ function BookingForm({ teacher, onDone, onBack }: { teacher: Teacher; onDone: ()
       await api.post('/bookings', { teacherId: teacher.id, date, consultType: '교과', subType: subject, mode, slotStart: selStart, slotEnd: selEnd + 1, content: content || undefined, attachments });
       setMsg('상담이 신청되었습니다.'); setTimeout(onDone, 900);
     } catch (e) {
+      if (e instanceof ApiError && e.status === 409 && mode === 'zoom') {
+        setError('지금은 줌 상담실이 가득 찼어요. 채팅·필기·오프라인 등 다른 방식을 선택해 주세요.');
+        return;
+      }
       setError(e instanceof ApiError ? (e.status === 402 ? '크레딧이 부족합니다.' : e.message) : '예약 실패');
     }
   }
@@ -180,7 +187,10 @@ function BookingForm({ teacher, onDone, onBack }: { teacher: Teacher; onDone: ()
 
         <Card style={{ flex: '1 1 320px', minWidth: 280 }}>
           <SelectField label="과목" value={subject} onChange={(e) => setSubject(e.target.value)} options={SUBJECTS.map((s) => ({ value: s, label: s }))} />
-          <SelectField label="진행 방식" value={mode} onChange={(e) => setMode(e.target.value)} options={MODES.map((m) => ({ value: m, label: m }))} />
+          <SelectField label="진행 방식" value={mode} onChange={(e) => setMode(e.target.value)} options={MODES} />
+          {mode === 'offline' && <p style={{ fontSize: 12, color: 'var(--muted)', background: 'var(--fill,#f6f8fa)', borderRadius: 8, padding: 9, margin: '0 0 8px' }}>🏫 오프라인은 가능한 선생님·센터·시간이 제한되며 센터 상담실 점유료가 가산됩니다.</p>}
+          {mode === 'zoom' && <p style={{ fontSize: 12, color: '#92600a', background: '#FEF6E7', borderRadius: 8, padding: 9, margin: '0 0 8px' }}>🎥 줌은 센터 상담실 동시 이용 한도가 있어, 예약 시점에 자리가 없으면 다른 방식을 선택해야 할 수 있어요.</p>}
+          <p style={{ fontSize: 12, color: 'var(--teal)', background: 'var(--teal-50,#F0F7FA)', borderRadius: 8, padding: 9, margin: '0 0 8px' }}>📋 게시판(문항·일반) 질문은 Q&A 게시판에서 건당 신청해요.</p>
           <TextareaField label="상담 내용" rows={3} value={content} onChange={(e) => setContent(e.target.value)} placeholder="예: 미적분 30번, 합성함수 미분 풀이가 막혀요." />
           <label className="label">문제 업로드</label>
           <input ref={fileRef} type="file" multiple accept="image/*,application/pdf,video/*" style={{ display: 'none' }} onChange={onFiles} />
@@ -201,24 +211,104 @@ function BookingForm({ teacher, onDone, onBack }: { teacher: Teacher; onDone: ()
   );
 }
 
+type TeacherDetail = Teacher & { career?: string | null; subSubjects?: string[] };
+
+function TeacherDetailView({ teacher, onBook, onBack }: { teacher: Teacher; onBook: () => void; onBack: () => void }) {
+  const [detail, setDetail] = useState<TeacherDetail>(teacher);
+  const [materials, setMaterials] = useState<Material[] | null>(null);
+
+  useEffect(() => {
+    api.get<TeacherDetail>(`/teachers/${teacher.id}`).then((d) => setDetail({ ...teacher, ...d })).catch(() => {});
+    api.get<Material[]>('/materials').then((all) => setMaterials(all.filter((m) => m.teacherId === teacher.id))).catch(() => setMaterials([]));
+  }, [teacher]);
+
+  const stat = (label: string, value: string) => (
+    <div style={{ flex: 1, textAlign: 'center' }}>
+      <div style={{ fontSize: 18, fontWeight: 800 }}>{value}</div>
+      <div style={{ fontSize: 12, color: 'var(--muted)' }}>{label}</div>
+    </div>
+  );
+
+  return (
+    <div>
+      <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--teal)', cursor: 'pointer', fontWeight: 600, marginBottom: 8 }}>‹ 선생님 목록</button>
+      <Card>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 56, height: 56, borderRadius: 14, background: 'var(--teal-100,#DCECF3)', color: 'var(--teal)', display: 'grid', placeItems: 'center', fontSize: 22, fontWeight: 800 }}>{teacher.name.slice(0, 1)}</div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <b style={{ fontSize: 19 }}>{teacher.name}</b><GradeBadge grade={teacher.grade} />
+              {teacher.offlineAvailable && <Badge kind="done">오프라인 가능</Badge>}
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
+              {detail.subjects.join(', ')}{detail.category ? ` · ${detail.category}` : ''}{detail.career ? ` · ${detail.career}` : ''}
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--line)' }}>
+          {stat('만족도', `★ ${detail.rating ?? 0}`)}
+          {stat('누적 상담', `${(detail.totalConsult ?? 0).toLocaleString()}회`)}
+          {stat('질문 답변', `${detail.questionCount ?? 0}회`)}
+        </div>
+      </Card>
+
+      <h3 style={{ fontSize: 15, margin: '18px 0 8px' }}>칼럼 · 기출 자료</h3>
+      {materials === null ? <Spinner /> : materials.length === 0 ? <Card><EmptyState>등록된 자료가 없어요.</EmptyState></Card> : (
+        materials.map((m) => (
+          <Card key={m.id} style={{ marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+              <div>
+                <b style={{ fontSize: 14 }}>📄 {m.title}</b>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{m.subject ?? ''}{m.category ? ` · ${m.category}` : ''} · {new Date(m.createdAt).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}</div>
+              </div>
+              {m.fileId && <Button size="sm" variant="ghost" onClick={() => api.downloadFile(m.fileId!, m.filename ?? m.title).catch(() => {})}>다운로드</Button>}
+            </div>
+            {m.description && <p style={{ fontSize: 13, color: 'var(--muted)', margin: '8px 0 0' }}>{m.description}</p>}
+          </Card>
+        ))
+      )}
+
+      <div style={{ position: 'sticky', bottom: 0, background: 'var(--bg,#fff)', padding: '12px 0', marginTop: 12 }}>
+        <Button block onClick={onBook}>시간대 선택하고 예약 →</Button>
+      </div>
+    </div>
+  );
+}
+
+const CTYPES: [string, string][] = [['담임', '🏫'], ['교과', '📐'], ['입시', '🎯'], ['심리', '💬']];
+const SUBTYPES: Record<string, string[]> = {
+  담임: ['생활전반', '학습전반'],
+  교과: ['국어', '수학', '영어', '과학', '사회'],
+  입시: ['성적별 대학라인', '유리한 전형', '입시정보', '유료컨설팅'],
+  심리: ['LCA코칭', '심리상담'],
+};
+
 export function StudentSearchPage() {
+  const navigate = useNavigate();
   const [teachers, setTeachers] = useState<Teacher[] | null>(null);
   const [picked, setPicked] = useState<Teacher | null>(null);
+  const [phase, setPhase] = useState<'detail' | 'book'>('detail');
   const [credit, setCredit] = useState<CreditAccount | null>(null);
   const [cats, setCats] = useState<{ id: string; name: string }[]>([]);
+  const [mode, setMode] = useState<'상담' | '질문'>('상담');
+  const [consultType, setConsultType] = useState<string | null>(null);
+  const [subType, setSubType] = useState<string | null>(null);
   const [category, setCategory] = useState('전체');
   const [sort, setSort] = useState('grade');
   const [q, setQ] = useState('');
   const [error, setError] = useState('');
 
+  const subjectFilter = consultType === '교과' ? subType : null;
+
   useEffect(() => {
     const params = new URLSearchParams();
     if (category !== '전체') params.set('category', category);
+    if (subjectFilter) params.set('subject', subjectFilter);
     if (sort) params.set('sort', sort);
     params.set('size', '100');
     setTeachers(null);
     api.get<{ data?: Teacher[] } | Teacher[]>(`/teachers?${params}`).then((r) => setTeachers(Array.isArray(r) ? r : (r.data ?? []))).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
-  }, [category, sort]);
+  }, [category, sort, subjectFilter]);
   useEffect(() => {
     api.get<CreditAccount>('/credits/account').then(setCredit).catch(() => {});
     api.get<{ id: string; name: string }[]>('/categories?kind=teacher').then(setCats).catch(() => {});
@@ -243,13 +333,51 @@ export function StudentSearchPage() {
     catch (e) { setNote(e instanceof ApiError ? e.message : '실패'); }
   }
 
-  if (picked) return <BookingForm teacher={picked} onBack={() => setPicked(null)} onDone={() => setPicked(null)} />;
+  if (picked && phase === 'book') return <BookingForm teacher={picked} onBack={() => setPhase('detail')} onDone={() => { setPicked(null); setPhase('detail'); }} />;
+  if (picked) return <TeacherDetailView teacher={picked} onBook={() => setPhase('book')} onBack={() => setPicked(null)} />;
 
   const rows = (teachers ?? []).filter((t) => !q.trim() || t.name.toLowerCase().includes(q.toLowerCase()) || t.subjects.join(',').includes(q));
   return (
     <div>
       <PageHeader title="선생님 찾기" sub={credit ? `보유 크레딧 ${credit.total.toLocaleString()}` : '선생님을 고르고 상담을 신청하세요.'} />
       {error && <ErrorText>{error}</ErrorText>}
+
+      {/* 상담 / 질문 토글 */}
+      <div style={{ display: 'inline-flex', background: 'var(--fill,#eef2f4)', borderRadius: 10, padding: 3, marginBottom: 12 }}>
+        {(['상담', '질문'] as const).map((m) => (
+          <button key={m} onClick={() => setMode(m)} style={{ border: 'none', cursor: 'pointer', padding: '7px 22px', borderRadius: 8, fontWeight: 700, fontSize: 13,
+            background: mode === m ? '#fff' : 'transparent', color: mode === m ? 'var(--teal)' : 'var(--muted)', boxShadow: mode === m ? '0 1px 2px rgba(0,0,0,.08)' : 'none' }}>{m}</button>
+        ))}
+      </div>
+
+      {mode === '질문' ? (
+        <Card style={{ maxWidth: 520 }}>
+          <b style={{ fontSize: 15 }}>질문은 Q&A 게시판에서</b>
+          <p style={{ fontSize: 13, color: 'var(--muted)', margin: '6px 0 12px' }}>선생님에게 공개·지정 질문을 남기고 답변을 받을 수 있어요(건당 크레딧).</p>
+          <Button onClick={() => navigate('/student/qna')}>Q&A 게시판으로 →</Button>
+        </Card>
+      ) : (
+      <>
+      {/* 상담 유형 → 세부 유형 */}
+      <label className="label">상담 유형</label>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+        {CTYPES.map(([t, ic]) => {
+          const on = consultType === t;
+          return <button key={t} onClick={() => { setConsultType(on ? null : t); setSubType(null); }} style={{ cursor: 'pointer', padding: '6px 14px', borderRadius: 999, fontSize: 13, fontWeight: 700,
+            border: on ? '1px solid var(--teal)' : '1px solid var(--line)', background: on ? 'var(--teal)' : '#fff', color: on ? '#fff' : 'var(--muted)' }}>{ic} {t}</button>;
+        })}
+      </div>
+      {consultType && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+          {SUBTYPES[consultType].map((s) => {
+            const on = subType === s;
+            return <button key={s} onClick={() => setSubType(on ? null : s)} style={{ cursor: 'pointer', padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+              border: on ? '1px solid var(--teal)' : '1px solid var(--line)', background: on ? 'var(--teal-100,#DCECF3)' : 'var(--teal-50,#F0F7FA)', color: on ? 'var(--teal)' : 'var(--muted)' }}>{s}</button>;
+          })}
+        </div>
+      )}
+      {consultType === '심리' && <p style={{ fontSize: 12, color: 'var(--teal)', background: 'var(--teal-50,#F0F7FA)', borderRadius: 8, padding: 9, marginBottom: 8 }}>💬 심리상담(LCA코칭·심리상담)은 기숙 온/오프라인으로 운영돼요.</p>}
+
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 12 }}>
         <div style={{ flex: '1 1 220px', minWidth: 180 }}><TextField label="검색" placeholder="이름·과목" value={q} onChange={(e) => setQ(e.target.value)} /></div>
         <div style={{ minWidth: 140 }}><SelectField label="카테고리" value={category} onChange={(e) => setCategory(e.target.value)} options={['전체', ...cats.map((c) => c.name)].map((c) => ({ value: c, label: c }))} /></div>
@@ -260,7 +388,7 @@ export function StudentSearchPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
           {rows.map((t) => (
             <Card key={t.id}>
-              <button onClick={() => setPicked(t)} style={{ all: 'unset', cursor: 'pointer', display: 'block', width: '100%' }}>
+              <button onClick={() => { setPicked(t); setPhase('detail'); }} style={{ all: 'unset', cursor: 'pointer', display: 'block', width: '100%' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <b style={{ fontSize: 15 }}>{t.name}</b>
                   <GradeBadge grade={t.grade} />
@@ -272,7 +400,7 @@ export function StudentSearchPage() {
                   <span>· 질문답변 {t.questionCount ?? 0}</span>
                   {t.offlineAvailable && <Badge kind="done">오프라인 가능</Badge>}
                 </div>
-                <div style={{ marginTop: 8 }}><Badge kind="confirmed">상담 신청 →</Badge></div>
+                <div style={{ marginTop: 8 }}><Badge kind="confirmed">상세 보기 →</Badge></div>
               </button>
               <div style={{ display: 'flex', gap: 6, marginTop: 8, borderTop: '1px solid var(--line)', paddingTop: 8 }}>
                 <button type="button" onClick={() => fav(t)} style={actBtn}>☆ 찜</button>
@@ -282,6 +410,8 @@ export function StudentSearchPage() {
             </Card>
           ))}
         </div>
+      )}
+      </>
       )}
     </div>
   );

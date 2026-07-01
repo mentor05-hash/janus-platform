@@ -21,10 +21,10 @@ const SLOT_UI: Record<Slot['status'], { label: string; bg: string; fg: string; b
 
 const SUBJECTS = ['국어', '수학', '영어', '탐구'];
 const MODES = [
-  { mode: 'board', label: '게시판', sub: '질문·답변', price: '건당 4,000~8,000' },
   { mode: 'chat', label: '실시간 채팅', sub: '바로 대화', price: '10분 3,000' },
   { mode: 'zoom', label: '줌 화상', sub: '얼굴 보며', price: '10분 6,667' },
   { mode: 'hand', label: '필기 공유', sub: '같은 화면', price: '10분 6,000' },
+  { mode: 'offline', label: '오프라인', sub: '센터 대면', price: '점유료 가산' },
 ];
 
 export function SlotsScreen({ teacher, onBack }: { teacher: Teacher; onBack: () => void }) {
@@ -102,6 +102,10 @@ export function SlotsScreen({ teacher, onBack }: { teacher: Teacher; onBack: () 
       Alert.alert('예약 완료', '상담이 신청되었습니다.');
       onBack();
     } catch (e) {
+      if (e instanceof ApiError && e.status === 409 && mode === 'zoom') {
+        Alert.alert('줌 상담실 만석', '지금은 줌 상담실이 가득 찼어요. 채팅·필기·오프라인 등 다른 방식을 선택해 주세요.');
+        return;
+      }
       const msg = e instanceof ApiError ? e.message : '예약 실패';
       Alert.alert(e instanceof ApiError && e.status === 402 ? '크레딧 부족' : '예약 실패', msg);
     }
@@ -240,6 +244,9 @@ export function SlotsScreen({ teacher, onBack }: { teacher: Teacher; onBack: () 
           );
         })}
       </View>
+      {mode === 'offline' && <Text style={styles.modeNote}>🏫 오프라인은 가능한 선생님·센터·시간이 제한돼요. 센터 상담실 점유료가 가산됩니다.</Text>}
+      {mode === 'zoom' && <Text style={styles.modeNoteZoom}>🎥 줌은 센터 상담실 동시 이용 한도가 있어, 예약 시점에 자리가 없으면 다른 방식을 선택해야 할 수 있어요.</Text>}
+      <Text style={styles.modeNoteBoard}>📋 게시판(문항·일반) 질문은 Q&A 탭에서 건당 신청해요.</Text>
 
       {/* 날짜 선택 */}
       <Text style={styles.sec}>날짜</Text>
@@ -385,6 +392,9 @@ const styles = StyleSheet.create({
   modeLabel: { fontSize: 14, fontWeight: '800', color: C.ink },
   modeSub: { fontSize: 12, color: C.muted, marginTop: 2 },
   modePrice: { fontSize: 12, fontWeight: '700', color: C.muted, marginTop: 8 },
+  modeNote: { fontSize: 12, color: C.muted, backgroundColor: C.lineSoft, borderRadius: 8, padding: 9, marginTop: 8, lineHeight: 17 },
+  modeNoteZoom: { fontSize: 12, color: C.confirmed, backgroundColor: C.confirmedBg, borderRadius: 8, padding: 9, marginTop: 8, lineHeight: 17 },
+  modeNoteBoard: { fontSize: 12, color: C.teal, backgroundColor: C.teal50, borderRadius: 8, padding: 9, marginTop: 8, lineHeight: 17 },
   dateChip: { minWidth: 52, alignItems: 'center', backgroundColor: C.white, borderWidth: 1, borderColor: C.line, borderRadius: R.md, paddingVertical: 8, paddingHorizontal: 10 },
   dateChipOn: { backgroundColor: C.teal, borderColor: C.teal },
   dateWd: { fontSize: 11, fontWeight: '700', color: C.muted },

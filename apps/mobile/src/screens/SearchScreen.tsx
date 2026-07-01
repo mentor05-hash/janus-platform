@@ -4,14 +4,27 @@ import { api, ApiError, Teacher } from '../api';
 import { C, R, SP, ui, gradeColor } from '../theme';
 
 const SORTS: [string, string][] = [['grade', '기본'], ['rating', '만족도'], ['consult', '상담수'], ['question', '질문답변'], ['offline', '오프라인']];
+const CTYPES: [string, string][] = [['담임', '🏫'], ['교과', '📐'], ['입시', '🎯'], ['심리', '💬']];
+const SUBTYPES: Record<string, string[]> = {
+  담임: ['생활전반', '학습전반'],
+  교과: ['국어', '수학', '영어', '과학', '사회'],
+  입시: ['성적별 대학라인', '유리한 전형', '입시정보', '유료컨설팅'],
+  심리: ['LCA코칭', '심리상담'],
+};
 
-export function SearchScreen({ onPick }: { onPick: (t: Teacher) => void }) {
+export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher) => void; onGoQna?: () => void }) {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [cats, setCats] = useState<string[]>([]);
+  const [mode, setMode] = useState<'상담' | '질문'>('상담');
+  const [consultType, setConsultType] = useState<string | null>(null);
+  const [subType, setSubType] = useState<string | null>(null);
   const [category, setCategory] = useState('전체');
   const [sort, setSort] = useState('grade');
   const [q, setQ] = useState('');
   const [error, setError] = useState('');
+
+  // 교과 세부유형은 실제 subject 필터로 동작. 그 외 유형의 세부는 안내·프리필용.
+  const subjectFilter = consultType === '교과' ? subType : null;
 
   useEffect(() => {
     api.get<{ name: string }[]>('/categories?kind=teacher').then((r) => setCats(r.map((c) => c.name))).catch(() => {});
@@ -19,12 +32,18 @@ export function SearchScreen({ onPick }: { onPick: (t: Teacher) => void }) {
   useEffect(() => {
     const p = new URLSearchParams();
     if (category !== '전체') p.set('category', category);
+    if (subjectFilter) p.set('subject', subjectFilter);
     if (sort) p.set('sort', sort);
     p.set('size', '100');
     api.get<{ data?: Teacher[] } | Teacher[]>(`/teachers?${p}`)
       .then((r) => setTeachers(Array.isArray(r) ? r : (r.data ?? [])))
       .catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
-  }, [category, sort]);
+  }, [category, sort, subjectFilter]);
+
+  function pickType(t: string) {
+    setConsultType((cur) => (cur === t ? null : t));
+    setSubType(null);
+  }
 
   const rows = useMemo(() => {
     const kw = q.trim().toLowerCase();
@@ -34,21 +53,55 @@ export function SearchScreen({ onPick }: { onPick: (t: Teacher) => void }) {
   return (
     <View style={ui.screen}>
       <Text style={ui.h}>선생님 찾기</Text>
-      <TextInput style={[ui.input, { marginTop: 8 }]} value={q} onChangeText={setQ} placeholder="이름·과목 검색" placeholderTextColor={C.caption} />
-      {/* 카테고리 — 가로 줄바꿈, 낮은 높이 알약 */}
-      <View style={styles.pillRow}>
-        {['전체', ...cats].map((c) => (
-          <TouchableOpacity key={c} style={[styles.pill, category === c && styles.pillOn]} onPress={() => setCategory(c)}><Text style={[styles.pillT, category === c && { color: C.white }]}>{c}</Text></TouchableOpacity>
+      {/* 상담 / 질문 토글 */}
+      <View style={styles.seg}>
+        {(['상담', '질문'] as const).map((m) => (
+          <TouchableOpacity key={m} style={[styles.segItem, mode === m && styles.segOn]} onPress={() => setMode(m)}><Text style={[styles.segT, mode === m && styles.segTOn]}>{m}</Text></TouchableOpacity>
         ))}
       </View>
-      {/* 정렬 */}
-      <View style={styles.pillRow}>
-        {SORTS.map(([v, l]) => (
-          <TouchableOpacity key={v} style={[styles.sortPill, sort === v && styles.sortOn]} onPress={() => setSort(v)}><Text style={[styles.sortT, sort === v && { color: C.teal }]}>{l}</Text></TouchableOpacity>
-        ))}
-      </View>
+
+      {mode === '질문' ? (
+        <View style={[ui.card, { marginTop: 12 }]}>
+          <Text style={{ fontSize: 14, fontWeight: '700', color: C.ink }}>질문은 Q&A 게시판에서</Text>
+          <Text style={[ui.sub, { marginTop: 4 }]}>선생님에게 공개·지정 질문을 남기고 답변을 받을 수 있어요(건당 크레딧).</Text>
+          {onGoQna ? <TouchableOpacity style={[ui.btn, { marginTop: 12 }]} onPress={onGoQna}><Text style={ui.btnText}>Q&A 게시판으로</Text></TouchableOpacity> : null}
+        </View>
+      ) : (
+        <>
+          <TextInput style={[ui.input, { marginTop: 10 }]} value={q} onChangeText={setQ} placeholder="이름·과목 검색" placeholderTextColor={C.caption} />
+          {/* 상담 유형 */}
+          <Text style={styles.lbl}>상담 유형</Text>
+          <View style={styles.pillRow}>
+            {CTYPES.map(([t, ic]) => (
+              <TouchableOpacity key={t} style={[styles.pill, consultType === t && styles.pillOn]} onPress={() => pickType(t)}><Text style={[styles.pillT, consultType === t && { color: C.white }]}>{ic} {t}</Text></TouchableOpacity>
+            ))}
+          </View>
+          {/* 세부 유형 (교과=과목 필터, 그 외=안내) */}
+          {consultType && (
+            <View style={styles.pillRow}>
+              {SUBTYPES[consultType].map((s) => (
+                <TouchableOpacity key={s} style={[styles.subPill, subType === s && styles.subOn]} onPress={() => setSubType((cur) => (cur === s ? null : s))}><Text style={[styles.subT, subType === s && { color: C.teal }]}>{s}</Text></TouchableOpacity>
+              ))}
+            </View>
+          )}
+          {consultType === '심리' && <Text style={styles.note}>💬 심리상담(LCA코칭·심리상담)은 기숙 온/오프라인으로 운영돼요.</Text>}
+          {/* 카테고리 */}
+          <Text style={styles.lbl}>카테고리</Text>
+          <View style={styles.pillRow}>
+            {['전체', ...cats].map((c) => (
+              <TouchableOpacity key={c} style={[styles.pill, category === c && styles.pillOn]} onPress={() => setCategory(c)}><Text style={[styles.pillT, category === c && { color: C.white }]}>{c}</Text></TouchableOpacity>
+            ))}
+          </View>
+          {/* 정렬 */}
+          <View style={styles.pillRow}>
+            {SORTS.map(([v, l]) => (
+              <TouchableOpacity key={v} style={[styles.sortPill, sort === v && styles.sortOn]} onPress={() => setSort(v)}><Text style={[styles.sortT, sort === v && { color: C.teal }]}>{l}</Text></TouchableOpacity>
+            ))}
+          </View>
+        </>
+      )}
       {error ? <Text style={ui.error}>{error}</Text> : null}
-      <FlatList
+      {mode === '상담' && <FlatList
         style={{ marginTop: 8 }}
         data={rows}
         keyExtractor={(t) => t.id}
@@ -69,7 +122,7 @@ export function SearchScreen({ onPick }: { onPick: (t: Teacher) => void }) {
           </TouchableOpacity>
         )}
         ListEmptyComponent={!error ? <Text style={ui.sub}>선생님이 없습니다.</Text> : null}
-      />
+      />}
     </View>
   );
 }
@@ -93,4 +146,14 @@ const styles = StyleSheet.create({
   sortPill: { alignSelf: 'flex-start', borderWidth: 1, borderColor: C.lineSoft, borderRadius: R.pill, paddingVertical: 4, paddingHorizontal: 12, backgroundColor: C.white },
   sortOn: { borderColor: C.teal, backgroundColor: C.teal50 },
   sortT: { color: C.caption, fontWeight: '700', fontSize: 12, lineHeight: 16 },
+  seg: { flexDirection: 'row', backgroundColor: C.lineSoft, borderRadius: 10, padding: 3 },
+  segItem: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8 },
+  segOn: { backgroundColor: C.white },
+  segT: { fontSize: 13, fontWeight: '700', color: C.muted },
+  segTOn: { color: C.teal, fontWeight: '800' },
+  lbl: { fontSize: 11, fontWeight: '800', color: C.caption, marginTop: 12, marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
+  subPill: { alignSelf: 'flex-start', borderWidth: 1, borderColor: C.lineSoft, borderRadius: R.pill, paddingVertical: 4, paddingHorizontal: 12, backgroundColor: C.teal50 },
+  subOn: { borderColor: C.teal, backgroundColor: C.teal100 },
+  subT: { color: C.muted, fontWeight: '700', fontSize: 12, lineHeight: 16 },
+  note: { fontSize: 12, color: C.teal, backgroundColor: C.teal50, borderRadius: 8, padding: 9, marginTop: 8 },
 });

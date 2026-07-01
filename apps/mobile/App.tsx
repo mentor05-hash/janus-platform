@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { api, Child, hasSession, loadTokens, Me, Teacher } from './src/api';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { SearchScreen } from './src/screens/SearchScreen';
+import { TeacherDetailScreen } from './src/screens/TeacherDetailScreen';
 import { SlotsScreen } from './src/screens/SlotsScreen';
 import { BookingsScreen } from './src/screens/BookingsScreen';
 import { QnaScreen } from './src/screens/QnaScreen';
@@ -19,6 +20,7 @@ export default function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [tab, setTab] = useState('a');
   const [teacher, setTeacher] = useState<Teacher | null>(null);
+  const [booking, setBooking] = useState(false);
   const [child, setChild] = useState<Child | null>(null);
 
   useEffect(() => {
@@ -80,9 +82,13 @@ export default function App() {
         {isStudent &&
           (tab === 'a' ? (
             teacher ? (
-              <SlotsScreen teacher={teacher} onBack={() => setTeacher(null)} />
+              booking ? (
+                <SlotsScreen teacher={teacher} onBack={() => setBooking(false)} />
+              ) : (
+                <TeacherDetailScreen teacher={teacher} onBack={() => setTeacher(null)} onBook={() => setBooking(true)} />
+              )
             ) : (
-              <SearchScreen onPick={setTeacher} />
+              <SearchScreen onPick={(t) => { setTeacher(t); setBooking(false); }} onGoQna={() => setTab('c')} />
             )
           ) : tab === 'b' ? (
             <BookingsScreen />
@@ -115,6 +121,7 @@ export default function App() {
               onPress={() => {
                 setTab(t);
                 setTeacher(null);
+                setBooking(false);
                 setChild(null);
               }}
             >
