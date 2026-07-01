@@ -11,7 +11,37 @@ const STATUS_LABEL: Record<string, string> = {
 };
 const badgeKind = (s: string) => (['new', 'confirmed', 'done', 'cancelled', 'rejected', 'noshow'].includes(s) ? s : 'soft') as 'new';
 
-function Detail({ bookingId }: { bookingId: string }) {
+function ReviewBox({ bookingId }: { bookingId: string }) {
+  const [r, setR] = useState({ ratingAttitude: 5, ratingContent: 5, ratingSkill: 5, ratingAgain: 5, text: '' });
+  const [done, setDone] = useState(false);
+  const [err, setErr] = useState('');
+  const items: [keyof typeof r, string][] = [['ratingAttitude', '태도'], ['ratingContent', '내용'], ['ratingSkill', '실력'], ['ratingAgain', '재신청']];
+  async function submit() {
+    setErr('');
+    try { await api.post(`/bookings/${bookingId}/review`, r); setDone(true); }
+    catch (e) { setErr(e instanceof ApiError ? e.message : '후기 등록 실패'); }
+  }
+  if (done) return <p style={{ color: 'var(--chip-done)', fontSize: 13, marginTop: 8 }}>후기가 등록되었습니다. 감사합니다!</p>;
+  return (
+    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--line)' }}>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>상담 후기 작성</div>
+      {items.map(([k, label]) => (
+        <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <span style={{ width: 56, fontSize: 13, color: 'var(--muted)' }}>{label}</span>
+          {[1, 2, 3, 4, 5].map((n) => (
+            <button key={n} type="button" onClick={() => setR((p) => ({ ...p, [k]: n }))}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: n <= (r[k] as number) ? '#F5A623' : 'var(--line)' }}>★</button>
+          ))}
+        </div>
+      ))}
+      <textarea className="textarea" rows={2} placeholder="후기(선택)" value={r.text} onChange={(e) => setR((p) => ({ ...p, text: e.target.value }))} style={{ marginTop: 6 }} />
+      {err && <ErrorText>{err}</ErrorText>}
+      <Button size="sm" onClick={submit}>후기 등록</Button>
+    </div>
+  );
+}
+
+function Detail({ bookingId, status }: { bookingId: string; status: string }) {
   const [b, setB] = useState<Booking | null>(null);
   const [note, setNote] = useState<ConsultationNote | null>(null);
   const [err, setErr] = useState('');
@@ -50,6 +80,7 @@ function Detail({ bookingId }: { bookingId: string }) {
       ) : (
         <div style={{ fontSize: 13, color: 'var(--muted)' }}>아직 공개된 상담 기록이 없어요(완료 후 열람 가능).</div>
       )}
+      {status === 'done' && <ReviewBox bookingId={bookingId} />}
     </div>
   );
 }
@@ -143,7 +174,7 @@ export function StudentBookingsPage() {
                 <Button variant="ghost" size="sm" onClick={() => setOpen(open === b.id ? null : b.id)}>{open === b.id ? '접기' : '상세'}</Button>
               </div>
             </div>
-            {open === b.id && <Detail bookingId={b.id} />}
+            {open === b.id && <Detail bookingId={b.id} status={b.status} />}
           </Card>
         ))
       )}

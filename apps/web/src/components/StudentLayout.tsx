@@ -6,7 +6,10 @@ const navCls = ({ isActive }: { isActive: boolean }) => (isActive ? 'nav-item ac
 const NAV = [
   { to: '/student/search', label: '선생님 찾기' },
   { to: '/student/bookings', label: '내 예약·상담' },
+  { to: '/student/qna', label: '질문 게시판' },
+  { to: '/student/membership', label: '멤버십·결제' },
   { to: '/student/credits', label: '크레딧' },
+  { to: '/student/notifications', label: '알림' },
   { to: '/student/reverse', label: '역상담' },
 ];
 

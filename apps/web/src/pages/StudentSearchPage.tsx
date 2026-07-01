@@ -18,6 +18,7 @@ const SLOT_UI: Record<Slot['status'], { label: string; bg: string; fg: string; b
 const SUBJECTS = ['국어', '수학', '영어', '탐구'];
 const MODES = ['zoom', 'chat', 'hand'];
 type Attachment = { id: string; name: string; type?: string };
+const actBtn: React.CSSProperties = { flex: 1, background: 'none', border: '1px solid var(--line)', borderRadius: 8, padding: '6px 0', fontSize: 12, color: 'var(--muted)', cursor: 'pointer' };
 
 function BookingForm({ teacher, onDone, onBack }: { teacher: Teacher; onDone: () => void; onBack: () => void }) {
   const [date, setDate] = useState(todayStr());
@@ -212,6 +213,25 @@ export function StudentSearchPage() {
     api.get<CreditAccount>('/credits/account').then(setCredit).catch(() => {});
   }, []);
 
+  const [note, setNote] = useState('');
+  async function fav(t: Teacher) {
+    setNote('');
+    try { await api.post('/me/teacher-lists', { teacherId: t.id, type: 'fit' }); setNote(`${t.name} 선생님을 내 선생님(찜)에 추가했어요.`); }
+    catch (e) { setNote(e instanceof ApiError ? e.message : '실패'); }
+  }
+  async function block(t: Teacher) {
+    setNote('');
+    try { await api.post('/teacher-blocks', { teacherId: t.id }); setNote(`${t.name} 선생님을 차단했어요.`); }
+    catch (e) { setNote(e instanceof ApiError ? e.message : '실패'); }
+  }
+  async function report(t: Teacher) {
+    const reason = window.prompt(`${t.name} 선생님 신고 사유를 입력하세요.`);
+    if (!reason) return;
+    setNote('');
+    try { await api.post('/reports', { targetType: 'teacher', targetId: t.id, reason }); setNote('신고가 접수되었습니다.'); }
+    catch (e) { setNote(e instanceof ApiError ? e.message : '실패'); }
+  }
+
   if (picked) return <BookingForm teacher={picked} onBack={() => setPicked(null)} onDone={() => setPicked(null)} />;
 
   const rows = (teachers ?? []).filter((t) => !q.trim() || t.name.toLowerCase().includes(q.toLowerCase()) || t.subjects.join(',').includes(q));
@@ -222,10 +242,11 @@ export function StudentSearchPage() {
       <div style={{ maxWidth: 420, marginBottom: 12 }}>
         <TextField placeholder="이름·과목 검색" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
+      {note && <p style={{ color: 'var(--chip-done)', fontSize: 13 }}>{note}</p>}
       {teachers === null ? <Spinner /> : rows.length === 0 ? <Card><EmptyState>선생님이 없어요.</EmptyState></Card> : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
           {rows.map((t) => (
-            <Card key={t.id} style={{ cursor: 'pointer' }}>
+            <Card key={t.id}>
               <button onClick={() => setPicked(t)} style={{ all: 'unset', cursor: 'pointer', display: 'block', width: '100%' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <b style={{ fontSize: 15 }}>{t.name}</b>
@@ -234,6 +255,11 @@ export function StudentSearchPage() {
                 <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>{t.subjects.join(', ')} · {t.category ?? '-'} · 평점 {t.rating ?? 0}</div>
                 <div style={{ marginTop: 8 }}><Badge kind="confirmed">상담 신청 →</Badge></div>
               </button>
+              <div style={{ display: 'flex', gap: 6, marginTop: 8, borderTop: '1px solid var(--line)', paddingTop: 8 }}>
+                <button type="button" onClick={() => fav(t)} style={actBtn}>☆ 찜</button>
+                <button type="button" onClick={() => block(t)} style={actBtn}>🚫 차단</button>
+                <button type="button" onClick={() => report(t)} style={actBtn}>🚩 신고</button>
+              </div>
             </Card>
           ))}
         </div>

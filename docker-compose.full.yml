@@ -41,7 +41,7 @@ services:
     # 스키마 마이그레이션(멱등) 후 기동 — 빈 DB 로 시작해도 스키마 보장.
     command: sh -c "node scripts/apply-migrations.mjs || true; node dist/main.js"
     environment:
-      NODE_ENV: prod
+      NODE_ENV: local
       PORT: "3000"
       API_PREFIX: /api/v1
       DATABASE_URL: postgresql://itall:itall_local_pw@postgres:5432/itall

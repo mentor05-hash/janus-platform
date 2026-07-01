@@ -32,6 +32,9 @@ import { StudentBookingsPage } from './pages/StudentBookingsPage';
 import { StudentSearchPage } from './pages/StudentSearchPage';
 import { StudentCreditsPage } from './pages/StudentCreditsPage';
 import { StudentReversePage } from './pages/StudentReversePage';
+import { StudentQnaPage } from './pages/StudentQnaPage';
+import { StudentMembershipPage } from './pages/StudentMembershipPage';
+import { StudentNotificationsPage } from './pages/StudentNotificationsPage';
 
 function Protected({ roles, children }: { roles?: string[]; children: JSX.Element }) {
   const { user, loading } = useAuth();
@@ -107,7 +110,10 @@ export function App() {
         <Route index element={<Navigate to="bookings" replace />} />
         <Route path="search" element={<StudentSearchPage />} />
         <Route path="bookings" element={<StudentBookingsPage />} />
+        <Route path="qna" element={<StudentQnaPage />} />
+        <Route path="membership" element={<StudentMembershipPage />} />
         <Route path="credits" element={<StudentCreditsPage />} />
+        <Route path="notifications" element={<StudentNotificationsPage />} />
         <Route path="reverse" element={<StudentReversePage />} />
       </Route>
 
