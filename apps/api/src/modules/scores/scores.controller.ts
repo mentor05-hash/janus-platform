@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Post, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { Type } from 'class-transformer';
 import { ArrayMaxSize, IsArray, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -24,6 +25,14 @@ class ManualScoreDto {
   @IsArray() @ArrayMaxSize(30) @ValidateNested({ each: true }) @Type(() => ScoreItemDto) items!: ScoreItemDto[];
 }
 class OcrDto { @IsString() fileId!: string; }
+class PlacementDto {
+  @IsOptional() @IsString() tier?: string;
+  @IsOptional() @IsString() line?: string;
+  @IsOptional() @IsArray() @IsString({ each: true }) universities?: string[];
+  @IsOptional() @IsArray() @IsString({ each: true }) departments?: string[];
+  @IsOptional() @IsString() memo?: string;
+  @IsOptional() @IsString() source?: string;
+}
 
 @Controller('admin/scores')
 @Roles('admin', 'hr')
@@ -46,6 +55,33 @@ export class ScoresController {
   @Get('missing')
   missing(@CurrentUser() user: AuthUser, @Query('period') period: string) {
     return this.scores.missing(user, period);
+  }
+
+  /** GET /admin/scores/trend?studentLoginId= — 성적 추이 + 배치 라인 변화. */
+  @Get('trend')
+  trend(@CurrentUser() user: AuthUser, @Query('studentLoginId') studentLoginId: string) {
+    return this.scores.trend(user, studentLoginId);
+  }
+
+  /** POST /admin/scores/estimate-placements — 데모 배치 추정(기간 일괄). */
+  @Post('estimate-placements')
+  estimate(@CurrentUser() user: AuthUser, @Body('period') period: string) {
+    return this.scores.estimatePlacements(user, period);
+  }
+
+  /** POST /admin/scores/:id/placement — 배치 라인 저장(외부 배치표 서비스/관리자). */
+  @Post(':id/placement')
+  placement(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: PlacementDto) {
+    return this.scores.setPlacement(user, id, { ...dto });
+  }
+
+  /** GET /admin/scores/template — 업로드용 엑셀 템플릿 다운로드. */
+  @Get('template')
+  template(@Res() res: Response) {
+    const buf = this.scores.template();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="score-template.xlsx"');
+    res.send(buf);
   }
 
   /** POST /admin/scores/manual — 수동 입력. */

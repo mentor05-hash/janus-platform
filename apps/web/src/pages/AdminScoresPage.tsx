@@ -3,10 +3,60 @@ import { api, ApiError } from '../api/client';
 import { PageHeader, Card, Button, Badge, Spinner, ErrorText, EmptyState } from '../components/ui';
 
 type Item = { subject: string; score: number | null; maxScore: number | null; grade?: string | null };
-type Report = { id: string; studentName: string; loginId: string; period: string; examType: string | null; source: string; items: Item[]; avg: number | null };
+type Placement = { tier?: string; line?: string; universities?: string[]; departments?: string[]; source?: string; memo?: string; avg?: number } | null;
+type Report = { id: string; studentName: string; loginId: string; period: string; examType: string | null; source: string; items: Item[]; avg: number | null; placement: Placement };
 type Missing = { period: string; count: number; students: { studentId: string; name: string; loginId: string; center: string | null; schoolGrade: string | null }[] };
+type TrendPoint = { period: string; examType: string | null; avg: number | null; subjects: { subject: string; score: number | null }[]; placement: Placement };
+type Trend = { student: { name?: string; loginId?: string }; points: TrendPoint[] };
 
 const DEFAULT_SUBJECTS = ['국어', '수학', '영어', '과학', '사회'];
+const TIER_KIND: Record<string, 'done' | 'confirmed' | 'new' | 'soft'> = { 최상위: 'done', 상위: 'done', 중상위: 'confirmed', 중위: 'new', 중하위: 'soft', 기초: 'soft' };
+
+/** 성적 추이(평균) 선그래프 + 배치 라인 변화 레인. */
+function ScoreTrend({ trend }: { trend: Trend }) {
+  const pts = trend.points;
+  if (!pts.length) return <EmptyState>이 학생의 성적 기록이 없어요.</EmptyState>;
+  const W = Math.max(360, pts.length * 150), H = 180, PAD = 34;
+  const xs = (i: number) => PAD + (pts.length === 1 ? (W - 2 * PAD) / 2 : (i * (W - 2 * PAD)) / (pts.length - 1));
+  const ys = (v: number) => H - PAD - ((v - 40) / 60) * (H - 2 * PAD); // 40~100 스케일
+  const line = pts.map((p, i) => `${xs(i)},${ys(p.avg ?? 40)}`).join(' ');
+  return (
+    <div>
+      <div style={{ overflowX: 'auto' }}>
+        <svg width={W} height={H} style={{ display: 'block' }}>
+          {[40, 60, 80, 100].map((g) => (
+            <g key={g}><line x1={PAD} x2={W - PAD} y1={ys(g)} y2={ys(g)} stroke="var(--line)" /><text x={4} y={ys(g) + 4} fontSize="10" fill="var(--caption)">{g}</text></g>
+          ))}
+          <polyline points={line} fill="none" stroke="var(--teal)" strokeWidth={2.5} />
+          {pts.map((p, i) => (
+            <g key={i}>
+              <circle cx={xs(i)} cy={ys(p.avg ?? 40)} r={5} fill="var(--teal)" />
+              <text x={xs(i)} y={ys(p.avg ?? 40) - 10} fontSize="12" fontWeight="700" fill="var(--ink)" textAnchor="middle">{p.avg ?? '-'}</text>
+              <text x={xs(i)} y={H - 10} fontSize="10" fill="var(--muted)" textAnchor="middle">{p.examType ?? p.period.slice(-4)}</text>
+            </g>
+          ))}
+        </svg>
+      </div>
+      {/* 배치 라인 변화 */}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 12 }}>
+        {pts.map((p, i) => (
+          <div key={i} style={{ flex: '1 1 200px', minWidth: 180, border: '1px solid var(--line)', borderRadius: 10, padding: 12 }}>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>{p.period}</div>
+            {p.placement ? (
+              <>
+                <Badge kind={TIER_KIND[p.placement.tier ?? ''] ?? 'soft'}>{p.placement.tier ?? '-'}</Badge>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', margin: '6px 0 2px' }}>{p.placement.line}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)' }}>{(p.placement.universities ?? []).join(' · ')}</div>
+                <div style={{ fontSize: 12, color: 'var(--caption)' }}>{(p.placement.departments ?? []).join(' · ')}</div>
+                {p.placement.source === 'demo' && <div style={{ fontSize: 10, color: 'var(--caption)', marginTop: 4 }}>※ 데모 추정</div>}
+              </>
+            ) : <div style={{ fontSize: 12, color: 'var(--caption)' }}>배치 결과 없음</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function AdminScoresPage() {
   const [period, setPeriod] = useState('2026-1학기 중간고사');
@@ -25,6 +75,26 @@ export function AdminScoresPage() {
   const [ocrNote, setOcrNote] = useState('');
   const excelRef = useRef<HTMLInputElement>(null);
   const ocrRef = useRef<HTMLInputElement>(null);
+
+  // 성적·배치 추이
+  const [trendId, setTrendId] = useState('');
+  const [trend, setTrend] = useState<Trend | null>(null);
+
+  async function loadTrend() {
+    if (!trendId.trim()) return;
+    setError(''); setTrend(null);
+    try { setTrend(await api.get<Trend>(`/admin/scores/trend?studentLoginId=${encodeURIComponent(trendId.trim())}`)); }
+    catch (e) { setError(e instanceof ApiError ? e.message : '추이 조회 실패'); }
+  }
+  async function downloadTemplate() {
+    try { await api.downloadPath('/admin/scores/template', 'score-template.xlsx'); }
+    catch (e) { setError(e instanceof ApiError ? e.message : '템플릿 다운로드 실패'); }
+  }
+  async function estimatePlacements() {
+    setMsg(''); setError('');
+    try { const r = await api.post<{ updated: number; note: string }>('/admin/scores/estimate-placements', { period }); setMsg(`배치 라인 추정 완료: ${r.updated}건 (${r.note})`); if (tab === 'list') loadList(); if (trend) loadTrend(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : '추정 실패'); }
+  }
 
   const loadPeriods = useCallback(() => { api.get<string[]>('/admin/scores/periods').then(setPeriods).catch(() => {}); }, []);
   const loadList = useCallback(() => {
@@ -97,6 +167,7 @@ export function AdminScoresPage() {
         <label className="label" style={{ margin: 0 }}>기간</label>
         <input className="input" style={{ width: 220 }} value={period} onChange={(e) => setPeriod(e.target.value)} placeholder="예: 2026-1학기 중간고사" list="periods" />
         <datalist id="periods">{periods.map((p) => <option key={p} value={p} />)}</datalist>
+        <Button size="sm" variant="ghost" onClick={estimatePlacements}>🎯 배치 라인 추정(데모)</Button>
       </div>
 
       {/* 엑셀 일괄 */}
@@ -106,7 +177,10 @@ export function AdminScoresPage() {
           가로형: <b>아이디 · 기간 · 시험</b> + 과목 컬럼(국어·수학·영어…). 전체 또는 일부 학생만 넣어도 됩니다. 같은 학생·기간은 갱신됩니다.
         </p>
         <input ref={excelRef} type="file" accept=".xlsx,.xls" hidden onChange={onExcel} />
-        <Button variant="ghost" onClick={() => excelRef.current?.click()}>엑셀 파일 선택(.xlsx)</Button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Button variant="ghost" onClick={() => excelRef.current?.click()}>엑셀 파일 선택(.xlsx)</Button>
+          <Button variant="ghost" onClick={downloadTemplate}>⬇ 템플릿 다운로드</Button>
+        </div>
       </Card>
 
       {/* 수동 + OCR */}
@@ -137,6 +211,22 @@ export function AdminScoresPage() {
         <Button style={{ marginTop: 10 }} onClick={saveManual}>성적 저장</Button>
       </Card>
 
+      {/* 성적·배치 추이 */}
+      <Card style={{ marginBottom: 16 }}>
+        <h3 style={{ margin: '0 0 8px', fontSize: 15 }}>성적·배치 추이</h3>
+        <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 10px' }}>학생별 성적 추이와 함께, 배치표 서비스로 도출된 <b>가능 대학·학과 라인의 변화</b>를 확인합니다.</p>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+          <input className="input" style={{ width: 150 }} value={trendId} onChange={(e) => setTrendId(e.target.value)} placeholder="학생 아이디" onKeyDown={(e) => e.key === 'Enter' && loadTrend()} />
+          <Button variant="ghost" onClick={loadTrend}>추이 보기</Button>
+        </div>
+        {trend && (
+          <>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{trend.student.name} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>{trend.student.loginId}</span></div>
+            <ScoreTrend trend={trend} />
+          </>
+        )}
+      </Card>
+
       {/* 탭 */}
       <div style={{ display: 'inline-flex', background: 'var(--fill,#eef2f4)', borderRadius: 10, padding: 3, marginBottom: 12 }}>
         {([['list', '성적 목록'], ['missing', '미업로드 학생']] as const).map(([v, l]) => (
@@ -148,7 +238,7 @@ export function AdminScoresPage() {
         reports === null ? <Spinner /> : reports.length === 0 ? <Card><EmptyState>이 기간에 등록된 성적이 없어요.</EmptyState></Card> : (
           <Card style={{ padding: 0, overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead><tr><th style={th}>학생</th><th style={th}>시험</th><th style={th}>과목·점수</th><th style={th}>평균</th><th style={th}>출처</th></tr></thead>
+              <thead><tr><th style={th}>학생</th><th style={th}>시험</th><th style={th}>과목·점수</th><th style={th}>평균</th><th style={th}>배치 라인</th><th style={th}>출처</th></tr></thead>
               <tbody>
                 {reports.map((r) => (
                   <tr key={r.id}>
@@ -156,6 +246,7 @@ export function AdminScoresPage() {
                     <td style={td}>{r.examType ?? '-'}</td>
                     <td style={{ ...td, fontSize: 12 }}>{r.items.map((i) => `${i.subject} ${i.score ?? '-'}`).join(' · ')}</td>
                     <td style={td}><b>{r.avg ?? '-'}</b></td>
+                    <td style={{ ...td, fontSize: 12 }}>{r.placement ? <><Badge kind={TIER_KIND[r.placement.tier ?? ''] ?? 'soft'}>{r.placement.tier}</Badge> <span style={{ color: 'var(--muted)' }}>{r.placement.line}</span></> : <span style={{ color: 'var(--caption)' }}>-</span>}</td>
                     <td style={td}><Badge kind="soft">{r.source === 'excel' ? '엑셀' : r.source === 'ocr' ? 'OCR' : '수동'}</Badge></td>
                   </tr>
                 ))}

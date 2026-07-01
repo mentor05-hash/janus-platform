@@ -112,6 +112,19 @@ export class ScoresService {
     return result;
   }
 
+  /** 업로드용 엑셀 템플릿(가로형: 아이디·기간·시험 + 과목 컬럼) 생성. */
+  template(): Buffer {
+    const sample = [
+      { 아이디: 'student01', 기간: '2026-1학기 중간고사', 시험: '중간', 국어: 90, 수학: 85, 영어: 88, 과학: 77, 사회: 95 },
+      { 아이디: 'student02', 기간: '2026-1학기 중간고사', 시험: '중간', 국어: 72, 수학: 99, 영어: 81, 과학: 88, 사회: 69 },
+    ];
+    const ws = XLSX.utils.json_to_sheet(sample);
+    ws['!cols'] = [{ wch: 12 }, { wch: 22 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '성적');
+    return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+  }
+
   /** 성적표 이미지 OCR → 과목·점수 추출(폼 프리필). */
   async ocr(actor: AuthUser, fileId: string): Promise<ScoreOcrResult & { fileId: string }> {
     this.assertAdmin(actor);
@@ -135,10 +148,77 @@ export class ScoresService {
     return rows.map((r) => ({
       id: r.id, studentId: r.student_id, studentName: r.student.account.name, loginId: r.student.account.login_id,
       period: r.period, examType: r.exam_type, source: r.source, reportFileId: r.report_file_id, note: r.note,
+      placement: (r.placement as Record<string, unknown> | null) ?? null,
       createdAt: r.created_at,
       items: r.items.map((i) => ({ subject: i.subject, score: i.score ? Number(i.score) : null, maxScore: i.max_score ? Number(i.max_score) : null, grade: i.grade })),
       avg: (() => { const s = r.items.map((i) => (i.score ? Number(i.score) : null)).filter((x): x is number => x != null); return s.length ? Math.round((s.reduce((a, b) => a + b, 0) / s.length) * 10) / 10 : null; })(),
     }));
+  }
+
+  /** 배치 라인 저장 — 외부 배치표 서비스 결과 또는 관리자 입력. */
+  async setPlacement(actor: AuthUser, reportId: string, placement: Record<string, unknown>) {
+    this.assertAdmin(actor);
+    const r = await this.prisma.score_report.findUnique({ where: { id: reportId }, select: { center_id: true } });
+    if (!r) throw new NotFoundException('성적표를 찾을 수 없습니다.');
+    if (!this.isHq(actor) && r.center_id !== actor.centerId) throw new ForbiddenException('다른 센터 성적입니다.');
+    await this.prisma.score_report.update({
+      where: { id: reportId },
+      data: { placement: { ...placement, source: placement.source ?? 'manual', updatedAt: new Date().toISOString() } as object },
+    });
+    return { ok: true };
+  }
+
+  /** 데모 배치 추정 — 평균 → 등급/라인/샘플 대학·학과. 실 배치표 서비스가 덮어쓸 자리. */
+  private static estimateLine(avg: number): { tier: string; line: string; universities: string[]; departments: string[] } {
+    if (avg >= 95) return { tier: '최상위', line: '서울 최상위·의약학 라인', universities: ['서울대', '연세대', '고려대'], departments: ['의예', '컴퓨터공학', '경영'] };
+    if (avg >= 90) return { tier: '상위', line: '서성한·중경외시 라인', universities: ['성균관대', '한양대', '중앙대'], departments: ['전자공학', '경제', '미디어'] };
+    if (avg >= 85) return { tier: '중상위', line: '건동홍·국숭세단 라인', universities: ['홍익대', '국민대', '숭실대'], departments: ['소프트웨어', '건축', '경영'] };
+    if (avg >= 80) return { tier: '중위', line: '인서울 하위·수도권 라인', universities: ['가천대', '명지대', '경기대'], departments: ['컴퓨터', '전기', '행정'] };
+    if (avg >= 70) return { tier: '중하위', line: '수도권·지방 국립 라인', universities: ['한국공대', '충북대', '강원대'], departments: ['기계', '화학', '사회복지'] };
+    return { tier: '기초', line: '지방권·전문대 라인', universities: ['지방 사립'], departments: ['보건', '실용'] };
+  }
+
+  async estimatePlacements(actor: AuthUser, period: string) {
+    this.assertAdmin(actor);
+    if (!period?.trim()) throw new BadRequestException('기간을 지정하세요.');
+    const reports = await this.prisma.score_report.findMany({
+      where: { period, ...(this.isHq(actor) ? {} : { center_id: actor.centerId }) },
+      include: { items: { select: { score: true } } },
+    });
+    let updated = 0;
+    for (const r of reports) {
+      const s = r.items.map((i) => (i.score ? Number(i.score) : null)).filter((x): x is number => x != null);
+      if (!s.length) continue;
+      const avg = s.reduce((a, b) => a + b, 0) / s.length;
+      const est = ScoresService.estimateLine(avg);
+      await this.prisma.score_report.update({ where: { id: r.id }, data: { placement: { ...est, avg: Math.round(avg * 10) / 10, source: 'demo', updatedAt: new Date().toISOString() } as object } });
+      updated++;
+    }
+    return { updated, note: '데모 추정입니다. 실제 배치표 서비스 결과가 있으면 덮어쓰세요.' };
+  }
+
+  /** 학생 성적 추이 + 배치 라인 변화(회차 순). */
+  async trend(actor: AuthUser, studentLoginId: string) {
+    this.assertAdmin(actor);
+    const sp = await this.resolveStudent(actor, undefined, studentLoginId);
+    const reports = await this.prisma.score_report.findMany({
+      where: { student_id: sp.account_id },
+      include: { items: { orderBy: { subject: 'asc' } } },
+      orderBy: { created_at: 'asc' },
+    });
+    const student = await this.prisma.account.findUnique({ where: { id: sp.account_id }, select: { name: true, login_id: true } });
+    return {
+      student: { name: student?.name, loginId: student?.login_id },
+      points: reports.map((r) => {
+        const s = r.items.map((i) => (i.score ? Number(i.score) : null)).filter((x): x is number => x != null);
+        const avg = s.length ? Math.round((s.reduce((a, b) => a + b, 0) / s.length) * 10) / 10 : null;
+        return {
+          period: r.period, examType: r.exam_type, avg,
+          subjects: r.items.map((i) => ({ subject: i.subject, score: i.score ? Number(i.score) : null })),
+          placement: (r.placement as Record<string, unknown> | null) ?? null,
+        };
+      }),
+    };
   }
 
   async periods(actor: AuthUser) {

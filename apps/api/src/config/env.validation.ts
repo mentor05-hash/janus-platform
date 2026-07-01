@@ -74,6 +74,10 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
+  ANTHROPIC_MODEL?: string; // 기본 claude-sonnet-4-6
+
+  @IsOptional()
+  @IsString()
   ZOOM_PROVIDER?: string;
 
   @IsOptional()

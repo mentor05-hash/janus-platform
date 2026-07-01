@@ -18,7 +18,10 @@ import { LLM_PROVIDER } from './llm.types';
         const which = config.get<string>('LLM_PROVIDER') ?? 'mock';
         switch (which) {
           case 'claude':
-            return new ClaudeLlmProvider(config.get<string>('ANTHROPIC_API_KEY'));
+            return new ClaudeLlmProvider(
+              config.get<string>('ANTHROPIC_API_KEY'),
+              config.get<string>('ANTHROPIC_MODEL') ?? 'claude-sonnet-4-6',
+            );
           default:
             return new MockLlmProvider();
         }
