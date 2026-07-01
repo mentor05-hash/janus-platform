@@ -9,6 +9,7 @@ const NAV = [
   { to: '/student/bookings', label: '내 예약·상담' },
   { to: '/student/materials', label: '자료실' },
   { to: '/student/qna', label: '질문 게시판' },
+  { to: '/student/community', label: '커뮤니티' },
   { to: '/student/membership', label: '멤버십·결제' },
   { to: '/student/credits', label: '크레딧' },
   { to: '/student/notifications', label: '알림' },

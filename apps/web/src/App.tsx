@@ -39,6 +39,7 @@ import { StudentSearchPage } from './pages/StudentSearchPage';
 import { StudentCreditsPage } from './pages/StudentCreditsPage';
 import { StudentReversePage } from './pages/StudentReversePage';
 import { StudentQnaPage } from './pages/StudentQnaPage';
+import { StudentCommunityPage } from './pages/StudentCommunityPage';
 import { StudentMembershipPage } from './pages/StudentMembershipPage';
 import { StudentNotificationsPage } from './pages/StudentNotificationsPage';
 import { StudentMaterialsPage } from './pages/StudentMaterialsPage';
@@ -131,6 +132,7 @@ export function App() {
         <Route path="bookings" element={<StudentBookingsPage />} />
         <Route path="materials" element={<StudentMaterialsPage />} />
         <Route path="qna" element={<StudentQnaPage />} />
+        <Route path="community" element={<StudentCommunityPage />} />
         <Route path="membership" element={<StudentMembershipPage />} />
         <Route path="credits" element={<StudentCreditsPage />} />
         <Route path="notifications" element={<StudentNotificationsPage />} />
