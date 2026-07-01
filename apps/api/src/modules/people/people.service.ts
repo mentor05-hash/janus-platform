@@ -19,6 +19,7 @@ export class PeopleService {
       ...(q.grade ? { grade: q.grade } : {}),
       ...(q.category ? { teacher_category: q.category } : {}),
       ...(q.subject ? { subjects: { has: q.subject } } : {}),
+      ...(q.consultType ? { consult_types: { has: q.consultType } } : {}),
     };
     // 랭킹 가중치(§5-7): 등급 우선, 동급은 유효평점(평점 − 취소누적×가중치) 내림차순.
     // 계산 정렬이라 전체 후보를 가져와 JS 정렬 후 페이지네이션(센터 규모상 소량).

@@ -658,6 +658,7 @@ model teacher_profile {
   career                                                             String?
   intro                                                              String?
   strengths                                                          String[]                       @default([])
+  consult_types                                                      String[]                       @default([])
   rating                                                             Decimal?                       @default(0) @db.Decimal(2, 1)
   total_consult                                                      Int?                           @default(0)
   re_request_rate                                                    Decimal?                       @db.Decimal(4, 1)

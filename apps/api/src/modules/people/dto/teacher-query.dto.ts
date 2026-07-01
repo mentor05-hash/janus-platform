@@ -16,6 +16,11 @@ export class TeacherQueryDto {
   @IsString()
   category?: string;
 
+  /** 상담 유형(담임·교과·입시·심리) — 선생님이 제공하는 유형으로 필터. */
+  @IsOptional()
+  @IsIn(['담임', '교과', '입시', '심리'])
+  consultType?: string;
+
   /** 이름·과목 검색어. */
   @IsOptional()
   @IsString()

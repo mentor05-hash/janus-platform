@@ -325,11 +325,12 @@ export function StudentSearchPage() {
     const params = new URLSearchParams();
     if (category !== '전체') params.set('category', category);
     if (subjectFilter) params.set('subject', subjectFilter);
+    if (consultType) params.set('consultType', consultType);
     if (sort) params.set('sort', sort);
     params.set('size', '100');
     setTeachers(null);
     api.get<{ data?: Teacher[] } | Teacher[]>(`/teachers?${params}`).then((r) => setTeachers(Array.isArray(r) ? r : (r.data ?? []))).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
-  }, [category, sort, subjectFilter]);
+  }, [category, sort, subjectFilter, consultType]);
   // 뒤로가기: 목록↔상세↔예약을 브라우저 히스토리와 동기화(뒤로가기 시 이전 단계로).
   const pickedRef = useRef(picked); pickedRef.current = picked;
   const phaseRef = useRef(phase); phaseRef.current = phase;

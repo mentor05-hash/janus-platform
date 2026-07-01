@@ -52,12 +52,13 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher) => void
     const p = new URLSearchParams();
     if (category !== '전체') p.set('category', category);
     if (subjectFilter) p.set('subject', subjectFilter);
+    if (consultType) p.set('consultType', consultType);
     if (sort) p.set('sort', sort);
     p.set('size', '100');
     api.get<{ data?: Teacher[] } | Teacher[]>(`/teachers?${p}`)
       .then((r) => setTeachers(Array.isArray(r) ? r : (r.data ?? [])))
       .catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
-  }, [category, sort, subjectFilter]);
+  }, [category, sort, subjectFilter, consultType]);
 
   function pickType(t: string) {
     setConsultType((cur) => (cur === t ? null : t));
