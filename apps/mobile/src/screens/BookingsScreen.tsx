@@ -92,6 +92,7 @@ export function BookingsScreen() {
   const [teachers, setTeachers] = useState<Record<string, string>>({});
   const [open, setOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [tab, setTab] = useState<'upcoming' | 'done'>('upcoming');
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
 
@@ -118,9 +119,21 @@ export function BookingsScreen() {
     finally { setBusy(null); }
   }
 
+  async function cancel(id: string) {
+    setBusy(id); setError(''); setMsg('');
+    try {
+      await api.patch(`/bookings/${id}/cancel`, {});
+      setMsg('예약을 취소했습니다. 크레딧은 환원됩니다.');
+      load();
+    } catch (e) { setError(e instanceof ApiError ? e.message : '취소 실패'); }
+    finally { setBusy(null); }
+  }
+
   const all = bookings ?? [];
   const incoming = all.filter((b) => b.direction === 'reverse' && b.status === 'new');
   const mine = all.filter((b) => !(b.direction === 'reverse' && b.status === 'new'));
+  const UPCOMING = new Set(['new', 'confirmed']);
+  const shown = mine.filter((b) => (tab === 'upcoming' ? UPCOMING.has(b.status) : !UPCOMING.has(b.status)));
   const tName = (id: string) => teachers[id] ?? '선생님';
 
   return (
@@ -146,10 +159,17 @@ export function BookingsScreen() {
       )}
 
       <Text style={styles.sec}>예약 현황 · 상담내역</Text>
-      {bookings === null ? <ActivityIndicator color={C.teal} /> : mine.length === 0 ? (
-        <View style={[ui.card, { paddingVertical: 18 }]}><Text style={ui.sub}>예약 내역이 없어요.</Text></View>
+      <View style={styles.tabs}>
+        {([['upcoming', `예정 ${mine.filter((b) => UPCOMING.has(b.status)).length}`], ['done', '완료·지난내역']] as const).map(([k, l]) => (
+          <TouchableOpacity key={k} style={[styles.tab, tab === k && styles.tabOn]} onPress={() => setTab(k)}>
+            <Text style={[styles.tabT, tab === k && styles.tabTOn]}>{l}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      {bookings === null ? <ActivityIndicator color={C.teal} /> : shown.length === 0 ? (
+        <View style={[ui.card, { paddingVertical: 18 }]}><Text style={ui.sub}>{tab === 'upcoming' ? '예정된 예약이 없어요.' : '완료·지난 내역이 없어요.'}</Text></View>
       ) : (
-        mine.map((b) => {
+        shown.map((b) => {
           const st = STATUS[b.status] ?? { label: b.status, bg: C.mutedChipBg, fg: C.mutedChip };
           return (
             <View key={b.id} style={[ui.card, { marginBottom: 8 }]}>
@@ -164,6 +184,11 @@ export function BookingsScreen() {
                 <Text style={styles.more}>{open === b.id ? '접기 ▲' : '상담 상세 ▼'}</Text>
               </TouchableOpacity>
               {open === b.id && <Detail id={b.id} status={b.status} />}
+              {UPCOMING.has(b.status) && (
+                <TouchableOpacity style={styles.cancelBtn} disabled={busy === b.id} onPress={() => cancel(b.id)}>
+                  <Text style={styles.cancelT}>{busy === b.id ? '취소 중…' : '예약 취소'}</Text>
+                </TouchableOpacity>
+              )}
             </View>
           );
         })
@@ -194,4 +219,11 @@ const styles = StyleSheet.create({
   dLink: { fontSize: 13, color: C.teal, paddingVertical: 2 },
   b: { fontWeight: '800' },
   ok: { color: C.done, fontSize: 13, marginTop: 6, fontWeight: '600' },
+  tabs: { flexDirection: 'row', backgroundColor: C.lineSoft, borderRadius: 10, padding: 3, marginBottom: 12 },
+  tab: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8 },
+  tabOn: { backgroundColor: C.white },
+  tabT: { fontSize: 13, fontWeight: '600', color: C.muted },
+  tabTOn: { color: C.teal, fontWeight: '800' },
+  cancelBtn: { marginTop: 10, borderWidth: 1, borderColor: C.dangerBorder, borderRadius: 9, paddingVertical: 10, alignItems: 'center' },
+  cancelT: { color: C.danger, fontWeight: '700', fontSize: 13 },
 });

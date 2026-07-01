@@ -2,20 +2,40 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, CreditAccount } from '../api';
 import { C, R, SP, ui } from '../theme';
+import { AutomatchScreen } from './AutomatchScreen';
+import { RecordsScreen } from './RecordsScreen';
+import { ClassifyScreen } from './ClassifyScreen';
 
 type Plan = { id: string; name: string; price: number; membership_grade?: { name: string; weekly_credits: number } | null };
 type Pay = { id: string; amount: number; created_at: string };
 type Noti = { id: string; type: string | null; read_at: string | null; created_at: string; payload?: Record<string, unknown> | null };
+type Tx = { id: string; type: 'charge' | 'spend' | 'weekly_grant' | 'weekly_expire' | 'refund'; amount: number; balance: number; description: string | null; created_at: string };
 const won = (n: number) => `${n.toLocaleString()}원`;
 const CHARGE = [30000, 50000, 100000];
 const KST = (iso: string) => new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+const TX_META: Record<Tx['type'], { label: string; sign: 1 | -1; color: string }> = {
+  charge: { label: '크레딧 충전', sign: 1, color: C.done },
+  refund: { label: '크레딧 환원', sign: 1, color: C.done },
+  weekly_grant: { label: '주간 크레딧 부여', sign: 1, color: C.done },
+  spend: { label: '크레딧 차감', sign: -1, color: C.ink },
+  weekly_expire: { label: '주간 크레딧 소멸', sign: -1, color: C.confirmed },
+};
+
+type Sub = 'automatch' | 'records' | 'classify';
+const MENU: { key: Sub; icon: string; title: string; desc: string }[] = [
+  { key: 'automatch', icon: '⚡', title: '30분 자동 매칭', desc: '유형·방식만 고르면 7일 내 가장 빠른 30분' },
+  { key: 'records', icon: '📝', title: '내 상담 기록', desc: '공개된 핵심요약·숙제·향후방향 확인' },
+  { key: 'classify', icon: '💚', title: '선생님 분류', desc: '나와 맞는 / 맞지 않는 선생님 관리' },
+];
 
 export function MyScreen() {
+  const [sub, setSub] = useState<Sub | null>(null);
   const [acc, setAcc] = useState<CreditAccount | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [subId, setSubId] = useState<string | null>(null);
   const [pays, setPays] = useState<Pay[]>([]);
   const [notis, setNotis] = useState<Noti[]>([]);
+  const [txs, setTxs] = useState<Tx[]>([]);
   const [reverse, setReverse] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -27,9 +47,14 @@ export function MyScreen() {
     api.get<{ plan_id: string } | null>('/subscription/me').then((s) => setSubId(s?.plan_id ?? null)).catch(() => {});
     api.get<Pay[]>('/payments/history').then((r) => setPays(Array.isArray(r) ? r : [])).catch(() => {});
     api.get<Noti[]>('/notifications').then((r) => setNotis(Array.isArray(r) ? r : [])).catch(() => {});
+    api.get<Tx[]>('/credits/transactions').then((r) => setTxs(Array.isArray(r) ? r : [])).catch(() => {});
     api.get<{ reverseSelf: boolean }>('/bookings/reverse/self').then((r) => setReverse(r.reverseSelf)).catch(() => {});
   }
   useEffect(load, []);
+
+  if (sub === 'automatch') return <AutomatchScreen onBack={() => setSub(null)} onBooked={() => { setSub(null); setMsg('자동 매칭으로 예약이 신청되었습니다. 내 예약에서 확인하세요.'); load(); }} />;
+  if (sub === 'records') return <RecordsScreen onBack={() => setSub(null)} />;
+  if (sub === 'classify') return <ClassifyScreen onBack={() => setSub(null)} />;
 
   async function charge(amount: number) {
     setBusy(true); setError(''); setMsg('');
@@ -62,6 +87,39 @@ export function MyScreen() {
           ))}
         </View>
       </View>
+
+      {/* 메뉴 */}
+      <Text style={styles.sec}>메뉴</Text>
+      {MENU.map((m) => (
+        <TouchableOpacity key={m.key} style={[ui.card, styles.menuRow]} onPress={() => setSub(m.key)} activeOpacity={0.7}>
+          <Text style={styles.menuIc}>{m.icon}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.menuT}>{m.title}</Text>
+            <Text style={styles.sub}>{m.desc}</Text>
+          </View>
+          <Text style={styles.chev}>›</Text>
+        </TouchableOpacity>
+      ))}
+
+      {/* 크레딧 내역 */}
+      <Text style={styles.sec}>크레딧 내역</Text>
+      {txs.length === 0 ? <Text style={ui.sub}>내역이 없어요.</Text> : (
+        <View style={[ui.card, { paddingVertical: 4 }]}>
+          {txs.slice(0, 12).map((t) => {
+            const meta = TX_META[t.type] ?? { label: t.type, sign: 1 as const, color: C.ink };
+            const amt = Math.abs(t.amount) * meta.sign;
+            return (
+              <View key={t.id} style={styles.ledRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.ledLabel, t.type === 'weekly_expire' && { color: C.confirmed }]}>{meta.label}</Text>
+                  <Text style={styles.ledT}>{KST(t.created_at)}{t.description ? ` · ${t.description}` : ''}</Text>
+                </View>
+                <Text style={[styles.ledAmt, { color: meta.color }]}>{amt > 0 ? '+' : ''}{amt.toLocaleString()}</Text>
+              </View>
+            );
+          })}
+        </View>
+      )}
 
       {/* 구독 플랜 */}
       <Text style={styles.sec}>멤버십 구독</Text>
@@ -124,4 +182,12 @@ const styles = StyleSheet.create({
   subT: { color: C.teal, fontWeight: '800', fontSize: 13 },
   payRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.line },
   payAmt: { color: C.teal, fontWeight: '800', fontSize: 14 },
+  menuRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 },
+  menuIc: { fontSize: 22 },
+  menuT: { fontSize: 14, fontWeight: '700', color: C.ink },
+  chev: { fontSize: 22, color: C.caption },
+  ledRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.lineSoft },
+  ledLabel: { fontSize: 13, fontWeight: '600', color: C.ink },
+  ledT: { fontSize: 11, color: C.caption, marginTop: 2 },
+  ledAmt: { fontSize: 14, fontWeight: '800' },
 });

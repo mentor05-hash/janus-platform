@@ -91,6 +91,7 @@ export const api = {
   get: <T>(p: string) => request<T>('GET', p),
   post: <T>(p: string, b?: unknown) => request<T>('POST', p, b),
   patch: <T>(p: string, b?: unknown) => request<T>('PATCH', p, b),
+  del: <T>(p: string) => request<T>('DELETE', p),
   me: () => request<Me>('GET', '/me'),
   login: async (loginId: string, password: string) => {
     const d = await raw<Tokens>('POST', '/auth/login', { loginId, password }, false);

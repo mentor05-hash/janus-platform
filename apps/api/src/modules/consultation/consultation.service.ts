@@ -242,6 +242,7 @@ export class ConsultationService {
       ...(internal ? { memo: note.memo } : {}), // 내부 메모는 공개 뷰에서 제외
       guardianVisible: note.guardian_visible,
       saveState: note.save_state,
+      createdAt: note.created_at,
     };
   }
 }
