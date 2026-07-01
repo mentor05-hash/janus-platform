@@ -5,6 +5,8 @@ import {
   LlmProvider,
   ReportReviewInput,
   ReportReviewResult,
+  ScoreOcrInput,
+  ScoreOcrResult,
 } from './llm.types';
 
 /**
@@ -24,5 +26,10 @@ export class ClaudeLlmProvider implements LlmProvider {
 
   checkAnswerSimilarity(_input: AnswerSimilarityInput): Promise<AnswerSimilarityResult> {
     throw new Error('실모델 유사도 검사가 아직 구성되지 않았습니다(ANTHROPIC_API_KEY 필요).');
+  }
+
+  extractScoreReport(_input: ScoreOcrInput): Promise<ScoreOcrResult> {
+    // 구성 시: Claude vision(messages API, image block)로 성적표 표를 구조화 추출.
+    throw new Error('실 비전 OCR 이 아직 구성되지 않았습니다(ANTHROPIC_API_KEY 필요).');
   }
 }

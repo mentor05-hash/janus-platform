@@ -5,6 +5,8 @@ import {
   LlmProvider,
   ReportReviewInput,
   ReportReviewResult,
+  ScoreOcrInput,
+  ScoreOcrResult,
 } from './llm.types';
 
 /**
@@ -62,6 +64,24 @@ export class MockLlmProvider implements LlmProvider {
       summary: flagged
         ? `기존 답변과 ${Math.round(best * 100)}% 유사 — 중복/표절 여부 확인 권장`
         : '유사 답변 없음',
+    };
+  }
+
+  async extractScoreReport(input: ScoreOcrInput): Promise<ScoreOcrResult> {
+    // 데모: 실 비전 인식은 LLM_PROVIDER=claude 연동 필요. 흐름 시연용 표준 과목 프리필.
+    this.logger.log(`[stub] 성적표 OCR(데모) mime=${input.mimeType} bytes≈${Math.round((input.imageBase64?.length ?? 0) * 0.75)}`);
+    return {
+      demo: true,
+      period: '',
+      examType: '',
+      items: [
+        { subject: '국어', score: null, maxScore: 100, grade: null },
+        { subject: '수학', score: null, maxScore: 100, grade: null },
+        { subject: '영어', score: null, maxScore: 100, grade: null },
+        { subject: '과학', score: null, maxScore: 100, grade: null },
+        { subject: '사회', score: null, maxScore: 100, grade: null },
+      ],
+      note: '데모 OCR: 실제 성적표 인식은 비전 모델(LLM_PROVIDER=claude) 연동이 필요합니다. 과목 틀만 채웠으니 점수를 확인·입력하세요.',
     };
   }
 

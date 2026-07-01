@@ -33,6 +33,7 @@ import { AdminEvaluationPage } from './pages/AdminEvaluationPage';
 import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
 import { AdminAuditPage } from './pages/AdminAuditPage';
 import { AdminPayrollPage } from './pages/AdminPayrollPage';
+import { AdminScoresPage } from './pages/AdminScoresPage';
 import { AdminReversePage } from './pages/AdminReversePage';
 import { TeacherDashboardPage } from './pages/TeacherDashboardPage';
 import { StudentLayout } from './components/StudentLayout';
@@ -128,6 +129,7 @@ export function App() {
         <Route path="analytics" element={<AdminAnalyticsPage />} />
         <Route path="audit" element={<AdminAuditPage />} />
         <Route path="payroll" element={<AdminPayrollPage />} />
+        <Route path="scores" element={<AdminScoresPage />} />
         <Route path="legal" element={<LegalPage />} />
       </Route>
 

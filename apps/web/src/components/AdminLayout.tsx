@@ -27,6 +27,7 @@ export function AdminLayout() {
         <nav className="sidebar-nav">
           <NavLink to="/admin/dashboard" className={navCls}>대시보드</NavLink>
           <NavLink to="/admin/students" className={navCls}>학생 등록·관리</NavLink>
+          <NavLink to="/admin/scores" className={navCls}>성적 업로드</NavLink>
           <NavLink to="/admin/hr-teachers" className={navCls}>선생님 등록·관리</NavLink>
           <NavLink to="/admin/hr-staff" className={navCls}>직원·권한</NavLink>
           <NavLink to="/admin/membership" className={navCls}>회원 등급·구독</NavLink>

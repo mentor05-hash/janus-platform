@@ -45,6 +45,39 @@ model push_token {
   @@index([account_id])
 }
 
+model score_report {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  student_id     String          @db.Uuid
+  center_id      String?         @db.Uuid
+  period         String
+  exam_type      String?
+  report_file_id String?         @db.Uuid
+  source         String          @default("manual")
+  note           String?
+  created_by     String?         @db.Uuid
+  created_at     DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime        @default(now()) @db.Timestamptz(6)
+  student        student_profile @relation(fields: [student_id], references: [account_id], onDelete: Cascade, onUpdate: NoAction)
+  items          score_item[]
+
+  @@unique([student_id, period])
+  @@index([period])
+  @@index([center_id])
+}
+
+model score_item {
+  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  report_id  String       @db.Uuid
+  subject    String
+  score      Decimal?     @db.Decimal(6, 2)
+  max_score  Decimal?     @default(100) @db.Decimal(6, 2)
+  grade      String?
+  created_at DateTime     @default(now()) @db.Timestamptz(6)
+  report     score_report @relation(fields: [report_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([report_id])
+}
+
 model audit_log {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   actor_id    String?  @db.Uuid
@@ -635,6 +668,7 @@ model student_profile {
   payment_request        payment_request[]
   qna_post               qna_post[]
   review                 review[]
+  score_report           score_report[]
   account                account                 @relation(fields: [account_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   center                 center?                 @relation(fields: [center_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   teacher_profile        teacher_profile?        @relation(fields: [homeroom_teacher_id], references: [account_id], onDelete: NoAction, onUpdate: NoAction)

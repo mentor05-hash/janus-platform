@@ -35,6 +35,7 @@ import { CommunityModule } from './modules/community/community.module';
 import { LegalModule } from './modules/legal/legal.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
+import { ScoresModule } from './modules/scores/scores.module';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { MetricsModule } from './modules/metrics/metrics.module';
     LegalModule,
     AuditModule,
     MetricsModule,
+    ScoresModule,
   ],
   providers: [
     // 전역 가드: rate limit(§10) → 인증 → 인가 순. @Public() 은 인증 통과, @Roles() 로 역할 제한.

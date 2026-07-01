@@ -29,7 +29,27 @@ export interface AnswerSimilarityResult {
   summary: string;
 }
 
+// ── 성적표 OCR(비전) ──
+export interface ScoreOcrInput {
+  imageBase64: string;
+  mimeType: string;
+}
+export interface ScoreOcrItem {
+  subject: string;
+  score: number | null;
+  maxScore?: number | null;
+  grade?: string | null;
+}
+export interface ScoreOcrResult {
+  demo: boolean; // 실 비전모델 미연동 시 데모 추출(값 검증 필요)
+  period?: string;
+  examType?: string;
+  items: ScoreOcrItem[];
+  note: string;
+}
+
 export interface LlmProvider {
   reviewReport(input: ReportReviewInput): Promise<ReportReviewResult>;
   checkAnswerSimilarity(input: AnswerSimilarityInput): Promise<AnswerSimilarityResult>;
+  extractScoreReport(input: ScoreOcrInput): Promise<ScoreOcrResult>;
 }
