@@ -8,13 +8,19 @@ const CENTERS = [
   { key: '분당', name: '분당 센터', sub: '경기 성남시' },
   { key: '잠실', name: '잠실 센터', sub: '서울 송파구' },
 ];
+const DEMO_PW = 'dev-password!';
+// 모바일 지원 역할(선생님·관리자는 웹 콘솔). 탭하면 아이디·비번 자동 채움.
+const ROLES = [
+  { label: '학생', id: 'student01' },
+  { label: '학부모', id: 'guardian01' },
+];
 
 export function LoginScreen({ onLogin }: { onLogin: () => void }) {
   const { C } = useTheme();
   const ui = useUI();
   const styles = useMemo(() => makeStyles(C), [C]);
-  const [loginId, setLoginId] = useState('sims001');
-  const [password, setPassword] = useState('Itall-2026!');
+  const [loginId, setLoginId] = useState('student01');
+  const [password, setPassword] = useState(DEMO_PW);
   const [center, setCenter] = useState('강남');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -106,10 +112,21 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
         </View>
         {error ? <Text style={ui.error}>{error}</Text> : null}
 
+        <Text style={[styles.label, { marginTop: SP.md }]}>역할 선택(원터치 채움)</Text>
+        <View style={styles.roleRow}>
+          {ROLES.map((r) => {
+            const on = loginId === r.id;
+            return (
+              <TouchableOpacity key={r.id} style={[styles.rolePill, on && styles.rolePillOn]} onPress={() => { setLoginId(r.id); setPassword(DEMO_PW); setError(''); }}>
+                <Text style={[styles.rolePillT, on && { color: '#fff' }]}>{r.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
         <View style={styles.demo}>
           <Text style={styles.demoText}>
-            데모 계정 · 비밀번호 <Text style={{ fontWeight: '800' }}>Itall-2026!</Text>{'\n'}
-            학생 sims001~sims040 · 학부모 simg001~simg030
+            데모 계정 · 비밀번호 <Text style={{ fontWeight: '800' }}>{DEMO_PW}</Text>{'\n'}
+            학생 student01~99 · 학부모 guardian01~80 (선생님·관리자는 웹 콘솔)
           </Text>
         </View>
 
@@ -143,4 +160,8 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   footer: { textAlign: 'center', color: C.caption, fontSize: 12, marginTop: 14 },
   demo: { marginTop: SP.md, backgroundColor: C.teal50, borderRadius: R.md, paddingVertical: 10, paddingHorizontal: 12 },
   demoText: { color: C.muted, fontSize: 12, lineHeight: 18 },
+  roleRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  rolePill: { borderWidth: 1, borderColor: C.line, backgroundColor: C.white, borderRadius: R.pill, paddingVertical: 8, paddingHorizontal: 16 },
+  rolePillOn: { backgroundColor: C.teal, borderColor: C.teal },
+  rolePillT: { color: C.muted, fontWeight: '700', fontSize: 13 },
 });
