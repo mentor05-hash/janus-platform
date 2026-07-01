@@ -103,6 +103,27 @@ export interface HrStudent {
   name: string;
   status: string;
   created_at: string;
+  centerName?: string | null;
+  membershipGrade?: string | null;
+}
+
+export interface HrTeacher {
+  id: string;
+  name: string;
+  status: string | null;
+  subjects: string[];
+  grade: string;
+  category: string | null;
+  centerName: string | null;
+}
+
+export interface HrStaff {
+  id: string;
+  name: string;
+  loginId: string | null;
+  staffRole: string | null;
+  permLevel: 'L1' | 'L2' | 'L3';
+  centerName: string | null;
 }
 
 export interface Dashboard {

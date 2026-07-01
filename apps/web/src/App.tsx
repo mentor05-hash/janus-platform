@@ -19,6 +19,8 @@ import { TeacherRecordsPage } from './pages/TeacherRecordsPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { AdminPolicyPage } from './pages/AdminPolicyPage';
 import { HrStudentsPage } from './pages/HrStudentsPage';
+import { HrTeachersPage } from './pages/HrTeachersPage';
+import { HrStaffPage } from './pages/HrStaffPage';
 import { AdminInfraPage } from './pages/AdminInfraPage';
 import { AdminRoomsPage } from './pages/AdminRoomsPage';
 import { AdminBlockPage } from './pages/AdminBlockPage';
@@ -96,6 +98,8 @@ export function App() {
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<AdminDashboardPage />} />
         <Route path="students" element={<HrStudentsPage />} />
+        <Route path="hr-teachers" element={<HrTeachersPage />} />
+        <Route path="hr-staff" element={<HrStaffPage />} />
         <Route path="reverse" element={<AdminReversePage />} />
         <Route path="policy" element={<AdminPolicyPage />} />
         <Route path="rooms" element={<AdminRoomsPage />} />

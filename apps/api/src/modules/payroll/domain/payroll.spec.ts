@@ -1,11 +1,18 @@
 import { computeIncentive, computePayroll } from './payroll';
 
-const RATES = { perCaseRate: 30_000, qnaRate: 5_000, gradeAllowance: 100_000 };
+const RATES = {
+  perCaseRate: 30_000,
+  qnaRate: 5_000,
+  gradeAllowance: 100_000,
+  hourlyRate: 0,
+  staleAnswerBonus: 0,
+};
+const IN = { workMinutes: 0, staleAnswerCount: 0 };
 
 describe('예상급여 산정(§payroll)', () => {
   it('확정분 = 완료건×단가 + Q&A채택×Q&A단가 + 등급수당', () => {
     const r = computePayroll(
-      { doneCount: 2, upcomingCount: 0, qnaAcceptedCount: 1 },
+      { doneCount: 2, upcomingCount: 0, qnaAcceptedCount: 1, ...IN },
       RATES,
     );
     expect(r.confirmedAmount).toBe(2 * 30_000 + 1 * 5_000 + 100_000); // 165,000
@@ -13,7 +20,7 @@ describe('예상급여 산정(§payroll)', () => {
 
   it('예상분 = 확정분 + 예정건×단가', () => {
     const r = computePayroll(
-      { doneCount: 2, upcomingCount: 3, qnaAcceptedCount: 0 },
+      { doneCount: 2, upcomingCount: 3, qnaAcceptedCount: 0, ...IN },
       RATES,
     );
     expect(r.confirmedAmount).toBe(2 * 30_000 + 100_000); // 160,000
@@ -22,11 +29,19 @@ describe('예상급여 산정(§payroll)', () => {
 
   it('활동 없으면 확정분은 등급수당만', () => {
     const r = computePayroll(
-      { doneCount: 0, upcomingCount: 0, qnaAcceptedCount: 0 },
+      { doneCount: 0, upcomingCount: 0, qnaAcceptedCount: 0, ...IN },
       RATES,
     );
     expect(r.confirmedAmount).toBe(100_000);
     expect(r.expectedAmount).toBe(100_000);
+  });
+
+  it('근무시간×시급 + 48h 미답 보상이 확정분에 합산', () => {
+    const r = computePayroll(
+      { doneCount: 0, upcomingCount: 0, qnaAcceptedCount: 0, workMinutes: 120, staleAnswerCount: 2 },
+      { ...RATES, hourlyRate: 12_000, staleAnswerBonus: 8_000 },
+    );
+    expect(r.confirmedAmount).toBe(100_000 + 24_000 + 16_000); // 등급수당 + 2h×12000 + 2×8000
   });
 });
 

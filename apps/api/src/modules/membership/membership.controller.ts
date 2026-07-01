@@ -1,9 +1,18 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { MembershipService } from './membership.service';
 import { SubscribeDto } from './dto/subscribe.dto';
+import { UpdateGradeDto } from '../people/dto/hr.dto';
 
 @Controller()
 export class MembershipController {
@@ -20,6 +29,16 @@ export class MembershipController {
   @Roles('hr', 'admin')
   grades() {
     return this.membership.listGrades();
+  }
+
+  /** PATCH /hr/membership-grades/{id} — 주간 부여 크레딧·활성 편집(HR/관리자). */
+  @Patch('hr/membership-grades/:id')
+  @Roles('hr', 'admin')
+  updateGrade(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateGradeDto,
+  ) {
+    return this.membership.updateGrade(id, dto);
   }
 
   /** GET /subscription/me — 내 활성 구독(학생). */

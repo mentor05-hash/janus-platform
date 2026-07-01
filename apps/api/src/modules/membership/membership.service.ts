@@ -21,6 +21,24 @@ export class MembershipService {
     return this.prisma.membership_grade.findMany({ orderBy: { tier: 'asc' } });
   }
 
+  /** 회원 등급 편집(HR): 주간 부여 크레딧·활성. 학생 화면이 이 값을 읽는다. */
+  async updateGrade(
+    id: string,
+    dto: { weeklyCredits?: number; active?: boolean },
+  ) {
+    const grade = await this.prisma.membership_grade.findUnique({
+      where: { id },
+    });
+    if (!grade) throw new NotFoundException('회원 등급을 찾을 수 없습니다.');
+    return this.prisma.membership_grade.update({
+      where: { id },
+      data: {
+        ...(dto.weeklyCredits != null ? { weekly_credits: dto.weeklyCredits } : {}),
+        ...(dto.active != null ? { active: dto.active } : {}),
+      },
+    });
+  }
+
   listPlans() {
     return this.prisma.subscription_plan.findMany({
       include: {

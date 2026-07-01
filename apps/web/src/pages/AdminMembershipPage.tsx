@@ -10,7 +10,9 @@ type Grade = {
   weekly_credits: number;
   expire_policy?: string | null;
   priority?: number | null;
+  active?: boolean;
 };
+type Limits = { classifyFitLimit: number; classifyUnfitLimit: number; centerScoped?: boolean };
 type Plan = {
   id: string;
   name: string;
@@ -33,6 +35,8 @@ const expireLabel = (e?: string | null) => (e === 'end_of_week' ? '주말 소멸
 export function AdminMembershipPage() {
   const [grades, setGrades] = useState<Grade[] | null>(null);
   const [plans, setPlans] = useState<Plan[] | null>(null);
+  const [edits, setEdits] = useState<Record<string, number>>({});
+  const [limits, setLimits] = useState<Limits | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
@@ -40,13 +44,28 @@ export function AdminMembershipPage() {
   const load = useCallback(async () => {
     setError('');
     try {
-      setGrades(await api.get<Grade[]>('/hr/membership-grades'));
+      const g = await api.get<Grade[]>('/hr/membership-grades');
+      setGrades(g);
+      setEdits(Object.fromEntries(g.map((x) => [x.id, x.weekly_credits])));
       setPlans(await api.get<Plan[]>('/subscription/plans'));
+      setLimits(await api.get<Limits>('/hr/limits').catch(() => null));
     } catch (e) {
       setError(e instanceof ApiError ? e.message : '조회 실패');
     }
   }, []);
   useEffect(() => void load(), [load]);
+
+  async function saveGrade(g: Grade, patch: { weeklyCredits?: number; active?: boolean }) {
+    setMsg(''); setError('');
+    try { await api.patch(`/hr/membership-grades/${g.id}`, patch); setMsg(`${g.name} 등급이 저장되었습니다. 학생 화면에 반영됩니다.`); await load(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : '등급 저장 실패'); }
+  }
+  async function saveLimits() {
+    if (!limits) return;
+    setMsg(''); setError('');
+    try { await api.post('/hr/limits', { classifyFitLimit: limits.classifyFitLimit, classifyUnfitLimit: limits.classifyUnfitLimit }); setMsg('분류 한도가 저장되었습니다.'); }
+    catch (e) { setError(e instanceof ApiError ? e.message : '한도 저장 실패'); }
+  }
 
   const runWeeklyGrant = async () => {
     setBusy(true); setMsg(''); setError('');
@@ -90,7 +109,7 @@ export function AdminMembershipPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: 'var(--fill,#f6f8fa)', textAlign: 'left' }}>
-                <th style={th}>등급</th><th style={th}>티어</th><th style={th}>주간 크레딧</th><th style={th}>소멸 정책</th><th style={th}>우선순위</th>
+                <th style={th}>등급</th><th style={th}>티어</th><th style={th}>주간 부여 크레딧</th><th style={th}>소멸 정책</th><th style={th}>활성</th><th style={th} />
               </tr>
             </thead>
             <tbody>
@@ -98,13 +117,39 @@ export function AdminMembershipPage() {
                 <tr key={g.id} style={{ borderTop: '1px solid var(--line,#eceff1)' }}>
                   <td style={td}><b>{g.name}</b></td>
                   <td style={td}><Badge kind="soft">T{g.tier}</Badge></td>
-                  <td style={{ ...td, fontVariantNumeric: 'tabular-nums' }}>{g.weekly_credits.toLocaleString()}</td>
+                  <td style={td}>
+                    <input className="input compact" style={{ width: 110, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }} type="number" min={0}
+                      value={edits[g.id] ?? g.weekly_credits} onChange={(e) => setEdits((p) => ({ ...p, [g.id]: Number(e.target.value) }))} />
+                  </td>
                   <td style={td}>{expireLabel(g.expire_policy)}</td>
-                  <td style={td}>{g.priority ?? '-'}</td>
+                  <td style={td}>
+                    <button onClick={() => saveGrade(g, { active: !(g.active ?? true) })}
+                      style={{ cursor: 'pointer', border: 'none', borderRadius: 7, padding: '3px 10px', fontSize: 12, fontWeight: 700, background: (g.active ?? true) ? 'var(--chip-done-bg,#ECF8EF)' : 'var(--fill,#f1f5f7)', color: (g.active ?? true) ? 'var(--chip-done,#15803D)' : 'var(--muted)' }}>
+                      {(g.active ?? true) ? 'ON' : 'OFF'}
+                    </button>
+                  </td>
+                  <td style={{ ...td, textAlign: 'right' }}>
+                    <Button size="sm" disabled={(edits[g.id] ?? g.weekly_credits) === g.weekly_credits} onClick={() => saveGrade(g, { weeklyCredits: edits[g.id] })}>저장</Button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </Card>
+      )}
+
+      {limits && (
+        <Card title="분류 한도 (학생 화면이 읽음)" style={{ marginTop: 20, maxWidth: 460 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0' }}>
+            <span style={{ fontSize: 13 }}>나와 맞는 선생님</span>
+            <input className="input compact" style={{ width: 90, textAlign: 'right' }} type="number" min={0} value={limits.classifyFitLimit} onChange={(e) => setLimits({ ...limits, classifyFitLimit: Number(e.target.value) })} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderTop: '1px solid var(--line)' }}>
+            <span style={{ fontSize: 13 }}>맞지 않는 선생님</span>
+            <input className="input compact" style={{ width: 90, textAlign: 'right' }} type="number" min={0} value={limits.classifyUnfitLimit} onChange={(e) => setLimits({ ...limits, classifyUnfitLimit: Number(e.target.value) })} />
+          </div>
+          <Button style={{ marginTop: 10 }} onClick={saveLimits} disabled={limits.centerScoped === false}>한도 저장</Button>
+          {limits.centerScoped === false && <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>센터 소속 HR만 저장할 수 있습니다(본사 계정은 조회만).</p>}
         </Card>
       )}
 

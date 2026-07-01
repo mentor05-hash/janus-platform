@@ -267,6 +267,7 @@ model membership_grade {
   weekly_credits      Int                   @default(0)
   expire_policy       String                @default("end_of_week")
   priority            Int                   @default(0) @db.SmallInt
+  active              Boolean               @default(true)
   student_profile     student_profile[]
   subscription_plan   subscription_plan[]
   weekly_credit_grant weekly_credit_grant[]
