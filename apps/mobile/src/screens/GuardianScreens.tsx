@@ -125,9 +125,9 @@ export function GuardianPay({ children, activeId, setActiveId, goTab }: Props) {
       <Text style={ui.h}>결제 내역</Text>
       <KidSwitcher children={children} activeId={activeId} setActiveId={setActiveId} />
       <View style={s.creditCard}>
-        <Text style={{ color: '#cfe3ec', fontSize: 12 }}>{active?.name} 잔여 크레딧</Text>
+        <Text style={{ color: '#bfe6eb', fontSize: 12 }}>{active?.name} 잔여 크레딧</Text>
         <Text style={s.creditNum}>{fmt(data?.account.total ?? active?.balance ?? 0)}</Text>
-        <Text style={{ color: '#cfe3ec', fontSize: 11, marginTop: 3 }}>이번 주 부여분 {fmt(active?.weeklyCredits ?? 0)} · 일요일 24:00 소멸 예정</Text>
+        <Text style={{ color: '#bfe6eb', fontSize: 11, marginTop: 3 }}>이번 주 부여분 {fmt(active?.weeklyCredits ?? 0)} · 일요일 24:00 소멸 예정</Text>
         <TouchableOpacity style={s.chargeCta} onPress={() => goTab?.('d')}><Text style={s.chargeCtaT}>＋ 충전하기</Text></TouchableOpacity>
       </View>
       <View style={s.seg}>

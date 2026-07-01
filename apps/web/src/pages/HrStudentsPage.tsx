@@ -75,7 +75,7 @@ export function HrStudentsPage() {
         <Button variant="ghost" onClick={() => fileRef.current?.click()}>파일 선택</Button>
         <Button variant="ghost" onClick={() => setExtOpen((o) => !o)}>🔗 외부 연동</Button>
       </div>
-      <p style={{ fontSize: 12, color: 'var(--teal)', background: 'var(--teal-50,#F0F7FA)', border: '1px solid var(--teal-100,#DCECF3)', borderRadius: 10, padding: '10px 12px', lineHeight: 1.5 }}>
+      <p style={{ fontSize: 12, color: 'var(--teal)', background: 'var(--teal-50,#e0f5f7)', border: '1px solid var(--teal-100,#c9ebef)', borderRadius: 10, padding: '10px 12px', lineHeight: 1.5 }}>
         민감정보(인적사항·보호자 정보)는 저장소(git)에 저장하지 않고 로컬/서버 DB에만 보관하며, 권한별로 마스킹됩니다.
       </p>
       {msg && <p style={{ color: 'var(--chip-done)', fontSize: 13 }}>{msg}</p>}

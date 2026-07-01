@@ -190,7 +190,7 @@ function BookingForm({ teacher, onDone, onBack }: { teacher: Teacher; onDone: ()
           <SelectField label="진행 방식" value={mode} onChange={(e) => setMode(e.target.value)} options={MODES} />
           {mode === 'offline' && <p style={{ fontSize: 12, color: 'var(--muted)', background: 'var(--fill,#f6f8fa)', borderRadius: 8, padding: 9, margin: '0 0 8px' }}>🏫 오프라인은 가능한 선생님·센터·시간이 제한되며 센터 상담실 점유료가 가산됩니다.</p>}
           {mode === 'zoom' && <p style={{ fontSize: 12, color: '#92600a', background: '#FEF6E7', borderRadius: 8, padding: 9, margin: '0 0 8px' }}>🎥 줌은 센터 상담실 동시 이용 한도가 있어, 예약 시점에 자리가 없으면 다른 방식을 선택해야 할 수 있어요.</p>}
-          <p style={{ fontSize: 12, color: 'var(--teal)', background: 'var(--teal-50,#F0F7FA)', borderRadius: 8, padding: 9, margin: '0 0 8px' }}>📋 게시판(문항·일반) 질문은 Q&A 게시판에서 건당 신청해요.</p>
+          <p style={{ fontSize: 12, color: 'var(--teal)', background: 'var(--teal-50,#e0f5f7)', borderRadius: 8, padding: 9, margin: '0 0 8px' }}>📋 게시판(문항·일반) 질문은 Q&A 게시판에서 건당 신청해요.</p>
           <TextareaField label="상담 내용" rows={3} value={content} onChange={(e) => setContent(e.target.value)} placeholder="예: 미적분 30번, 합성함수 미분 풀이가 막혀요." />
           <label className="label">문제 업로드</label>
           <input ref={fileRef} type="file" multiple accept="image/*,application/pdf,video/*" style={{ display: 'none' }} onChange={onFiles} />
@@ -234,7 +234,7 @@ function TeacherDetailView({ teacher, onBook, onBack }: { teacher: Teacher; onBo
       <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--teal)', cursor: 'pointer', fontWeight: 600, marginBottom: 8 }}>‹ 선생님 목록</button>
       <Card>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 56, height: 56, borderRadius: 14, background: 'var(--teal-100,#DCECF3)', color: 'var(--teal)', display: 'grid', placeItems: 'center', fontSize: 22, fontWeight: 800 }}>{teacher.name.slice(0, 1)}</div>
+          <div style={{ width: 56, height: 56, borderRadius: 14, background: 'var(--teal-100,#c9ebef)', color: 'var(--teal)', display: 'grid', placeItems: 'center', fontSize: 22, fontWeight: 800 }}>{teacher.name.slice(0, 1)}</div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <b style={{ fontSize: 19 }}>{teacher.name}</b><GradeBadge grade={teacher.grade} />
@@ -387,11 +387,11 @@ export function StudentSearchPage() {
           {SUBTYPES[consultType].map((s) => {
             const on = subType === s;
             return <button key={s} onClick={() => setSubType(on ? null : s)} style={{ cursor: 'pointer', padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700,
-              border: on ? '1px solid var(--teal)' : '1px solid var(--line)', background: on ? 'var(--teal-100,#DCECF3)' : 'var(--teal-50,#F0F7FA)', color: on ? 'var(--teal)' : 'var(--muted)' }}>{s}</button>;
+              border: on ? '1px solid var(--teal)' : '1px solid var(--line)', background: on ? 'var(--teal-100,#c9ebef)' : 'var(--teal-50,#e0f5f7)', color: on ? 'var(--teal)' : 'var(--muted)' }}>{s}</button>;
           })}
         </div>
       )}
-      {consultType === '심리' && <p style={{ fontSize: 12, color: 'var(--teal)', background: 'var(--teal-50,#F0F7FA)', borderRadius: 8, padding: 9, marginBottom: 8 }}>💬 심리상담(LCA코칭·심리상담)은 기숙 온/오프라인으로 운영돼요.</p>}
+      {consultType === '심리' && <p style={{ fontSize: 12, color: 'var(--teal)', background: 'var(--teal-50,#e0f5f7)', borderRadius: 8, padding: 9, marginBottom: 8 }}>💬 심리상담(LCA코칭·심리상담)은 기숙 온/오프라인으로 운영돼요.</p>}
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 12 }}>
         <div style={{ flex: '1 1 220px', minWidth: 180 }}><TextField label="검색" placeholder="이름·과목" value={q} onChange={(e) => setQ(e.target.value)} /></div>

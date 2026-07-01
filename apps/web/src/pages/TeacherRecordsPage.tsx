@@ -43,7 +43,7 @@ export function TeacherRecordsPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 8, maxHeight: 520, overflow: 'auto' }}>
             {students === null ? <Spinner /> : rows.length === 0 ? <EmptyState>학생이 없어요.</EmptyState> : rows.map((s) => (
               <button key={s.studentId} onClick={() => setSel(s)} style={{ all: 'unset', cursor: 'pointer', padding: '9px 11px', borderRadius: 9, fontSize: 13, fontWeight: 600,
-                background: sel?.studentId === s.studentId ? 'var(--teal-50,#F0F7FA)' : 'transparent', color: sel?.studentId === s.studentId ? 'var(--teal)' : 'var(--ink)' }}>
+                background: sel?.studentId === s.studentId ? 'var(--teal-50,#e0f5f7)' : 'transparent', color: sel?.studentId === s.studentId ? 'var(--teal)' : 'var(--ink)' }}>
                 {s.name} {s.isHomeroom && <Badge kind="done">담임</Badge>}
                 <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>누적 {s.totalConsult}회</div>
               </button>

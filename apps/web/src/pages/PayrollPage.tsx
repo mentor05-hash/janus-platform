@@ -65,7 +65,7 @@ export function PayrollPage() {
             <thead><tr><th style={th}>등급</th><th style={th}>건당 요율</th><th style={th}>Q&amp;A 요율</th><th style={th}>등급 수당</th></tr></thead>
             <tbody>
               {grades.map((g) => (
-                <tr key={g} style={g === p.grade ? { background: 'var(--teal-50,#F0F7FA)' } : undefined}>
+                <tr key={g} style={g === p.grade ? { background: 'var(--teal-50,#e0f5f7)' } : undefined}>
                   <td style={td}><b>{g}{g === p.grade ? ' (내 등급)' : ''}</b></td>
                   <td style={td}>{won(p.rates.perCaseRate)}</td>
                   <td style={td}>{won(p.rates.qnaRate)}</td>

@@ -49,7 +49,7 @@ export function AdminDashboardPage() {
             const total = d.teacherCount || 1;
             const seg = [
               { g: 'S', n: d.gradeDistribution!.S ?? 0, c: '#C99A2E' },
-              { g: 'A', n: d.gradeDistribution!.A ?? 0, c: '#0E5C7C' },
+              { g: 'A', n: d.gradeDistribution!.A ?? 0, c: '#0c9bae' },
               { g: 'B', n: d.gradeDistribution!.B ?? 0, c: '#64748B' },
             ];
             return (

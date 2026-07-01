@@ -9,7 +9,7 @@ const todayStr = () => new Date().toISOString().slice(0, 10);
 
 const PERM = [
   { lv: 'L1', color: '#7c3aed', name: '본사 관리자', desc: '전 센터 차단 · 정책 설정' },
-  { lv: 'L2', color: '#0e5c7c', name: '센터장', desc: '자기 센터 전체 차단' },
+  { lv: 'L2', color: '#0c9bae', name: '센터장', desc: '자기 센터 전체 차단' },
   { lv: 'L3', color: '#64748b', name: '과목 책임', desc: '담당 과목 시간만 차단' },
 ];
 

@@ -1,0 +1,20 @@
+# 리컬러(라군 터콰이즈) 비교용 — 기존 web(8080)/mobile(8090)과 별개로 8081/8091 서빙.
+# 같은 프로젝트(itall-mentoring) 네트워크에 붙어 api:3000 프록시 공유.
+services:
+  web-recolor:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "8081:80"
+    depends_on:
+      - api
+
+  mobile-recolor:
+    build:
+      context: .
+      dockerfile: apps/mobile/Dockerfile.web
+    ports:
+      - "8091:80"
+    depends_on:
+      - api

@@ -6,11 +6,11 @@ import { StyleSheet } from 'react-native';
 
 export const C = {
   // 브랜드 teal
-  teal: '#0E5C7C',
-  teal900: '#0A4A64',
-  teal500: '#1A7FA8',
-  teal100: '#DCECF3',
-  teal50: '#F0F7FA',
+  teal: '#0c9bae',
+  teal900: '#083a42',
+  teal500: '#17b0c4',
+  teal100: '#c9ebef',
+  teal50: '#e0f5f7',
   // 뉴트럴
   ink: '#16242B',
   body: '#374151',
@@ -29,7 +29,7 @@ export const C = {
   mutedChip: '#52656D', mutedChipBg: '#F1F5F7',
   danger: '#DC2626', dangerBg: '#FEF2F2', dangerBorder: '#F0C6C6',
   // 등급
-  gradeS: '#C99A2E', gradeA: '#0E5C7C', gradeB: '#64748B',
+  gradeS: '#C99A2E', gradeA: '#0c9bae', gradeB: '#64748B',
 };
 
 export const R = { sm: 7, md: 9, card: 14, pill: 999 };
