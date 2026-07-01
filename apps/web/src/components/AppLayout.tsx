@@ -16,6 +16,7 @@ const NAV = [
   { to: '/app/materials', label: '자료실' },
   { to: '/app/records', label: '상담 기록' },
   { to: '/app/notifications', label: '알림' },
+  { to: '/app/legal', label: '약관·개인정보' },
 ];
 
 export function AppLayout() {

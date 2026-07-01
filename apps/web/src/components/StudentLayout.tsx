@@ -14,6 +14,7 @@ const NAV = [
   { to: '/student/credits', label: '크레딧' },
   { to: '/student/notifications', label: '알림' },
   { to: '/student/reverse', label: '역상담' },
+  { to: '/student/legal', label: '약관·개인정보' },
 ];
 
 export function StudentLayout() {

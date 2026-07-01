@@ -120,6 +120,22 @@ export const api = {
     a.remove();
     URL.revokeObjectURL(url);
   },
+  /** 인증 헤더 포함 임의 경로 다운로드(내 데이터 내보내기 등). */
+  downloadPath: async (path: string, filename: string) => {
+    const res = await fetch(`${BASE}${path}`, {
+      headers: tokens.access ? { Authorization: `Bearer ${tokens.access}` } : {},
+    });
+    if (!res.ok) throw new ApiError('ERROR', '다운로드 실패', res.status);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
   login: async (loginId: string, password: string) => {
     const data = await raw<{ accessToken: string; refreshToken: string }>(
       'POST',

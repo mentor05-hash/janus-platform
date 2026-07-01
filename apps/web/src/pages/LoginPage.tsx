@@ -64,6 +64,11 @@ export function LoginPage() {
         <p style={{ fontSize: 12, textAlign: 'center', margin: '12px 0 0' }}>
           계정이 없으신가요? <Link to="/signup" style={{ color: 'var(--teal)', fontWeight: 700 }}>회원가입</Link>
         </p>
+        <p style={{ fontSize: 11, textAlign: 'center', margin: '8px 0 0', color: 'var(--caption)' }}>
+          <Link to="/terms" style={{ color: 'var(--muted)' }}>이용약관</Link>
+          {' · '}
+          <Link to="/privacy" style={{ color: 'var(--muted)' }}>개인정보처리방침</Link>
+        </p>
       </form>
     </div>
   );

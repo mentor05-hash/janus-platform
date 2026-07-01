@@ -40,6 +40,8 @@ import { StudentCreditsPage } from './pages/StudentCreditsPage';
 import { StudentReversePage } from './pages/StudentReversePage';
 import { StudentQnaPage } from './pages/StudentQnaPage';
 import { StudentCommunityPage } from './pages/StudentCommunityPage';
+import { LegalDocPage } from './pages/LegalDocPage';
+import { LegalPage } from './pages/LegalPage';
 import { StudentMembershipPage } from './pages/StudentMembershipPage';
 import { StudentNotificationsPage } from './pages/StudentNotificationsPage';
 import { StudentMaterialsPage } from './pages/StudentMaterialsPage';
@@ -65,6 +67,8 @@ export function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
+      <Route path="/terms" element={<LegalDocPage which="terms" />} />
+      <Route path="/privacy" element={<LegalDocPage which="privacy" />} />
 
       <Route
         path="/app"
@@ -88,6 +92,7 @@ export function App() {
         <Route path="profile" element={<TeacherProfilePage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="students/:studentId/notes" element={<StudentNotesPage />} />
+        <Route path="legal" element={<LegalPage />} />
       </Route>
 
       <Route
@@ -117,6 +122,7 @@ export function App() {
         <Route path="membership" element={<AdminMembershipPage />} />
         <Route path="evaluation" element={<AdminEvaluationPage />} />
         <Route path="analytics" element={<AdminAnalyticsPage />} />
+        <Route path="legal" element={<LegalPage />} />
       </Route>
 
       <Route
@@ -137,6 +143,7 @@ export function App() {
         <Route path="credits" element={<StudentCreditsPage />} />
         <Route path="notifications" element={<StudentNotificationsPage />} />
         <Route path="reverse" element={<StudentReversePage />} />
+        <Route path="legal" element={<LegalPage />} />
       </Route>
 
       <Route path="*" element={<HomeRedirect />} />

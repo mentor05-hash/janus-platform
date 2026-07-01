@@ -49,6 +49,7 @@ export function AdminLayout() {
               {hq && <NavLink to="/admin/categories" className={navCls}>카테고리 관리</NavLink>}
             </>
           )}
+          <NavLink to="/admin/legal" className={navCls}>약관·개인정보</NavLink>
         </nav>
         <div className="sidebar-foot">
           <span className="avatar">{initial}</span>

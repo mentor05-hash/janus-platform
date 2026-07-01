@@ -6,6 +6,7 @@ import { useWebBack } from '../webBack';
 import { AutomatchScreen } from './AutomatchScreen';
 import { RecordsScreen } from './RecordsScreen';
 import { ClassifyScreen } from './ClassifyScreen';
+import { LegalScreen } from './LegalScreen';
 
 type Plan = { id: string; name: string; price: number; membership_grade?: { name: string; weekly_credits: number } | null };
 type Pay = { id: string; amount: number; created_at: string };
@@ -22,11 +23,12 @@ const makeTxMeta = (C: Palette): Record<Tx['type'], { label: string; sign: 1 | -
   weekly_expire: { label: '주간 크레딧 소멸', sign: -1, color: C.confirmed },
 });
 
-type Sub = 'automatch' | 'records' | 'classify';
+type Sub = 'automatch' | 'records' | 'classify' | 'legal';
 const MENU: { key: Sub; icon: string; title: string; desc: string }[] = [
   { key: 'automatch', icon: '⚡', title: '30분 자동 매칭', desc: '유형·방식만 고르면 7일 내 가장 빠른 30분' },
   { key: 'records', icon: '📝', title: '내 상담 기록', desc: '공개된 핵심요약·숙제·향후방향 확인' },
   { key: 'classify', icon: '💚', title: '선생님 분류', desc: '나와 맞는 / 맞지 않는 선생님 관리' },
+  { key: 'legal', icon: '🔒', title: '약관·개인정보', desc: '약관·방침·동의·데이터 내보내기·회원 탈퇴' },
 ];
 
 export function MyScreen() {
@@ -62,6 +64,7 @@ export function MyScreen() {
   if (sub === 'automatch') return <AutomatchScreen onBack={() => setSub(null)} onBooked={() => { setSub(null); setMsg('자동 매칭으로 예약이 신청되었습니다. 내 예약에서 확인하세요.'); load(); }} />;
   if (sub === 'records') return <RecordsScreen onBack={() => setSub(null)} />;
   if (sub === 'classify') return <ClassifyScreen onBack={() => setSub(null)} />;
+  if (sub === 'legal') return <LegalScreen onBack={() => setSub(null)} onWithdrawn={() => { if (typeof window !== 'undefined') window.location.reload(); }} />;
 
   async function charge(amount: number) {
     setBusy(true); setError(''); setMsg('');
