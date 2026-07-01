@@ -3,7 +3,7 @@ import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'r
 import { api, ApiError, Teacher } from '../api';
 import { C, R, SP, ui, gradeColor } from '../theme';
 
-const SORTS: [string, string][] = [['grade', '기본'], ['rating', '만족도'], ['consult', '상담수'], ['question', '질문답변'], ['offline', '오프라인']];
+const SORTS: [string, string][] = [['grade', '기본'], ['rating', '만족도'], ['consult', '상담수'], ['question', '질문답변가능'], ['offline', '오프라인가능']];
 const CTYPES: [string, string][] = [['담임', '🏫'], ['교과', '📐'], ['입시', '🎯'], ['심리', '💬']];
 const SUBTYPES: Record<string, string[]> = {
   담임: ['생활전반', '학습전반'],
@@ -52,7 +52,13 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher) => void
 
   return (
     <View style={ui.screen}>
-      <Text style={ui.h}>선생님 찾기</Text>
+      {/* 제목 + 이름·과목 검색(오른쪽) */}
+      <View style={styles.titleRow}>
+        <Text style={styles.title}>선생님 찾기</Text>
+        {mode === '상담' && (
+          <TextInput style={styles.searchInline} value={q} onChangeText={setQ} placeholder="이름·과목 검색" placeholderTextColor={C.caption} />
+        )}
+      </View>
       {/* 상담 / 질문 토글 */}
       <View style={styles.seg}>
         {(['상담', '질문'] as const).map((m) => (
@@ -68,35 +74,44 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher) => void
         </View>
       ) : (
         <>
-          <TextInput style={[ui.input, { marginTop: 10 }]} value={q} onChangeText={setQ} placeholder="이름·과목 검색" placeholderTextColor={C.caption} />
-          {/* 상담 유형 */}
-          <Text style={styles.lbl}>상담 유형</Text>
-          <View style={styles.pillRow}>
-            {CTYPES.map(([t, ic]) => (
-              <TouchableOpacity key={t} style={[styles.pill, consultType === t && styles.pillOn]} onPress={() => pickType(t)}><Text style={[styles.pillT, consultType === t && { color: C.white }]}>{ic} {t}</Text></TouchableOpacity>
-            ))}
+          {/* 상담 유형 — 라벨 왼쪽, 버튼 오른쪽 */}
+          <View style={styles.inlineRow}>
+            <Text style={styles.inlineLbl}>상담 유형</Text>
+            <View style={styles.inlinePills}>
+              {CTYPES.map(([t, ic]) => (
+                <TouchableOpacity key={t} style={[styles.pill, consultType === t && styles.pillOn]} onPress={() => pickType(t)}><Text style={[styles.pillT, consultType === t && { color: C.white }]}>{ic} {t}</Text></TouchableOpacity>
+              ))}
+            </View>
           </View>
           {/* 세부 유형 (교과=과목 필터, 그 외=안내) */}
           {consultType && (
-            <View style={styles.pillRow}>
-              {SUBTYPES[consultType].map((s) => (
-                <TouchableOpacity key={s} style={[styles.subPill, subType === s && styles.subOn]} onPress={() => setSubType((cur) => (cur === s ? null : s))}><Text style={[styles.subT, subType === s && { color: C.teal }]}>{s}</Text></TouchableOpacity>
-              ))}
+            <View style={styles.inlineRow}>
+              <Text style={styles.inlineLbl}>세부</Text>
+              <View style={styles.inlinePills}>
+                {SUBTYPES[consultType].map((s) => (
+                  <TouchableOpacity key={s} style={[styles.subPill, subType === s && styles.subOn]} onPress={() => setSubType((cur) => (cur === s ? null : s))}><Text style={[styles.subT, subType === s && { color: C.teal }]}>{s}</Text></TouchableOpacity>
+                ))}
+              </View>
             </View>
           )}
           {consultType === '심리' && <Text style={styles.note}>💬 심리상담(LCA코칭·심리상담)은 기숙 온/오프라인으로 운영돼요.</Text>}
-          {/* 카테고리 */}
-          <Text style={styles.lbl}>카테고리</Text>
-          <View style={styles.pillRow}>
-            {['전체', ...cats].map((c) => (
-              <TouchableOpacity key={c} style={[styles.pill, category === c && styles.pillOn]} onPress={() => setCategory(c)}><Text style={[styles.pillT, category === c && { color: C.white }]}>{c}</Text></TouchableOpacity>
-            ))}
+          {/* 카테고리 — 라벨 왼쪽, 버튼 오른쪽 */}
+          <View style={styles.inlineRow}>
+            <Text style={styles.inlineLbl}>카테고리</Text>
+            <View style={styles.inlinePills}>
+              {['전체', ...cats].map((c) => (
+                <TouchableOpacity key={c} style={[styles.pill, category === c && styles.pillOn]} onPress={() => setCategory(c)}><Text style={[styles.pillT, category === c && { color: C.white }]}>{c}</Text></TouchableOpacity>
+              ))}
+            </View>
           </View>
-          {/* 정렬 */}
-          <View style={styles.pillRow}>
-            {SORTS.map(([v, l]) => (
-              <TouchableOpacity key={v} style={[styles.sortPill, sort === v && styles.sortOn]} onPress={() => setSort(v)}><Text style={[styles.sortT, sort === v && { color: C.teal }]}>{l}</Text></TouchableOpacity>
-            ))}
+          {/* 선생님 배열방법 — 라벨 왼쪽, 정렬 버튼 오른쪽 */}
+          <View style={styles.inlineRow}>
+            <Text style={styles.inlineLbl}>선생님{'\n'}배열방법</Text>
+            <View style={styles.inlinePills}>
+              {SORTS.map(([v, l]) => (
+                <TouchableOpacity key={v} style={[styles.sortPill, sort === v && styles.sortOn]} onPress={() => setSort(v)}><Text style={[styles.sortT, sort === v && { color: C.teal }]}>{l}</Text></TouchableOpacity>
+              ))}
+            </View>
           </View>
         </>
       )}
@@ -128,6 +143,12 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher) => void
 }
 
 const styles = StyleSheet.create({
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: SP.md },
+  title: { fontSize: 20, fontWeight: '800', color: C.ink, letterSpacing: -0.3 },
+  searchInline: { flex: 1, backgroundColor: C.white, borderWidth: 1, borderColor: C.line, borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: C.ink },
+  inlineRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 10 },
+  inlineLbl: { width: 58, fontSize: 11, fontWeight: '800', color: C.caption, lineHeight: 14, paddingTop: 6, textTransform: 'uppercase', letterSpacing: 0.3 },
+  inlinePills: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
   card: { padding: 14, marginBottom: 10 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatar: { width: 44, height: 44, borderRadius: R.md, backgroundColor: C.teal100, alignItems: 'center', justifyContent: 'center' },
