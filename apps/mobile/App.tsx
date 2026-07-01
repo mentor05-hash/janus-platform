@@ -10,9 +10,7 @@ import { BookingsScreen } from './src/screens/BookingsScreen';
 import { QnaScreen } from './src/screens/QnaScreen';
 import { MaterialsScreen } from './src/screens/MaterialsScreen';
 import { MyScreen } from './src/screens/MyScreen';
-import { ChildrenScreen } from './src/screens/ChildrenScreen';
-import { ChildNotesScreen } from './src/screens/ChildNotesScreen';
-import { PaymentsScreen } from './src/screens/PaymentsScreen';
+import { GuardianHome, GuardianConsult, GuardianPay, GuardianCharge } from './src/screens/GuardianScreens';
 import { C, SP } from './src/theme';
 
 export default function App() {
@@ -21,7 +19,8 @@ export default function App() {
   const [tab, setTab] = useState('a');
   const [teacher, setTeacher] = useState<Teacher | null>(null);
   const [booking, setBooking] = useState(false);
-  const [child, setChild] = useState<Child | null>(null);
+  const [children, setChildren] = useState<Child[]>([]);
+  const [activeChild, setActiveChild] = useState<string | null>(null);
 
   useEffect(() => {
     loadTokens().then(async () => {
@@ -36,6 +35,15 @@ export default function App() {
     });
   }, []);
 
+  useEffect(() => {
+    if (me?.role === 'guardian') {
+      api.get<Child[]>('/guardian/children').then((cs) => {
+        setChildren(cs);
+        setActiveChild((prev) => prev ?? cs[0]?.studentId ?? null);
+      }).catch(() => {});
+    }
+  }, [me]);
+
   if (!ready)
     return (
       <View style={styles.center}>
@@ -49,7 +57,6 @@ export default function App() {
         onLogin={async () => {
           setTab('a');
           setTeacher(null);
-          setChild(null);
           setMe(await api.me());
         }}
       />
@@ -57,9 +64,10 @@ export default function App() {
 
   const isGuardian = me.role === 'guardian';
   const isStudent = me.role === 'student';
-  const tabs = isGuardian ? ['a', 'b'] : ['a', 'b', 'e', 'c', 'd'];
+  const tabs = isGuardian ? ['a', 'b', 'c', 'd'] : ['a', 'b', 'e', 'c', 'd'];
+  const guardianLabel: Record<string, string> = { a: '홈', b: '상담', c: '결제', d: '충전' };
   const studentLabel: Record<string, string> = { a: '선생님', b: '내 예약', e: '자료실', c: 'Q&A', d: '마이' };
-  const tabLabel = (t: string) => (isGuardian ? (t === 'a' ? '자녀' : '결제요청') : studentLabel[t] ?? '');
+  const tabLabel = (t: string) => (isGuardian ? guardianLabel[t] ?? '' : studentLabel[t] ?? '');
 
   return (
     <SafeAreaView style={styles.app}>
@@ -100,16 +108,19 @@ export default function App() {
             <MyScreen />
           ))}
 
-        {isGuardian &&
-          (tab === 'a' ? (
-            child ? (
-              <ChildNotesScreen child={child} onBack={() => setChild(null)} />
-            ) : (
-              <ChildrenScreen onPick={setChild} />
-            )
+        {isGuardian && (
+          children.length === 0 ? (
+            <View style={{ padding: SP.xl }}><Text style={styles.notice}>연결된 자녀가 없어요. 학생 계정에서 보호자 연결을 승인하면 표시됩니다.</Text></View>
+          ) : tab === 'a' ? (
+            <GuardianHome children={children} activeId={activeChild} setActiveId={setActiveChild} goTab={setTab} />
+          ) : tab === 'b' ? (
+            <GuardianConsult children={children} activeId={activeChild} setActiveId={setActiveChild} />
+          ) : tab === 'c' ? (
+            <GuardianPay children={children} activeId={activeChild} setActiveId={setActiveChild} goTab={setTab} />
           ) : (
-            <PaymentsScreen />
-          ))}
+            <GuardianCharge children={children} activeId={activeChild} setActiveId={setActiveChild} />
+          )
+        )}
       </View>
 
       {(isStudent || isGuardian) && (
@@ -122,7 +133,6 @@ export default function App() {
                 setTab(t);
                 setTeacher(null);
                 setBooking(false);
-                setChild(null);
               }}
             >
               <Text style={[styles.tabLabel, tab === t && styles.tabActive]}>{tabLabel(t)}</Text>

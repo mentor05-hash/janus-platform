@@ -7,6 +7,7 @@ import {
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccountRole } from '../../config/enums';
+import { CreditService } from '../billing/credit.service';
 import { NotifyService } from '../notification/notify.service';
 import { canLinkTransition, GuardianLinkStatus } from './domain/guardian-link';
 import {
@@ -23,7 +24,16 @@ export class GuardianService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notify: NotifyService,
+    private readonly credit: CreditService,
   ) {}
+
+  /** 승인된 연결 자녀인지 확인(무단 열람·충전 방지). */
+  private async assertLinked(guardianId: string, studentId: string) {
+    const link = await this.prisma.guardian_student_link.findFirst({
+      where: { guardian_id: guardianId, student_id: studentId, status: 'approved' },
+    });
+    if (!link) throw new ForbiddenException('연결된 자녀가 아닙니다.');
+  }
 
   /** 보호자가 자녀 연결 신청(학생 로그인ID 기준). */
   async requestLink(guardian: AuthUser, dto: GuardianLinkRequestDto) {
@@ -74,19 +84,86 @@ export class GuardianService {
     });
     const children = await Promise.all(
       links.map(async (l) => {
-        const acc = await this.prisma.account.findUnique({
-          where: { id: l.student_id },
-          select: { name: true },
-        });
+        const [acc, sp, ca, weeklyGrant, nextBooking] = await Promise.all([
+          this.prisma.account.findUnique({
+            where: { id: l.student_id },
+            select: { name: true },
+          }),
+          this.prisma.student_profile.findUnique({
+            where: { account_id: l.student_id },
+            select: {
+              homeroom_teacher_id: true,
+              center: { select: { name: true } },
+              membership_grade: { select: { name: true, weekly_credits: true } },
+            },
+          }),
+          this.prisma.credit_account.findUnique({
+            where: { student_id: l.student_id },
+            select: { purchased_balance: true, granted_balance: true },
+          }),
+          undefined,
+          this.prisma.booking.findFirst({
+            where: {
+              student_id: l.student_id,
+              status: { in: ['new', 'confirmed', 'done'] },
+            },
+            orderBy: { start_at: 'desc' },
+            select: { status: true, start_at: true, consult_type: true },
+          }),
+        ]);
         return {
           linkId: l.id,
           studentId: l.student_id,
           name: acc?.name ?? null,
           relation: l.relation,
+          centerName: sp?.center?.name ?? null,
+          isHomeroom: !!sp?.homeroom_teacher_id,
+          membershipGrade: sp?.membership_grade?.name ?? null,
+          weeklyCredits: sp?.membership_grade?.weekly_credits ?? 0,
+          balance: (ca?.purchased_balance ?? 0) + (ca?.granted_balance ?? 0),
+          lastStatus: nextBooking?.status ?? null,
+          lastAt: nextBooking?.start_at ?? null,
         };
       }),
     );
     return children;
+  }
+
+  /** 자녀 크레딧 계좌 + 거래 내역(보호자, 연결 자녀만). */
+  async childCredits(guardian: AuthUser, studentId: string) {
+    await this.assertLinked(guardian.id, studentId);
+    const [ca, txs] = await Promise.all([
+      this.prisma.credit_account.findUnique({
+        where: { student_id: studentId },
+      }),
+      this.prisma.credit_transaction.findMany({
+        where: { credit_account: { student_id: studentId } },
+        orderBy: { created_at: 'desc' },
+        take: 50,
+      }),
+    ]);
+    return {
+      account: ca
+        ? {
+            purchasedBalance: ca.purchased_balance,
+            grantedBalance: ca.granted_balance,
+            total: ca.purchased_balance + ca.granted_balance,
+          }
+        : { purchasedBalance: 0, grantedBalance: 0, total: 0 },
+      transactions: txs,
+    };
+  }
+
+  /** 자녀 크레딧 충전(보호자 대납). 연결 자녀 한정. */
+  async chargeChild(
+    guardian: AuthUser,
+    studentId: string,
+    amount: number,
+    method?: string,
+  ) {
+    await this.assertLinked(guardian.id, studentId);
+    const result = await this.credit.charge(studentId, amount, method);
+    return { studentId, amount, ...result };
   }
 
   /** 학생 본인 또는 관리자/HR 이 연결 신청에 승인·거절·해제. */

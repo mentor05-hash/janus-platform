@@ -156,13 +156,23 @@ export interface Child {
   studentId: string;
   name: string | null;
   relation: string | null;
+  centerName?: string | null;
+  isHomeroom?: boolean;
+  membershipGrade?: string | null;
+  weeklyCredits?: number;
+  balance?: number;
+  lastStatus?: string | null;
+  lastAt?: string | null;
 }
 export interface Note {
   bookingId: string;
+  teacherName?: string | null;
+  consultType?: string | null;
   coreSummary: string | null;
   homework: string | null;
   futureDir: string | null;
   saveState: 'draft' | 'final';
+  createdAt?: string;
 }
 export interface PaymentRequest {
   id: string;
@@ -171,6 +181,10 @@ export interface PaymentRequest {
   status: 'open' | 'done' | 'rejected' | 'expired';
   origin: string;
   created_at: string;
+}
+export interface ChildCredits {
+  account: { purchasedBalance: number; grantedBalance: number; total: number };
+  transactions: { id: string; type: string; amount: number; balance: number; description: string | null; created_at: string }[];
 }
 export interface Teacher {
   id: string;

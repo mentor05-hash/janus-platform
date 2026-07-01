@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { BillingModule } from '../billing/billing.module';
 import { NotificationModule } from '../notification/notification.module';
 import { GuardianController } from './guardian.controller';
 import { GuardianService } from './guardian.service';
@@ -13,7 +14,7 @@ import { TeachersController } from './teachers.controller';
  * 등록/프로필 — 학생·선생님·보호자 프로필, HR 등록·승인, 보호자 연결.
  */
 @Module({
-  imports: [NotificationModule],
+  imports: [NotificationModule, BillingModule],
   controllers: [
     TeachersController,
     HrController,

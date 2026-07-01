@@ -10,11 +10,17 @@ import {
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { IsIn, IsInt, IsOptional, IsPositive } from 'class-validator';
 import { GuardianService } from './guardian.service';
 import {
   GuardianLinkRequestDto,
   GuardianLinkRespondDto,
 } from './dto/guardian.dto';
+
+class ChildChargeDto {
+  @IsInt() @IsPositive() amount!: number;
+  @IsOptional() @IsIn(['card', 'voucher']) method?: 'card' | 'voucher';
+}
 
 @Controller()
 export class GuardianController {
@@ -25,6 +31,27 @@ export class GuardianController {
   @Roles('guardian')
   children(@CurrentUser() user: AuthUser) {
     return this.guardian.listChildren(user);
+  }
+
+  /** GET /guardian/children/{studentId}/credits — 자녀 크레딧 계좌·내역(보호자). */
+  @Get('guardian/children/:studentId/credits')
+  @Roles('guardian')
+  childCredits(
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.guardian.childCredits(user, studentId);
+  }
+
+  /** POST /guardian/children/{studentId}/charge — 자녀 크레딧 대납 충전(보호자). */
+  @Post('guardian/children/:studentId/charge')
+  @Roles('guardian')
+  chargeChild(
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @Body() dto: ChildChargeDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.guardian.chargeChild(user, studentId, dto.amount, dto.method);
   }
 
   /** POST /guardian/links — 자녀 연결 신청(보호자). */
