@@ -18,7 +18,10 @@
   --line-soft: #eef2f4;   /* 카드 내부 구분선 */
   --input-border: #cbd5da;/* 입력 보더(카드보다 진하게) */
   --bg: #f2f4f6;          /* 페이지 배경 */
+  --surface: #fff;        /* 카드·입력·표면(다크에서 반전) */
+  --surface-2: #f6f8fa;   /* 카드 내부·연한 표면 */
   --fill-50: #f6f8fa;     /* 테이블 헤더·카드 내부 fill */
+  --fill: #f6f8fa;        /* (인라인 var(--fill) 대응) */
   --white: #fff;
   --admin-navy: #0e2a38;  /* 관리자 사이드바 bg */
 
@@ -37,6 +40,32 @@
   /* 그림자(플랫) */
   --shadow-card: 0 1px 3px rgba(16, 36, 43, 0.04);
   --shadow-btn: 0 1px 2px rgba(14, 92, 124, 0.25);
+}
+
+/* ── 다크 모드 ── 브랜드 teal·상태색은 유지, 표면/텍스트/라인만 반전 */
+:root[data-theme='dark'] {
+  --ink: #eef2f4;
+  --ink-body: #d3dbe0;
+  --muted: #9fb0b8;
+  --caption: #7c8b93;
+  --line: #26333a;
+  --line-soft: #202b31;
+  --input-border: #33434b;
+  --bg: #0f181c;
+  --surface: #17242a;
+  --surface-2: #1d2c33;
+  --fill-50: #1d2c33;
+  --fill: #1d2c33;
+  --white: #17242a;
+  --admin-navy: #0a1418;
+  --teal-50: #123138;
+  --teal-100: #16414a;
+  --chip-new-bg: #14263f;
+  --chip-confirmed-bg: #2e2410;
+  --chip-done-bg: #12281a;
+  --chip-muted-bg: #202b31;
+  --chip-danger-bg: #2e1618;
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 * { box-sizing: border-box; }
@@ -81,12 +110,12 @@ a { color: var(--teal); }
 }
 .btn:hover:not(:disabled) { background: var(--teal-900); }
 .btn.ghost {
-  background: #fff; color: var(--teal);
+  background: var(--surface); color: var(--teal);
   border: 1px solid var(--teal); box-shadow: none;
 }
 .btn.ghost:hover:not(:disabled) { background: var(--teal-50); }
 .btn.danger {
-  background: #fff; color: var(--chip-danger);
+  background: var(--surface); color: var(--chip-danger);
   border: 1px solid var(--chip-danger-border); box-shadow: none;
 }
 .btn.danger:hover:not(:disabled) { background: var(--chip-danger-bg); }
@@ -95,14 +124,14 @@ a { color: var(--teal); }
 
 /* ── 카드 ── */
 .card {
-  background: #fff; border: 1px solid var(--line);
+  background: var(--surface); border: 1px solid var(--line);
   border-radius: 14px; padding: 18px; box-shadow: var(--shadow-card);
 }
 
 /* ── 입력 ── */
 .input, .textarea {
   width: 100%; padding: 11px 12px; border: 1px solid var(--input-border);
-  border-radius: 9px; font-size: 14px; color: var(--ink); background: #fff;
+  border-radius: 9px; font-size: 14px; color: var(--ink); background: var(--surface);
 }
 .input:focus, .textarea:focus { border-color: var(--teal); outline: none; }
 /* 버튼(.btn.sm)과 높이·서체를 맞춘 콤팩트 입력(근무시간 드롭다운·날짜 등) */

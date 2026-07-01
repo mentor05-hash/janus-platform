@@ -7,10 +7,10 @@ import { PageHeader, Card, Button, Badge, ErrorText } from '../components/ui';
 
 function FeatureToggle({ label, on, onClick }: { label: string; on: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, border: '1px solid var(--line)', background: '#fff', fontSize: 13, fontWeight: 600 }}>
+    <button onClick={onClick} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--surface)', fontSize: 13, fontWeight: 600 }}>
       <span>{label}</span>
       <span style={{ width: 34, height: 20, borderRadius: 999, background: on ? 'var(--teal)' : 'var(--line)', position: 'relative', transition: '.15s' }}>
-        <span style={{ position: 'absolute', top: 2, left: on ? 16 : 2, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: '.15s' }} />
+        <span style={{ position: 'absolute', top: 2, left: on ? 16 : 2, width: 16, height: 16, borderRadius: '50%', background: 'var(--surface)', transition: '.15s' }} />
       </span>
     </button>
   );

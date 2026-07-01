@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { ThemeToggle } from './ThemeToggle';
 
 const navCls = ({ isActive }: { isActive: boolean }) => (isActive ? 'nav-item active' : 'nav-item');
 
@@ -44,6 +45,7 @@ export function StudentLayout() {
             로그아웃
           </button>
         </div>
+        <div style={{ padding: '0 16px 14px' }}><ThemeToggle /></div>
       </aside>
       <main className="shell-main">
         <div className="inner">

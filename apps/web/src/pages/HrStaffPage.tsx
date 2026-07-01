@@ -54,7 +54,7 @@ export function HrStaffPage() {
                         <button onClick={() => setEditing(null)} style={{ cursor: 'pointer', padding: '4px 9px', borderRadius: 7, fontSize: 12, border: 'none', background: 'none', color: 'var(--muted)' }}>취소</button>
                       </span>
                     ) : (
-                      <button onClick={() => setEditing(s.id)} style={{ cursor: 'pointer', padding: '5px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, border: '1px solid var(--line)', background: '#fff', color: 'var(--ink)' }}>권한 변경</button>
+                      <button onClick={() => setEditing(s.id)} style={{ cursor: 'pointer', padding: '5px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, border: '1px solid var(--line)', background: 'var(--surface)', color: 'var(--ink)' }}>권한 변경</button>
                     )}
                   </td>
                 </tr>

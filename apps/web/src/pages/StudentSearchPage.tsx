@@ -457,7 +457,7 @@ export function StudentSearchPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10, marginTop: 12 }}>
             {recs.slice(0, 6).map((t) => (
               <button key={t.id} onClick={() => openDetail(t)} style={{ all: 'unset', cursor: 'pointer' }}>
-                <div style={{ background: '#fff', border: '1px solid var(--line)', borderRadius: 12, padding: 12 }}>
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 12, padding: 12 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><b style={{ fontSize: 15 }}>{t.name}</b><GradeBadge grade={t.grade} /></div>
                   <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>{t.subjects.join(', ')} · ⭐ {t.rating ?? 0}</div>
                   {(t.matchedNeeds?.length ?? 0) > 0 && <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>{t.matchedNeeds!.map((n) => <Badge key={n} kind="done">#{n}</Badge>)}</div>}

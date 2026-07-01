@@ -24,7 +24,7 @@
 .dtable { width: 100%; border-collapse: collapse; font-size: 13px; }
 .dtable thead th { text-align: left; padding: 11px 14px; background: var(--fill-50); border-bottom: 1px solid var(--line); color: var(--muted); font-weight: 700; font-size: 12px; }
 .dtable tbody td { padding: 12px 14px; border-bottom: 1px solid var(--line-soft); }
-.dtable tbody tr:hover { background: #fafbfc; }
+.dtable tbody tr:hover { background: var(--surface-2); }
 
 /* 탭(세그먼트) */
 .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 16px; flex-wrap: wrap; }
@@ -33,7 +33,7 @@
 
 /* 모달 — 잉크 틴트의 부드러운 그림자 */
 .modal-overlay { position: fixed; inset: 0; background: rgba(22,36,43,0.45); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 50; }
-.modal { background: #fff; border-radius: 14px; padding: 20px; width: 100%; max-width: 460px; max-height: 90vh; overflow: auto; box-shadow: 0 12px 40px rgba(16,36,43,0.12); }
+.modal { background: var(--surface); border-radius: 14px; padding: 20px; width: 100%; max-width: 460px; max-height: 90vh; overflow: auto; box-shadow: 0 12px 40px rgba(16,36,43,0.12); }
 .modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .modal-head h3 { margin: 0; color: var(--ink); }
 .modal-x { background: none; border: none; font-size: 22px; color: var(--muted); line-height: 1; }
@@ -57,7 +57,7 @@
 /* ── 콘솔 셸: 좌측 사이드바 + 메인 ── */
 .shell { display: flex; min-height: 100vh; }
 .sidebar {
-  width: 228px; flex-shrink: 0; background: #fff;
+  width: 228px; flex-shrink: 0; background: var(--surface);
   border-right: 1px solid var(--line); display: flex; flex-direction: column;
   position: sticky; top: 0; height: 100vh;
 }

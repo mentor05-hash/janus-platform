@@ -5,6 +5,9 @@ import { App } from './App';
 import { AuthProvider } from './auth/AuthContext';
 import './styles/tokens.css';
 import './styles/components.css';
+import { initTheme } from './theme';
+
+initTheme();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

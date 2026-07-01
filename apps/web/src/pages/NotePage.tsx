@@ -78,7 +78,7 @@ export function NotePage() {
                   key={a.id}
                   type="button"
                   onClick={() => api.downloadFile(a.id, a.name).catch((e) => setError(e instanceof ApiError ? e.message : '다운로드 실패'))}
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', background: '#fff', cursor: 'pointer', fontSize: 13, color: 'var(--teal)' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--line)', background: 'var(--surface)', cursor: 'pointer', fontSize: 13, color: 'var(--teal)' }}
                 >
                   📄 {a.name} <span style={{ color: 'var(--muted)', fontSize: 11 }}>· 다운로드</span>
                 </button>
