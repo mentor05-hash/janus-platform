@@ -7,9 +7,10 @@ import {
   Min,
 } from 'class-validator';
 
-/** PUT /admin/zoom-policy — 동시 줌 한도. */
+/** PUT /admin/zoom-policy — 동시 줌 한도 + 요일×시간 허용/차단 맵. */
 export class SetZoomPolicyDto {
   @Type(() => Number) @IsInt() @Min(0) concurrentLimit!: number;
+  @IsOptional() allowMap?: Record<string, boolean>; // "weekday-hour" → false=차단
 }
 
 /** POST /admin/rooms — 상담실 등록. */

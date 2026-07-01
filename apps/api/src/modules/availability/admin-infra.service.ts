@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import {
@@ -36,10 +37,20 @@ export class AdminInfraService {
 
   async setZoomPolicy(dto: SetZoomPolicyDto, actor: AuthUser) {
     const centerId = this.requireCenter(actor);
+    const allowMap = (dto.allowMap ?? undefined) as
+      | Prisma.InputJsonValue
+      | undefined;
     return this.prisma.zoom_policy.upsert({
       where: { center_id: centerId },
-      update: { concurrent_limit: dto.concurrentLimit },
-      create: { center_id: centerId, concurrent_limit: dto.concurrentLimit },
+      update: {
+        concurrent_limit: dto.concurrentLimit,
+        ...(allowMap !== undefined ? { allow_map: allowMap } : {}),
+      },
+      create: {
+        center_id: centerId,
+        concurrent_limit: dto.concurrentLimit,
+        ...(allowMap !== undefined ? { allow_map: allowMap } : {}),
+      },
     });
   }
 

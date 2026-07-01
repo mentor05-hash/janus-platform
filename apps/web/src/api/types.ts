@@ -134,6 +134,9 @@ export interface Dashboard {
   confirmedUpcoming: number;
   weeklyConsult: number;
   matchRate: number;
+  avgSatisfaction?: number | null;
+  gradeDistribution?: Record<string, number>;
+  teacherCount?: number;
 }
 
 export interface PricingPolicy {
@@ -145,6 +148,7 @@ export interface PricingPolicy {
   surcharge_pct: number;
   board_item_fee: number | null;
   board_general_fee: number | null;
+  offline_occupancy_fee?: number | null;
 }
 
 export interface LimitPolicy {
@@ -174,6 +178,7 @@ export interface FeatureRule {
 export interface ZoomPolicy {
   center_id: string;
   concurrent_limit: number;
+  allow_map?: Record<string, boolean>;
 }
 
 export interface Room {
