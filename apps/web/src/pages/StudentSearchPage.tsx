@@ -286,10 +286,12 @@ const STRENGTH_POOL = ['개념정리', '문제풀이', '내신대비', '수능�
 const CTYPES: [string, string][] = [['담임', '🏫'], ['교과', '📐'], ['입시', '🎯'], ['심리', '💬']];
 const SUBTYPES: Record<string, string[]> = {
   담임: ['생활전반', '학습전반'],
-  교과: ['국어', '수학', '영어', '과학', '사회'],
-  입시: ['성적별 대학라인', '유리한 전형', '입시정보', '유료컨설팅'],
+  교과: ['국어', '수학', '영어', '과학탐구', '사회탐구'],
+  입시: ['성적별 대학라인', '유리한 전형선택', '입시정보', '유료컨설팅'],
   심리: ['LCA코칭', '심리상담'],
 };
+// 교과 세부값(표시) → 실제 선생님 과목(DB) 매핑
+const SUBJECT_MAP: Record<string, string> = { 국어: '국어', 수학: '수학', 영어: '영어', 과학탐구: '과학', 사회탐구: '사회' };
 
 export function StudentSearchPage() {
   const navigate = useNavigate();
@@ -309,7 +311,7 @@ export function StudentSearchPage() {
   const [board, setBoard] = useState<(Teacher & { rank: number; score: number })[]>([]);
   const [error, setError] = useState('');
 
-  const subjectFilter = consultType === '교과' ? subType : null;
+  const subjectFilter = consultType === '교과' && subType ? SUBJECT_MAP[subType] ?? subType : null;
 
   async function recommend() {
     setError('');
@@ -419,15 +421,19 @@ export function StudentSearchPage() {
         })}
       </div>
       {consultType && (
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-          {SUBTYPES[consultType].map((s) => {
-            const on = subType === s;
-            return <button key={s} onClick={() => setSubType(on ? null : s)} style={{ cursor: 'pointer', padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700,
-              border: on ? '1px solid var(--teal)' : '1px solid var(--line)', background: on ? 'var(--teal-100,#DCECF3)' : 'var(--teal-50,#F0F7FA)', color: on ? 'var(--teal)' : 'var(--muted)' }}>{s}</button>;
-          })}
-        </div>
+        <>
+          <label className="label" style={{ marginTop: 2 }}>{consultType === '교과' ? '과목' : '세부 유형'}</label>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+            {SUBTYPES[consultType].map((s) => {
+              const on = subType === s;
+              return <button key={s} onClick={() => setSubType(on ? null : s)} style={{ cursor: 'pointer', padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+                border: on ? '1px solid var(--teal)' : '1px solid var(--line)', background: on ? 'var(--teal-100,#DCECF3)' : 'var(--teal-50,#F0F7FA)', color: on ? 'var(--teal)' : 'var(--muted)' }}>{s}</button>;
+            })}
+          </div>
+        </>
       )}
-      {consultType === '심리' && <p style={{ fontSize: 12, color: 'var(--teal)', background: 'var(--teal-50,#F0F7FA)', borderRadius: 8, padding: 9, marginBottom: 8 }}>💬 심리상담(LCA코칭·심리상담)은 기숙 온/오프라인으로 운영돼요.</p>}
+      {consultType === '심리' && <p style={{ fontSize: 12, color: 'var(--teal)', background: 'var(--teal-50,#F0F7FA)', borderRadius: 8, padding: 9, marginBottom: 8 }}>💬 심리상담(LCA코칭·심리상담)은 현재 기숙 온/오프라인으로 운영돼요.</p>}
+      {subType === '유료컨설팅' && <p style={{ fontSize: 12, color: '#92600A', background: 'var(--chip-confirmed-bg,#FEF6E7)', borderRadius: 8, padding: 9, marginBottom: 8 }}>💎 입시 유료컨설팅은 별도 단가가 적용돼요.</p>}
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 12 }}>
         <div style={{ flex: '1 1 220px', minWidth: 180 }}><TextField label="검색" placeholder="이름·과목" value={q} onChange={(e) => setQ(e.target.value)} /></div>

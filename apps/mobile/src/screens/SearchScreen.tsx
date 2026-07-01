@@ -7,10 +7,12 @@ const SORTS: [string, string][] = [['grade', '기본'], ['rating', '만족도'],
 const CTYPES: [string, string][] = [['담임', '🏫'], ['교과', '📐'], ['입시', '🎯'], ['심리', '💬']];
 const SUBTYPES: Record<string, string[]> = {
   담임: ['생활전반', '학습전반'],
-  교과: ['국어', '수학', '영어', '과학', '사회'],
-  입시: ['성적별 대학라인', '유리한 전형', '입시정보', '유료컨설팅'],
+  교과: ['국어', '수학', '영어', '과학탐구', '사회탐구'],
+  입시: ['성적별 대학라인', '유리한 전형선택', '입시정보', '유료컨설팅'],
   심리: ['LCA코칭', '심리상담'],
 };
+// 교과 세부값(표시) → 실제 선생님 과목(DB) 매핑
+const SUBJECT_MAP: Record<string, string> = { 국어: '국어', 수학: '수학', 영어: '영어', 과학탐구: '과학', 사회탐구: '사회' };
 const STRENGTH_POOL = ['개념정리', '문제풀이', '내신대비', '수능대비', '오답관리', '동기부여', '기초탄탄', '심화학습'];
 type Rec = Teacher & { matchedNeeds?: string[] };
 
@@ -34,13 +36,13 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher) => void
 
   async function recommend() {
     try {
-      const r = await api.post<Rec[]>('/teachers/recommend', { subject: consultType === '교과' ? subType ?? undefined : undefined, needs });
+      const r = await api.post<Rec[]>('/teachers/recommend', { subject: subjectFilter ?? undefined, needs });
       setRecs(r);
     } catch (e) { setError(e instanceof ApiError ? e.message : '추천 실패'); }
   }
 
-  // 교과 세부유형은 실제 subject 필터로 동작. 그 외 유형의 세부는 안내·프리필용.
-  const subjectFilter = consultType === '교과' ? subType : null;
+  // 교과 세부유형은 실제 subject 필터로 동작(과학탐구→과학·사회탐구→사회). 그 외 유형의 세부는 안내·프리필용.
+  const subjectFilter = consultType === '교과' && subType ? SUBJECT_MAP[subType] ?? subType : null;
 
   useEffect(() => {
     api.get<{ name: string }[]>('/categories?kind=teacher').then((r) => setCats(r.map((c) => c.name))).catch(() => {});
@@ -103,7 +105,7 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher) => void
           {/* 세부 유형 (교과=과목 필터, 그 외=안내) */}
           {consultType && (
             <View style={styles.inlineRow}>
-              <Text style={styles.inlineLbl}>세부</Text>
+              <Text style={styles.inlineLbl}>{consultType === '교과' ? '과목' : '세부 유형'}</Text>
               <View style={styles.inlinePills}>
                 {SUBTYPES[consultType].map((s) => (
                   <TouchableOpacity key={s} style={[styles.subPill, subType === s && styles.subOn]} onPress={() => setSubType((cur) => (cur === s ? null : s))}><Text style={[styles.subT, subType === s && { color: C.teal }]}>{s}</Text></TouchableOpacity>
@@ -111,7 +113,8 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher) => void
               </View>
             </View>
           )}
-          {consultType === '심리' && <Text style={styles.note}>💬 심리상담(LCA코칭·심리상담)은 기숙 온/오프라인으로 운영돼요.</Text>}
+          {consultType === '심리' && <Text style={styles.note}>💬 심리상담(LCA코칭·심리상담)은 현재 기숙 온/오프라인으로 운영돼요.</Text>}
+          {subType === '유료컨설팅' && <Text style={[styles.note, { color: '#92600A', backgroundColor: '#FEF6E7' }]}>💎 입시 유료컨설팅은 별도 단가가 적용돼요.</Text>}
           {/* 카테고리 — 라벨 왼쪽, 버튼 오른쪽 */}
           <View style={styles.inlineRow}>
             <Text style={styles.inlineLbl}>카테고리</Text>
