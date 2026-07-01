@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, CreditAccount } from '../api';
-import { C, R, SP, ui } from '../theme';
+import { R, SP, useTheme, useUI, type Palette } from '../theme';
 import { useWebBack } from '../webBack';
 import { AutomatchScreen } from './AutomatchScreen';
 import { RecordsScreen } from './RecordsScreen';
@@ -14,13 +14,13 @@ type Tx = { id: string; type: 'charge' | 'spend' | 'weekly_grant' | 'weekly_expi
 const won = (n: number) => `${n.toLocaleString()}원`;
 const CHARGE = [30000, 50000, 100000];
 const KST = (iso: string) => new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-const TX_META: Record<Tx['type'], { label: string; sign: 1 | -1; color: string }> = {
+const makeTxMeta = (C: Palette): Record<Tx['type'], { label: string; sign: 1 | -1; color: string }> => ({
   charge: { label: '크레딧 충전', sign: 1, color: C.done },
   refund: { label: '크레딧 환원', sign: 1, color: C.done },
   weekly_grant: { label: '주간 크레딧 부여', sign: 1, color: C.done },
   spend: { label: '크레딧 차감', sign: -1, color: C.ink },
   weekly_expire: { label: '주간 크레딧 소멸', sign: -1, color: C.confirmed },
-};
+});
 
 type Sub = 'automatch' | 'records' | 'classify';
 const MENU: { key: Sub; icon: string; title: string; desc: string }[] = [
@@ -30,6 +30,10 @@ const MENU: { key: Sub; icon: string; title: string; desc: string }[] = [
 ];
 
 export function MyScreen() {
+  const { C } = useTheme();
+  const ui = useUI();
+  const styles = useMemo(() => makeStyles(C), [C]);
+  const TX_META = makeTxMeta(C);
   const [sub, setSub] = useState<Sub | null>(null);
   const [acc, setAcc] = useState<CreditAccount | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -174,7 +178,7 @@ export function MyScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   sec: { fontSize: 13, fontWeight: '800', color: C.ink, marginTop: SP.lg, marginBottom: 8 },
   sub: { fontSize: 12, color: C.muted, marginTop: 3 },
   ok: { color: C.done, fontSize: 13, marginTop: 6, fontWeight: '600' },

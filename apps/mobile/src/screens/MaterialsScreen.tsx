@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api, ApiError } from '../api';
-import { C, R, SP, ui } from '../theme';
+import { R, SP, useTheme, useUI, type Palette } from '../theme';
 
 type Material = {
   id: string; title: string; description: string | null; subject: string | null; category: string | null;
@@ -22,6 +22,9 @@ async function fetchPreview(path: string): Promise<{ kind: 'text' | 'image' | 'n
 }
 
 export function MaterialsScreen() {
+  const { C } = useTheme();
+  const ui = useUI();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const [rows, setRows] = useState<Material[] | null>(null);
   const [cats, setCats] = useState<string[]>([]);
   const [category, setCategory] = useState('전체');
@@ -98,7 +101,7 @@ export function MaterialsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   pillRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 8, marginBottom: 4 },
   pill: { alignSelf: 'flex-start', borderWidth: 1, borderColor: C.line, borderRadius: R.pill, paddingVertical: 4, paddingHorizontal: 12, backgroundColor: C.white },
   pillOn: { backgroundColor: C.teal, borderColor: C.teal },

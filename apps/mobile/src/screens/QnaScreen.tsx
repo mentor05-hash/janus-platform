@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api, ApiError } from '../api';
-import { C, R, SP, ui } from '../theme';
+import { R, SP, useTheme, useUI, type Palette } from '../theme';
 
 type Answer = { id: string; body: string; accepted: boolean; teacherName: string };
 type Post = { id: string; subject: string | null; difficulty: string | null; scope: string; body: string; status: string; created_at: string; answers?: Answer[] };
@@ -10,6 +10,9 @@ const statusLabel = (p: Post) => (p.status === 'resolved' ? '채택완료' : (p.
 const isDone = (p: Post) => p.status === 'resolved' || (p.answers?.length ?? 0) > 0;
 
 export function QnaScreen() {
+  const { C } = useTheme();
+  const ui = useUI();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const [posts, setPosts] = useState<Post[] | null>(null);
   const [open, setOpen] = useState(false);
   const [subject, setSubject] = useState('수학');
@@ -92,7 +95,7 @@ export function QnaScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   newBtn: { alignSelf: 'flex-start', backgroundColor: C.teal, borderRadius: 9, paddingVertical: 10, paddingHorizontal: 18 },
   newT: { color: C.white, fontWeight: '800', fontSize: 14 },
   ok: { color: C.done, fontSize: 13, marginTop: 8, fontWeight: '600' },

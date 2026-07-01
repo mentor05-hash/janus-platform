@@ -1,11 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, Teacher } from '../api';
-import { C, R, SP, ui } from '../theme';
+import { R, SP, useTheme, useUI, type Palette } from '../theme';
 
 type Lists = { fit: string[]; unfit: string[] };
 
 export function ClassifyScreen({ onBack }: { onBack: () => void }) {
+  const { C } = useTheme();
+  const ui = useUI();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const [lists, setLists] = useState<Lists | null>(null);
   const [names, setNames] = useState<Record<string, Teacher>>({});
   const [busy, setBusy] = useState<string | null>(null);
@@ -28,6 +31,9 @@ export function ClassifyScreen({ onBack }: { onBack: () => void }) {
   }
 
   function Row({ id }: { id: string }) {
+    const { C } = useTheme();
+    const ui = useUI();
+    const styles = useMemo(() => makeStyles(C), [C]);
     const t = names[id];
     return (
       <View style={[ui.card, styles.row]}>
@@ -61,7 +67,7 @@ export function ClassifyScreen({ onBack }: { onBack: () => void }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   back: { color: C.teal, fontSize: 14, fontWeight: '700', marginBottom: 8 },
   sec: { fontSize: 13, fontWeight: '800', color: C.ink, marginTop: SP.lg, marginBottom: 8 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 11, marginBottom: 8 },

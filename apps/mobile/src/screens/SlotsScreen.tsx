@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, Attachment, Quote, Slot, Teacher } from '../api';
-import { C, R, SP, ui } from '../theme';
+import { R, SP, useTheme, useUI, type Palette } from '../theme';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const DURATION = 3; // 기본 30분 (10분 슬롯 3칸)
@@ -28,6 +28,9 @@ const MODES = [
 ];
 
 export function SlotsScreen({ teacher, onBack }: { teacher: Teacher; onBack: () => void }) {
+  const { C } = useTheme();
+  const ui = useUI();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const [date, setDate] = useState(today());
   const [slots, setSlots] = useState<Slot[]>([]);
   // 선택 범위: selStart..selEnd(둘 다 포함, 10분 인덱스). null = 미선택
@@ -367,7 +370,7 @@ export function SlotsScreen({ teacher, onBack }: { teacher: Teacher; onBack: () 
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   back: { color: C.teal, marginBottom: SP.sm, fontWeight: '700', fontSize: 15 },
   head: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: SP.sm },
   actRow: { flexDirection: 'row', gap: 8, marginTop: 10 },

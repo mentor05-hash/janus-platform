@@ -1,9 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { api, ApiError } from '../api';
-import { C, SP, ui } from '../theme';
+import { SP, useTheme, useUI, type Palette } from '../theme';
 
 export function ReverseOptInScreen() {
+  const { C } = useTheme();
+  const ui = useUI();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const [value, setValue] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -47,7 +50,7 @@ export function ReverseOptInScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   card: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { fontSize: 15, fontWeight: '700', color: C.ink },
   desc: { fontSize: 13, color: C.muted, marginTop: 4 },

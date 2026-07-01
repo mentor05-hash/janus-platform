@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, Teacher } from '../api';
-import { C, R, SP, ui } from '../theme';
+import { R, SP, useTheme, useUI, type Palette } from '../theme';
 
 type Note = {
   bookingId: string;
@@ -15,6 +15,9 @@ type Note = {
 const KST = (iso: string) => new Date(iso).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit' });
 
 export function RecordsScreen({ onBack }: { onBack: () => void }) {
+  const { C } = useTheme();
+  const ui = useUI();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const [notes, setNotes] = useState<Note[] | null>(null);
   const [names, setNames] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
@@ -53,7 +56,7 @@ export function RecordsScreen({ onBack }: { onBack: () => void }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   back: { color: C.teal, fontSize: 14, fontWeight: '700', marginBottom: 8 },
   note: { fontSize: 12, color: C.muted, lineHeight: 18 },
   emptyT: { color: C.muted, fontSize: 13, textAlign: 'center' },

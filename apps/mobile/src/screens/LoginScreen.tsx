@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api, ApiError } from '../api';
-import { C, R, SP, ui } from '../theme';
+import { R, SP, useTheme, useUI, type Palette } from '../theme';
 
 const CENTERS = [
   { key: '강남', name: '강남 센터', sub: '서울 강남구 · 본원' },
@@ -10,6 +10,9 @@ const CENTERS = [
 ];
 
 export function LoginScreen({ onLogin }: { onLogin: () => void }) {
+  const { C } = useTheme();
+  const ui = useUI();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const [loginId, setLoginId] = useState('sims001');
   const [password, setPassword] = useState('Itall-2026!');
   const [center, setCenter] = useState('강남');
@@ -119,7 +122,7 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   hero: { paddingTop: 56, paddingBottom: 36, paddingHorizontal: SP.xl, alignItems: 'flex-start' },
   mark: { width: 52, height: 52, borderRadius: 13, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
   markText: { color: C.teal, fontWeight: '800', fontSize: 22 },

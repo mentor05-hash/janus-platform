@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { api, Child, hasSession, loadTokens, Me, Teacher } from './src/api';
@@ -10,11 +10,22 @@ import { SlotsScreen } from './src/screens/SlotsScreen';
 import { BookingsScreen } from './src/screens/BookingsScreen';
 import { QnaScreen } from './src/screens/QnaScreen';
 import { MaterialsScreen } from './src/screens/MaterialsScreen';
+import { CommunityScreen } from './src/screens/CommunityScreen';
 import { MyScreen } from './src/screens/MyScreen';
 import { GuardianHome, GuardianConsult, GuardianPay, GuardianCharge } from './src/screens/GuardianScreens';
-import { C, SP } from './src/theme';
+import { ThemeProvider, useTheme, type Palette, SP } from './src/theme';
 
 export default function App() {
+  return (
+    <ThemeProvider>
+      <AppInner />
+    </ThemeProvider>
+  );
+}
+
+function AppInner() {
+  const { C, dark, toggle } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const [ready, setReady] = useState(false);
   const [me, setMe] = useState<Me | null>(null);
   const [tab, setTab] = useState('a');
@@ -86,9 +97,9 @@ export default function App() {
 
   const isGuardian = me.role === 'guardian';
   const isStudent = me.role === 'student';
-  const tabs = isGuardian ? ['a', 'b', 'c', 'd'] : ['a', 'b', 'e', 'c', 'd'];
+  const tabs = isGuardian ? ['a', 'b', 'c', 'd'] : ['a', 'b', 'e', 'c', 'f', 'd'];
   const guardianLabel: Record<string, string> = { a: '홈', b: '상담', c: '결제', d: '충전' };
-  const studentLabel: Record<string, string> = { a: '선생님', b: '내 예약', e: '자료실', c: 'Q&A', d: '마이' };
+  const studentLabel: Record<string, string> = { a: '선생님', b: '내 예약', e: '자료실', c: 'Q&A', f: '커뮤니티', d: '마이' };
   const tabLabel = (t: string) => (isGuardian ? guardianLabel[t] ?? '' : studentLabel[t] ?? '');
 
   return (
@@ -96,14 +107,19 @@ export default function App() {
       <StatusBar style="light" />
       <View style={styles.header}>
         <Text style={styles.brand}>잇올 멘토링 · {isGuardian ? '학부모' : '학생'}</Text>
-        <TouchableOpacity
-          onPress={async () => {
-            await api.logout();
-            setMe(null);
-          }}
-        >
-          <Text style={styles.logout}>로그아웃</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+          <TouchableOpacity onPress={toggle}>
+            <Text style={styles.logout}>{dark ? '☀️ 라이트' : '🌙 다크'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={async () => {
+              await api.logout();
+              setMe(null);
+            }}
+          >
+            <Text style={styles.logout}>로그아웃</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.body}>
@@ -126,6 +142,8 @@ export default function App() {
             <MaterialsScreen />
           ) : tab === 'c' ? (
             <QnaScreen />
+          ) : tab === 'f' ? (
+            <CommunityScreen />
           ) : (
             <MyScreen />
           ))}
@@ -166,11 +184,11 @@ export default function App() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   app: { flex: 1, backgroundColor: C.bg },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bg },
   header: { backgroundColor: C.teal, paddingHorizontal: SP.lg, paddingVertical: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  brand: { color: C.white, fontWeight: '800', fontSize: 16, letterSpacing: -0.3 },
+  brand: { color: '#FFFFFF', fontWeight: '800', fontSize: 16, letterSpacing: -0.3 },
   logout: { color: '#cfe3ec', fontSize: 13, fontWeight: '600' },
   body: { flex: 1 },
   notice: { padding: SP.xl, color: C.muted },

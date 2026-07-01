@@ -1,13 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, Teacher } from '../api';
-import { C, R, SP, ui, gradeColor } from '../theme';
+import { R, SP, gradeColor, useTheme, useUI, type Palette } from '../theme';
 
 type Detail = Teacher & { career?: string | null; subSubjects?: string[]; intro?: string | null; strengths?: string[]; reRequestRate?: number | null; avgResponseMin?: number | null };
 type Material = { id: string; title: string; description: string | null; subject: string | null; category: string | null; teacherId: string; filename: string | null; downloadUrl: string | null; createdAt: string };
 const KST = (iso: string) => new Date(iso).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit' });
 
 export function TeacherDetailScreen({ teacher, onBack, onBook }: { teacher: Teacher; onBack: () => void; onBook: () => void }) {
+  const { C } = useTheme();
+  const ui = useUI();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const [detail, setDetail] = useState<Detail>(teacher);
   const [materials, setMaterials] = useState<Material[] | null>(null);
   const isWeb = typeof document !== 'undefined';
@@ -30,7 +33,7 @@ export function TeacherDetailScreen({ teacher, onBack, onBook }: { teacher: Teac
             <View style={{ flex: 1 }}>
               <View style={styles.nameRow}>
                 <Text style={styles.name}>{teacher.name}</Text>
-                <View style={[styles.grade, { backgroundColor: gradeColor(teacher.grade) }]}><Text style={styles.gradeT}>{teacher.grade}</Text></View>
+                <View style={[styles.grade, { backgroundColor: gradeColor(teacher.grade, C) }]}><Text style={styles.gradeT}>{teacher.grade}</Text></View>
                 {teacher.offlineAvailable ? <View style={styles.offTag}><Text style={styles.offT}>오프라인</Text></View> : null}
               </View>
               <Text style={styles.sub}>{detail.subjects.join(', ')}{detail.category ? ` · ${detail.category}` : ''}{detail.career ? ` · ${detail.career}` : ''}</Text>
@@ -74,7 +77,7 @@ export function TeacherDetailScreen({ teacher, onBack, onBook }: { teacher: Teac
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   back: { color: C.teal, fontSize: 14, fontWeight: '700', marginBottom: 8 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatar: { width: 54, height: 54, borderRadius: 14, backgroundColor: C.teal100, alignItems: 'center', justifyContent: 'center' },

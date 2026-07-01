@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, Child, ChildCredits, Note, PaymentRequest } from '../api';
-import { C, R, SP, ui } from '../theme';
+import { R, SP, useTheme, useUI, type Palette } from '../theme';
 
 const won = (n: number) => `${n.toLocaleString()}원`;
 const fmt = (n: number) => n.toLocaleString();
@@ -11,6 +11,8 @@ const DKST = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString('k
 type Props = { children: Child[]; activeId: string | null; setActiveId: (id: string) => void; goTab?: (t: string) => void };
 
 function KidSwitcher({ children, activeId, setActiveId }: Props) {
+  const { C } = useTheme();
+  const s = useMemo(() => makeStyles(C), [C]);
   if (children.length <= 1) return null;
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }} style={{ marginBottom: 8 }}>
@@ -23,15 +25,18 @@ function KidSwitcher({ children, activeId, setActiveId }: Props) {
   );
 }
 
-const TX_META: Record<string, { label: string; sign: 1 | -1; color: string }> = {
+const makeTxMeta = (C: Palette): Record<string, { label: string; sign: 1 | -1; color: string }> => ({
   charge: { label: '크레딧 충전', sign: 1, color: C.done },
   refund: { label: '크레딧 환원', sign: 1, color: C.done },
   weekly_grant: { label: '주간 크레딧 부여', sign: 1, color: C.done },
   spend: { label: '크레딧 차감', sign: -1, color: C.ink },
   weekly_expire: { label: '주간 크레딧 소멸', sign: -1, color: C.confirmed },
-};
+});
 
 export function GuardianHome({ children, setActiveId, goTab }: Props) {
+  const { C } = useTheme();
+  const ui = useUI();
+  const s = useMemo(() => makeStyles(C), [C]);
   const [reqs, setReqs] = useState<PaymentRequest[]>([]);
   useEffect(() => { api.get<PaymentRequest[]>('/payment-requests').then((r) => setReqs(Array.isArray(r) ? r : [])).catch(() => {}); }, []);
   const open = reqs.filter((r) => r.status === 'open');
@@ -76,6 +81,9 @@ export function GuardianHome({ children, setActiveId, goTab }: Props) {
 }
 
 export function GuardianConsult({ children, activeId, setActiveId }: Props) {
+  const { C } = useTheme();
+  const ui = useUI();
+  const s = useMemo(() => makeStyles(C), [C]);
   const [notes, setNotes] = useState<Note[] | null>(null);
   const [error, setError] = useState('');
   useEffect(() => {
@@ -110,6 +118,10 @@ export function GuardianConsult({ children, activeId, setActiveId }: Props) {
 }
 
 export function GuardianPay({ children, activeId, setActiveId, goTab }: Props) {
+  const { C } = useTheme();
+  const ui = useUI();
+  const s = useMemo(() => makeStyles(C), [C]);
+  const TX_META = useMemo(() => makeTxMeta(C), [C]);
   const [data, setData] = useState<ChildCredits | null>(null);
   const [filter, setFilter] = useState<'all' | 'in' | 'out'>('all');
   const active = children.find((c) => c.studentId === activeId);
@@ -158,6 +170,9 @@ export function GuardianPay({ children, activeId, setActiveId, goTab }: Props) {
 
 const AMOUNTS = [10000, 30000, 50000];
 export function GuardianCharge({ children, activeId, setActiveId }: Props) {
+  const { C } = useTheme();
+  const ui = useUI();
+  const s = useMemo(() => makeStyles(C), [C]);
   const [reqs, setReqs] = useState<PaymentRequest[]>([]);
   const [amount, setAmount] = useState(30000);
   const [method, setMethod] = useState<'card' | 'voucher'>('card');
@@ -225,7 +240,7 @@ export function GuardianCharge({ children, activeId, setActiveId }: Props) {
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   kid: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: R.pill, borderWidth: 1, borderColor: C.line, backgroundColor: C.white },
   kidOn: { backgroundColor: C.ink, borderColor: C.ink },
   kidT: { fontSize: 13, fontWeight: '700', color: C.muted },

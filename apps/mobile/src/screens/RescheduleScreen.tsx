@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, Slot } from '../api';
-import { C, R, SP, ui } from '../theme';
+import { R, SP, useTheme, useUI, type Palette } from '../theme';
 
 const WD = ['일', '월', '화', '수', '목', '금', '토'];
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
@@ -10,6 +10,9 @@ const SLOT_BG: Record<Slot['status'], string> = { avail: '#CDEBDD', booked: '#D6
 export function RescheduleScreen({ bookingId, teacherId, teacherName, duration, onBack, onDone }: {
   bookingId: string; teacherId: string; teacherName: string; duration: number; onBack: () => void; onDone: () => void;
 }) {
+  const { C } = useTheme();
+  const ui = useUI();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const [date, setDate] = useState(today());
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [selStart, setSelStart] = useState<number | null>(null);
@@ -99,7 +102,7 @@ export function RescheduleScreen({ bookingId, teacherId, teacherName, duration, 
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   back: { color: C.teal, fontSize: 14, fontWeight: '700', marginBottom: 8 },
   sub: { color: C.muted, fontSize: 13, marginBottom: 8 },
   lbl: { fontSize: 11, fontWeight: '800', color: C.caption, marginTop: 14, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.4 },

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FlatList, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, Teacher } from '../api';
-import { C, R, SP, ui, gradeColor } from '../theme';
+import { R, SP, gradeColor, useTheme, useUI, type Palette } from '../theme';
 
 const SORTS: [string, string][] = [['grade', '기본'], ['rating', '만족도'], ['consult', '상담수'], ['question', '질문답변'], ['offline', '오프라인']];
 const CTYPES: [string, string][] = [['담임', '🏫'], ['교과', '📐'], ['입시', '🎯'], ['심리', '💬']];
@@ -15,6 +15,9 @@ const STRENGTH_POOL = ['개념정리', '문제풀이', '내신대비', '수능�
 type Rec = Teacher & { matchedNeeds?: string[] };
 
 export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher) => void; onGoQna?: () => void }) {
+  const { C } = useTheme();
+  const ui = useUI();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [cats, setCats] = useState<string[]>([]);
   const [mode, setMode] = useState<'상담' | '질문'>('상담');
@@ -162,7 +165,7 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher) => void
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       <Text style={styles.name}>{t.name}</Text>
-                      <View style={[styles.grade, { backgroundColor: gradeColor(t.grade) }]}><Text style={styles.gradeText}>{t.grade}</Text></View>
+                      <View style={[styles.grade, { backgroundColor: gradeColor(t.grade, C) }]}><Text style={styles.gradeText}>{t.grade}</Text></View>
                     </View>
                     <Text style={ui.sub}>{t.subjects.join(', ')} · ⭐ {t.rating ?? 0}</Text>
                     {(t.matchedNeeds?.length ?? 0) > 0 && <Text style={styles.matched}>{t.matchedNeeds!.map((n) => `#${n}`).join(' ')}</Text>}
@@ -186,7 +189,7 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher) => void
               <View style={{ flex: 1 }}>
                 <View style={styles.nameRow}>
                   <Text style={styles.name}>{item.name}</Text>
-                  <View style={[styles.grade, { backgroundColor: gradeColor(item.grade) }]}><Text style={styles.gradeText}>{item.grade}</Text></View>
+                  <View style={[styles.grade, { backgroundColor: gradeColor(item.grade, C) }]}><Text style={styles.gradeText}>{item.grade}</Text></View>
                   {item.offlineAvailable ? <View style={styles.offTag}><Text style={styles.offT}>오프라인</Text></View> : null}
                 </View>
                 <Text style={ui.sub}>{item.subjects.join(', ')}{item.category ? ` · ${item.category}` : ''}</Text>
@@ -201,7 +204,7 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher) => void
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: SP.md },
   title: { fontSize: 20, fontWeight: '800', color: C.ink, letterSpacing: -0.3 },
   searchInline: { flex: 1, backgroundColor: C.white, borderWidth: 1, borderColor: C.line, borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: C.ink },

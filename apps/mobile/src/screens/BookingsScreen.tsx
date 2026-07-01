@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, Booking, Note, Teacher } from '../api';
-import { C, R, SP, ui } from '../theme';
+import { R, SP, useTheme, useUI, type Palette } from '../theme';
 import { useWebBack } from '../webBack';
 import { RescheduleScreen } from './RescheduleScreen';
 
@@ -9,16 +9,19 @@ const slotLen = (b: Booking) => (b.start && b.end ? Math.max(1, Math.round((new 
 
 const KST = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '-';
-const STATUS: Record<string, { label: string; bg: string; fg: string }> = {
+const makeStatus = (C: Palette): Record<string, { label: string; bg: string; fg: string }> => ({
   new: { label: '대기', bg: C.newBg, fg: C.newC },
   confirmed: { label: '예약됨', bg: C.confirmedBg, fg: C.confirmed },
   done: { label: '완료', bg: C.doneBg, fg: C.done },
   cancelled: { label: '취소', bg: C.mutedChipBg, fg: C.mutedChip },
   rejected: { label: '거절', bg: C.dangerBg, fg: C.danger },
   noshow: { label: '노쇼', bg: C.dangerBg, fg: C.danger },
-};
+});
 
 function ReviewBox({ id }: { id: string }) {
+  const { C } = useTheme();
+  const ui = useUI();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const [r, setR] = useState({ ratingAttitude: 5, ratingContent: 5, ratingSkill: 5, ratingAgain: 5, text: '' });
   const [done, setDone] = useState(false);
   const [err, setErr] = useState('');
@@ -50,6 +53,9 @@ function ReviewBox({ id }: { id: string }) {
 }
 
 function Detail({ id, status }: { id: string; status: string }) {
+  const { C } = useTheme();
+  const ui = useUI();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const [b, setB] = useState<Booking | null>(null);
   const [note, setNote] = useState<Note | null>(null);
   useEffect(() => {
@@ -92,6 +98,10 @@ function Detail({ id, status }: { id: string; status: string }) {
 }
 
 export function BookingsScreen() {
+  const { C } = useTheme();
+  const ui = useUI();
+  const styles = useMemo(() => makeStyles(C), [C]);
+  const STATUS = makeStatus(C);
   const [bookings, setBookings] = useState<Booking[] | null>(null);
   const [teachers, setTeachers] = useState<Record<string, string>>({});
   const [open, setOpen] = useState<string | null>(null);
@@ -233,7 +243,7 @@ export function BookingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   sec: { fontSize: 13, fontWeight: '800', color: C.ink, marginTop: SP.lg, marginBottom: 8 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   name: { fontSize: 15, fontWeight: '700', color: C.ink },

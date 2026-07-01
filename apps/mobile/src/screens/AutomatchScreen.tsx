@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, Slot, Teacher } from '../api';
-import { C, R, SP, ui } from '../theme';
+import { R, SP, useTheme, useUI, type Palette } from '../theme';
 
 type Result = {
   matched: boolean;
@@ -21,6 +21,9 @@ const MODES: [string, string][] = [['online', '온라인'], ['offline', '오프�
 const KST = (d: string) => new Date(d + 'T00:00:00+09:00').toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'short' });
 
 export function AutomatchScreen({ onBack, onBooked }: { onBack: () => void; onBooked: () => void }) {
+  const { C } = useTheme();
+  const ui = useUI();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const [consultType, setConsultType] = useState('교과');
   const [subject, setSubject] = useState('수학');
   const [mode, setMode] = useState('any');
@@ -138,7 +141,7 @@ export function AutomatchScreen({ onBack, onBooked }: { onBack: () => void; onBo
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   back: { color: C.teal, fontSize: 14, fontWeight: '700', marginBottom: 8 },
   sub: { color: C.muted, fontSize: 13, marginTop: 4 },
   label: { fontSize: 12, fontWeight: '800', color: C.caption, marginTop: 16, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.4 },
