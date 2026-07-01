@@ -91,6 +91,7 @@ export function TeacherMaterialsPage() {
       ),
     },
     { key: 'visibility', header: '공개', render: (m) => <Badge kind={VIS_KIND[m.visibility]}>{VIS_LABEL[m.visibility]}</Badge> },
+    { key: 'views', header: '조회', render: (m) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{(m.views ?? 0).toLocaleString()}</span> },
     { key: 'file', header: '파일', render: (m) => (m.downloadUrl ? <Button size="sm" variant="ghost" onClick={() => download(m)}>{m.filename ?? '다운로드'}</Button> : <span style={{ color: 'var(--muted)' }}>없음</span>) },
     { key: 'actions', header: '', align: 'right', render: (m) => (tab === 'mine' ? <Button size="sm" variant="danger" onClick={() => remove(m)}>삭제</Button> : null) },
   ];

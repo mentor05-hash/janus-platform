@@ -51,10 +51,12 @@ export function PayrollPage() {
           <li>완료 상담: {b.doneCases}건 × {won(b.perCaseRate)}</li>
           {view === 'expected' && <li>예정 상담(예상): {b.upcomingCases}건 × {won(b.perCaseRate)}</li>}
           <li>채택 Q&amp;A: {b.qnaAccepted}건 × {won(b.qnaRate)}</li>
+          {(b.hourlyRate > 0 || b.workHoursPay > 0) && <li>근무시간 기반: {Math.round(b.workMinutes / 6) / 10}시간 × {won(b.hourlyRate)} = {won(b.workHoursPay)}</li>}
+          {(b.staleAnswerBonus > 0 || b.staleBonus > 0) && <li>48시간 미답 보상: {b.staleAnswerCount}건 × {won(b.staleAnswerBonus)} = {won(b.staleBonus)}</li>}
           <li>등급 수당({p.grade}급): {won(b.gradeAllowance)}</li>
           <li>자동 인센티브: {won(p.incentive)} {p.incentiveOn ? <Badge kind="done">ON</Badge> : <Badge kind="soft">OFF</Badge>}</li>
         </ul>
-        <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>자동 인센티브 on/off·금액은 관리자 정책에서 관리됩니다.</p>
+        <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>근무시간 시급·48시간 미답 보상·자동 인센티브는 관리자 정책에서 관리됩니다.</p>
       </Card>
 
       {grades.length > 0 && (

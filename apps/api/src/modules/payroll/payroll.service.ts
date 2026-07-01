@@ -6,13 +6,25 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import {
+  hhmmToMin,
+  kstDateString,
+  weekdayKst,
+} from '../../common/time/kst';
 import { AccountRole, BookingStatus } from '../../config/enums';
+import {
+  mondayOf,
+  WeeklyTemplate,
+  WeekPlan,
+} from '../availability/availability.service';
 import {
   computeIncentive,
   computePayroll,
   IncentivePolicy,
   PayrollRates,
 } from './domain/payroll';
+
+const STALE_ANSWER_HOURS = 48; // 48시간 미답 → 답변 보상 기준(T5c)
 
 /**
  * 급여 정산 (CLAUDE.md §payroll, §3.4).
@@ -87,30 +99,53 @@ export class PayrollService {
       );
     }
 
-    const [doneCount, upcomingCount, qnaAcceptedCount] = await Promise.all([
-      this.prisma.booking.count({
-        where: { teacher_id: teacherId, status: BookingStatus.DONE },
-      }),
-      this.prisma.booking.count({
-        where: { teacher_id: teacherId, status: BookingStatus.CONFIRMED },
-      }),
-      // 채택되어 급여 적격(pay_eligible)인 Q&A 답변만 합산(§3.1 연동)
-      this.prisma.qna_answer.count({
-        where: { teacher_id: teacherId, pay_eligible: true },
-      }),
-    ]);
+    const [doneCount, upcomingCount, qnaAcceptedCount, ws, staleAnswers] =
+      await Promise.all([
+        this.prisma.booking.count({
+          where: { teacher_id: teacherId, status: BookingStatus.DONE },
+        }),
+        this.prisma.booking.count({
+          where: { teacher_id: teacherId, status: BookingStatus.CONFIRMED },
+        }),
+        // 채택되어 급여 적격(pay_eligible)인 Q&A 답변만 합산(§3.1 연동)
+        this.prisma.qna_answer.count({
+          where: { teacher_id: teacherId, pay_eligible: true },
+        }),
+        // 근무시간 산정용 스케줄(T5b)
+        this.prisma.work_schedule.findFirst({ where: { teacher_id: teacherId } }),
+        // 48h 미답 보상 대상(T5c): 채택된 답변 중 질문 등록 48h 경과 후 답변한 건
+        this.prisma.qna_answer.findMany({
+          where: { teacher_id: teacherId, pay_eligible: true },
+          select: { created_at: true, qna_post: { select: { created_at: true } } },
+          take: 500,
+        }),
+      ]);
 
-    const policy = await this.prisma.payroll_policy.findFirst({
-      where: {
-        center_id: teacher.center_id,
-        ...(teacher.teacher_category
-          ? { teacher_category: teacher.teacher_category }
-          : {}),
-      },
+    const workMinutes = this.monthWorkMinutes(ws);
+    const staleAnswerCount = staleAnswers.filter(
+      (a) =>
+        a.qna_post &&
+        a.created_at.getTime() - a.qna_post.created_at.getTime() >
+          STALE_ANSWER_HOURS * 3_600_000,
+    ).length;
+
+    // 카테고리별 정책 우선, 없으면 센터 공통(teacher_category=null) 정책으로 폴백.
+    const policies = await this.prisma.payroll_policy.findMany({
+      where: { center_id: teacher.center_id },
     });
+    const policy =
+      policies.find((p) => p.teacher_category === teacher.teacher_category) ??
+      policies.find((p) => !p.teacher_category) ??
+      null;
     const rates = this.resolveRates(policy, teacher.grade);
     const base = computePayroll(
-      { doneCount, upcomingCount, qnaAcceptedCount },
+      {
+        doneCount,
+        upcomingCount,
+        qnaAcceptedCount,
+        workMinutes,
+        staleAnswerCount,
+      },
       rates,
     );
 
@@ -131,7 +166,12 @@ export class PayrollService {
       incentiveOn: !!autoIncentive?.on,
       breakdown: { ...base.breakdown, incentive },
       // 등급별 급여표(T5d) — 정책의 등급 수당 맵 + 공통 요율.
-      rates: { perCaseRate: rates.perCaseRate, qnaRate: rates.qnaRate },
+      rates: {
+        perCaseRate: rates.perCaseRate,
+        qnaRate: rates.qnaRate,
+        hourlyRate: rates.hourlyRate,
+        staleAnswerBonus: rates.staleAnswerBonus,
+      },
       gradeTable: gradeMap ?? {},
     };
   }
@@ -142,6 +182,8 @@ export class PayrollService {
       per_case_rate: number | null;
       qna_rate: number | null;
       grade_allowance: unknown;
+      hourly_rate?: number | null;
+      auto_incentive?: unknown;
     } | null,
     grade: string,
   ): PayrollRates {
@@ -149,11 +191,40 @@ export class PayrollService {
       Number(this.config.get(key) ?? fallback);
     const gradeMap =
       (policy?.grade_allowance as Record<string, number> | null) ?? null;
+    const ai = (policy?.auto_incentive as { staleBonus?: number } | null) ?? null;
     return {
       perCaseRate:
         policy?.per_case_rate ?? envNum('PAYROLL_PER_CASE_RATE', 30_000),
       qnaRate: policy?.qna_rate ?? envNum('PAYROLL_QNA_RATE', 5_000),
       gradeAllowance: gradeMap?.[grade] ?? envNum('PAYROLL_GRADE_ALLOWANCE', 0),
+      hourlyRate: policy?.hourly_rate ?? envNum('PAYROLL_HOURLY_RATE', 0),
+      staleAnswerBonus: ai?.staleBonus ?? envNum('PAYROLL_STALE_BONUS', 0),
     };
+  }
+
+  /** 이번 달(KST) 예정 근무 분 합계 — 주계획 override 반영, 시급 급여(T5b) 산정용. */
+  private monthWorkMinutes(
+    ws: { recurring_template: unknown; week_plans: unknown } | null,
+    now = new Date(),
+  ): number {
+    if (!ws) return 0;
+    const recurring = (ws.recurring_template as WeeklyTemplate) ?? {};
+    const plans: WeekPlan[] = Array.isArray(ws.week_plans)
+      ? (ws.week_plans as WeekPlan[]).filter((p) => p && p.weekStart && p.template)
+      : [];
+    const ym = kstDateString(now).slice(0, 7); // 'YYYY-MM'
+    const [y, m] = ym.split('-').map(Number);
+    const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    let total = 0;
+    for (let d = 1; d <= days; d++) {
+      const dateStr = `${ym}-${String(d).padStart(2, '0')}`;
+      const plan = plans.find((p) => p.weekStart === mondayOf(dateStr));
+      const tpl: WeeklyTemplate = plan
+        ? { ...recurring, ...plan.template }
+        : recurring;
+      const wins = tpl[String(weekdayKst(dateStr))] ?? [];
+      for (const w of wins) total += Math.max(0, hhmmToMin(w.end) - hhmmToMin(w.start));
+    }
+    return total;
   }
 }

@@ -125,6 +125,12 @@ export class MaterialService {
       throw new ForbiddenException('이 자료에 접근할 권한이 없습니다.');
     }
     if (!m.file_id) throw new NotFoundException('첨부 파일이 없습니다.');
+    // 조회수 증가(T4) — 본인 다운로드는 제외.
+    if (m.teacher_id !== actor.id) {
+      await this.prisma.material
+        .update({ where: { id }, data: { view_count: { increment: 1 } } })
+        .catch(() => undefined);
+    }
     return this.files.readBytes(m.file_id);
   }
 
@@ -162,6 +168,7 @@ export class MaterialService {
       subject: m.subject ?? null,
       category: m.category ?? null,
       visibility: m.visibility,
+      views: m.view_count ?? 0,
       teacherId: m.teacher_id,
       teacherName: m.teacher?.account?.name ?? null,
       centerId: m.center_id,

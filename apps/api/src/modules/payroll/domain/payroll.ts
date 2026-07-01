@@ -6,12 +6,16 @@ export interface PayrollInput {
   doneCount: number; // 완료 상담 수(확정)
   upcomingCount: number; // 예정(confirmed) 상담 수(예상)
   qnaAcceptedCount: number; // 채택된 Q&A 수
+  workMinutes: number; // 이번 달 예정 근무 분(T5b)
+  staleAnswerCount: number; // 48h 초과 미답 → 답변(채택)한 건수(T5c)
 }
 
 export interface PayrollRates {
   perCaseRate: number; // 상담 건당
   qnaRate: number; // Q&A 건당
   gradeAllowance: number; // 등급 수당(고정)
+  hourlyRate: number; // 근무시간 시급(T5b)
+  staleAnswerBonus: number; // 48h 미답 답변 건당 보상(T5c)
 }
 
 export interface PayrollEstimate {
@@ -24,6 +28,12 @@ export interface PayrollEstimate {
     perCaseRate: number;
     qnaRate: number;
     gradeAllowance: number;
+    workMinutes: number;
+    workHoursPay: number;
+    hourlyRate: number;
+    staleAnswerCount: number;
+    staleBonus: number;
+    staleAnswerBonus: number;
   };
 }
 
@@ -51,10 +61,14 @@ export function computePayroll(
   input: PayrollInput,
   rates: PayrollRates,
 ): PayrollEstimate {
+  const workHoursPay = Math.round((input.workMinutes / 60) * rates.hourlyRate);
+  const staleBonus = input.staleAnswerCount * rates.staleAnswerBonus;
   const confirmedAmount =
     input.doneCount * rates.perCaseRate +
     input.qnaAcceptedCount * rates.qnaRate +
-    rates.gradeAllowance;
+    rates.gradeAllowance +
+    workHoursPay +
+    staleBonus;
   // 예상분 = 확정분 + 예정 상담의 건당 추정
   const expectedAmount =
     confirmedAmount + input.upcomingCount * rates.perCaseRate;
@@ -68,6 +82,12 @@ export function computePayroll(
       perCaseRate: rates.perCaseRate,
       qnaRate: rates.qnaRate,
       gradeAllowance: rates.gradeAllowance,
+      workMinutes: input.workMinutes,
+      workHoursPay,
+      hourlyRate: rates.hourlyRate,
+      staleAnswerCount: input.staleAnswerCount,
+      staleBonus,
+      staleAnswerBonus: rates.staleAnswerBonus,
     },
   };
 }

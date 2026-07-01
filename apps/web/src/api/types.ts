@@ -86,8 +86,14 @@ export interface Payroll {
     qnaRate: number;
     gradeAllowance: number;
     incentive: number;
+    workMinutes: number;
+    workHoursPay: number;
+    hourlyRate: number;
+    staleAnswerCount: number;
+    staleBonus: number;
+    staleAnswerBonus: number;
   };
-  rates: { perCaseRate: number; qnaRate: number };
+  rates: { perCaseRate: number; qnaRate: number; hourlyRate: number; staleAnswerBonus: number };
   gradeTable: Record<string, number>;
 }
 
@@ -295,6 +301,7 @@ export interface Material {
   subject: string | null;
   category?: string | null;
   visibility: 'public' | 'center' | 'private';
+  views?: number;
   teacherId: string;
   teacherName: string | null;
   centerId: string | null;

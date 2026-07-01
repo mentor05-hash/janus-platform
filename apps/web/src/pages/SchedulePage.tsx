@@ -20,6 +20,16 @@ const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h
 const ROW0 = 8 * 60, ROWS = 28, STEP = 30;
 const rowMin = (i: number) => ROW0 + i * STEP;
 
+// KST 날짜/분(예약 오버레이용) — ISO(UTC) → {date:'YYYY-MM-DD', min}
+const KSTf = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+function kstDM(iso: string) {
+  const parts = KSTf.formatToParts(new Date(iso));
+  const g = (t: string) => parts.find((x) => x.type === t)?.value ?? '00';
+  let hh = Number(g('hour')); if (hh === 24) hh = 0;
+  return { date: `${g('year')}-${g('month')}-${g('day')}`, min: hh * 60 + Number(g('minute')) };
+}
+type OverlayBooking = { start: string | null; end: string | null; status: string };
+
 // 다음 주 월요일들(최대 8주) + 기본
 function mondayOf(d: Date) { const x = new Date(d); x.setDate(d.getDate() - ((d.getDay() + 6) % 7)); x.setHours(0, 0, 0, 0); return x; }
 function upcomingWeeks(): { key: string; label: string }[] {
@@ -78,6 +88,7 @@ export function SchedulePage() {
   const [leaveDate, setLeaveDate] = useState(iso(new Date()));
   const [offlineEnabled, setOfflineEnabled] = useState(false);
   const [offlineWins, setOfflineWins] = useState<{ weekday: string; start: string; end: string }[]>([]);
+  const [bookings, setBookings] = useState<OverlayBooking[]>([]);
   const [conflicts, setConflicts] = useState<Conflict[] | null>(null);
   const [pendingSave, setPendingSave] = useState<Tpl | null>(null);
   const [busy, setBusy] = useState(false);
@@ -112,12 +123,34 @@ export function SchedulePage() {
     setCells(tplToCells(base));
   }, [week, recurring, plans]); // eslint-disable-line
 
+  // 예약(내 담당) 조회 — 주간표에 예약·연차 오버레이(T1b)
+  useEffect(() => {
+    api.get<{ data?: OverlayBooking[] } | OverlayBooking[]>('/bookings?role=teacher')
+      .then((r) => setBookings(Array.isArray(r) ? r : (r.data ?? []))).catch(() => {});
+  }, [teacherId]);
+
+  // 선택 주(비-기본)의 날짜별 예약/연차를 (요일,행)으로 매핑
+  const overlay = useMemo(() => {
+    const map: Record<number, Map<number, 'booked' | 'leave'>> = { 0: new Map(), 1: new Map(), 2: new Map(), 3: new Map(), 4: new Map(), 5: new Map(), 6: new Map() };
+    if (isDefault) return map;
+    const dateToWd: Record<string, number> = {};
+    DAY_ORDER.forEach((wd, idx) => { const d = new Date(week + 'T00:00:00'); d.setDate(d.getDate() + idx); dateToWd[iso(d)] = wd; });
+    for (const b of bookings) {
+      if (!b.start || !b.end || !['new', 'confirmed', 'done'].includes(b.status)) continue;
+      const s = kstDM(b.start), e = kstDM(b.end); const wd = dateToWd[s.date];
+      if (wd === undefined) continue;
+      for (let i = 0; i < ROWS; i++) { const m = rowMin(i); if (m >= s.min && m < e.min) map[wd].set(i, 'booked'); }
+    }
+    for (const l of leaves) { const wd = dateToWd[l.date]; if (wd !== undefined) for (let i = 0; i < ROWS; i++) if (!map[wd].has(i)) map[wd].set(i, 'leave'); }
+    return map;
+  }, [bookings, leaves, week, isDefault]);
+
   // ── 드래그 그리드 ──
   const has = (wd: number, i: number) => cells[wd]?.has(i) ?? false;
   const paintCell = (wd: number, i: number, on: boolean) =>
     setCells((prev) => { const s = new Set(prev[wd] ?? []); on ? s.add(i) : s.delete(i); return { ...prev, [wd]: s }; });
-  const onDown = (wd: number, i: number) => { const on = !has(wd, i); drag.current = { on: true, paint: on }; paintCell(wd, i, on); };
-  const onEnter = (wd: number, i: number) => { if (drag.current.on) paintCell(wd, i, drag.current.paint); };
+  const onDown = (wd: number, i: number) => { if (overlay[wd].has(i)) return; const on = !has(wd, i); drag.current = { on: true, paint: on }; paintCell(wd, i, on); };
+  const onEnter = (wd: number, i: number) => { if (drag.current.on && !overlay[wd].has(i)) paintCell(wd, i, drag.current.paint); };
   useEffect(() => { const up = () => (drag.current.on = false); window.addEventListener('mouseup', up); return () => window.removeEventListener('mouseup', up); }, []);
 
   // ── 시간 선택(직접 입력) ── — 현재 cells → 요일별 구간
@@ -306,7 +339,14 @@ export function SchedulePage() {
         }>
         {mode === 'grid' && (
           <>
-            <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: -2 }}>칸을 클릭하거나 드래그해 근무시간을 칠하세요(30분 단위).</p>
+            <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: -2 }}>칸을 클릭하거나 드래그해 근무시간을 칠하세요(30분 단위).{!isDefault && ' 예약·연차 칸은 편집할 수 없어요.'}</p>
+            {!isDefault && (
+              <div style={{ display: 'flex', gap: 14, fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>
+                <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: 'var(--teal)', verticalAlign: 'middle', marginRight: 4 }} />근무</span>
+                <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: '#D6E4FB', border: '1px solid #AFC8F4', verticalAlign: 'middle', marginRight: 4 }} />예약됨</span>
+                <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: '#FDE8C8', border: '1px solid #F0DCAE', verticalAlign: 'middle', marginRight: 4 }} />연차·반차·병가</span>
+              </div>
+            )}
             <div style={{ userSelect: 'none', overflowX: 'auto' }}>
               <div style={{ display: 'grid', gridTemplateColumns: `52px repeat(7, minmax(52px,1fr))`, gap: 3, minWidth: 460 }}>
                 <div />
@@ -315,6 +355,9 @@ export function SchedulePage() {
                   <div key={i} style={{ display: 'contents' }}>
                     {i % 2 === 0 ? <div style={{ fontSize: 11, color: 'var(--caption)', textAlign: 'right', paddingRight: 4, lineHeight: '16px' }}>{hhmm(rowMin(i))}</div> : <div />}
                     {DAY_ORDER.map((wd) => {
+                      const ov = overlay[wd].get(i);
+                      if (ov === 'booked') return <div key={wd + '-' + i} title="예약됨" style={{ height: 16, borderRadius: 3, background: '#D6E4FB', border: '1px solid #AFC8F4', cursor: 'not-allowed' }} />;
+                      if (ov === 'leave') return <div key={wd + '-' + i} title="연차·반차·병가" style={{ height: 16, borderRadius: 3, background: '#FDE8C8', border: '1px solid #F0DCAE', cursor: 'not-allowed' }} />;
                       const on = has(wd, i);
                       return <div key={wd + '-' + i} onMouseDown={() => onDown(wd, i)} onMouseEnter={() => onEnter(wd, i)}
                         style={{ height: 16, borderRadius: 3, cursor: 'pointer', background: on ? 'var(--teal)' : '#f4f6f7', border: on ? 'none' : '1px solid #eef2f4' }} />;

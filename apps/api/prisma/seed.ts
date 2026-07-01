@@ -130,6 +130,23 @@ async function main() {
       [ID.center, CLASSIFY_LIMITS.fit, CLASSIFY_LIMITS.unfit],
     );
 
+    // 4-1) 급여 정책 — 건당·Q&A·시급(T5b)·등급수당(T5d)·자동인센티브+48h 미답 보상(T5c)
+    const hasPayroll = await client.query(
+      `SELECT 1 FROM payroll_policy WHERE center_id = $1 LIMIT 1`,
+      [ID.center],
+    );
+    if (hasPayroll.rowCount === 0) {
+      await client.query(
+        `INSERT INTO payroll_policy (center_id, cycle, per_case_rate, qna_rate, hourly_rate, grade_allowance, auto_incentive)
+         VALUES ($1, 'monthly', 30000, 5000, 12000, $2::jsonb, $3::jsonb)`,
+        [
+          ID.center,
+          JSON.stringify({ S: 200000, A: 100000, B: 50000, C: 0 }),
+          JSON.stringify({ on: true, minCases: 0, amount: 12000, staleBonus: 8000 }),
+        ],
+      );
+    }
+
     // 5) 더미 계정(역할별 1) + 프로필
     const accounts: [string, string, string, string][] = [
       [ID.acStudent, 'student', 'student01', '학생더미'],
