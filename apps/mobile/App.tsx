@@ -6,6 +6,7 @@ import { LoginScreen } from './src/screens/LoginScreen';
 import { SearchScreen } from './src/screens/SearchScreen';
 import { SlotsScreen } from './src/screens/SlotsScreen';
 import { CreditsScreen } from './src/screens/CreditsScreen';
+import { BookingsScreen } from './src/screens/BookingsScreen';
 import { ChildrenScreen } from './src/screens/ChildrenScreen';
 import { ChildNotesScreen } from './src/screens/ChildNotesScreen';
 import { PaymentsScreen } from './src/screens/PaymentsScreen';
@@ -53,17 +54,9 @@ export default function App() {
 
   const isGuardian = me.role === 'guardian';
   const isStudent = me.role === 'student';
-  const tabs = isGuardian ? ['a', 'b'] : ['a', 'b', 'c'];
-  const tabLabel = (t: string) =>
-    isGuardian
-      ? t === 'a'
-        ? '자녀'
-        : '결제요청'
-      : t === 'a'
-        ? '선생님 찾기'
-        : t === 'b'
-          ? '크레딧'
-          : '역상담';
+  const tabs = isGuardian ? ['a', 'b'] : ['a', 'b', 'c', 'd'];
+  const studentLabel: Record<string, string> = { a: '선생님 찾기', b: '내 예약', c: '크레딧', d: '역상담' };
+  const tabLabel = (t: string) => (isGuardian ? (t === 'a' ? '자녀' : '결제요청') : studentLabel[t] ?? '');
 
   return (
     <SafeAreaView style={styles.app}>
@@ -91,6 +84,8 @@ export default function App() {
               <SearchScreen onPick={setTeacher} />
             )
           ) : tab === 'b' ? (
+            <BookingsScreen />
+          ) : tab === 'c' ? (
             <CreditsScreen />
           ) : (
             <ReverseOptInScreen />
