@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FlatList, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, Teacher } from '../api';
 import { C, R, SP, ui, gradeColor } from '../theme';
 
@@ -35,18 +35,18 @@ export function SearchScreen({ onPick }: { onPick: (t: Teacher) => void }) {
     <View style={ui.screen}>
       <Text style={ui.h}>선생님 찾기</Text>
       <TextInput style={[ui.input, { marginTop: 8 }]} value={q} onChangeText={setQ} placeholder="이름·과목 검색" placeholderTextColor={C.caption} />
-      {/* 카테고리 */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }} contentContainerStyle={{ gap: 6 }}>
+      {/* 카테고리 — 가로 줄바꿈, 낮은 높이 알약 */}
+      <View style={styles.pillRow}>
         {['전체', ...cats].map((c) => (
           <TouchableOpacity key={c} style={[styles.pill, category === c && styles.pillOn]} onPress={() => setCategory(c)}><Text style={[styles.pillT, category === c && { color: C.white }]}>{c}</Text></TouchableOpacity>
         ))}
-      </ScrollView>
+      </View>
       {/* 정렬 */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 6 }} contentContainerStyle={{ gap: 6 }}>
+      <View style={styles.pillRow}>
         {SORTS.map(([v, l]) => (
           <TouchableOpacity key={v} style={[styles.sortPill, sort === v && styles.sortOn]} onPress={() => setSort(v)}><Text style={[styles.sortT, sort === v && { color: C.teal }]}>{l}</Text></TouchableOpacity>
         ))}
-      </ScrollView>
+      </View>
       {error ? <Text style={ui.error}>{error}</Text> : null}
       <FlatList
         style={{ marginTop: 8 }}
@@ -86,10 +86,11 @@ const styles = StyleSheet.create({
   offTag: { backgroundColor: C.doneBg, borderRadius: R.pill, paddingHorizontal: 8, paddingVertical: 2 },
   offT: { color: C.done, fontSize: 10, fontWeight: '800' },
   stat: { fontSize: 12, color: C.muted, marginTop: 3 },
-  pill: { borderWidth: 1, borderColor: C.line, borderRadius: R.pill, paddingVertical: 6, paddingHorizontal: 13, backgroundColor: C.white },
+  pillRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 8 },
+  pill: { alignSelf: 'flex-start', borderWidth: 1, borderColor: C.line, borderRadius: R.pill, paddingVertical: 4, paddingHorizontal: 12, backgroundColor: C.white },
   pillOn: { backgroundColor: C.teal, borderColor: C.teal },
-  pillT: { color: C.muted, fontWeight: '700', fontSize: 12 },
-  sortPill: { borderWidth: 1, borderColor: C.lineSoft, borderRadius: R.sm, paddingVertical: 5, paddingHorizontal: 11 },
+  pillT: { color: C.muted, fontWeight: '700', fontSize: 12, lineHeight: 16 },
+  sortPill: { alignSelf: 'flex-start', borderWidth: 1, borderColor: C.lineSoft, borderRadius: R.pill, paddingVertical: 4, paddingHorizontal: 12, backgroundColor: C.white },
   sortOn: { borderColor: C.teal, backgroundColor: C.teal50 },
-  sortT: { color: C.caption, fontWeight: '700', fontSize: 12 },
+  sortT: { color: C.caption, fontWeight: '700', fontSize: 12, lineHeight: 16 },
 });

@@ -58,11 +58,11 @@ export function MaterialsScreen() {
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
       <Text style={ui.h}>자료실</Text>
       <TextInput style={[ui.input, { marginTop: 8 }]} value={q} onChangeText={setQ} placeholder="제목·설명 검색" placeholderTextColor={C.caption} />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8, marginBottom: 4 }} contentContainerStyle={{ gap: 6 }}>
+      <View style={styles.pillRow}>
         {['전체', ...cats].map((c) => (
           <TouchableOpacity key={c} style={[styles.pill, category === c && styles.pillOn]} onPress={() => setCategory(c)}><Text style={[styles.pillT, category === c && { color: C.white }]}>{c}</Text></TouchableOpacity>
         ))}
-      </ScrollView>
+      </View>
 
       {error ? <Text style={ui.error}>{error}</Text> : null}
       {rows === null ? <Text style={ui.sub}>불러오는 중…</Text> : list.length === 0 ? <Text style={ui.sub}>조건에 맞는 자료가 없어요.</Text> : list.map((m) => (
@@ -99,9 +99,10 @@ export function MaterialsScreen() {
 }
 
 const styles = StyleSheet.create({
-  pill: { borderWidth: 1, borderColor: C.line, borderRadius: R.pill, paddingVertical: 6, paddingHorizontal: 13, backgroundColor: C.white },
+  pillRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 8, marginBottom: 4 },
+  pill: { alignSelf: 'flex-start', borderWidth: 1, borderColor: C.line, borderRadius: R.pill, paddingVertical: 4, paddingHorizontal: 12, backgroundColor: C.white },
   pillOn: { backgroundColor: C.teal, borderColor: C.teal },
-  pillT: { color: C.muted, fontWeight: '700', fontSize: 12 },
+  pillT: { color: C.muted, fontWeight: '700', fontSize: 12, lineHeight: 16 },
   tagRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginBottom: 6 },
   tag: { backgroundColor: C.fill, borderRadius: R.pill, paddingHorizontal: 9, paddingVertical: 3 },
   tagT: { fontSize: 11, fontWeight: '700', color: C.muted },
