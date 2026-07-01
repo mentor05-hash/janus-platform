@@ -45,6 +45,13 @@ model push_token {
   @@index([account_id])
 }
 
+model system_setting {
+  key        String   @id
+  value      Json
+  updated_by String?  @db.Uuid
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+}
+
 model score_report {
   id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   student_id     String          @db.Uuid

@@ -197,16 +197,14 @@ export class ScoresService {
     return { updated, note: '데모 추정입니다. 실제 배치표 서비스 결과가 있으면 덮어쓰세요.' };
   }
 
-  /** 학생 성적 추이 + 배치 라인 변화(회차 순). */
-  async trend(actor: AuthUser, studentLoginId: string) {
-    this.assertAdmin(actor);
-    const sp = await this.resolveStudent(actor, undefined, studentLoginId);
+  /** 학생 성적 추이 + 배치 라인 변화(회차 순) — 공통 빌더. */
+  private async buildTrend(studentAccountId: string, includePlacement: boolean) {
     const reports = await this.prisma.score_report.findMany({
-      where: { student_id: sp.account_id },
+      where: { student_id: studentAccountId },
       include: { items: { orderBy: { subject: 'asc' } } },
       orderBy: { created_at: 'asc' },
     });
-    const student = await this.prisma.account.findUnique({ where: { id: sp.account_id }, select: { name: true, login_id: true } });
+    const student = await this.prisma.account.findUnique({ where: { id: studentAccountId }, select: { name: true, login_id: true } });
     return {
       student: { name: student?.name, loginId: student?.login_id },
       points: reports.map((r) => {
@@ -215,10 +213,70 @@ export class ScoresService {
         return {
           period: r.period, examType: r.exam_type, avg,
           subjects: r.items.map((i) => ({ subject: i.subject, score: i.score ? Number(i.score) : null })),
-          placement: (r.placement as Record<string, unknown> | null) ?? null,
+          placement: includePlacement ? ((r.placement as Record<string, unknown> | null) ?? null) : null,
         };
       }),
     };
+  }
+
+  async trend(actor: AuthUser, studentLoginId: string) {
+    this.assertAdmin(actor);
+    const sp = await this.resolveStudent(actor, undefined, studentLoginId);
+    return this.buildTrend(sp.account_id, true); // 관리자는 배치 라인 항상 열람
+  }
+
+  /** 선생님: 같은 센터 학생 성적·배치 추이(내부 열람, 배치 포함). studentId=account uuid. */
+  async teacherTrend(actor: AuthUser, studentId: string) {
+    if (actor.role !== AccountRole.TEACHER) throw new ForbiddenException('선생님만 조회할 수 있습니다.');
+    const sp = await this.prisma.student_profile.findUnique({ where: { account_id: studentId }, select: { account_id: true, center_id: true } });
+    if (!sp) throw new NotFoundException('학생 프로필이 없습니다.');
+    if (sp.center_id !== actor.centerId) throw new ForbiddenException('다른 센터 학생입니다.');
+    return this.buildTrend(sp.account_id, true);
+  }
+
+  // ── 노출 정책(본사 마스터) ──
+  private static readonly POLICY_KEY = 'score_visibility';
+  private static readonly POLICY_DEFAULT = { student: true, guardian: true, placement: true };
+
+  async getScorePolicy() {
+    const row = await this.prisma.system_setting.findUnique({ where: { key: ScoresService.POLICY_KEY } });
+    return { ...ScoresService.POLICY_DEFAULT, ...((row?.value as object) ?? {}) };
+  }
+
+  async setScorePolicy(actor: AuthUser, dto: { student?: boolean; guardian?: boolean; placement?: boolean }) {
+    // 본사 마스터관리자(admin + 센터 미소속)만 전사 정책 변경
+    if (!this.isHq(actor)) throw new ForbiddenException('전사 노출 정책은 본사 마스터관리자만 변경할 수 있습니다.');
+    const next = { ...(await this.getScorePolicy()), ...dto };
+    await this.prisma.system_setting.upsert({
+      where: { key: ScoresService.POLICY_KEY },
+      create: { key: ScoresService.POLICY_KEY, value: next as object, updated_by: actor.id },
+      update: { value: next as object, updated_by: actor.id, updated_at: new Date() },
+    });
+    return next;
+  }
+
+  /** 학생/학부모 앱 접근 가능 여부(탭 표시용). */
+  async access(user: AuthUser) {
+    const p = await this.getScorePolicy();
+    if (user.role === AccountRole.STUDENT) return { showTrend: !!p.student, showPlacement: !!p.student && !!p.placement };
+    if (user.role === AccountRole.GUARDIAN) return { showTrend: !!p.guardian, showPlacement: !!p.guardian && !!p.placement };
+    return { showTrend: true, showPlacement: true };
+  }
+
+  /** 학생 본인 성적·배치 추이(정책 게이트). */
+  async selfTrend(user: AuthUser) {
+    const p = await this.getScorePolicy();
+    if (!p.student) throw new ForbiddenException('성적 조회가 비활성화되어 있습니다.');
+    return this.buildTrend(user.id, !!p.placement);
+  }
+
+  /** 학부모 자녀 성적·배치 추이(연결·정책 게이트). */
+  async guardianTrend(user: AuthUser, studentId: string) {
+    const p = await this.getScorePolicy();
+    if (!p.guardian) throw new ForbiddenException('성적 조회가 비활성화되어 있습니다.');
+    const link = await this.prisma.guardian_student_link.findFirst({ where: { guardian_id: user.id, student_id: studentId } });
+    if (!link) throw new ForbiddenException('연결된 자녀가 아닙니다.');
+    return this.buildTrend(studentId, !!p.placement);
   }
 
   async periods(actor: AuthUser) {

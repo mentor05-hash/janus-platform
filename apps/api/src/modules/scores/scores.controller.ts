@@ -1,8 +1,8 @@
-import { Body, Controller, Get, Param, Post, Query, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Query, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -32,6 +32,11 @@ class PlacementDto {
   @IsOptional() @IsArray() @IsString({ each: true }) departments?: string[];
   @IsOptional() @IsString() memo?: string;
   @IsOptional() @IsString() source?: string;
+}
+class ScorePolicyDto {
+  @IsOptional() @IsBoolean() student?: boolean;
+  @IsOptional() @IsBoolean() guardian?: boolean;
+  @IsOptional() @IsBoolean() placement?: boolean;
 }
 
 @Controller('admin/scores')
@@ -101,5 +106,51 @@ export class ScoresController {
   @Post('ocr')
   ocr(@CurrentUser() user: AuthUser, @Body() dto: OcrDto) {
     return this.scores.ocr(user, dto.fileId);
+  }
+
+  /** GET /admin/scores/policy — 노출 정책 조회(관리자/HR). */
+  @Get('policy')
+  getPolicy() {
+    return this.scores.getScorePolicy();
+  }
+
+  /** PUT /admin/scores/policy — 노출 정책 변경(본사 마스터만, 서비스에서 가드). */
+  @Put('policy')
+  setPolicy(@CurrentUser() user: AuthUser, @Body() dto: ScorePolicyDto) {
+    return this.scores.setScorePolicy(user, dto);
+  }
+}
+
+/** 학생·학부모용 성적 조회(정책 게이트). */
+@Controller()
+export class ScoresMeController {
+  constructor(private readonly scores: ScoresService) {}
+
+  /** GET /me/scores/access — 성적 탭 노출 여부(학생·학부모). */
+  @Get('me/scores/access')
+  @Roles('student', 'guardian')
+  access(@CurrentUser() user: AuthUser) {
+    return this.scores.access(user);
+  }
+
+  /** GET /me/scores/trend — 학생 본인 성적·배치 추이. */
+  @Get('me/scores/trend')
+  @Roles('student')
+  selfTrend(@CurrentUser() user: AuthUser) {
+    return this.scores.selfTrend(user);
+  }
+
+  /** GET /guardian/scores/trend?studentId= — 학부모 자녀 성적·배치 추이. */
+  @Get('guardian/scores/trend')
+  @Roles('guardian')
+  guardianTrend(@CurrentUser() user: AuthUser, @Query('studentId') studentId: string) {
+    return this.scores.guardianTrend(user, studentId);
+  }
+
+  /** GET /teacher/scores/trend?studentId= — 선생님(같은 센터) 학생 추이. */
+  @Get('teacher/scores/trend')
+  @Roles('teacher')
+  teacherTrend(@CurrentUser() user: AuthUser, @Query('studentId') studentId: string) {
+    return this.scores.teacherTrend(user, studentId);
   }
 }

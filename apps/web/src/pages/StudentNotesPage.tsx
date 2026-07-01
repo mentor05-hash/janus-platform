@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import type { ConsultationNote, RecordOverview } from '../api/types';
 import { Card, Badge, ErrorText, EmptyState } from '../components/ui';
+import { ScoreTrend, type Trend } from '../components/ScoreTrend';
 
 const GAP_BADGE: Record<RecordOverview['homeroomGap']['level'], { kind: 'done' | 'noshow' | 'danger' | 'soft'; label: string }> = {
   ok: { kind: 'done', label: '담임 정상' },
@@ -15,10 +16,12 @@ export function StudentNotesPage() {
   const { studentId } = useParams<{ studentId: string }>();
   const [notes, setNotes] = useState<ConsultationNote[]>([]);
   const [overview, setOverview] = useState<RecordOverview | null>(null);
+  const [trend, setTrend] = useState<Trend | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (!studentId) return;
+    api.get<Trend>(`/teacher/scores/trend?studentId=${studentId}`).then(setTrend).catch(() => setTrend(null));
     api
       .get<ConsultationNote[]>(`/students/${studentId}/notes`)
       .then(setNotes)
@@ -63,6 +66,13 @@ export function StudentNotesPage() {
               ))}
             </ul>
           )}
+        </Card>
+      )}
+
+      {trend && trend.points.length > 0 && (
+        <Card style={{ marginBottom: 12 }}>
+          <h3 style={{ margin: '0 0 8px', fontSize: 15 }}>성적·배치 추이</h3>
+          <ScoreTrend trend={trend} />
         </Card>
       )}
 

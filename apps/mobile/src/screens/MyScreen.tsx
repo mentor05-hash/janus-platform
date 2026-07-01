@@ -7,6 +7,7 @@ import { AutomatchScreen } from './AutomatchScreen';
 import { RecordsScreen } from './RecordsScreen';
 import { ClassifyScreen } from './ClassifyScreen';
 import { LegalScreen } from './LegalScreen';
+import { ScoresScreen } from './ScoresScreen';
 
 type Plan = { id: string; name: string; price: number; membership_grade?: { name: string; weekly_credits: number } | null };
 type Pay = { id: string; amount: number; created_at: string };
@@ -23,9 +24,10 @@ const makeTxMeta = (C: Palette): Record<Tx['type'], { label: string; sign: 1 | -
   weekly_expire: { label: '주간 크레딧 소멸', sign: -1, color: C.confirmed },
 });
 
-type Sub = 'automatch' | 'records' | 'classify' | 'legal';
+type Sub = 'automatch' | 'records' | 'classify' | 'legal' | 'scores';
 const MENU: { key: Sub; icon: string; title: string; desc: string }[] = [
   { key: 'automatch', icon: '⚡', title: '30분 자동 매칭', desc: '유형·방식만 고르면 7일 내 가장 빠른 30분' },
+  { key: 'scores', icon: '📈', title: '내 성적·배치', desc: '성적 추이 + 예상 대학·학과 라인' },
   { key: 'records', icon: '📝', title: '내 상담 기록', desc: '공개된 핵심요약·숙제·향후방향 확인' },
   { key: 'classify', icon: '💚', title: '선생님 분류', desc: '나와 맞는 / 맞지 않는 선생님 관리' },
   { key: 'legal', icon: '🔒', title: '약관·개인정보', desc: '약관·방침·동의·데이터 내보내기·회원 탈퇴' },
@@ -45,6 +47,7 @@ export function MyScreen() {
   const [txs, setTxs] = useState<Tx[]>([]);
   const [reverse, setReverse] = useState<boolean | null>(null);
   const [payMethod, setPayMethod] = useState<'card' | 'voucher'>('card');
+  const [access, setAccess] = useState<{ showTrend: boolean; showPlacement: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
@@ -57,6 +60,7 @@ export function MyScreen() {
     api.get<Noti[]>('/notifications').then((r) => setNotis(Array.isArray(r) ? r : [])).catch(() => {});
     api.get<Tx[]>('/credits/transactions').then((r) => setTxs(Array.isArray(r) ? r : [])).catch(() => {});
     api.get<{ reverseSelf: boolean }>('/bookings/reverse/self').then((r) => setReverse(r.reverseSelf)).catch(() => {});
+    api.get<{ showTrend: boolean; showPlacement: boolean }>('/me/scores/access').then(setAccess).catch(() => setAccess({ showTrend: false, showPlacement: false }));
   }
   useEffect(load, []);
   useWebBack(sub !== null, () => setSub(null));
@@ -65,6 +69,7 @@ export function MyScreen() {
   if (sub === 'records') return <RecordsScreen onBack={() => setSub(null)} />;
   if (sub === 'classify') return <ClassifyScreen onBack={() => setSub(null)} />;
   if (sub === 'legal') return <LegalScreen onBack={() => setSub(null)} onWithdrawn={() => { if (typeof window !== 'undefined') window.location.reload(); }} />;
+  if (sub === 'scores') return <ScoresScreen onBack={() => setSub(null)} showPlacement={access?.showPlacement ?? false} />;
 
   async function charge(amount: number) {
     setBusy(true); setError(''); setMsg('');
@@ -105,7 +110,7 @@ export function MyScreen() {
 
       {/* 메뉴 */}
       <Text style={styles.sec}>메뉴</Text>
-      {MENU.map((m) => (
+      {MENU.filter((m) => m.key !== 'scores' || access?.showTrend).map((m) => (
         <TouchableOpacity key={m.key} style={[ui.card, styles.menuRow]} onPress={() => setSub(m.key)} activeOpacity={0.7}>
           <Text style={styles.menuIc}>{m.icon}</Text>
           <View style={{ flex: 1 }}>

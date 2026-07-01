@@ -1,64 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
+import { isHq } from '../auth/roleHome';
 import { PageHeader, Card, Button, Badge, Spinner, ErrorText, EmptyState } from '../components/ui';
+import { ScoreTrend, TIER_KIND, type Placement, type Trend } from '../components/ScoreTrend';
 
 type Item = { subject: string; score: number | null; maxScore: number | null; grade?: string | null };
-type Placement = { tier?: string; line?: string; universities?: string[]; departments?: string[]; source?: string; memo?: string; avg?: number } | null;
 type Report = { id: string; studentName: string; loginId: string; period: string; examType: string | null; source: string; items: Item[]; avg: number | null; placement: Placement };
 type Missing = { period: string; count: number; students: { studentId: string; name: string; loginId: string; center: string | null; schoolGrade: string | null }[] };
-type TrendPoint = { period: string; examType: string | null; avg: number | null; subjects: { subject: string; score: number | null }[]; placement: Placement };
-type Trend = { student: { name?: string; loginId?: string }; points: TrendPoint[] };
+type Policy = { student: boolean; guardian: boolean; placement: boolean };
 
 const DEFAULT_SUBJECTS = ['국어', '수학', '영어', '과학', '사회'];
-const TIER_KIND: Record<string, 'done' | 'confirmed' | 'new' | 'soft'> = { 최상위: 'done', 상위: 'done', 중상위: 'confirmed', 중위: 'new', 중하위: 'soft', 기초: 'soft' };
-
-/** 성적 추이(평균) 선그래프 + 배치 라인 변화 레인. */
-function ScoreTrend({ trend }: { trend: Trend }) {
-  const pts = trend.points;
-  if (!pts.length) return <EmptyState>이 학생의 성적 기록이 없어요.</EmptyState>;
-  const W = Math.max(360, pts.length * 150), H = 180, PAD = 34;
-  const xs = (i: number) => PAD + (pts.length === 1 ? (W - 2 * PAD) / 2 : (i * (W - 2 * PAD)) / (pts.length - 1));
-  const ys = (v: number) => H - PAD - ((v - 40) / 60) * (H - 2 * PAD); // 40~100 스케일
-  const line = pts.map((p, i) => `${xs(i)},${ys(p.avg ?? 40)}`).join(' ');
-  return (
-    <div>
-      <div style={{ overflowX: 'auto' }}>
-        <svg width={W} height={H} style={{ display: 'block' }}>
-          {[40, 60, 80, 100].map((g) => (
-            <g key={g}><line x1={PAD} x2={W - PAD} y1={ys(g)} y2={ys(g)} stroke="var(--line)" /><text x={4} y={ys(g) + 4} fontSize="10" fill="var(--caption)">{g}</text></g>
-          ))}
-          <polyline points={line} fill="none" stroke="var(--teal)" strokeWidth={2.5} />
-          {pts.map((p, i) => (
-            <g key={i}>
-              <circle cx={xs(i)} cy={ys(p.avg ?? 40)} r={5} fill="var(--teal)" />
-              <text x={xs(i)} y={ys(p.avg ?? 40) - 10} fontSize="12" fontWeight="700" fill="var(--ink)" textAnchor="middle">{p.avg ?? '-'}</text>
-              <text x={xs(i)} y={H - 10} fontSize="10" fill="var(--muted)" textAnchor="middle">{p.examType ?? p.period.slice(-4)}</text>
-            </g>
-          ))}
-        </svg>
-      </div>
-      {/* 배치 라인 변화 */}
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 12 }}>
-        {pts.map((p, i) => (
-          <div key={i} style={{ flex: '1 1 200px', minWidth: 180, border: '1px solid var(--line)', borderRadius: 10, padding: 12 }}>
-            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>{p.period}</div>
-            {p.placement ? (
-              <>
-                <Badge kind={TIER_KIND[p.placement.tier ?? ''] ?? 'soft'}>{p.placement.tier ?? '-'}</Badge>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', margin: '6px 0 2px' }}>{p.placement.line}</div>
-                <div style={{ fontSize: 12, color: 'var(--muted)' }}>{(p.placement.universities ?? []).join(' · ')}</div>
-                <div style={{ fontSize: 12, color: 'var(--caption)' }}>{(p.placement.departments ?? []).join(' · ')}</div>
-                {p.placement.source === 'demo' && <div style={{ fontSize: 10, color: 'var(--caption)', marginTop: 4 }}>※ 데모 추정</div>}
-              </>
-            ) : <div style={{ fontSize: 12, color: 'var(--caption)' }}>배치 결과 없음</div>}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 export function AdminScoresPage() {
+  const { user } = useAuth();
+  const master = isHq(user); // 본사 마스터관리자만 정책 편집
+  const [policy, setPolicy] = useState<Policy | null>(null);
   const [period, setPeriod] = useState('2026-1학기 중간고사');
   const [periods, setPeriods] = useState<string[]>([]);
   const [reports, setReports] = useState<Report[] | null>(null);
@@ -106,8 +63,15 @@ export function AdminScoresPage() {
     api.get<Missing>(`/admin/scores/missing?period=${encodeURIComponent(period)}`).then(setMissing).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
   }, [period]);
 
-  useEffect(() => { loadPeriods(); }, [loadPeriods]);
+  useEffect(() => { loadPeriods(); api.get<Policy>('/admin/scores/policy').then(setPolicy).catch(() => {}); }, [loadPeriods]);
   useEffect(() => { tab === 'list' ? loadList() : loadMissing(); }, [tab, loadList, loadMissing]);
+
+  async function togglePolicy(k: keyof Policy) {
+    if (!master || !policy) return;
+    setError(''); setMsg('');
+    try { const r = await api.put<Policy>('/admin/scores/policy', { [k]: !policy[k] }); setPolicy(r); setMsg('노출 정책이 저장되었습니다.'); }
+    catch (e) { setError(e instanceof ApiError ? e.message : '정책 변경 실패'); }
+  }
 
   async function onExcel(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]; e.target.value = '';
@@ -169,6 +133,30 @@ export function AdminScoresPage() {
         <datalist id="periods">{periods.map((p) => <option key={p} value={p} />)}</datalist>
         <Button size="sm" variant="ghost" onClick={estimatePlacements}>🎯 배치 라인 추정(데모)</Button>
       </div>
+
+      {/* 노출 정책(본사 마스터) */}
+      {policy && (
+        <Card style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <h3 style={{ margin: 0, fontSize: 15 }}>성적·배치 노출 정책</h3>
+            <Badge kind={master ? 'confirmed' : 'soft'}>{master ? '본사 마스터 편집 가능' : '본사 마스터 전용'}</Badge>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {([['student', '학생 앱 노출'], ['guardian', '학부모 앱 노출'], ['placement', '배치 라인(대학·학과) 노출']] as const).map(([k, label]) => (
+              <button key={k} disabled={!master} onClick={() => togglePolicy(k)} style={{
+                cursor: master ? 'pointer' : 'default', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 10,
+                border: '1px solid var(--line)', background: 'var(--surface)', fontSize: 13, fontWeight: 600, opacity: master ? 1 : 0.7,
+              }}>
+                <span>{label}</span>
+                <span style={{ width: 34, height: 20, borderRadius: 999, background: policy[k] ? 'var(--teal)' : 'var(--line)', position: 'relative', transition: '.15s' }}>
+                  <span style={{ position: 'absolute', top: 2, left: policy[k] ? 16 : 2, width: 16, height: 16, borderRadius: '50%', background: 'var(--surface)', transition: '.15s' }} />
+                </span>
+              </button>
+            ))}
+          </div>
+          <p style={{ fontSize: 12, color: 'var(--muted)', margin: '8px 0 0' }}>학생·학부모 앱에서 성적/배치 추이를 볼 수 있는지 전사(全社) 단위로 제어합니다. 관리자·선생님은 항상 열람합니다.</p>
+        </Card>
+      )}
 
       {/* 엑셀 일괄 */}
       <Card style={{ marginBottom: 12 }}>

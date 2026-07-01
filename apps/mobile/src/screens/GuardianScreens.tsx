@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, Child, ChildCredits, Note, PaymentRequest } from '../api';
 import { R, SP, useTheme, useUI, type Palette } from '../theme';
+import { ScoreTrendView, type Trend } from './ScoreTrendView';
 
 const won = (n: number) => `${n.toLocaleString()}원`;
 const fmt = (n: number) => n.toLocaleString();
@@ -33,12 +34,20 @@ const makeTxMeta = (C: Palette): Record<string, { label: string; sign: 1 | -1; c
   weekly_expire: { label: '주간 크레딧 소멸', sign: -1, color: C.confirmed },
 });
 
-export function GuardianHome({ children, setActiveId, goTab }: Props) {
+export function GuardianHome({ children, activeId, setActiveId, goTab }: Props) {
   const { C } = useTheme();
   const ui = useUI();
   const s = useMemo(() => makeStyles(C), [C]);
   const [reqs, setReqs] = useState<PaymentRequest[]>([]);
+  const [access, setAccess] = useState<{ showTrend: boolean; showPlacement: boolean } | null>(null);
+  const [trend, setTrend] = useState<Trend | null>(null);
   useEffect(() => { api.get<PaymentRequest[]>('/payment-requests').then((r) => setReqs(Array.isArray(r) ? r : [])).catch(() => {}); }, []);
+  useEffect(() => { api.get<{ showTrend: boolean; showPlacement: boolean }>('/me/scores/access').then(setAccess).catch(() => setAccess({ showTrend: false, showPlacement: false })); }, []);
+  const child0 = activeId ?? children[0]?.studentId ?? null;
+  useEffect(() => {
+    if (!access?.showTrend || !child0) { setTrend(null); return; }
+    api.get<Trend>(`/guardian/scores/trend?studentId=${child0}`).then(setTrend).catch(() => setTrend(null));
+  }, [access, child0]);
   const open = reqs.filter((r) => r.status === 'open');
   const nameOf = (sid: string) => children.find((c) => c.studentId === sid)?.name ?? '자녀';
 
@@ -76,6 +85,13 @@ export function GuardianHome({ children, setActiveId, goTab }: Props) {
           </View>
         </TouchableOpacity>
       ))}
+
+      {access?.showTrend && trend && trend.points.length > 0 && (
+        <View style={[ui.card, { marginTop: 4 }]}>
+          <Text style={s.sec}>{trend.student.name} 성적·배치 추이</Text>
+          <ScoreTrendView trend={trend} showPlacement={!!access.showPlacement} />
+        </View>
+      )}
     </ScrollView>
   );
 }
