@@ -26,6 +26,11 @@ import { AdminMemberTypesPage } from './pages/AdminMemberTypesPage';
 import { AdminEvaluationPage } from './pages/AdminEvaluationPage';
 import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
 import { AdminReversePage } from './pages/AdminReversePage';
+import { StudentLayout } from './components/StudentLayout';
+import { StudentBookingsPage } from './pages/StudentBookingsPage';
+import { StudentSearchPage } from './pages/StudentSearchPage';
+import { StudentCreditsPage } from './pages/StudentCreditsPage';
+import { StudentReversePage } from './pages/StudentReversePage';
 
 function Protected({ roles, children }: { roles?: string[]; children: JSX.Element }) {
   const { user, loading } = useAuth();
@@ -87,6 +92,21 @@ export function App() {
         <Route path="member-types" element={<AdminMemberTypesPage />} />
         <Route path="evaluation" element={<AdminEvaluationPage />} />
         <Route path="analytics" element={<AdminAnalyticsPage />} />
+      </Route>
+
+      <Route
+        path="/student"
+        element={
+          <Protected roles={['student']}>
+            <StudentLayout />
+          </Protected>
+        }
+      >
+        <Route index element={<Navigate to="bookings" replace />} />
+        <Route path="search" element={<StudentSearchPage />} />
+        <Route path="bookings" element={<StudentBookingsPage />} />
+        <Route path="credits" element={<StudentCreditsPage />} />
+        <Route path="reverse" element={<StudentReversePage />} />
       </Route>
 
       <Route path="*" element={<HomeRedirect />} />

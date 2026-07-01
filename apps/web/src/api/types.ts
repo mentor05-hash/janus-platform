@@ -41,6 +41,28 @@ export interface Slot {
   status: 'avail' | 'booked' | 'rest' | 'off' | 'blocked';
 }
 
+export interface Teacher {
+  id: string;
+  name: string;
+  subjects: string[];
+  grade: string;
+  category: string | null;
+  rating: number | null;
+}
+
+export interface CreditAccount {
+  purchasedBalance: number;
+  grantedBalance: number;
+  total: number;
+}
+
+export interface Quote {
+  minutes: number;
+  credits: number;
+  valid: boolean;
+  message?: string | null;
+}
+
 export interface WorkSchedule {
   recurring_template?: Record<string, { start: string; end: string }[]>;
   pre_book_horizon_days?: number;
