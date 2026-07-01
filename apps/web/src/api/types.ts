@@ -73,9 +73,11 @@ export interface WorkSchedule {
 
 export interface Payroll {
   teacherId: string;
+  grade: string;
   confirmedAmount: number;
   expectedAmount: number;
   incentive: number;
+  incentiveOn: boolean;
   breakdown: {
     doneCases: number;
     upcomingCases: number;
@@ -85,6 +87,8 @@ export interface Payroll {
     gradeAllowance: number;
     incentive: number;
   };
+  rates: { perCaseRate: number; qnaRate: number };
+  gradeTable: Record<string, number>;
 }
 
 export interface HrStudent {
@@ -184,12 +188,17 @@ export interface Notification {
 
 export interface ConsultationNote {
   bookingId: string;
+  teacherId?: string;
+  teacherName?: string | null;
+  isMine?: boolean;
+  consultType?: string | null;
   coreSummary: string | null;
   homework: string | null;
   futureDir: string | null;
   memo?: string | null;
   guardianVisible: boolean | null;
   saveState: 'draft' | 'final';
+  createdAt?: string;
 }
 
 // 선생님 받은 평가
@@ -225,6 +234,14 @@ export interface RecordOverview {
     createdAt: string | null;
   }[];
   rejectCount: number;
+  noshowCount?: number;
+}
+
+export interface TeacherStudent {
+  studentId: string;
+  name: string;
+  totalConsult: number;
+  isHomeroom: boolean;
 }
 
 // ── 대시보드(평가/순위·센터비교) ──

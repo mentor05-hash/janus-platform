@@ -12,6 +12,7 @@ const NAV = [
   { to: '/app/qna', label: '질문 답변' },
   { to: '/app/payroll', label: '예상급여' },
   { to: '/app/materials', label: '자료실' },
+  { to: '/app/records', label: '상담 기록' },
   { to: '/app/notifications', label: '알림' },
 ];
 

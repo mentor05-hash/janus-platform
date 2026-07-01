@@ -36,7 +36,7 @@ export function StudentNotesPage() {
     <div>
       <Link to="/app/bookings">← 예약 목록</Link>
       <h2 style={{ color: 'var(--teal)' }}>학생 상담 이력</h2>
-      <p style={{ color: 'var(--muted)', fontSize: 13 }}>내가 작성한 이 학생의 상담 기록만 표시됩니다.</p>
+      <p style={{ color: 'var(--muted)', fontSize: 13 }}>소속 범위 내 상담 기록을 표시합니다. 타 선생님 기록의 내부 메모는 작성자만 볼 수 있어요.</p>
       <ErrorText>{error}</ErrorText>
 
       {overview && (
@@ -51,6 +51,7 @@ export function StudentNotesPage() {
               </span>
             )}
             <Badge kind={overview.rejectCount > 0 ? 'rejected' : 'soft'}>거부 {overview.rejectCount}건</Badge>
+            <Badge kind={(overview.noshowCount ?? 0) > 0 ? 'noshow' : 'soft'}>노쇼 {overview.noshowCount ?? 0}건</Badge>
           </div>
           {overview.rejections.length > 0 && (
             <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 13, color: 'var(--muted)' }}>
@@ -68,15 +69,17 @@ export function StudentNotesPage() {
       <div style={{ display: 'grid', gap: 8 }}>
         {notes.map((n) => (
           <Card key={n.bookingId}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
               <strong>{n.coreSummary || '(요약 없음)'}</strong>
-              <Badge kind={n.saveState === 'final' ? 'done' : 'confirmed'}>
-                {n.saveState === 'final' ? '최종' : '임시'}
-              </Badge>
+              <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                {n.teacherName && <Badge kind="soft">{n.teacherName}{n.isMine ? ' · 나' : ''}</Badge>}
+                <Badge kind={n.saveState === 'final' ? 'done' : 'confirmed'}>{n.saveState === 'final' ? '최종' : '임시'}</Badge>
+              </span>
             </div>
             {n.homework && <div style={{ fontSize: 13, marginTop: 4 }}>숙제: {n.homework}</div>}
             {n.futureDir && <div style={{ fontSize: 13 }}>향후: {n.futureDir}</div>}
-            {n.memo != null && <div style={{ fontSize: 13, color: 'var(--muted)' }}>내부메모: {n.memo}</div>}
+            {n.memo != null ? <div style={{ fontSize: 13, color: 'var(--muted)' }}>내부메모: {n.memo}</div>
+              : !n.isMine && <div style={{ fontSize: 12, color: 'var(--muted)' }}>🔒 내부메모는 작성 선생님만 볼 수 있어요.</div>}
           </Card>
         ))}
         {notes.length === 0 && !error && <EmptyState>기록이 없습니다.</EmptyState>}

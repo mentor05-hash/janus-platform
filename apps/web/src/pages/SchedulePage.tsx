@@ -76,6 +76,8 @@ export function SchedulePage() {
   const [leaves, setLeaves] = useState<Leave[]>([]);
   const [leaveType, setLeaveType] = useState<'연차' | '반차' | '병가'>('연차');
   const [leaveDate, setLeaveDate] = useState(iso(new Date()));
+  const [offlineEnabled, setOfflineEnabled] = useState(false);
+  const [offlineWins, setOfflineWins] = useState<{ weekday: string; start: string; end: string }[]>([]);
   const [conflicts, setConflicts] = useState<Conflict[] | null>(null);
   const [pendingSave, setPendingSave] = useState<Tpl | null>(null);
   const [busy, setBusy] = useState(false);
@@ -90,13 +92,16 @@ export function SchedulePage() {
   const load = useCallback(async () => {
     setError('');
     try {
-      const [wp, lv] = await Promise.all([
+      const [wp, lv, off] = await Promise.all([
         api.get<{ recurringTemplate: Tpl; weekPlans: WeekPlan[] }>(`/teachers/${teacherId}/week-plans`),
         api.get<Leave[]>(`/teachers/${teacherId}/leave`).catch(() => [] as Leave[]),
+        api.get<{ enabled: boolean; timeWindows: { weekday: string; start: string; end: string }[] }>(`/teachers/${teacherId}/offline-availability`).catch(() => ({ enabled: false, timeWindows: [] })),
       ]);
       setRecurring(wp.recurringTemplate ?? {});
       setPlans(wp.weekPlans ?? []);
       setLeaves(lv);
+      setOfflineEnabled(off.enabled);
+      setOfflineWins(Array.isArray(off.timeWindows) ? off.timeWindows : []);
     } catch (e) { setError(e instanceof ApiError ? e.message : '근무표 조회 실패'); }
   }, [teacherId]);
   useEffect(() => { void load(); }, [load]);
@@ -223,18 +228,21 @@ export function SchedulePage() {
     await api.put(`/teachers/${teacherId}/week-plans`, { weekPlans: next });
     setMsg('해당 주 근무계획이 저장되었습니다.'); setConflicts(null); setPendingSave(null); await load();
   }
-  // 충돌 대응
-  async function respondConflict(route: 'rebook_notice' | 'substitute' | 'penalty') {
+  // 충돌 대응 — §5-6 4경로(대체후보·학생우선권·관리자수동·재예약안내)를 그대로 전달.
+  async function respondConflict(route: 'rebook_notice' | 'substitute' | 'priority' | 'admin_manual') {
     setBusy(true); setError('');
     try {
       for (const c of conflicts ?? []) {
-        const r = route === 'penalty' ? 'rebook_notice' : route; // penalty=취소+패널티 통보(경로는 재예약안내로 처리)
-        await api.patch(`/bookings/${c.bookingId}/cancel`, { reason: '근무시간 변경', route: r }).catch(() => {});
+        await api.patch(`/bookings/${c.bookingId}/cancel`, { reason: '근무시간 변경', route }).catch(() => {});
       }
       if (pendingSave) await commitWeek(pendingSave);
-      setMsg(route === 'rebook_notice' ? '학생에게 타 시간 변경 안내를 발송하고 저장했습니다.'
-        : route === 'substitute' ? '타 선생님 변경(대체) 요청을 보내고 저장했습니다.'
-        : '상담불가를 통보하고 저장했습니다. 관련 패널티가 적용될 수 있습니다.');
+      const label: Record<typeof route, string> = {
+        rebook_notice: '학생에게 타 시간 변경 안내를 발송하고 저장했습니다.',
+        substitute: '대체 선생님 후보를 제안하고 저장했습니다.',
+        priority: '학생 일정 우선권을 부여하고 저장했습니다.',
+        admin_manual: '센터 관리자 수동 배정을 요청하고 저장했습니다.',
+      };
+      setMsg(`${label[route]} 학생·보호자·관리자·대체후보에게 알림이 발송되고 예정 크레딧은 환원됩니다. 선생님 사유 취소로 패널티(당일취소·랭킹 가중치)가 적용될 수 있습니다.`);
     } catch (e) { setError(e instanceof ApiError ? e.message : '처리 실패'); } finally { setBusy(false); }
   }
 
@@ -244,6 +252,14 @@ export function SchedulePage() {
     catch (e) { setError(e instanceof ApiError ? e.message : '사유 등록 실패'); }
   }
   async function removeLeave(date: string) { try { await api.del(`/teachers/${teacherId}/leave/${date}`); await load(); } catch (e) { setError(e instanceof ApiError ? e.message : '해제 실패'); } }
+
+  async function saveOffline() {
+    setBusy(true); setMsg(''); setError('');
+    try {
+      await api.put(`/teachers/${teacherId}/offline-availability`, { enabled: offlineEnabled, timeWindows: offlineWins });
+      setMsg('오프라인 가능 설정이 저장되었습니다.'); await load();
+    } catch (e) { setError(e instanceof ApiError ? e.message : '오프라인 설정 저장 실패'); } finally { setBusy(false); }
+  }
 
   return (
     <div>
@@ -389,6 +405,31 @@ export function SchedulePage() {
         )}
       </Card>
 
+      <Card title="오프라인 상담 가능 설정" style={{ maxWidth: 520 }}>
+        <p style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 0 }}>오프라인 가능 요일·시간대를 지정하면 학생 오프라인 매칭 대상이 됩니다.</p>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, marginBottom: 10 }}>
+          <input type="checkbox" checked={offlineEnabled} onChange={(e) => setOfflineEnabled(e.target.checked)} />
+          오프라인 상담 가능
+        </label>
+        {offlineEnabled && (
+          <div style={{ display: 'grid', gap: 6 }}>
+            {offlineWins.map((w, i) => (
+              <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <select className="input compact" value={w.weekday} onChange={(e) => setOfflineWins((p) => p.map((x, j) => j === i ? { ...x, weekday: e.target.value } : x))}>
+                  {['일', '월', '화', '수', '목', '금', '토'].map((d, di) => <option key={di} value={String(di)}>{d}</option>)}
+                </select>
+                <input className="input compact" type="time" value={w.start} onChange={(e) => setOfflineWins((p) => p.map((x, j) => j === i ? { ...x, start: e.target.value } : x))} />
+                <span>~</span>
+                <input className="input compact" type="time" value={w.end} onChange={(e) => setOfflineWins((p) => p.map((x, j) => j === i ? { ...x, end: e.target.value } : x))} />
+                <Button size="sm" variant="ghost" onClick={() => setOfflineWins((p) => p.filter((_, j) => j !== i))}>삭제</Button>
+              </div>
+            ))}
+            <Button size="sm" variant="ghost" onClick={() => setOfflineWins((p) => [...p, { weekday: '2', start: '16:00', end: '20:00' }])}>＋ 시간대 추가</Button>
+          </div>
+        )}
+        <Button block style={{ marginTop: 10 }} loading={busy} onClick={saveOffline}>오프라인 설정 저장</Button>
+      </Card>
+
       {/* 충돌 대응 팝업 */}
       {conflicts && (
         <Modal open title="근무 변경 · 예약 충돌" onClose={() => { setConflicts(null); setPendingSave(null); }}>
@@ -402,9 +443,10 @@ export function SchedulePage() {
           </div>
           <div style={{ display: 'grid', gap: 8 }}>
             <Button onClick={() => respondConflict('rebook_notice')} loading={busy}>① 학생에게 타 시간 변경 안내</Button>
-            <Button variant="ghost" onClick={() => respondConflict('substitute')} loading={busy}>② 타 선생님으로 변경 요청(대체)</Button>
-            <Button variant="danger" onClick={() => respondConflict('penalty')} loading={busy}>③ 상담불가 통보 (패널티 수용)</Button>
-            <p style={{ fontSize: 12, color: '#b91c1c', margin: 0 }}>③ 선택 시 선생님에게 관련 패널티(당일취소·랭킹 가중치 등)가 적용될 수 있습니다.</p>
+            <Button variant="ghost" onClick={() => respondConflict('substitute')} loading={busy}>② 대체 선생님 후보 제안</Button>
+            <Button variant="ghost" onClick={() => respondConflict('priority')} loading={busy}>③ 학생 일정 우선권 부여</Button>
+            <Button variant="ghost" onClick={() => respondConflict('admin_manual')} loading={busy}>④ 센터 관리자 수동 배정 요청</Button>
+            <p style={{ fontSize: 12, color: '#b91c1c', margin: 0 }}>선생님 사유 취소 시 관련 패널티(당일취소·랭킹 가중치 등)가 적용될 수 있으며, 예정 크레딧은 학생에게 환원됩니다.</p>
           </div>
         </Modal>
       )}

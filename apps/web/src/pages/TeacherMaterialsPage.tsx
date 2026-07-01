@@ -16,7 +16,7 @@ export function TeacherMaterialsPage() {
   const [msg, setMsg] = useState('');
 
   const [title, setTitle] = useState('');
-  const [kind, setKind] = useState<'칼럼' | '기출'>('칼럼');
+  const [kind, setKind] = useState<'칼럼' | '기출' | '자료'>('칼럼');
   const [subject, setSubject] = useState('수학');
   const [description, setDescription] = useState('');
   const [visibility, setVisibility] = useState('center');
@@ -108,8 +108,8 @@ export function TeacherMaterialsPage() {
 
           <label className="label" style={{ marginTop: 12 }}>유형</label>
           <div style={{ display: 'flex', gap: 6 }}>
-            {(['칼럼', '기출'] as const).map((k) => (
-              <button key={k} className="btn sm" style={chip(kind === k)} onClick={() => setKind(k)}>{k === '기출' ? '기출 자료' : '칼럼'}</button>
+            {(['칼럼', '기출', '자료'] as const).map((k) => (
+              <button key={k} className="btn sm" style={chip(kind === k)} onClick={() => setKind(k)}>{k === '기출' ? '기출 자료' : k}</button>
             ))}
           </div>
 

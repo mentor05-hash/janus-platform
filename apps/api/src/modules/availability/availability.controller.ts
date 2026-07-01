@@ -112,6 +112,16 @@ export class AvailabilityController {
     return this.availability.removeLeave(id, date, user);
   }
 
+  /** GET /teachers/{id}/offline-availability — 현재 오프라인 가능 설정(본인/관리자). */
+  @Get(':id/offline-availability')
+  @Roles('teacher', 'admin', 'hr')
+  getOfflineAvailability(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.availability.getOfflineAvailability(id, user);
+  }
+
   /** PUT /teachers/{id}/offline-availability — 오프라인 가능 센터·시간(본인/관리자). */
   @Put(':id/offline-availability')
   @Roles('teacher', 'admin', 'hr')

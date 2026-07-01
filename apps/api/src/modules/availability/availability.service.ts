@@ -411,6 +411,37 @@ export class AvailabilityService {
     return { data: next };
   }
 
+  /** 오프라인 가능 설정 조회(본인 또는 관리자/HR). 미설정 시 enabled=false 기본값. */
+  async getOfflineAvailability(
+    teacherId: string,
+    actor: { id: string; role: string },
+  ) {
+    const isSelf = actor.role === 'teacher' && actor.id === teacherId;
+    const isAdmin = actor.role === 'admin' || actor.role === 'hr';
+    if (!isSelf && !isAdmin) {
+      throw new ForbiddenException(
+        '본인 또는 관리자만 조회할 수 있습니다.',
+      );
+    }
+    const teacher = await this.prisma.teacher_profile.findUnique({
+      where: { account_id: teacherId },
+      select: { center_id: true },
+    });
+    if (!teacher?.center_id) return { enabled: false, timeWindows: [] };
+    const row = await this.prisma.teacher_offline_availability.findUnique({
+      where: {
+        teacher_id_center_id: {
+          teacher_id: teacherId,
+          center_id: teacher.center_id,
+        },
+      },
+    });
+    return {
+      enabled: row?.enabled ?? false,
+      timeWindows: (row?.time_windows as unknown[]) ?? [],
+    };
+  }
+
   /** 오프라인 가능 센터·시간 설정(본인 또는 관리자/HR). teacher 의 센터 기준 upsert. */
   async putOfflineAvailability(
     teacherId: string,

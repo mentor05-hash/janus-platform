@@ -18,7 +18,7 @@ import { CreateAnswerDto, CreateQuestionDto } from './dto/qna.dto';
 
 interface QnaRow {
   id: string; subject: string | null; difficulty: string | null; scope: string | null;
-  body: string | null; status: string | null; created_at: Date;
+  body: string | null; status: string | null; created_at: Date; assigned_teacher_id?: string | null;
   qna_answer?: { id: string; body: string | null; accepted: boolean | null; created_at: Date; teacher_profile?: { account?: { name?: string } } }[];
 }
 
@@ -123,6 +123,7 @@ export class QnaService {
         subject: p.subject ?? null,
         difficulty: p.difficulty ?? null,
         scope: p.scope ?? 'open',
+        assignedTeacherId: p.assigned_teacher_id ?? null,
         body: p.body ?? '',
         status: p.status ?? 'open',
         created_at: p.created_at,
@@ -148,6 +149,46 @@ export class QnaService {
       return shape(await this.prisma.qna_post.findMany({ orderBy: { created_at: 'desc' }, take: 200, include: answersInclude }));
     }
     throw new ForbiddenException('Q&A 목록 조회 권한이 없습니다.');
+  }
+
+  /** 공개질문 가져오기(교사, 선착순 배정) — open→assigned 원자적 전환. unfit 교사 차단(§5-9). */
+  async claim(postId: string, teacher: AuthUser) {
+    if (teacher.role !== AccountRole.TEACHER) {
+      throw new ForbiddenException('선생님만 질문을 가져올 수 있습니다.');
+    }
+    const post = await this.prisma.qna_post.findUnique({
+      where: { id: postId },
+    });
+    if (!post) throw new NotFoundException('질문을 찾을 수 없습니다.');
+    if (post.scope !== 'open' || post.status !== 'open') {
+      throw new BadRequestException('이미 배정되었거나 마감된 질문입니다.');
+    }
+    const unfit = await this.prisma.teacher_list_entry.findFirst({
+      where: {
+        student_id: post.student_id,
+        teacher_id: teacher.id,
+        list_kind: 'unfit',
+      },
+    });
+    if (unfit) {
+      throw new ForbiddenException(
+        '학생이 맞지 않는 선생님으로 분류하여 가져올 수 없습니다(§5-9).',
+      );
+    }
+    // 선착순: scope=open·미배정일 때만 1건 전환. 경쟁 시 count!==1 → 409.
+    const upd = await this.prisma.qna_post.updateMany({
+      where: {
+        id: postId,
+        scope: 'open',
+        status: 'open',
+        assigned_teacher_id: null,
+      },
+      data: { scope: 'assigned', assigned_teacher_id: teacher.id },
+    });
+    if (upd.count !== 1) {
+      throw new ConflictException('다른 선생님이 먼저 가져갔습니다.');
+    }
+    return { id: postId, assignedTeacherId: teacher.id };
   }
 
   /** 답변(교사) — 지정/공개 권한 게이트(§5-9). */

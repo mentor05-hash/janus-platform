@@ -115,17 +115,24 @@ export class PayrollService {
     );
 
     const rating = teacher.rating == null ? 0 : Number(teacher.rating);
-    const incentive = computeIncentive(
-      { doneCount, rating },
-      (policy?.auto_incentive as unknown as IncentivePolicy) ?? null,
-    );
+    const autoIncentive =
+      (policy?.auto_incentive as unknown as IncentivePolicy) ?? null;
+    const incentive = computeIncentive({ doneCount, rating }, autoIncentive);
+
+    const gradeMap =
+      (policy?.grade_allowance as Record<string, number> | null) ?? null;
 
     return {
       teacherId,
+      grade: teacher.grade,
       confirmedAmount: base.confirmedAmount + incentive,
       expectedAmount: base.expectedAmount + incentive,
       incentive,
+      incentiveOn: !!autoIncentive?.on,
       breakdown: { ...base.breakdown, incentive },
+      // 등급별 급여표(T5d) — 정책의 등급 수당 맵 + 공통 요율.
+      rates: { perCaseRate: rates.perCaseRate, qnaRate: rates.qnaRate },
+      gradeTable: gradeMap ?? {},
     };
   }
 

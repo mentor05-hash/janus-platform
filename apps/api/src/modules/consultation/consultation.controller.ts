@@ -5,6 +5,7 @@ import {
   Param,
   ParseUUIDPipe,
   Put,
+  Query,
 } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
@@ -48,6 +49,13 @@ export class ConsultationController {
   @Get('me/notes')
   myNotes(@CurrentUser() user: AuthUser) {
     return this.consultation.listForStudent(user.id, user);
+  }
+
+  /** GET /me/students — 선생님 담당/센터 학생 목록(상담 기록 뷰어 진입, 검색). */
+  @Get('me/students')
+  @Roles('teacher')
+  myStudents(@CurrentUser() user: AuthUser, @Query('q') q?: string) {
+    return this.consultation.teacherStudents(user, q);
   }
 
   /** GET /students/{id}/record-overview — T6 뷰어 필터용: 담임 공백 + 거부 이력(관리자·HR·선생님). */
