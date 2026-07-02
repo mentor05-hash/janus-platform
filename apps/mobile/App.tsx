@@ -14,6 +14,7 @@ import { MaterialsScreen } from './src/screens/MaterialsScreen';
 import { CommunityScreen } from './src/screens/CommunityScreen';
 import { MyScreen } from './src/screens/MyScreen';
 import { GuardianHome, GuardianConsult, GuardianPay, GuardianCharge } from './src/screens/GuardianScreens';
+import { TeacherInbox, TeacherSessions, TeacherRecords } from './src/screens/TeacherScreens';
 import { ThemeProvider, useTheme, type Palette, SP } from './src/theme';
 
 export default function App() {
@@ -136,16 +137,20 @@ function AppInner() {
 
   const isGuardian = me.role === 'guardian';
   const isStudent = me.role === 'student';
-  const tabs = isGuardian ? ['a', 'b', 'c', 'd'] : ['a', 'b', 'e', 'c', 'f', 'd'];
+  const isTeacher = me.role === 'teacher';
+  const tabs = isGuardian ? ['a', 'b', 'c', 'd'] : isTeacher ? ['ti', 'ts', 'tr'] : ['a', 'b', 'e', 'c', 'f', 'd'];
   const guardianLabel: Record<string, string> = { a: '홈', b: '상담', c: '결제', d: '충전' };
   const studentLabel: Record<string, string> = { a: '선생님', b: '내 예약', e: '자료실', c: 'Q&A', f: '커뮤니티', d: '마이' };
-  const tabLabel = (t: string) => (isGuardian ? guardianLabel[t] ?? '' : studentLabel[t] ?? '');
+  const teacherLabel: Record<string, string> = { ti: '인박스', ts: '상담', tr: '기록' };
+  const tabLabel = (t: string) => (isGuardian ? guardianLabel[t] ?? '' : isTeacher ? teacherLabel[t] ?? '' : studentLabel[t] ?? '');
+  // 선생님은 탭키가 다르므로 기본 진입 탭 보정('a' → 'ti')
+  const tTab = isTeacher && !['ti', 'ts', 'tr'].includes(tab) ? 'ti' : tab;
 
   return (
     <SafeAreaView style={styles.app}>
       <StatusBar style="light" />
       <View style={styles.header}>
-        <Text style={styles.brand}>멘토링 플랫폼 · {isGuardian ? '학부모' : '학생'}</Text>
+        <Text style={styles.brand}>멘토링 플랫폼 · {isGuardian ? '학부모' : isTeacher ? '선생님' : '학생'}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
           <TouchableOpacity onPress={toggle}>
             <Text style={styles.logout}>{dark ? '☀️ 라이트' : '🌙 다크'}</Text>
@@ -162,7 +167,9 @@ function AppInner() {
       </View>
 
       <View style={styles.body}>
-        {!isStudent && !isGuardian && <Text style={styles.notice}>이 역할은 웹(apps/web)을 이용하세요.</Text>}
+        {!isStudent && !isGuardian && !isTeacher && <Text style={styles.notice}>이 역할은 웹(apps/web)을 이용하세요.</Text>}
+
+        {isTeacher && (tTab === 'ti' ? <TeacherInbox /> : tTab === 'ts' ? <TeacherSessions myId={me.id} /> : <TeacherRecords />)}
 
         {isStudent &&
           (tab === 'a' ? (
@@ -202,15 +209,15 @@ function AppInner() {
         )}
       </View>
 
-      {(isStudent || isGuardian) && (
+      {(isStudent || isGuardian || isTeacher) && (
         <View style={styles.tabs}>
           {tabs.map((t) => (
             <TouchableOpacity
               key={t}
-              style={[styles.tab, tab === t && styles.tabActiveBox]}
+              style={[styles.tab, tTab === t && styles.tabActiveBox]}
               onPress={() => goTab(t)}
             >
-              <Text style={[styles.tabLabel, tab === t && styles.tabActive]}>{tabLabel(t)}</Text>
+              <Text style={[styles.tabLabel, tTab === t && styles.tabActive]}>{tabLabel(t)}</Text>
             </TouchableOpacity>
           ))}
         </View>
