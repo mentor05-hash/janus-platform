@@ -39,6 +39,13 @@ export function AdminAnalyticsPage() {
   const [view, setView] = useState('center');
   const [pivot, setPivot] = useState<Record<string, unknown>[]>([]);
   const [error, setError] = useState('');
+  const [blocked, setBlocked] = useState(false); // 본사 노출 정책상 이 센터 대시보드 비활성
+
+  useEffect(() => {
+    api.get<{ role: string; enabled?: boolean }>('/dashboard/access')
+      .then((a) => setBlocked(a.role === 'centerAdmin' && a.enabled === false))
+      .catch(() => {});
+  }, []);
 
   const loadCompare = useCallback(async () => {
     try {
@@ -71,6 +78,15 @@ export function AdminAnalyticsPage() {
         render: (row) => String(row[k] ?? ''),
       }))
     : [];
+
+  if (blocked) return (
+    <div>
+      <PageHeader title="센터 분석" sub="자기 센터 위치" />
+      <SectionCard title="대시보드 비활성화">
+        <p style={{ fontSize: 13.5, color: 'var(--muted)' }}>본사 정책에 따라 이 센터의 대시보드가 현재 비활성화되어 있어요. 본사 관리자에게 문의하세요.</p>
+      </SectionCard>
+    </div>
+  );
 
   return (
     <div>

@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import type { Booking, MyEvaluations, Notification, Payroll } from '../api/types';
 import { PageHeader, Card, Spinner, Badge, GradeBadge, EmptyState } from '../components/ui';
 import { StatCard, StatGrid, BarList } from '../components/dashboard/widgets';
+import { TeacherPerformance } from '../components/dashboard/TeacherPerformance';
 
 const won = (n: number) => `${n.toLocaleString()}원`;
 const todayKst = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
@@ -49,6 +50,9 @@ export function TeacherDashboardPage() {
         <StatCard label="예상 급여" value={payroll ? won(payroll.expectedAmount) : '—'} tone="teal" />
         <StatCard label="미확인 알림" value={`${unread}건`} />
       </StatGrid>
+
+      {/* 내 성과 대시보드(센터 내 순위·지표·추이) — 본사 노출 정책 게이팅 */}
+      <TeacherPerformance />
 
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start', marginTop: 16 }}>
         {/* 오늘의 예약 */}

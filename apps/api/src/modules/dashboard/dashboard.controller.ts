@@ -12,7 +12,7 @@ import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { MinPerm } from '../../common/decorators/min-perm.decorator';
 import { DashboardService } from './dashboard.service';
-import { DirectorDto, MonthlyHoursDto, UpdateWeightsDto } from './dto/dashboard.dto';
+import { DashVisibilityDto, DirectorDto, MonthlyHoursDto, UpdateWeightsDto } from './dto/dashboard.dto';
 import type { PivotView } from './dto/dashboard.dto';
 
 /**
@@ -23,6 +23,33 @@ import type { PivotView } from './dto/dashboard.dto';
 @Roles('admin', 'hr')
 export class DashboardController {
   constructor(private readonly dash: DashboardService) {}
+
+  /** GET /dashboard/access — 내게 열린 대시보드 범위·탭(3형태 라우팅). 선생님 포함. */
+  @Get('dashboard/access')
+  @Roles('admin', 'hr', 'teacher')
+  access(@CurrentUser() user: AuthUser) {
+    return this.dash.access(user);
+  }
+
+  /** GET /me/dashboard — 선생님 본인 성과 대시보드(정책 게이팅). */
+  @Get('me/dashboard')
+  @Roles('teacher')
+  myDashboard(@CurrentUser() user: AuthUser) {
+    return this.dash.myDashboard(user);
+  }
+
+  /** GET /admin/dashboard/policy — 노출 정책 조회(관리자/HR). */
+  @Get('admin/dashboard/policy')
+  getPolicy() {
+    return this.dash.getVisibility();
+  }
+
+  /** PUT /admin/dashboard/policy — 노출 정책 변경(본사급 L2만). */
+  @Put('admin/dashboard/policy')
+  @MinPerm('L2')
+  setPolicy(@Body() dto: DashVisibilityDto, @CurrentUser() user: AuthUser) {
+    return this.dash.setVisibility(user, dto);
+  }
 
   @Get('admin/evaluation/weights')
   getWeights(@CurrentUser() user: AuthUser, @Query('centerId') centerId?: string) {

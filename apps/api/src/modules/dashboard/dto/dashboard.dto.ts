@@ -1,13 +1,24 @@
 import {
+  IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsNumber,
   IsOptional,
+  IsString,
   IsUUID,
   Matches,
   Max,
   Min,
 } from 'class-validator';
+
+/** 대시보드 노출 정책(본사 마스터). 부분 업데이트 허용. */
+export class DashVisibilityDto {
+  @IsOptional() @IsBoolean() teacherEnabled?: boolean;
+  @IsOptional() @IsArray() @IsString({ each: true }) centerAdminTabs?: string[];
+  @IsOptional() @IsArray() @IsString({ each: true }) teacherTabs?: string[];
+  @IsOptional() @IsArray() @IsString({ each: true }) disabledCenters?: string[];
+}
 
 /** 평가 가중치 조정(합계 100 은 서비스에서 검증). centerId 부재/null = 전사 기본. */
 export class UpdateWeightsDto {

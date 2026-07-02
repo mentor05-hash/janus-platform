@@ -16,10 +16,16 @@ const RT_ITEMS: { key: keyof RtFeatures; label: string; desc: string }[] = [
 ];
 const RT_MODE_LABEL: Record<RtMode, string> = { off: '사용 안 함', all: '전체 제공', premium: '프리미엄 전용' };
 
+type DashPolicy = { teacherEnabled: boolean; centerAdminTabs: string[]; teacherTabs: string[]; disabledCenters: string[] };
+const CA_TABS: { key: string; label: string }[] = [{ key: 'summary', label: '센터 요약' }, { key: 'teachers', label: '선생님별 비교' }, { key: 'trend', label: '월별 추이' }];
+const TE_TABS: { key: string; label: string }[] = [{ key: 'summary', label: '지표 요약' }, { key: 'rank', label: '센터 내 순위' }, { key: 'trend', label: '월별 추이' }];
+
 export function AdminInfraPage() {
   const { user } = useAuth();
   const isHq = user?.role === 'admin' && !user?.center_id;
   const [rt, setRt] = useState<RtFeatures | null>(null);
+  const [dash, setDash] = useState<DashPolicy | null>(null);
+  const [dashCenters, setDashCenters] = useState<{ id: string; name: string }[]>([]);
   const [zoom, setZoom] = useState<number>(6);
   const [zoomUsage, setZoomUsage] = useState<number>(0);
   const [allowMap, setAllowMap] = useState<Record<string, boolean>>({});
@@ -31,6 +37,12 @@ export function AdminInfraPage() {
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
+    // 전사 정책(실시간·대시보드)은 센터 스코프와 독립적으로 로드 — 본사 마스터(센터 미소속)도
+    // 줌/상담실 조회 실패와 무관하게 정책 카드를 볼 수 있어야 함.
+    api.get<RtFeatures>('/admin/realtime/policy').then(setRt).catch(() => {});
+    api.get<DashPolicy>('/admin/dashboard/policy').then(setDash).catch(() => {});
+    if (isHq) api.get<{ id: string; name: string }[]>('/centers').then(setDashCenters).catch(() => {});
+    // 센터 스코프 자원(줌·상담실·차단) — 본사 마스터는 센터가 없어 실패할 수 있음(무시).
     try {
       const zp = await api.get<ZoomPolicy>('/admin/zoom-policy');
       setZoom(zp.concurrent_limit);
@@ -38,12 +50,12 @@ export function AdminInfraPage() {
       setZoomUsage(zp.currentUsage ?? 0);
       setRooms(await api.get<Room[]>('/admin/rooms'));
       setBlocked(await api.get<BlockedTime[]>('/admin/blocked-times'));
-      setRt(await api.get<RtFeatures>('/admin/realtime/policy').catch(() => null));
       setError('');
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : '조회 실패');
+      // 본사 마스터(센터 미소속)는 센터 자원 조회가 막힘 — 정책 카드는 계속 보이므로 조용히 무시.
+      if (!isHq) setError(e instanceof ApiError ? e.message : '조회 실패');
     }
-  }, []);
+  }, [isHq]);
 
   useEffect(() => {
     void load();
@@ -96,6 +108,63 @@ export function AdminInfraPage() {
               </div>
             ))}
           </div>
+        </Card>
+      )}
+
+      {dash && (
+        <Card title="대시보드 노출 정책" style={{ marginBottom: 16 }}>
+          <p style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 0 }}>
+            센터 관리자·선생님에게 보일 대시보드 탭과 센터별 노출 여부를 본사에서 제어합니다.
+            {!isHq && <span style={{ color: 'var(--chip-rejected,#c0392b)' }}> · 변경은 본사 마스터관리자만 가능합니다.</span>}
+          </p>
+          {/* 선생님 대시보드 on/off */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
+            <b style={{ fontSize: 14, flex: 1 }}>선생님 성과 대시보드 노출</b>
+            <button disabled={!isHq} onClick={() => run(async () => setDash(await api.put<DashPolicy>('/admin/dashboard/policy', { teacherEnabled: !dash.teacherEnabled })), '대시보드 정책 저장됨')}
+              style={{ cursor: isHq ? 'pointer' : 'not-allowed', border: 'none', background: 'none', padding: 0 }}>
+              <span style={{ display: 'inline-block', width: 40, height: 22, borderRadius: 999, background: dash.teacherEnabled ? 'var(--teal)' : 'var(--line)', position: 'relative', transition: '.15s' }}>
+                <span style={{ position: 'absolute', top: 2, left: dash.teacherEnabled ? 20 : 2, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: '.15s' }} />
+              </span>
+            </button>
+          </div>
+          {/* 탭 노출 체크 */}
+          {([['centerAdminTabs', '센터 관리자 탭', CA_TABS], ['teacherTabs', '선생님 탭', TE_TABS]] as const).map(([field, label, opts]) => (
+            <div key={field} style={{ padding: '10px 0', borderBottom: '1px solid var(--line)' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>{label}</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {opts.map((o) => {
+                  const on = dash[field].includes(o.key);
+                  return (
+                    <button key={o.key} disabled={!isHq}
+                      onClick={() => run(async () => { const next = on ? dash[field].filter((x) => x !== o.key) : [...dash[field], o.key]; setDash(await api.put<DashPolicy>('/admin/dashboard/policy', { [field]: next })); }, '대시보드 정책 저장됨')}
+                      style={{ padding: '5px 12px', borderRadius: 999, fontSize: 12.5, fontWeight: 700, cursor: isHq ? 'pointer' : 'not-allowed', opacity: isHq ? 1 : 0.6,
+                        border: on ? '1px solid var(--teal)' : '1px solid var(--line)', background: on ? 'var(--teal)' : 'var(--surface)', color: on ? '#fff' : 'var(--muted)' }}>
+                      {on ? '✓ ' : ''}{o.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          {/* 센터별 노출 여부(본사만) */}
+          {isHq && dashCenters.length > 0 && (
+            <div style={{ padding: '10px 0' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>센터별 노출 (끄면 해당 센터 관리자·선생님 대시보드 숨김)</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {dashCenters.map((c) => {
+                  const off = dash.disabledCenters.includes(c.id);
+                  return (
+                    <button key={c.id}
+                      onClick={() => run(async () => { const next = off ? dash.disabledCenters.filter((x) => x !== c.id) : [...dash.disabledCenters, c.id]; setDash(await api.put<DashPolicy>('/admin/dashboard/policy', { disabledCenters: next })); }, '센터 노출 저장됨')}
+                      style={{ padding: '5px 12px', borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
+                        border: off ? '1px solid var(--danger,#c0392b)' : '1px solid var(--teal)', background: off ? '#FAD9D9' : 'var(--teal-50,#F0F7FA)', color: off ? '#c0392b' : 'var(--teal)' }}>
+                      {off ? '🚫 ' : '✓ '}{c.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </Card>
       )}
 

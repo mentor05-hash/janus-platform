@@ -473,4 +473,95 @@ export class DashboardService {
       },
     };
   }
+
+  // ── 대시보드 노출 정책(본사 마스터) ──────────────────────────────
+  private static readonly VIS_KEY = 'dashboard_visibility';
+  private static readonly VIS_DEFAULT: DashboardVisibility = {
+    teacherEnabled: true,
+    centerAdminTabs: ['summary', 'teachers', 'trend'],
+    teacherTabs: ['summary', 'rank', 'trend'],
+    disabledCenters: [],
+  };
+
+  async getVisibility(): Promise<DashboardVisibility> {
+    const row = await this.prisma.system_setting.findUnique({ where: { key: DashboardService.VIS_KEY } });
+    return { ...DashboardService.VIS_DEFAULT, ...((row?.value as object) ?? {}) };
+  }
+
+  async setVisibility(actor: AuthUser, dto: Partial<DashboardVisibility>) {
+    this.assertHqSetting(actor); // 본사급만 전사 노출 정책 변경
+    const next = { ...(await this.getVisibility()), ...dto };
+    await this.prisma.system_setting.upsert({
+      where: { key: DashboardService.VIS_KEY },
+      create: { key: DashboardService.VIS_KEY, value: next as object, updated_by: actor.id },
+      update: { value: next as object, updated_by: actor.id, updated_at: new Date() },
+    });
+    return next;
+  }
+
+  /** 현재 사용자에게 열린 대시보드 범위·탭(3형태 라우팅). */
+  async access(actor: AuthUser) {
+    const p = await this.getVisibility();
+    if (this.isHq(actor)) {
+      const centers = await this.prisma.center.findMany({ select: { id: true, name: true }, orderBy: { name: 'asc' } });
+      return { role: 'hq', scope: 'global', canSelectCenter: true, tabs: ['centers', 'summary', 'teachers', 'trend'], centers, policy: p };
+    }
+    if (actor.role === 'teacher') {
+      const disabled = !p.teacherEnabled || p.disabledCenters.includes(actor.centerId ?? '');
+      return { role: 'teacher', scope: 'self', enabled: !disabled, tabs: disabled ? [] : p.teacherTabs, canSelectCenter: false };
+    }
+    // 센터 관리자/HR
+    const disabled = p.disabledCenters.includes(actor.centerId ?? '');
+    return { role: 'centerAdmin', scope: 'center', centerId: actor.centerId, enabled: !disabled, tabs: disabled ? [] : p.centerAdminTabs, canSelectCenter: false };
+  }
+
+  /** 선생님 본인 성과 대시보드 — 센터 내 순위/지표/월별 추이(정책 게이팅). */
+  async myDashboard(actor: AuthUser, now = new Date()) {
+    if (actor.role !== 'teacher') throw new ForbiddenException('선생님만 조회할 수 있습니다.');
+    const p = await this.getVisibility();
+    if (!p.teacherEnabled || p.disabledCenters.includes(actor.centerId ?? '')) {
+      return { enabled: false, tabs: [] as string[] };
+    }
+    // 센터 랭킹 재사용 → 본인 행/순위 추출
+    const rank = await this.ranking(actor, {}, now);
+    const rows = rank.data as Array<Record<string, unknown> & { teacherId: string; score: number }>;
+    const me = rows.find((r) => r.teacherId === actor.id) ?? null;
+    const avgScore = rows.length ? Math.round((rows.reduce((a, r) => a + (r.score ?? 0), 0) / rows.length) * 10) / 10 : 0;
+    // 월별 추이(최근 6개월 상담·완료)
+    const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1));
+    const bookings = await this.prisma.booking.findMany({
+      where: { teacher_id: actor.id, start_at: { gte: from } },
+      select: { start_at: true, status: true },
+    });
+    const trendMap = new Map<string, { total: number; done: number }>();
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (5 - i), 1));
+      trendMap.set(d.toISOString().slice(0, 7), { total: 0, done: 0 });
+    }
+    for (const b of bookings) {
+      const ym = b.start_at ? new Date(b.start_at).toISOString().slice(0, 7) : null;
+      if (!ym || !trendMap.has(ym)) continue;
+      const e = trendMap.get(ym)!;
+      e.total += 1;
+      if (b.status === BookingStatus.DONE) e.done += 1;
+    }
+    const trend = [...trendMap.entries()].map(([month, v]) => ({ month, ...v }));
+    return {
+      enabled: true,
+      tabs: p.teacherTabs,
+      me,
+      rank: me?.rank ?? null,
+      totalInCenter: rows.length,
+      centerAvgScore: avgScore,
+      weights: rank.meta.weights,
+      trend,
+    };
+  }
 }
+
+export type DashboardVisibility = {
+  teacherEnabled: boolean;
+  centerAdminTabs: string[];
+  teacherTabs: string[];
+  disabledCenters: string[];
+};
