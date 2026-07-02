@@ -24,6 +24,7 @@ export function AdminInfraPage() {
   const { user } = useAuth();
   const isHq = user?.role === 'admin' && !user?.center_id;
   const [rt, setRt] = useState<RtFeatures | null>(null);
+  const [rev, setRev] = useState<{ offlineOnly: boolean; free: boolean } | null>(null);
   const [dash, setDash] = useState<DashPolicy | null>(null);
   const [dashCenters, setDashCenters] = useState<{ id: string; name: string }[]>([]);
   const [zoom, setZoom] = useState<number>(6);
@@ -40,6 +41,7 @@ export function AdminInfraPage() {
     // 전사 정책(실시간·대시보드)은 센터 스코프와 독립적으로 로드 — 본사 마스터(센터 미소속)도
     // 줌/상담실 조회 실패와 무관하게 정책 카드를 볼 수 있어야 함.
     api.get<RtFeatures>('/admin/realtime/policy').then(setRt).catch(() => {});
+    api.get<{ offlineOnly: boolean; free: boolean }>('/bookings/reverse/policy').then(setRev).catch(() => {});
     api.get<DashPolicy>('/admin/dashboard/policy').then(setDash).catch(() => {});
     if (isHq) api.get<{ id: string; name: string }[]>('/centers').then(setDashCenters).catch(() => {});
     // 센터 스코프 자원(줌·상담실·차단) — 본사 마스터는 센터가 없어 실패할 수 있음(무시).
@@ -101,6 +103,41 @@ export function AdminInfraPage() {
                         style={{ padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: isHq ? 'pointer' : 'not-allowed', opacity: isHq ? 1 : 0.6,
                           border: active ? '1px solid var(--teal)' : '1px solid var(--line)', background: active ? 'var(--teal)' : 'var(--surface)', color: active ? '#fff' : 'var(--muted)' }}>
                         {RT_MODE_LABEL[m]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {rev && (
+        <Card title="역상담 정책" style={{ marginBottom: 16 }}>
+          <p style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 0 }}>
+            선생님이 먼저 제안하는 역상담의 전사 규칙입니다.
+            {!isHq && <span style={{ color: 'var(--chip-rejected,#c0392b)' }}> · 변경은 본사 마스터관리자만 가능합니다.</span>}
+          </p>
+          <div style={{ display: 'grid', gap: 10, maxWidth: 620 }}>
+            {([
+              { key: 'offlineOnly' as const, label: '오프라인 대면만 허용', desc: '역상담을 오프라인 상담으로 한정(줌·채팅·필기 제외) · 본사 관리자' },
+              { key: 'free' as const, label: '크레딧 미소모', desc: '역상담은 크레딧을 차감하지 않음 · 마스터관리자' },
+            ]).map((it) => (
+              <div key={it.key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>{it.label}</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>{it.desc}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {([true, false] as const).map((v) => {
+                    const active = rev[it.key] === v;
+                    return (
+                      <button key={String(v)} disabled={!isHq}
+                        onClick={() => run(async () => { const next = await api.patch<{ offlineOnly: boolean; free: boolean }>(`/bookings/reverse/policy`, { [it.key]: v }); setRev(next); }, `${it.label} 정책 저장됨`)}
+                        style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: isHq ? 'pointer' : 'not-allowed', opacity: isHq ? 1 : 0.6,
+                          border: active ? '1px solid var(--teal)' : '1px solid var(--line)', background: active ? 'var(--teal)' : 'var(--surface)', color: active ? '#fff' : 'var(--muted)' }}>
+                        {v ? '켬' : '끔'}
                       </button>
                     );
                   })}
