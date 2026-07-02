@@ -1,4 +1,4 @@
-import { IsArray, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsArray, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 
 /** 선생님 본인 프로필 편집. */
 export class UpdateTeacherProfileDto {
@@ -7,6 +7,8 @@ export class UpdateTeacherProfileDto {
   @IsOptional() @IsArray() @IsString({ each: true }) subjects?: string[];
   @IsOptional() @IsString() career?: string;
   @IsOptional() @IsString() category?: string;
+  /** 제공 상담 방식(줌·채팅·필기·오프라인). */
+  @IsOptional() @IsArray() @IsIn(['zoom', 'chat', 'hand', 'offline'], { each: true }) modes?: string[];
 }
 
 /** 니즈 기반 추천 요청(학생). */

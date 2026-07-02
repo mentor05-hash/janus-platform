@@ -139,12 +139,17 @@ export class PeopleService {
       subjects?: string[];
       career?: string;
       category?: string;
+      modes?: string[];
     },
   ) {
     const t = await this.prisma.teacher_profile.findUnique({
       where: { account_id: teacherId },
     });
     if (!t) throw new NotFoundException('선생님 프로필이 없습니다.');
+    // 방식 정규화(중복 제거·허용값만).
+    const normModes = dto.modes
+      ? [...new Set(dto.modes.filter((m) => ['zoom', 'chat', 'hand', 'offline'].includes(m)))]
+      : undefined;
     const updated = await this.prisma.teacher_profile.update({
       where: { account_id: teacherId },
       data: {
@@ -153,6 +158,7 @@ export class PeopleService {
         ...(dto.subjects !== undefined ? { subjects: dto.subjects } : {}),
         ...(dto.career !== undefined ? { career: dto.career } : {}),
         ...(dto.category !== undefined ? { teacher_category: dto.category } : {}),
+        ...(normModes !== undefined ? { modes: normModes } : {}),
       },
       include: { account: { select: { name: true, center_id: true } } },
     });

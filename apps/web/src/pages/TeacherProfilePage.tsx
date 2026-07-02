@@ -13,12 +13,19 @@ type Profile = {
   totalConsult?: number;
   intro: string | null;
   strengths: string[];
+  modes?: string[];
   reRequestRate?: number | null;
   avgResponseMin?: number | null;
 };
 
 const STRENGTH_POOL = ['개념정리', '문제풀이', '내신대비', '수능대비', '오답관리', '동기부여', '기초탄탄', '심화학습', '입시전략', '멘탈관리'];
 const SUBJECTS = ['국어', '수학', '영어', '과학', '사회', '입시'];
+const MODE_OPTIONS: { value: string; label: string; icon: string; desc: string }[] = [
+  { value: 'zoom', label: '줌 화상', icon: '📹', desc: '얼굴 보며 화상 상담' },
+  { value: 'chat', label: '실시간 채팅', icon: '💬', desc: '텍스트·이미지 실시간 대화' },
+  { value: 'hand', label: '필기 공유', icon: '✍️', desc: '공유 화이트보드로 풀이' },
+  { value: 'offline', label: '오프라인 대면', icon: '🏫', desc: '센터 상담실 대면(점유료)' },
+];
 
 export function TeacherProfilePage() {
   const [p, setP] = useState<Profile | null>(null);
@@ -26,12 +33,13 @@ export function TeacherProfilePage() {
   const [strengths, setStrengths] = useState<string[]>([]);
   const [subjects, setSubjects] = useState<string[]>([]);
   const [career, setCareer] = useState('');
+  const [modes, setModes] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
 
   function hydrate(d: Profile) {
-    setP(d); setIntro(d.intro ?? ''); setStrengths(d.strengths ?? []); setSubjects(d.subjects ?? []); setCareer(d.career ?? '');
+    setP(d); setIntro(d.intro ?? ''); setStrengths(d.strengths ?? []); setSubjects(d.subjects ?? []); setCareer(d.career ?? ''); setModes(d.modes ?? []);
   }
   useEffect(() => {
     api.get<Profile>('/teachers/me/profile').then(hydrate).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
@@ -42,7 +50,7 @@ export function TeacherProfilePage() {
   async function save() {
     setBusy(true); setMsg(''); setError('');
     try {
-      const d = await api.put<Profile>('/teachers/me/profile', { intro, strengths, subjects, career });
+      const d = await api.put<Profile>('/teachers/me/profile', { intro, strengths, subjects, career, modes });
       hydrate(d); setMsg('프로필이 저장되었습니다. 학생 검색·추천에 반영됩니다.');
     } catch (e) { setError(e instanceof ApiError ? e.message : '저장 실패'); } finally { setBusy(false); }
   }
@@ -75,6 +83,24 @@ export function TeacherProfilePage() {
           })}
         </div>
 
+        <label className="label">제공 상담 방식 <span style={{ fontWeight: 400, color: 'var(--muted)' }}>(학생이 방식으로 선생님을 찾을 때 반영)</span></label>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8, marginBottom: modes.length === 0 ? 4 : 12 }}>
+          {MODE_OPTIONS.map((m) => {
+            const on = modes.includes(m.value);
+            return (
+              <button key={m.value} type="button" onClick={() => toggle(modes, setModes, m.value)} style={{ cursor: 'pointer', textAlign: 'left', padding: '10px 12px', borderRadius: 10,
+                border: on ? '1px solid var(--teal)' : '1px solid var(--line)', background: on ? 'var(--teal-50,#F0F7FA)' : '#fff' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ width: 18, height: 18, borderRadius: 5, border: on ? 'none' : '1.5px solid var(--line)', background: on ? 'var(--teal)' : '#fff', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 800 }}>{on ? '✓' : ''}</span>
+                  <b style={{ fontSize: 14, color: on ? 'var(--teal)' : 'var(--ink)' }}>{m.icon} {m.label}</b>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4, paddingLeft: 26 }}>{m.desc}</div>
+              </button>
+            );
+          })}
+        </div>
+        {modes.length === 0 && <p style={{ fontSize: 12, color: 'var(--danger,#c0392b)', margin: '0 0 12px' }}>⚠ 방식을 하나도 선택하지 않으면 방식으로 검색하는 학생에게 노출되지 않아요.</p>}
+
         <label className="label">담당 과목</label>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
           {SUBJECTS.map((s) => {
@@ -94,6 +120,11 @@ export function TeacherProfilePage() {
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {strengths.map((s) => <Badge key={s} kind="soft">#{s}</Badge>)}
           </div>
+          {modes.length > 0 && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+              {modes.map((m) => { const o = MODE_OPTIONS.find((x) => x.value === m); return <Badge key={m} kind="done">{o?.icon} {o?.label ?? m}</Badge>; })}
+            </div>
+          )}
           {intro && <p style={{ fontSize: 14, color: 'var(--ink)', margin: '8px 0 0' }}>{intro}</p>}
         </Card>
       )}
