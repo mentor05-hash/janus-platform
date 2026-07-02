@@ -47,7 +47,27 @@ export class RealtimeGateway implements OnGatewayConnection {
     const access = await this.svc.featureAccess(user, b.student_id ?? undefined);
     client.join(`booking:${bookingId}`);
     const hist = await this.svc.history(user, bookingId);
+    // 입장 = 열람: 상대가 보낸 미확인 메시지를 읽음 처리 후 방에 읽음 통지(상대 '읽음' 표시).
+    const read = await this.svc.markRead(user, bookingId);
+    if (read.count > 0) client.to(`booking:${bookingId}`).emit('chat:read', { bookingId, readerId: read.readerId, at: read.at });
     return { ok: true, access, messages: hist.messages };
+  }
+
+  /** 입력 중 표시 — 방의 상대에게만 전달(영속 없음). */
+  @SubscribeMessage('chat:typing')
+  chatTyping(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, typing }: { bookingId: string; typing: boolean }) {
+    const user = this.user(client);
+    client.to(`booking:${bookingId}`).emit('chat:typing', { bookingId, userId: user.id, typing: !!typing });
+    return { ok: true };
+  }
+
+  /** 열람 알림 — 상대가 보낸 메시지를 읽음 처리하고 방에 통지. */
+  @SubscribeMessage('chat:read')
+  async chatRead(@ConnectedSocket() client: Socket, @MessageBody() { bookingId }: { bookingId: string }) {
+    const user = this.user(client);
+    const read = await this.svc.markRead(user, bookingId);
+    if (read.count > 0) client.to(`booking:${bookingId}`).emit('chat:read', { bookingId, readerId: read.readerId, at: read.at });
+    return { ok: true, count: read.count };
   }
 
   @SubscribeMessage('chat:send')

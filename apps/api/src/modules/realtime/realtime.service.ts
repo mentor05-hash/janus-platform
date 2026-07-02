@@ -98,8 +98,33 @@ export class RealtimeService {
     return this.shape(m, senderId);
   }
 
-  private shape(m: { id: string; sender_id: string | null; kind: string; body: string | null; image_file_id: string | null; created_at: Date }, viewerId: string) {
-    return { id: m.id, senderId: m.sender_id, mine: m.sender_id === viewerId, kind: m.kind, body: m.body, imageFileId: m.image_file_id, createdAt: m.created_at };
+  private shape(m: { id: string; sender_id: string | null; kind: string; body: string | null; image_file_id: string | null; created_at: Date; read_at?: Date | null }, viewerId: string) {
+    return { id: m.id, senderId: m.sender_id, mine: m.sender_id === viewerId, kind: m.kind, body: m.body, imageFileId: m.image_file_id, createdAt: m.created_at, readAt: m.read_at ?? null };
+  }
+
+  /** 이 사용자가 방을 열람 → 상대가 보낸 미확인 메시지를 읽음 처리. 반환: 처리 건수 + 시각. */
+  async markRead(user: AuthUser, bookingId: string) {
+    await this.assertRoomAccess(user, bookingId);
+    const at = new Date();
+    const r = await this.prisma.chat_message.updateMany({
+      where: { booking_id: bookingId, sender_id: { not: user.id }, read_at: null },
+      data: { read_at: at },
+    });
+    return { count: r.count, at, readerId: user.id };
+  }
+
+  /** 내 예약들의 미확인(상대가 보낸 안 읽은) 메시지 수 — 예약별. 목록 배지용. */
+  async unreadCounts(user: AuthUser): Promise<Record<string, number>> {
+    const rows = await this.prisma.$queryRaw<Array<{ booking_id: string; n: bigint }>>`
+      SELECT cm.booking_id, count(*)::int AS n
+      FROM chat_message cm JOIN booking b ON b.id = cm.booking_id
+      WHERE (b.student_id = ${user.id}::uuid OR b.teacher_id = ${user.id}::uuid)
+        AND cm.sender_id IS DISTINCT FROM ${user.id}::uuid
+        AND cm.read_at IS NULL
+      GROUP BY cm.booking_id`;
+    const out: Record<string, number> = {};
+    for (const r of rows) out[r.booking_id] = Number(r.n);
+    return out;
   }
 
   async saveSnapshot(userId: string, bookingId: string, strokes: unknown) {

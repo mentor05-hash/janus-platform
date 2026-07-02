@@ -5,7 +5,7 @@ import { api } from '../api';
 import { R, useTheme, type Palette } from '../theme';
 import { useWebBack } from '../webBack';
 
-type Msg = { id: string; senderId: string | null; mine?: boolean; kind: string; body: string | null; imageFileId: string | null; createdAt: string };
+type Msg = { id: string; senderId: string | null; mine?: boolean; kind: string; body: string | null; imageFileId: string | null; createdAt: string; readAt?: string | null };
 const KST = (iso: string) => new Date(iso).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
 // 서버가 계산한 mine 을 신뢰(수신자별). 없을 때만 클라이언트 myId 로 폴백.
 const mineOf = (m: Msg, myId: string) => (typeof m.mine === 'boolean' ? m.mine : m.senderId === myId);
@@ -26,8 +26,11 @@ export function ChatScreen({ bookingId, myId, title, onClose }: { bookingId: str
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState('');
   const [status, setStatus] = useState<'connecting' | 'ready' | 'off'>('connecting');
+  const [peerTyping, setPeerTyping] = useState(false);
   const sockRef = useRef<Socket | null>(null);
   const scrollRef = useRef<ScrollView>(null);
+  const typingOffRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const peerTypingOffRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useWebBack(true, onClose);
 
   useEffect(() => {
@@ -42,16 +45,35 @@ export function ChatScreen({ bookingId, myId, title, onClose }: { bookingId: str
         setStatus('ready');
       });
     });
-    s.on('chat:message', (m: Msg) => setMsgs((p) => [...p, { ...m, mine: mineOf(m, myId) }]));
+    s.on('chat:message', (m: Msg) => {
+      setMsgs((p) => [...p, { ...m, mine: mineOf(m, myId) }]);
+      if (!mineOf(m, myId)) s.emit('chat:read', { bookingId });
+    });
+    s.on('chat:read', ({ readerId, at }: { readerId: string; at: string }) => {
+      setMsgs((p) => p.map((m) => (m.senderId !== readerId && !m.readAt ? { ...m, readAt: at } : m)));
+    });
+    s.on('chat:typing', ({ userId, typing }: { userId: string; typing: boolean }) => {
+      if (userId === myId) return;
+      setPeerTyping(typing);
+      if (peerTypingOffRef.current) clearTimeout(peerTypingOffRef.current);
+      if (typing) peerTypingOffRef.current = setTimeout(() => setPeerTyping(false), 3500);
+    });
     return () => { s.disconnect(); };
   }, [bookingId, myId]);
 
-  useEffect(() => { setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50); }, [msgs]);
+  useEffect(() => { setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50); }, [msgs, peerTyping]);
 
+  function onType(v: string) {
+    setText(v);
+    sockRef.current?.emit('chat:typing', { bookingId, typing: true });
+    if (typingOffRef.current) clearTimeout(typingOffRef.current);
+    typingOffRef.current = setTimeout(() => sockRef.current?.emit('chat:typing', { bookingId, typing: false }), 1500);
+  }
   function send() {
     const body = text.trim();
     if (!body) return;
     sockRef.current?.emit('chat:send', { bookingId, body });
+    sockRef.current?.emit('chat:typing', { bookingId, typing: false });
     setText('');
   }
   function pickImage() {
@@ -82,14 +104,15 @@ export function ChatScreen({ bookingId, myId, title, onClose }: { bookingId: str
                 <View style={[styles.bubble, m.mine ? styles.mine : styles.theirs, m.kind === 'image' && { padding: 5 }]}>
                   {m.kind === 'image' && m.imageFileId ? <ChatImage fileId={m.imageFileId} /> : <Text style={[styles.bubbleT, m.mine && { color: '#fff' }]}>{m.body}</Text>}
                 </View>
-                <Text style={[styles.time, { textAlign: m.mine ? 'right' : 'left' }]}>{KST(m.createdAt)}</Text>
+                <Text style={[styles.time, { textAlign: m.mine ? 'right' : 'left' }]}>{m.mine && m.readAt ? '읽음 · ' : ''}{KST(m.createdAt)}</Text>
               </View>
             ))}
+          {peerTyping && <Text style={[styles.hint, { textAlign: 'left', marginTop: 2, fontStyle: 'italic' }]}>입력 중…</Text>}
         </ScrollView>
         {status !== 'off' && (
           <View style={styles.inputRow}>
             <TouchableOpacity onPress={pickImage} style={styles.imgBtn}><Text style={{ fontSize: 20 }}>📷</Text></TouchableOpacity>
-            <TextInput style={styles.input} value={text} onChangeText={setText} placeholder="메시지 입력…" placeholderTextColor={C.caption} onSubmitEditing={send} returnKeyType="send" />
+            <TextInput style={styles.input} value={text} onChangeText={onType} placeholder="메시지 입력…" placeholderTextColor={C.caption} onSubmitEditing={send} returnKeyType="send" />
             <TouchableOpacity onPress={send} disabled={!text.trim()} style={[styles.sendBtn, !text.trim() && { opacity: 0.5 }]}><Text style={styles.sendT}>전송</Text></TouchableOpacity>
           </View>
         )}

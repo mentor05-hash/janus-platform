@@ -22,6 +22,12 @@ export class RealtimeController {
     return this.svc.history(user, bookingId);
   }
 
+  /** GET /chat/unread — 내 예약별 미확인 메시지 수(목록 배지용). */
+  @Get('chat/unread')
+  unread(@CurrentUser() user: AuthUser) {
+    return this.svc.unreadCounts(user);
+  }
+
   /** GET /realtime/features?studentId= — 내게 열린 실시간 기능(탭/버튼 표시용). */
   @Get('realtime/features')
   features(@CurrentUser() user: AuthUser, @Query('studentId') studentId?: string) {

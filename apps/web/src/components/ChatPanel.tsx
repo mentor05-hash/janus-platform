@@ -4,7 +4,7 @@ import { api } from '../api/client';
 import { AuthImage } from './AuthImage';
 import { mineOf } from '../utils/chat';
 
-type Msg = { id: string; senderId: string | null; mine?: boolean; kind: string; body: string | null; imageFileId: string | null; createdAt: string };
+type Msg = { id: string; senderId: string | null; mine?: boolean; kind: string; body: string | null; imageFileId: string | null; createdAt: string; readAt?: string | null };
 const KST = (iso: string) => new Date(iso).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
 
 /** 예약 기반 실시간 채팅. myId 로 좌/우 정렬(브로드캐스트 메시지엔 mine 미포함). */
@@ -12,9 +12,12 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState('');
   const [status, setStatus] = useState<'connecting' | 'ready' | 'off'>('connecting');
+  const [peerTyping, setPeerTyping] = useState(false);
   const sockRef = useRef<Socket | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const typingOffRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const peerTypingOffRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('itall_access') ?? '';
@@ -27,16 +30,36 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
         setStatus('ready');
       });
     });
-    s.on('chat:message', (m: Msg) => setMsgs((p) => [...p, { ...m, mine: mineOf(m, myId) }]));
+    s.on('chat:message', (m: Msg) => {
+      setMsgs((p) => [...p, { ...m, mine: mineOf(m, myId) }]);
+      if (!mineOf(m, myId)) s.emit('chat:read', { bookingId }); // 열람 중이면 즉시 읽음
+    });
+    // 상대가 내 메시지를 읽음 → 내 메시지에 읽음 표시
+    s.on('chat:read', ({ readerId, at }: { readerId: string; at: string }) => {
+      setMsgs((p) => p.map((m) => (m.senderId !== readerId && !m.readAt ? { ...m, readAt: at } : m)));
+    });
+    s.on('chat:typing', ({ userId, typing }: { userId: string; typing: boolean }) => {
+      if (userId === myId) return;
+      setPeerTyping(typing);
+      if (peerTypingOffRef.current) clearTimeout(peerTypingOffRef.current);
+      if (typing) peerTypingOffRef.current = setTimeout(() => setPeerTyping(false), 3500);
+    });
     return () => { s.disconnect(); };
   }, [bookingId, myId]);
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs, peerTyping]);
 
+  function onType(v: string) {
+    setText(v);
+    sockRef.current?.emit('chat:typing', { bookingId, typing: true });
+    if (typingOffRef.current) clearTimeout(typingOffRef.current);
+    typingOffRef.current = setTimeout(() => sockRef.current?.emit('chat:typing', { bookingId, typing: false }), 1500);
+  }
   function send() {
     const body = text.trim();
     if (!body) return;
     sockRef.current?.emit('chat:send', { bookingId, body });
+    sockRef.current?.emit('chat:typing', { bookingId, typing: false });
     setText('');
   }
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -63,16 +86,19 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
                 <div style={{ background: m.mine ? 'var(--teal)' : 'var(--surface)', color: m.mine ? '#fff' : 'var(--ink)', border: m.mine ? 'none' : '1px solid var(--line)', borderRadius: 12, padding: m.kind === 'image' ? 6 : '8px 12px', fontSize: 14, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                   {m.kind === 'image' && m.imageFileId ? <AuthImage fileId={m.imageFileId} size={160} /> : m.body}
                 </div>
-                <div style={{ fontSize: 10, color: 'var(--caption)', textAlign: m.mine ? 'right' : 'left', marginTop: 2 }}>{KST(m.createdAt)}</div>
+                <div style={{ fontSize: 10, color: 'var(--caption)', textAlign: m.mine ? 'right' : 'left', marginTop: 2 }}>
+                  {m.mine && m.readAt && <span style={{ color: 'var(--teal)', marginRight: 4 }}>읽음</span>}{KST(m.createdAt)}
+                </div>
               </div>
             ))}
+          {peerTyping && <div style={{ alignSelf: 'flex-start', fontSize: 12, color: 'var(--muted)', fontStyle: 'italic', padding: '2px 4px' }}>입력 중…</div>}
           <div ref={endRef} />
         </div>
         {status !== 'off' && (
           <div style={{ display: 'flex', gap: 6, padding: 10, borderTop: '1px solid var(--line)', alignItems: 'center' }}>
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
             <button onClick={() => fileRef.current?.click()} title="이미지" aria-label="이미지 첨부" style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer' }}>📷</button>
-            <input className="input" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && send()} placeholder="메시지 입력…" aria-label="메시지 입력" />
+            <input className="input" value={text} onChange={(e) => onType(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && send()} placeholder="메시지 입력…" aria-label="메시지 입력" />
             <button className="btn sm" onClick={send} disabled={!text.trim()}>전송</button>
           </div>
         )}

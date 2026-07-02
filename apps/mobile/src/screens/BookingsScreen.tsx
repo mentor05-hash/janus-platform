@@ -112,6 +112,7 @@ export function BookingsScreen({ myId }: { myId?: string }) {
   const [reschedule, setReschedule] = useState<Booking | null>(null);
   const [chatId, setChatId] = useState<string | null>(null);
   const [chatOn, setChatOn] = useState(false);
+  const [unread, setUnread] = useState<Record<string, number>>({});
   const [wbId, setWbId] = useState<string | null>(null);
   const [wbOn, setWbOn] = useState(false);
   const [msg, setMsg] = useState('');
@@ -122,6 +123,10 @@ export function BookingsScreen({ myId }: { myId?: string }) {
     api.get<{ data?: Booking[] } | Booking[]>('/bookings?role=student')
       .then((r) => setBookings(Array.isArray(r) ? r : (r.data ?? [])))
       .catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
+    loadUnread();
+  }
+  function loadUnread() {
+    api.get<Record<string, number>>('/chat/unread').then(setUnread).catch(() => {});
   }
   useEffect(() => {
     load();
@@ -230,6 +235,7 @@ export function BookingsScreen({ myId }: { myId?: string }) {
               {chatOn && myId && b.status !== 'new' && (
                 <TouchableOpacity style={styles.chatBtn} onPress={() => setChatId(b.id)}>
                   <Text style={styles.chatT}>💬 상담 채팅</Text>
+                  {(unread[b.id] ?? 0) > 0 && <View style={styles.badge}><Text style={styles.badgeT}>{unread[b.id] > 99 ? '99+' : unread[b.id]}</Text></View>}
                 </TouchableOpacity>
               )}
               {wbOn && b.status !== 'new' && (
@@ -256,7 +262,7 @@ export function BookingsScreen({ myId }: { myId?: string }) {
           );
         })
       )}
-      {chatId && myId && <ChatScreen bookingId={chatId} myId={myId} title="상담 채팅" onClose={() => setChatId(null)} />}
+      {chatId && myId && <ChatScreen bookingId={chatId} myId={myId} title="상담 채팅" onClose={() => { setChatId(null); loadUnread(); }} />}
       {wbId && <WhiteboardScreen bookingId={wbId} title="공유 화이트보드" onClose={() => setWbId(null)} />}
     </ScrollView>
   );
@@ -299,4 +305,6 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   reportT: { color: C.danger, fontWeight: '700', fontSize: 13 },
   chatBtn: { marginTop: 10, borderWidth: 1, borderColor: C.teal, borderRadius: 9, paddingVertical: 10, alignItems: 'center' },
   chatT: { color: C.teal, fontWeight: '800', fontSize: 13 },
+  badge: { position: 'absolute', top: 4, right: 10, minWidth: 20, height: 20, borderRadius: 10, backgroundColor: '#E5484D', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
+  badgeT: { color: '#fff', fontSize: 11, fontWeight: '800' },
 });
