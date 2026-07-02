@@ -35,6 +35,8 @@ export function useWebBack(active: boolean, onBack: () => void) {
     if (!active) return;
     const h = () => ref.current();
     backStack.push(h);
+    // forward 시 실제 히스토리 엔트리를 쌓아 브라우저/제스처 back 과 1:1 매칭(이탈 방지).
+    if (typeof window !== 'undefined' && window.history?.pushState) window.history.pushState({ itall: true }, '');
     return () => backStack.remove(h);
   }, [active]);
 }

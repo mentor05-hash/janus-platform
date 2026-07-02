@@ -35,14 +35,21 @@ function AppInner() {
   const [bookMode, setBookMode] = useState<string | undefined>(undefined);
   const [children, setChildren] = useState<Child[]>([]);
   const [activeChild, setActiveChild] = useState<string | null>(null);
+  // 화면이 깊어질 때마다 실제 히스토리 엔트리를 쌓는다 — 브라우저/제스처 back 과 1:1 로 맞춰
+  // 모바일에서 서비스 이탈을 막는다(단일 센티넬 재장전 방식은 스와이프 back 에서 취약).
+  const pushGuard = () => {
+    if (typeof window !== 'undefined' && window.history?.pushState) window.history.pushState({ itall: true }, '');
+  };
   // 탭 이동 이력 — 뒤로가기가 홈이 아니라 '직전 탭'으로 복귀하도록(App back 검증).
   const tabHist = useRef<string[]>([]);
   const goTab = (next: string) => {
-    if (next !== tab) tabHist.current.push(tab);
+    if (next !== tab) { tabHist.current.push(tab); pushGuard(); }
     setTab(next);
     setTeacher(null);
     setBooking(false);
   };
+  const openTeacher = (t: Teacher, m?: string) => { setTeacher(t); setBooking(false); setBookMode(m); pushGuard(); };
+  const openBooking = () => { setBooking(true); pushGuard(); };
 
   useEffect(() => {
     loadTokens().then(async () => {
@@ -83,11 +90,12 @@ function AppInner() {
   };
   useEffect(() => {
     if (typeof window === 'undefined' || !window.history?.pushState) return;
-    window.history.pushState({ itall: true }, '');
+    window.history.pushState({ itall: true }, ''); // 홈 기준 센티넬 1개
     const onPop = () => {
-      appBackRef.current();
-      // 버퍼 엔트리를 다시 쌓아 다음 뒤로가기도 앱 내부에서 처리(링크 이탈 방지).
-      window.history.pushState({ itall: true }, '');
+      // 깊은 화면은 forward 시 이미 엔트리를 쌓았으므로 back 이 그걸 소비 → 재장전 불필요.
+      // 홈 최상위(처리할 게 없음)일 때만 센티넬을 다시 쌓아 서비스 이탈을 막는다.
+      const handled = appBackRef.current();
+      if (!handled) window.history.pushState({ itall: true }, '');
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
@@ -147,10 +155,10 @@ function AppInner() {
               booking ? (
                 <SlotsScreen teacher={teacher} initialMode={bookMode} onBack={() => setBooking(false)} />
               ) : (
-                <TeacherDetailScreen teacher={teacher} onBack={() => setTeacher(null)} onBook={() => setBooking(true)} />
+                <TeacherDetailScreen teacher={teacher} onBack={() => setTeacher(null)} onBook={openBooking} />
               )
             ) : (
-              <SearchScreen onPick={(t, m) => { setTeacher(t); setBooking(false); setBookMode(m); }} onGoQna={() => goTab('c')} />
+              <SearchScreen onPick={(t, m) => openTeacher(t, m)} onGoQna={() => goTab('c')} />
             )
           ) : tab === 'b' ? (
             <BookingsScreen myId={me.id} />
