@@ -35,6 +35,9 @@ function AppInner() {
   const [bookMode, setBookMode] = useState<string | undefined>(undefined);
   const [children, setChildren] = useState<Child[]>([]);
   const [activeChild, setActiveChild] = useState<string | null>(null);
+  const [exitHint, setExitHint] = useState(false); // 홈에서 '한 번 더 누르면 종료' 토스트
+  const exitArmed = useRef(false);
+  const exitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 화면이 깊어질 때마다 실제 히스토리 엔트리를 쌓는다 — 브라우저/제스처 back 과 1:1 로 맞춰
   // 모바일에서 서비스 이탈을 막는다(단일 센티넬 재장전 방식은 스와이프 back 에서 취약).
   const pushGuard = () => {
@@ -86,7 +89,19 @@ function AppInner() {
     if (booking) { setBooking(false); return true; }
     if (teacher) { setTeacher(null); return true; }
     if (tab !== 'a') { setTab(tabHist.current.pop() ?? 'a'); return true; } // 직전 탭으로 복귀(없으면 홈)
-    return false; // 홈 최상위 — 이탈 대신 그대로 유지
+    // 홈 최상위: 첫 뒤로가기는 종료 안내 후 유지, 2초 내 다시 누르면 종료 허용.
+    if (exitArmed.current) {
+      exitArmed.current = false;
+      setExitHint(false);
+      if (exitTimer.current) clearTimeout(exitTimer.current);
+      if (typeof window !== 'undefined' && window.history) setTimeout(() => window.history.back(), 0); // 실제 이탈
+      return true; // 재장전하지 않음 → 앱을 벗어남
+    }
+    exitArmed.current = true;
+    setExitHint(true);
+    if (exitTimer.current) clearTimeout(exitTimer.current);
+    exitTimer.current = setTimeout(() => { exitArmed.current = false; setExitHint(false); }, 2000);
+    return false; // 센티넬 재장전 → 유지(+ 종료 안내 토스트)
   };
   useEffect(() => {
     if (typeof window === 'undefined' || !window.history?.pushState) return;
@@ -200,6 +215,12 @@ function AppInner() {
           ))}
         </View>
       )}
+
+      {exitHint && (
+        <View pointerEvents="none" style={styles.exitToast}>
+          <Text style={styles.exitToastT}>뒤로 한 번 더 누르면 종료됩니다</Text>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -212,6 +233,8 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   logout: { color: '#cfe3ec', fontSize: 13, fontWeight: '600' },
   body: { flex: 1 },
   notice: { padding: SP.xl, color: C.muted },
+  exitToast: { position: 'absolute', left: 0, right: 0, bottom: 76, alignItems: 'center' },
+  exitToastT: { backgroundColor: 'rgba(22,36,43,0.92)', color: '#fff', fontSize: 13, fontWeight: '700', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, overflow: 'hidden' },
   tabs: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: C.line, backgroundColor: C.white, paddingBottom: 4 },
   tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderTopWidth: 2, borderTopColor: 'transparent' },
   tabActiveBox: { borderTopColor: C.teal },
