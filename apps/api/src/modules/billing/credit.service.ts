@@ -29,10 +29,44 @@ export class CreditService {
     private readonly notify: NotifyService,
   ) {}
 
-  async getAccount(studentId: string) {
-    const acct = await this.prisma.credit_account.findUnique({
+  /** 기본 초기 크레딧(등급 미상 시 폴백) — Basic 주간부여와 동일. */
+  private static readonly DEFAULT_INITIAL_GRANT = 2000;
+
+  /**
+   * 크레딧 계좌 조회 — 없으면 생성하고 등급별 초기 크레딧을 부여한다.
+   * (신규 가입·HR 등록 학생이 계좌 없이 404 → 무한 로딩 되는 문제 방지.)
+   */
+  private async ensureAccount(studentId: string) {
+    const existing = await this.prisma.credit_account.findUnique({
       where: { student_id: studentId },
     });
+    if (existing) return existing;
+    // 등급의 주간부여량을 초기 크레딧으로(구독 미가입/등급 미상 시 폴백).
+    const sp = await this.prisma.student_profile.findUnique({
+      where: { account_id: studentId },
+      select: { membership_grade: { select: { weekly_credits: true } } },
+    });
+    const grant = sp?.membership_grade?.weekly_credits ?? CreditService.DEFAULT_INITIAL_GRANT;
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const acct = await tx.credit_account.create({
+          data: { student_id: studentId, purchased_balance: 0, granted_balance: grant, reserved_credits: 0 },
+        });
+        if (grant > 0) {
+          await tx.credit_transaction.create({
+            data: { account_id: acct.id, type: CreditTxnType.WEEKLY_GRANT, amount: grant, balance: grant, description: '초기 크레딧 부여' },
+          });
+        }
+        return acct;
+      });
+    } catch {
+      // 동시 생성 경합 등 — 재조회로 복구.
+      return this.prisma.credit_account.findUnique({ where: { student_id: studentId } });
+    }
+  }
+
+  async getAccount(studentId: string) {
+    const acct = await this.ensureAccount(studentId);
     if (!acct) throw new NotFoundException('크레딧 계좌가 없습니다.');
     return {
       studentId,
@@ -44,10 +78,8 @@ export class CreditService {
   }
 
   async listTransactions(studentId: string, limit = 50) {
-    const acct = await this.prisma.credit_account.findUnique({
-      where: { student_id: studentId },
-    });
-    if (!acct) throw new NotFoundException('크레딧 계좌가 없습니다.');
+    const acct = await this.ensureAccount(studentId);
+    if (!acct) return [];
     return this.prisma.credit_transaction.findMany({
       where: { account_id: acct.id },
       orderBy: { created_at: 'desc' },

@@ -7,21 +7,27 @@ type Tx = { id: string; amount: number; kind: string; reason?: string | null; cr
 
 export function StudentCreditsPage() {
   const [acc, setAcc] = useState<CreditAccount | null>(null);
+  const [loading, setLoading] = useState(true);
   const [txs, setTxs] = useState<Tx[] | null>(null);
   const [error, setError] = useState('');
   useEffect(() => {
-    api.get<CreditAccount>('/credits/account').then(setAcc).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
+    api.get<CreditAccount>('/credits/account')
+      .then(setAcc)
+      .catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'))
+      .finally(() => setLoading(false)); // 실패해도 스피너를 멈춰 무한 로딩 방지
     api.get<{ data?: Tx[] } | Tx[]>('/credits/transactions').then((r) => setTxs(Array.isArray(r) ? r : (r.data ?? []))).catch(() => setTxs([]));
   }, []);
   return (
     <div>
       <PageHeader title="크레딧" sub="보유 크레딧과 사용 내역입니다." />
       {error && <ErrorText>{error}</ErrorText>}
-      {acc === null ? <Spinner /> : (
+      {loading ? <Spinner /> : acc ? (
         <Card style={{ maxWidth: 460 }}>
           <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--teal)' }}>{acc.total.toLocaleString()} <span style={{ fontSize: 15, color: 'var(--muted)' }}>크레딧</span></div>
           <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>주간부여 {acc.grantedBalance.toLocaleString()} · 구매분 {acc.purchasedBalance.toLocaleString()}</div>
         </Card>
+      ) : (
+        <Card style={{ maxWidth: 460 }}><EmptyState>크레딧 정보를 불러오지 못했어요.</EmptyState></Card>
       )}
       <h3 style={{ fontSize: 15, margin: '18px 0 8px' }}>사용 내역</h3>
       {txs === null ? <Spinner /> : txs.length === 0 ? <Card><EmptyState>내역이 없어요.</EmptyState></Card> : (
