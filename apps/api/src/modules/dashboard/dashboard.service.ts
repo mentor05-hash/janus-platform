@@ -139,6 +139,10 @@ export class DashboardService {
       const ym = this.normYearMonth(String(norm['기간'] ?? norm['월'] ?? norm['년월'] ?? '').trim());
       const hoursRaw = norm['시수'] ?? norm['근무시수'] ?? norm['시간'] ?? norm['hours'];
       const empType = String(norm['고용형태'] ?? norm['근무형태'] ?? '').trim() || null;
+      // 근무자별 단가(선택): 건당단가·시급·기본급 — 있으면 정책보다 우선 적용.
+      const perCase = this.parseWon(norm['건당단가'] ?? norm['건당']);
+      const hourly = this.parseWon(norm['시급']);
+      const basePay = this.parseWon(norm['기본급'] ?? norm['기본급여']);
       const hours = Number(hoursRaw);
       if ((!loginId && !name) || !ym) { result.skipped++; result.errors.push(`${i + 2}행: 아이디(또는 이름)/기간 누락`); continue; }
       if (hoursRaw == null || Number.isNaN(hours) || hours < 0 || hours > 744) { result.skipped++; result.errors.push(`${i + 2}행: 시수 값 오류(0~744)`); continue; }
@@ -148,11 +152,24 @@ export class DashboardService {
         const data = { hours, updated_by: actor.id, updated_at: new Date() };
         if (existing) await this.prisma.teacher_monthly_hours.update({ where: { id: existing.id }, data });
         else await this.prisma.teacher_monthly_hours.create({ data: { teacher_id: teacher.account_id, year_month: ym, ...data } });
-        if (empType) await this.prisma.teacher_profile.update({ where: { account_id: teacher.account_id }, data: { employment_type: empType } });
+        // 고용형태·단가는 값이 있는 컬럼만 갱신(빈 칸은 기존 유지).
+        const prof: Record<string, unknown> = {};
+        if (empType) prof.employment_type = empType;
+        if (perCase != null) prof.per_case_rate = perCase;
+        if (hourly != null) prof.hourly_rate = hourly;
+        if (basePay != null) prof.pay_base = basePay;
+        if (Object.keys(prof).length) await this.prisma.teacher_profile.update({ where: { account_id: teacher.account_id }, data: prof });
         existing ? result.updated++ : result.created++;
       } catch (e) { result.skipped++; result.errors.push(`${i + 2}행(${loginId || name}): ${(e as Error).message}`); }
     }
     return result;
+  }
+
+  /** 금액 셀 파싱(원). 빈 칸/비수치 → null(미변경). "30,000"·"30000원" 허용. */
+  private parseWon(v: unknown): number | null {
+    if (v == null || v === '') return null;
+    const n = Number(String(v).replace(/[^\d.-]/g, ''));
+    return Number.isFinite(n) && n >= 0 ? Math.round(n) : null;
   }
 
   /** 기간 문자열을 YYYY-MM 으로 정규화(2026-07 / 2026.7 / 2026년 7월 / Date 직렬화 등). */
@@ -175,15 +192,15 @@ export class DashboardService {
     return matches[0];
   }
 
-  /** 월간 시수 업로드용 엑셀 템플릿(건당·기본급 근무자 예시). */
+  /** 월간 시수 업로드용 엑셀 템플릿(근무자 유형별 단가 예시). 단가 칸은 선택(비우면 정책 단가 사용). */
   monthlyHoursTemplate(): Buffer {
     const sample = [
-      { 아이디: 'teacher01', 이름: '', 기간: '2026-07', 시수: 96, 고용형태: '기본급' },
-      { 아이디: 'teacher02', 이름: '', 기간: '2026-07', 시수: 40, 고용형태: '시급' },
-      { 아이디: 'teacher03', 이름: '', 기간: '2026-07', 시수: 0, 고용형태: '건당' },
+      { 아이디: 'teacher01', 이름: '', 기간: '2026-07', 시수: 96, 고용형태: '기본급', 기본급: 2500000, 시급: '', 건당단가: '' },
+      { 아이디: 'teacher02', 이름: '', 기간: '2026-07', 시수: 40, 고용형태: '시급', 기본급: '', 시급: 25000, 건당단가: '' },
+      { 아이디: 'teacher03', 이름: '', 기간: '2026-07', 시수: 0, 고용형태: '건당', 기본급: '', 시급: '', 건당단가: 35000 },
     ];
     const ws = XLSX.utils.json_to_sheet(sample);
-    ws['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 8 }, { wch: 10 }];
+    ws['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 10 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '월간시수');
     return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;

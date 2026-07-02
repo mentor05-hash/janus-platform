@@ -86,6 +86,7 @@ export interface Payroll {
     perCaseRate: number;
     qnaRate: number;
     gradeAllowance: number;
+    basePay: number;
     incentive: number;
     workMinutes: number;
     workHoursPay: number;
@@ -94,7 +95,7 @@ export interface Payroll {
     staleBonus: number;
     staleAnswerBonus: number;
   };
-  rates: { perCaseRate: number; qnaRate: number; hourlyRate: number; staleAnswerBonus: number };
+  rates: { perCaseRate: number; qnaRate: number; hourlyRate: number; staleAnswerBonus: number; basePay?: number; employmentType?: string | null };
   gradeTable: Record<string, number>;
 }
 

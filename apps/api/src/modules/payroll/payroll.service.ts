@@ -253,7 +253,11 @@ export class PayrollService {
       policies.find((p) => p.teacher_category === teacher.teacher_category) ??
       policies.find((p) => !p.teacher_category) ??
       null;
-    const rates = this.resolveRates(policy, teacher.grade);
+    const rates = this.resolveRates(policy, teacher.grade, {
+      perCaseRate: teacher.per_case_rate,
+      hourlyRate: teacher.hourly_rate,
+      basePay: teacher.pay_base,
+    });
     const base = computePayroll(
       {
         doneCount,
@@ -287,12 +291,17 @@ export class PayrollService {
         qnaRate: rates.qnaRate,
         hourlyRate: rates.hourlyRate,
         staleAnswerBonus: rates.staleAnswerBonus,
+        basePay: rates.basePay ?? 0,
+        employmentType: teacher.employment_type ?? null,
       },
       gradeTable: gradeMap ?? {},
     };
   }
 
-  /** payroll_policy 우선(등급 수당은 grade_allowance 맵에서 교사 등급으로 조회), 없으면 ENV. */
+  /**
+   * 단가 결정 우선순위: 근무자별 지정(teacher) → payroll_policy → ENV.
+   * 기본급(basePay)은 근무자별 pay_base(고정 월 기본급).
+   */
   private resolveRates(
     policy: {
       per_case_rate: number | null;
@@ -302,6 +311,7 @@ export class PayrollService {
       auto_incentive?: unknown;
     } | null,
     grade: string,
+    teacher?: { perCaseRate?: number | null; hourlyRate?: number | null; basePay?: number | null },
   ): PayrollRates {
     const envNum = (key: string, fallback: number) =>
       Number(this.config.get(key) ?? fallback);
@@ -310,11 +320,12 @@ export class PayrollService {
     const ai = (policy?.auto_incentive as { staleBonus?: number } | null) ?? null;
     return {
       perCaseRate:
-        policy?.per_case_rate ?? envNum('PAYROLL_PER_CASE_RATE', 30_000),
+        teacher?.perCaseRate ?? policy?.per_case_rate ?? envNum('PAYROLL_PER_CASE_RATE', 30_000),
       qnaRate: policy?.qna_rate ?? envNum('PAYROLL_QNA_RATE', 5_000),
       gradeAllowance: gradeMap?.[grade] ?? envNum('PAYROLL_GRADE_ALLOWANCE', 0),
-      hourlyRate: policy?.hourly_rate ?? envNum('PAYROLL_HOURLY_RATE', 0),
+      hourlyRate: teacher?.hourlyRate ?? policy?.hourly_rate ?? envNum('PAYROLL_HOURLY_RATE', 0),
       staleAnswerBonus: ai?.staleBonus ?? envNum('PAYROLL_STALE_BONUS', 0),
+      basePay: teacher?.basePay ?? 0,
     };
   }
 

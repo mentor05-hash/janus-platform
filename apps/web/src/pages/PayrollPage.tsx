@@ -101,6 +101,7 @@ export function PayrollPage() {
           {view === 'expected' && <li>예정 상담(예상): {b.upcomingCases}건 × {won(b.perCaseRate)}</li>}
           <li>채택 Q&amp;A: {b.qnaAccepted}건 × {won(b.qnaRate)}</li>
           {(b.hourlyRate > 0 || b.workHoursPay > 0) && <li>근무시간 기반: {Math.round(b.workMinutes / 6) / 10}시간 × {won(b.hourlyRate)} = {won(b.workHoursPay)}</li>}
+          {(b.basePay ?? 0) > 0 && <li>기본급{p.rates.employmentType && p.rates.employmentType !== '기본급' ? `(${p.rates.employmentType})` : ''}: {won(b.basePay)}</li>}
           {(b.staleAnswerBonus > 0 || b.staleBonus > 0) && <li>48시간 미답 보상: {b.staleAnswerCount}건 × {won(b.staleAnswerBonus)} = {won(b.staleBonus)}</li>}
           <li>등급 수당({p.grade}급): {won(b.gradeAllowance)}</li>
           <li>자동 인센티브: {won(p.incentive)} {p.incentiveOn ? <Badge kind="done">ON</Badge> : <Badge kind="soft">OFF</Badge>}</li>

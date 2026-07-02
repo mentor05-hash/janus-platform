@@ -16,6 +16,7 @@ export interface PayrollRates {
   gradeAllowance: number; // 등급 수당(고정)
   hourlyRate: number; // 근무시간 시급(T5b)
   staleAnswerBonus: number; // 48h 미답 답변 건당 보상(T5c)
+  basePay?: number; // 근무자별 고정 월 기본급(기본급 근무자). 선택 — 없으면 0.
 }
 
 export interface PayrollEstimate {
@@ -28,6 +29,7 @@ export interface PayrollEstimate {
     perCaseRate: number;
     qnaRate: number;
     gradeAllowance: number;
+    basePay: number;
     workMinutes: number;
     workHoursPay: number;
     hourlyRate: number;
@@ -63,10 +65,12 @@ export function computePayroll(
 ): PayrollEstimate {
   const workHoursPay = Math.round((input.workMinutes / 60) * rates.hourlyRate);
   const staleBonus = input.staleAnswerCount * rates.staleAnswerBonus;
+  const basePay = rates.basePay ?? 0; // 기본급(고정)
   const confirmedAmount =
     input.doneCount * rates.perCaseRate +
     input.qnaAcceptedCount * rates.qnaRate +
     rates.gradeAllowance +
+    basePay +
     workHoursPay +
     staleBonus;
   // 예상분 = 확정분 + 예정 상담의 건당 추정
@@ -82,6 +86,7 @@ export function computePayroll(
       perCaseRate: rates.perCaseRate,
       qnaRate: rates.qnaRate,
       gradeAllowance: rates.gradeAllowance,
+      basePay,
       workMinutes: input.workMinutes,
       workHoursPay,
       hourlyRate: rates.hourlyRate,

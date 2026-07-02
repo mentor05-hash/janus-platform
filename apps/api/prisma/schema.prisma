@@ -793,6 +793,8 @@ model teacher_profile {
   re_request_rate                                                    Decimal?                       @db.Decimal(4, 1)
   avg_response_min                                                   Int?
   pay_base                                                           Int?
+  per_case_rate                                                      Int?
+  hourly_rate                                                        Int?
   teacher_category                                                   String?
   type_code                                                          String?
   cancel_count                                                       Int                            @default(0)
