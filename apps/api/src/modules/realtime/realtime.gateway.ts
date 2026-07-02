@@ -58,8 +58,12 @@ export class RealtimeGateway implements OnGatewayConnection {
     if (!access.chat) return { ok: false, error: '채팅이 비활성화되어 있습니다.' };
     if (!body?.trim() && !imageFileId) return { ok: false };
     const msg = await this.svc.saveMessage(user.id, bookingId, imageFileId ? 'image' : 'text', body?.trim() || null, imageFileId ?? null);
-    // 방 전체에 브로드캐스트(발신자 포함 — mine 판정은 senderId 로)
-    this.server.to(`booking:${bookingId}`).emit('chat:message', { ...msg, mine: undefined });
+    // 수신자별로 mine 을 서버에서 계산해 개별 전송(클라이언트 myId 오류와 무관하게 좌/우 정렬 보장).
+    const sockets = await this.server.in(`booking:${bookingId}`).fetchSockets();
+    for (const sock of sockets) {
+      const viewerId = (sock.data.user as { id?: string } | undefined)?.id;
+      sock.emit('chat:message', { ...msg, mine: msg.senderId === viewerId });
+    }
     return { ok: true, id: msg.id };
   }
 

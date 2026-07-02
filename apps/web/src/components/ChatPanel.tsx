@@ -5,6 +5,8 @@ import { AuthImage } from './AuthImage';
 
 type Msg = { id: string; senderId: string | null; mine?: boolean; kind: string; body: string | null; imageFileId: string | null; createdAt: string };
 const KST = (iso: string) => new Date(iso).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+// 서버가 계산한 mine 을 신뢰(수신자별). 없을 때만 클라이언트 myId 로 폴백.
+const mineOf = (m: Msg, myId: string) => (typeof m.mine === 'boolean' ? m.mine : m.senderId === myId);
 
 /** 예약 기반 실시간 채팅. myId 로 좌/우 정렬(브로드캐스트 메시지엔 mine 미포함). */
 export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: string; myId: string; title?: string; onClose: () => void }) {
@@ -22,11 +24,11 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
     s.on('connect', () => {
       s.emit('chat:join', { bookingId }, (r: { ok: boolean; access?: { chat: boolean }; messages?: Msg[] }) => {
         if (!r?.access?.chat) { setStatus('off'); return; }
-        setMsgs((r.messages ?? []).map((m) => ({ ...m, mine: m.senderId === myId })));
+        setMsgs((r.messages ?? []).map((m) => ({ ...m, mine: mineOf(m, myId) })));
         setStatus('ready');
       });
     });
-    s.on('chat:message', (m: Msg) => setMsgs((p) => [...p, { ...m, mine: m.senderId === myId }]));
+    s.on('chat:message', (m: Msg) => setMsgs((p) => [...p, { ...m, mine: mineOf(m, myId) }]));
     return () => { s.disconnect(); };
   }, [bookingId, myId]);
 
