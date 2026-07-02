@@ -21,6 +21,7 @@ type Filter = 'all' | 'req' | 'q' | 'noti';
 export function TeacherInbox() {
   const { C } = useTheme();
   const s = useMemo(() => mk(C), [C]);
+  const wide = useWindowDimensions().width >= 900;
   const [d, setD] = useState<Inbox | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const [busy, setBusy] = useState<string | null>(null);
@@ -74,8 +75,9 @@ export function TeacherInbox() {
       {msg ? <Text style={s.msg}>{msg}</Text> : null}
       {empty && <Text style={s.empty}>표시할 항목이 없어요.</Text>}
 
+      <View style={wide ? s.grid : { gap: 10 }}>
       {show('req') && d.requests.map((r) => (
-        <View key={r.bookingId} style={[s.card, s.cardNew]}>
+        <View key={r.bookingId} style={[s.card, s.cardNew, wide && s.half]}>
           <View style={s.row}><Text style={s.title}>{r.studentName} · 상담신청</Text><Text style={s.time}>{KST(r.start)}</Text></View>
           <Text style={s.body}>{r.consultType ?? '상담'} · {modeLabel(r.mode)}{r.subType ? ` · ${r.subType}` : ''}</Text>
           <View style={s.acts}>
@@ -86,7 +88,7 @@ export function TeacherInbox() {
       ))}
 
       {show('q') && d.questions.map((q) => (
-        <View key={q.id} style={[s.card, s.cardNew]}>
+        <View key={q.id} style={[s.card, s.cardNew, wide && s.half]}>
           <View style={s.row}><Text style={s.title}>{q.studentName} · 질문{q.assigned ? '(지정)' : ''}</Text><Text style={s.time}>{KST(q.createdAt)}</Text></View>
           {q.body ? <Text style={s.body} numberOfLines={ansFor === q.id ? undefined : 3}>{q.body}</Text> : null}
           {ansFor === q.id ? (
@@ -104,11 +106,12 @@ export function TeacherInbox() {
       ))}
 
       {show('noti') && d.notifications.filter((n) => !n.readAt).map((n) => (
-        <View key={n.id} style={s.card}>
+        <View key={n.id} style={[s.card, wide && s.half]}>
           <View style={s.row}><Text style={s.title}>{n.title ?? '알림'}</Text><Text style={s.time}>{KST(n.createdAt)}</Text></View>
           {n.body ? <Text style={s.body}>{n.body}</Text> : null}
         </View>
       ))}
+      </View>
     </ScrollView>
   );
 }
@@ -337,13 +340,16 @@ const won = (n?: number | null) => (n == null ? '-' : `${Math.round(n).toLocaleS
 const sameDay = (iso: string | null, d: Date) => { if (!iso) return false; const a = new Date(iso); return a.getFullYear() === d.getFullYear() && a.getMonth() === d.getMonth() && a.getDate() === d.getDate(); };
 
 /** 오늘·일정 — 오늘 상담·이번 주 예정 + 근무 상태. */
+const WORK: { k: string; label: string }[] = [{ k: 'on', label: '근무중' }, { k: 'rest', label: '휴게중' }, { k: 'off', label: '퇴근' }];
 export function TeacherToday({ myId }: { myId: string }) {
   const { C } = useTheme();
   const s = useMemo(() => mk(C), [C]);
   const [bookings, setBookings] = useState<Booking[] | null>(null);
   const [chatId, setChatId] = useState<string | null>(null);
+  const [work, setWork] = useState<string>('on');
   const load = useCallback(() => { api.get<{ data?: Booking[] } | Booking[]>('/bookings?role=teacher').then((r) => setBookings(unwrap(r))).catch(() => setBookings([])); }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); api.get<{ workStatus?: string }>('/teachers/me/profile').then((p) => setWork(p.workStatus ?? 'on')).catch(() => {}); }, [load]);
+  async function setStatus(k: string) { setWork(k); api.patch('/teachers/me/status', { status: k }).catch(() => {}); }
   if (chatId) return <ChatScreen bookingId={chatId} myId={myId} title="상담 채팅" onClose={() => { setChatId(null); load(); }} />;
   if (bookings === null) return <Center C={C} />;
   const now = new Date();
@@ -358,6 +364,13 @@ export function TeacherToday({ myId }: { myId: string }) {
   return (
     <ScrollView style={s.wrap} contentContainerStyle={{ padding: 16, gap: 10 }}>
       <Text style={s.h1}>오늘</Text>
+      <View style={s.seg}>
+        {WORK.map((w) => (
+          <TouchableOpacity key={w.k} style={[s.segItem, work === w.k && (w.k === 'rest' ? { backgroundColor: '#F3B34D' } : w.k === 'off' ? { backgroundColor: C.line } : s.segOn)]} onPress={() => setStatus(w.k)}>
+            <Text style={[s.segT, work === w.k && (w.k === 'on' ? s.segTOn : { color: w.k === 'rest' ? '#5A3A00' : C.ink })]}>{w.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
       <View style={[s.card, { backgroundColor: ongoing ? C.teal : C.white, borderColor: ongoing ? C.teal : C.line }]}>
         <Text style={{ fontSize: 12.5, color: ongoing ? '#CDE7F0' : C.muted }}>{ongoing ? '상담 진행 중' : nextSession ? '다음 상담' : '오늘 상태'}</Text>
         <Text style={{ fontSize: 18, fontWeight: '800', color: ongoing ? '#fff' : C.ink, marginTop: 3 }}>
@@ -469,6 +482,8 @@ const mk = (C: Palette) => StyleSheet.create({
   card: { backgroundColor: C.white, borderWidth: 1, borderColor: C.line, borderRadius: 12, padding: 13, gap: 6 },
   cardNew: { borderColor: C.teal100 ?? C.teal, backgroundColor: C.teal50 ?? C.white },
   cardSel: { borderColor: C.teal, borderWidth: 2 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  half: { width: '48.6%' },
   paneEmpty: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bg },
   pill: { fontSize: 10.5, fontWeight: '800', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, overflow: 'hidden' },
   pillFinal: { color: '#fff', backgroundColor: C.teal },

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Patch,
   Get,
   Param,
   ParseUUIDPipe,
@@ -49,6 +50,13 @@ export class TeachersController {
     @Body() dto: UpdateTeacherProfileDto,
   ) {
     return this.people.updateMyProfile(user.id, dto);
+  }
+
+  /** PATCH /teachers/me/status — 근무 상태 변경(on/rest/off). */
+  @Patch('me/status')
+  @Roles('teacher')
+  setStatus(@CurrentUser() user: AuthUser, @Body() dto: { status: string }) {
+    return this.people.setWorkStatus(user.id, dto.status);
   }
 
   /** POST /teachers/recommend — 니즈 기반 맞춤 추천(학생). */

@@ -96,7 +96,15 @@ export class PeopleService {
       strengths: t.strengths ?? [],
       reRequestRate: t.re_request_rate == null ? null : Number(t.re_request_rate),
       avgResponseMin: t.avg_response_min ?? null,
+      workStatus: t.work_status ?? 'on',
     };
+  }
+
+  /** 근무 상태 변경(선생님 본인) — on(근무중)/rest(휴게중)/off(퇴근). */
+  async setWorkStatus(teacherId: string, status: string) {
+    const s = ['on', 'rest', 'off'].includes(status) ? status : 'on';
+    await this.prisma.teacher_profile.update({ where: { account_id: teacherId }, data: { work_status: s } });
+    return { workStatus: s };
   }
 
   /**

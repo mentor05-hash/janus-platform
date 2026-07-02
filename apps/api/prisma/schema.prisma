@@ -820,6 +820,7 @@ model teacher_profile {
   hourly_rate                                                        Int?
   teacher_category                                                   String?
   type_code                                                          String?
+  work_status                                                        String                         @default("on")
   cancel_count                                                       Int                            @default(0)
   director_role                                                      String?
   employment_type                                                    String?
