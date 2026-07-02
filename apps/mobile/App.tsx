@@ -35,6 +35,14 @@ function AppInner() {
   const [bookMode, setBookMode] = useState<string | undefined>(undefined);
   const [children, setChildren] = useState<Child[]>([]);
   const [activeChild, setActiveChild] = useState<string | null>(null);
+  // 탭 이동 이력 — 뒤로가기가 홈이 아니라 '직전 탭'으로 복귀하도록(App back 검증).
+  const tabHist = useRef<string[]>([]);
+  const goTab = (next: string) => {
+    if (next !== tab) tabHist.current.push(tab);
+    setTab(next);
+    setTeacher(null);
+    setBooking(false);
+  };
 
   useEffect(() => {
     loadTokens().then(async () => {
@@ -70,7 +78,7 @@ function AppInner() {
     if (backStack.pop()) return true; // 하위 화면(자동매칭·기록·분류·시간변경 등) 닫기
     if (booking) { setBooking(false); return true; }
     if (teacher) { setTeacher(null); return true; }
-    if (tab !== 'a') { setTab('a'); return true; }
+    if (tab !== 'a') { setTab(tabHist.current.pop() ?? 'a'); return true; } // 직전 탭으로 복귀(없으면 홈)
     return false; // 홈 최상위 — 이탈 대신 그대로 유지
   };
   useEffect(() => {
@@ -142,7 +150,7 @@ function AppInner() {
                 <TeacherDetailScreen teacher={teacher} onBack={() => setTeacher(null)} onBook={() => setBooking(true)} />
               )
             ) : (
-              <SearchScreen onPick={(t, m) => { setTeacher(t); setBooking(false); setBookMode(m); }} onGoQna={() => setTab('c')} />
+              <SearchScreen onPick={(t, m) => { setTeacher(t); setBooking(false); setBookMode(m); }} onGoQna={() => goTab('c')} />
             )
           ) : tab === 'b' ? (
             <BookingsScreen myId={me.id} />
@@ -160,11 +168,11 @@ function AppInner() {
           children.length === 0 ? (
             <View style={{ padding: SP.xl }}><Text style={styles.notice}>연결된 자녀가 없어요. 학생 계정에서 보호자 연결을 승인하면 표시됩니다.</Text></View>
           ) : tab === 'a' ? (
-            <GuardianHome children={children} activeId={activeChild} setActiveId={setActiveChild} goTab={setTab} />
+            <GuardianHome children={children} activeId={activeChild} setActiveId={setActiveChild} goTab={goTab} />
           ) : tab === 'b' ? (
             <GuardianConsult children={children} activeId={activeChild} setActiveId={setActiveChild} />
           ) : tab === 'c' ? (
-            <GuardianPay children={children} activeId={activeChild} setActiveId={setActiveChild} goTab={setTab} />
+            <GuardianPay children={children} activeId={activeChild} setActiveId={setActiveChild} goTab={goTab} />
           ) : (
             <GuardianCharge children={children} activeId={activeChild} setActiveId={setActiveChild} />
           )
@@ -177,11 +185,7 @@ function AppInner() {
             <TouchableOpacity
               key={t}
               style={[styles.tab, tab === t && styles.tabActiveBox]}
-              onPress={() => {
-                setTab(t);
-                setTeacher(null);
-                setBooking(false);
-              }}
+              onPress={() => goTab(t)}
             >
               <Text style={[styles.tabLabel, tab === t && styles.tabActive]}>{tabLabel(t)}</Text>
             </TouchableOpacity>
