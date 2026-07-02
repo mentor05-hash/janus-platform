@@ -5,73 +5,110 @@ import { useTheme, type Palette } from '../theme';
 import { ChatScreen } from './ChatScreen';
 import { WhiteboardScreen } from './WhiteboardScreen';
 
-// ── 공통 타입 ──
-type Noti = { id: string; type?: string | null; title?: string; body?: string; payload?: Record<string, unknown>; read_at?: string | null; created_at: string };
+// ── 공통 ──
 const KST = (iso?: string | null) => (iso ? new Date(iso).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '');
 const unwrap = <T,>(r: { data?: T } | T): T => (Array.isArray(r) ? (r as T) : ((r as { data?: T }).data ?? (r as T)));
 
-/** ① 인박스 — 유입(상담신청·질문·역상담·취소) 알림 + 미확인 채팅. 상담신청은 인라인 수락/거절. */
+type Inbox = {
+  counts: { requests: number; questions: number; unreadChats: number; notifications: number };
+  requests: { bookingId: string; studentName: string; consultType: string | null; subType: string | null; mode: string; start: string | null }[];
+  questions: { id: string; studentName: string; body: string | null; assigned: boolean; createdAt: string }[];
+  notifications: { id: string; title?: string; body?: string; readAt?: string | null; createdAt: string }[];
+};
+type Filter = 'all' | 'req' | 'q' | 'noti';
+
+/** ① 인박스 — /me/inbox 집계(대기 상담신청·질문·미확인·알림) + 유형 필터 + 인라인 수락/거절/답변. */
 export function TeacherInbox() {
   const { C } = useTheme();
   const s = useMemo(() => mk(C), [C]);
-  const [notis, setNotis] = useState<Noti[]>([]);
-  const [unread, setUnread] = useState<Record<string, number>>({});
-  const [loading, setLoading] = useState(true);
+  const [d, setD] = useState<Inbox | null>(null);
+  const [filter, setFilter] = useState<Filter>('all');
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState('');
+  const [ansFor, setAnsFor] = useState<string | null>(null);
+  const [ansText, setAnsText] = useState('');
 
-  const load = useCallback(() => {
-    setLoading(true);
-    Promise.all([
-      api.get<Noti[]>('/notifications').then((r) => setNotis(unwrap(r))).catch(() => {}),
-      api.get<Record<string, number>>('/chat/unread').then(setUnread).catch(() => {}),
-    ]).finally(() => setLoading(false));
-  }, []);
+  const load = useCallback(() => { api.get<Inbox>('/me/inbox').then((r) => setD(unwrap(r))).catch(() => setD(null)); }, []);
   useEffect(() => { load(); }, [load]);
 
-  const bookingIdOf = (n: Noti) => (n.payload?.bookingId as string | undefined) ?? undefined;
-  async function respond(n: Noti, action: 'accept' | 'reject') {
-    const id = bookingIdOf(n); if (!id) return;
-    setBusy(n.id); setMsg('');
+  async function respond(bookingId: string, action: 'accept' | 'reject') {
+    setBusy(bookingId); setMsg('');
+    try { await api.patch(`/bookings/${bookingId}/${action}`, {}); setMsg(action === 'accept' ? '상담을 수락했어요.' : '상담을 거절했어요(크레딧 환원).'); load(); }
+    catch (e) { setMsg(e instanceof ApiError ? e.message : '처리 실패'); } finally { setBusy(null); }
+  }
+  async function answer(q: Inbox['questions'][number]) {
+    if (!ansText.trim()) return;
+    setBusy(q.id); setMsg('');
     try {
-      await api.patch(`/bookings/${id}/${action}`, {});
-      setMsg(action === 'accept' ? '상담을 수락했어요.' : '상담을 거절했어요(크레딧 환원).');
-      await api.patch(`/notifications/${n.id}/read`, {}).catch(() => {});
-      load();
-    } catch (e) { setMsg(e instanceof ApiError ? e.message : '처리 실패'); }
-    finally { setBusy(null); }
+      if (!q.assigned) await api.post(`/qna/posts/${q.id}/claim`, {}).catch(() => {}); // 미지정이면 담당 먼저
+      await api.post(`/qna/posts/${q.id}/answers`, { body: ansText.trim() });
+      setMsg('답변을 등록했어요.'); setAnsFor(null); setAnsText(''); load();
+    } catch (e) { setMsg(e instanceof ApiError ? e.message : '답변 실패'); } finally { setBusy(null); }
   }
 
-  const totalUnread = Object.values(unread).reduce((a, b) => a + b, 0);
-  const items = notis.filter((n) => !n.read_at).concat(notis.filter((n) => n.read_at)).slice(0, 60);
+  if (!d) return <Center C={C} />;
+  const show = (f: Filter) => filter === 'all' || filter === f;
+  const chips: { k: Filter; label: string; n?: number }[] = [
+    { k: 'all', label: '전체' },
+    { k: 'req', label: '상담신청', n: d.counts.requests },
+    { k: 'q', label: '질문', n: d.counts.questions },
+    { k: 'noti', label: '알림', n: d.counts.notifications },
+  ];
+  const empty = (show('req') ? d.requests.length : 0) + (show('q') ? d.questions.length : 0) + (show('noti') ? d.notifications.length : 0) === 0;
 
-  if (loading) return <Center C={C} />;
   return (
     <ScrollView style={s.wrap} contentContainerStyle={{ padding: 16, gap: 10 }}>
       <Text style={s.h1}>인박스</Text>
       <View style={s.summary}>
-        <Sum label="미확인 알림" n={notis.filter((n) => !n.read_at).length} C={C} />
-        <Sum label="새 메시지" n={totalUnread} C={C} accent />
+        <Sum label="대기 상담" n={d.counts.requests} C={C} />
+        <Sum label="답변 대기" n={d.counts.questions} C={C} />
+        <Sum label="새 메시지" n={d.counts.unreadChats} C={C} accent />
+      </View>
+      <View style={s.chips}>
+        {chips.map((c) => (
+          <TouchableOpacity key={c.k} style={[s.chip, filter === c.k && s.chipOn]} onPress={() => setFilter(c.k)}>
+            <Text style={[s.chipT, filter === c.k && { color: '#fff' }]}>{c.label}{c.n ? ` ${c.n}` : ''}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
       {msg ? <Text style={s.msg}>{msg}</Text> : null}
-      {items.length === 0 ? <Text style={s.empty}>새로운 유입이 없어요.</Text> : items.map((n) => {
-        const isReq = n.type === 'booking_requested' && bookingIdOf(n);
-        return (
-          <View key={n.id} style={[s.card, !n.read_at && s.cardNew]}>
-            <View style={s.row}>
-              <Text style={s.title}>{n.title ?? '알림'}</Text>
-              <Text style={s.time}>{KST(n.created_at)}</Text>
-            </View>
-            {n.body ? <Text style={s.body}>{n.body}</Text> : null}
-            {isReq && (
-              <View style={s.acts}>
-                <TouchableOpacity disabled={busy === n.id} style={[s.btn, s.btnP]} onPress={() => respond(n, 'accept')}><Text style={s.btnPT}>수락</Text></TouchableOpacity>
-                <TouchableOpacity disabled={busy === n.id} style={[s.btn, s.btnG]} onPress={() => respond(n, 'reject')}><Text style={s.btnGT}>거절</Text></TouchableOpacity>
-              </View>
-            )}
+      {empty && <Text style={s.empty}>표시할 항목이 없어요.</Text>}
+
+      {show('req') && d.requests.map((r) => (
+        <View key={r.bookingId} style={[s.card, s.cardNew]}>
+          <View style={s.row}><Text style={s.title}>{r.studentName} · 상담신청</Text><Text style={s.time}>{KST(r.start)}</Text></View>
+          <Text style={s.body}>{r.consultType ?? '상담'} · {modeLabel(r.mode)}{r.subType ? ` · ${r.subType}` : ''}</Text>
+          <View style={s.acts}>
+            <TouchableOpacity disabled={busy === r.bookingId} style={[s.btn, s.btnP]} onPress={() => respond(r.bookingId, 'accept')}><Text style={s.btnPT}>수락</Text></TouchableOpacity>
+            <TouchableOpacity disabled={busy === r.bookingId} style={[s.btn, s.btnG]} onPress={() => respond(r.bookingId, 'reject')}><Text style={s.btnGT}>거절</Text></TouchableOpacity>
           </View>
-        );
-      })}
+        </View>
+      ))}
+
+      {show('q') && d.questions.map((q) => (
+        <View key={q.id} style={[s.card, s.cardNew]}>
+          <View style={s.row}><Text style={s.title}>{q.studentName} · 질문{q.assigned ? '(지정)' : ''}</Text><Text style={s.time}>{KST(q.createdAt)}</Text></View>
+          {q.body ? <Text style={s.body} numberOfLines={ansFor === q.id ? undefined : 3}>{q.body}</Text> : null}
+          {ansFor === q.id ? (
+            <View style={{ gap: 8 }}>
+              <TextInput style={s.input} value={ansText} onChangeText={setAnsText} placeholder="답변을 입력하세요" placeholderTextColor={C.caption} multiline />
+              <View style={s.acts}>
+                <TouchableOpacity style={[s.btn, s.btnG]} onPress={() => { setAnsFor(null); setAnsText(''); }}><Text style={s.btnGT}>취소</Text></TouchableOpacity>
+                <TouchableOpacity disabled={busy === q.id || !ansText.trim()} style={[s.btn, s.btnP]} onPress={() => answer(q)}><Text style={s.btnPT}>답변 등록</Text></TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View style={s.acts}><TouchableOpacity style={[s.btn, s.btnP]} onPress={() => { setAnsFor(q.id); setAnsText(''); }}><Text style={s.btnPT}>답변하기</Text></TouchableOpacity></View>
+          )}
+        </View>
+      ))}
+
+      {show('noti') && d.notifications.filter((n) => !n.readAt).map((n) => (
+        <View key={n.id} style={s.card}>
+          <View style={s.row}><Text style={s.title}>{n.title ?? '알림'}</Text><Text style={s.time}>{KST(n.createdAt)}</Text></View>
+          {n.body ? <Text style={s.body}>{n.body}</Text> : null}
+        </View>
+      ))}
     </ScrollView>
   );
 }
@@ -243,6 +280,10 @@ const mk = (C: Palette) => StyleSheet.create({
   btnG: { backgroundColor: C.white, borderWidth: 1, borderColor: C.line }, btnGT: { color: C.teal, fontWeight: '800', fontSize: 13 },
   empty: { fontSize: 13.5, color: C.caption, textAlign: 'center', paddingVertical: 40 },
   msg: { fontSize: 13, color: C.teal, backgroundColor: C.teal50 ?? C.white, borderRadius: 8, padding: 10 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  chip: { borderWidth: 1, borderColor: C.line, backgroundColor: C.white, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12 },
+  chipOn: { backgroundColor: C.teal, borderColor: C.teal },
+  chipT: { fontSize: 12.5, fontWeight: '700', color: C.muted },
   seg: { flexDirection: 'row', backgroundColor: C.lineSoft, borderRadius: 10, padding: 3 },
   segItem: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8 },
   segOn: { backgroundColor: C.white },
