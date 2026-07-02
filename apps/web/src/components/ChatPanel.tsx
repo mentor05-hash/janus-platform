@@ -16,6 +16,9 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
   const sockRef = useRef<Socket | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const [camOn, setCamOn] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const camStreamRef = useRef<MediaStream | null>(null);
   const typingOffRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const peerTypingOffRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -62,17 +65,38 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
     sockRef.current?.emit('chat:typing', { bookingId, typing: false });
     setText('');
   }
-  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const f = e.target.files?.[0]; e.target.value = '';
-    if (!f || !f.type.startsWith('image/')) return;
-    const form = new FormData(); form.append('file', f, f.name);
+  async function sendImage(blob: Blob, name: string) {
+    const form = new FormData(); form.append('file', blob, name);
     const r = await api.upload<{ id: string }>('/files', form);
     sockRef.current?.emit('chat:send', { bookingId, imageFileId: r.id });
   }
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]; e.target.value = '';
+    if (!f || !f.type.startsWith('image/')) return;
+    await sendImage(f, f.name);
+  }
+  async function openCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+      camStreamRef.current = stream; setCamOn(true);
+      setTimeout(() => { if (videoRef.current) { videoRef.current.srcObject = stream; void videoRef.current.play(); } }, 30);
+    } catch { alert('카메라를 사용할 수 없어요. 권한을 확인해 주세요.'); }
+  }
+  function closeCamera() { camStreamRef.current?.getTracks().forEach((t) => t.stop()); camStreamRef.current = null; setCamOn(false); }
+  async function capture() {
+    const v = videoRef.current; if (!v) return;
+    const cw = v.videoWidth || 1280, ch = v.videoHeight || 720;
+    const c = document.createElement('canvas'); c.width = cw; c.height = ch;
+    c.getContext('2d')!.drawImage(v, 0, 0, cw, ch); // getUserMedia 캡처 = 무소음
+    const blob: Blob = await new Promise((res) => c.toBlob((b) => res(b!), 'image/jpeg', 0.85));
+    closeCamera();
+    await sendImage(blob, 'shot.jpg');
+  }
+  useEffect(() => () => closeCamera(), []);
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 950, background: 'rgba(8,16,20,0.5)', display: 'grid', placeItems: 'center', padding: 16 }}>
-      <div role="dialog" aria-modal="true" aria-label={title ?? '상담 채팅'} onClick={(e) => e.stopPropagation()} className="card" style={{ width: '100%', maxWidth: 460, height: '80vh', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
+      <div role="dialog" aria-modal="true" aria-label={title ?? '상담 채팅'} onClick={(e) => e.stopPropagation()} className="card" style={{ position: 'relative', width: '100%', maxWidth: 460, height: '80vh', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <b style={{ fontSize: 15 }}>💬 {title ?? '상담 채팅'}</b>
           <button onClick={onClose} aria-label="닫기" style={{ border: 'none', background: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--muted)' }}>✕</button>
@@ -97,9 +121,19 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
         {status !== 'off' && (
           <div style={{ display: 'flex', gap: 6, padding: 10, borderTop: '1px solid var(--line)', alignItems: 'center' }}>
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
-            <button onClick={() => fileRef.current?.click()} title="이미지" aria-label="이미지 첨부" style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer' }}>📷</button>
+            <button onClick={() => fileRef.current?.click()} title="이미지 첨부" aria-label="이미지 첨부" style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer' }}>🖼</button>
+            <button onClick={openCamera} title="사진 촬영(무음)" aria-label="사진 촬영" style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer' }}>📷</button>
             <input className="input" value={text} onChange={(e) => onType(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && send()} placeholder="메시지 입력…" aria-label="메시지 입력" />
             <button className="btn sm" onClick={send} disabled={!text.trim()}>전송</button>
+          </div>
+        )}
+        {camOn && (
+          <div style={{ position: 'absolute', inset: 0, background: '#000', display: 'flex', flexDirection: 'column', zIndex: 10 }}>
+            <video ref={videoRef} playsInline muted style={{ flex: 1, width: '100%', objectFit: 'contain', minHeight: 0 }} />
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', padding: 14, background: '#000' }}>
+              <button className="btn ghost sm" onClick={closeCamera}>취소</button>
+              <button className="btn sm" onClick={capture}>📸 촬영(무음)</button>
+            </div>
           </div>
         )}
       </div>

@@ -127,8 +127,10 @@ export class RealtimeService {
     return out;
   }
 
-  async saveSnapshot(userId: string, bookingId: string, strokes: unknown) {
-    return this.prisma.whiteboard_snapshot.create({ data: { booking_id: bookingId, strokes: strokes as object, created_by: userId } });
+  async saveSnapshot(userId: string, bookingId: string, strokes: unknown, backgroundFileId?: string | null) {
+    return this.prisma.whiteboard_snapshot.create({
+      data: { booking_id: bookingId, strokes: strokes as object, created_by: userId, background_file_id: backgroundFileId ?? null },
+    });
   }
   async latestSnapshot(bookingId: string) {
     return this.prisma.whiteboard_snapshot.findFirst({ where: { booking_id: bookingId }, orderBy: { created_at: 'desc' } });

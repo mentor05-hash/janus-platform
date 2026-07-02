@@ -96,7 +96,14 @@ export class RealtimeGateway implements OnGatewayConnection {
     if (!access.whiteboard) return { ok: false, error: '화이트보드는 상위 상품에서 제공됩니다.' };
     client.join(`booking:${bookingId}`);
     const snap = await this.svc.latestSnapshot(bookingId);
-    return { ok: true, strokes: snap?.strokes ?? [] };
+    return { ok: true, strokes: snap?.strokes ?? [], backgroundFileId: snap?.background_file_id ?? null };
+  }
+
+  /** 배경 이미지(첨부/촬영) 설정 — 상대에게 브로드캐스트(필기는 이 위에 그려짐). */
+  @SubscribeMessage('wb:image')
+  wbImage(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, fileId }: { bookingId: string; fileId: string | null }) {
+    client.to(`booking:${bookingId}`).emit('wb:image', { fileId });
+    return { ok: true };
   }
 
   @SubscribeMessage('wb:stroke')
@@ -112,10 +119,34 @@ export class RealtimeGateway implements OnGatewayConnection {
   }
 
   @SubscribeMessage('wb:save')
-  async wbSave(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, strokes }: { bookingId: string; strokes: unknown }) {
+  async wbSave(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, strokes, backgroundFileId }: { bookingId: string; strokes: unknown; backgroundFileId?: string | null }) {
     const user = this.user(client);
     await this.svc.assertRoomAccess(user, bookingId);
-    await this.svc.saveSnapshot(user.id, bookingId, strokes);
+    await this.svc.saveSnapshot(user.id, bookingId, strokes, backgroundFileId);
+    return { ok: true };
+  }
+
+  // ── 음성통화(WebRTC 시그널링 중계) — 예약 room 의 상대에게 offer/answer/ICE 전달 ──
+  @SubscribeMessage('call:join')
+  async callJoin(@ConnectedSocket() client: Socket, @MessageBody() { bookingId }: { bookingId: string }) {
+    const user = this.user(client);
+    await this.svc.assertRoomAccess(user, bookingId);
+    client.join(`booking:${bookingId}`);
+    client.to(`booking:${bookingId}`).emit('call:peer-join', { userId: user.id });
+    return { ok: true };
+  }
+
+  @SubscribeMessage('call:signal')
+  callSignal(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, kind, data }: { bookingId: string; kind: 'offer' | 'answer' | 'ice'; data: unknown }) {
+    const user = this.user(client);
+    client.to(`booking:${bookingId}`).emit('call:signal', { from: user.id, kind, data }); // 발신자 제외 중계
+    return { ok: true };
+  }
+
+  @SubscribeMessage('call:leave')
+  callLeave(@ConnectedSocket() client: Socket, @MessageBody() { bookingId }: { bookingId: string }) {
+    const user = this.user(client);
+    client.to(`booking:${bookingId}`).emit('call:peer-leave', { userId: user.id });
     return { ok: true };
   }
 

@@ -60,9 +60,10 @@ model chat_message {
 }
 
 model whiteboard_snapshot {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  booking_id String   @db.Uuid
-  strokes    Json
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  booking_id         String   @db.Uuid
+  strokes            Json
+  background_file_id String?  @db.Uuid
   created_by String?  @db.Uuid
   created_at DateTime @default(now()) @db.Timestamptz(6)
   booking    booking  @relation(fields: [booking_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
