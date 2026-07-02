@@ -62,6 +62,20 @@ export class BookingController {
     return this.booking.listReverseEligible(user);
   }
 
+  /** GET /bookings/reverse/policy — 역상담 전사 정책(오프라인 한정·크레딧 미소모) 조회. */
+  @Get('reverse/policy')
+  @Roles('admin', 'hr')
+  getReversePolicy() {
+    return this.booking.getReversePolicy();
+  }
+
+  /** PATCH /bookings/reverse/policy — 정책 변경(offlineOnly=본사, free=마스터). */
+  @Patch('reverse/policy')
+  @Roles('admin')
+  setReversePolicy(@CurrentUser() user: AuthUser, @Body() dto: { offlineOnly?: boolean; free?: boolean }) {
+    return this.booking.setReversePolicy(user, dto);
+  }
+
   /** GET /bookings/reverse/admin-students — 관리자: 센터 학생 + 역상담 지정/신청 플래그. */
   @Get('reverse/admin-students')
   @Roles('admin', 'hr')

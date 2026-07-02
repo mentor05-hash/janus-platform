@@ -28,6 +28,7 @@ import {
   sessionModeFromPrisma,
   sessionModeToPrisma,
 } from '../../config/prisma-enums';
+import { permAtLeast } from '../../config/perm';
 import { AvailabilityService } from '../availability/availability.service';
 import { CreditService } from '../billing/credit.service';
 import { evaluatePenalty } from '../pricing-policy/domain/penalty';
@@ -75,6 +76,33 @@ export class BookingService {
   ) {}
 
   private readonly logger = new Logger(BookingService.name);
+
+  // ── 역상담 정책(전사) — 본사: 오프라인 한정(offlineOnly), 마스터: 크레딧 미소모(free) ──
+  private static readonly REVERSE_KEY = 'reverse_policy';
+  private static readonly REVERSE_DEFAULT = { offlineOnly: false, free: false };
+
+  async getReversePolicy(): Promise<{ offlineOnly: boolean; free: boolean }> {
+    const row = await this.prisma.system_setting.findUnique({ where: { key: BookingService.REVERSE_KEY } });
+    return { ...BookingService.REVERSE_DEFAULT, ...((row?.value as object) ?? {}) };
+  }
+
+  /** 정책 변경: offlineOnly=본사 관리자(isHq), free=마스터(L1). */
+  async setReversePolicy(actor: AuthUser, dto: { offlineOnly?: boolean; free?: boolean }) {
+    const isHq = actor.role === AccountRole.ADMIN && !actor.centerId;
+    if (dto.offlineOnly !== undefined && !isHq) {
+      throw new ForbiddenException('역상담 오프라인 한정 정책은 본사 관리자만 변경할 수 있습니다.');
+    }
+    if (dto.free !== undefined && !(isHq && permAtLeast(actor.permLevel, 'L1'))) {
+      throw new ForbiddenException('역상담 크레딧 정책은 본사 마스터관리자(L1)만 변경할 수 있습니다.');
+    }
+    const next = { ...(await this.getReversePolicy()), ...dto };
+    await this.prisma.system_setting.upsert({
+      where: { key: BookingService.REVERSE_KEY },
+      create: { key: BookingService.REVERSE_KEY, value: next, updated_by: actor.id },
+      update: { value: next, updated_by: actor.id, updated_at: new Date() },
+    });
+    return next;
+  }
 
   /**
    * §5-8 기능 열기/닫기(FeatureAvailability) + 카테고리×방식(CategoryModePolicy) 게이트.
@@ -345,6 +373,12 @@ export class BookingService {
       dto.mode,
     ); // §5-8 게이트
 
+    // 역상담 전사 정책: 오프라인 한정(본사) → 오프라인 외 방식 차단
+    const revPolicy = await this.getReversePolicy();
+    if (revPolicy.offlineOnly && dto.mode !== ConsultMode.OFFLINE) {
+      throw new ForbiddenException('역상담은 오프라인 대면만 가능합니다(본사 정책).');
+    }
+
     const student = await this.prisma.student_profile.findUnique({
       where: { account_id: dto.studentId },
     });
@@ -428,7 +462,7 @@ export class BookingService {
             start_at: startAt,
             end_at: endAt,
             status: BookingStatus.NEW,
-            charged_credits: q.credits,
+            charged_credits: revPolicy.free ? 0 : q.credits, // 마스터 정책: 역상담 크레딧 미소모
             origin: '역상담',
             content: dto.content ?? null,
           },
@@ -497,21 +531,23 @@ export class BookingService {
       return { id, status: BookingStatus.REJECTED };
     }
 
-    // accept → 크레딧 차감(§5-3) + confirmed
+    // accept → 크레딧 차감(§5-3) + confirmed. 무료 정책이면 charged_credits=0 → 차감 스킵.
     const credits = b.charged_credits ?? 0;
     try {
       await this.bookingTx(async (tx) => {
-        const outcome = await this.credit.consumeWithin(
-          tx,
-          b.student_id,
-          credits,
-          {
-            refType: 'booking',
-            refId: id,
-            description: '역상담 수락 크레딧 차감',
-          },
-        );
-        if (!outcome.ok) throw new ShortfallError(outcome.shortfall);
+        if (credits > 0) {
+          const outcome = await this.credit.consumeWithin(
+            tx,
+            b.student_id,
+            credits,
+            {
+              refType: 'booking',
+              refId: id,
+              description: '역상담 수락 크레딧 차감',
+            },
+          );
+          if (!outcome.ok) throw new ShortfallError(outcome.shortfall);
+        }
         await tx.booking.update({
           where: { id },
           data: { status: BookingStatus.CONFIRMED },
