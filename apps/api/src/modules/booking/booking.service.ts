@@ -203,7 +203,7 @@ export class BookingService {
     const endAt = utcFromKst(dto.date, endMin);
 
     try {
-      const booking = await this.prisma.$transaction(async (tx) => {
+      const booking = await this.bookingTx(async (tx) => {
         await this.lockTeacherDate(tx, dto.teacherId, dto.date);
         // 락 확보 후 재검증(§5-1 TOCTOU 방지) — 직렬화되어 권위 있는 판정
         const stillReason = await this.availability.bookableReason(
@@ -394,7 +394,7 @@ export class BookingService {
     const endAt = utcFromKst(dto.date, endMin);
 
     try {
-      const booking = await this.prisma.$transaction(async (tx) => {
+      const booking = await this.bookingTx(async (tx) => {
         await this.lockTeacherDate(tx, user.id, dto.date);
         const stillBookable = await this.availability.assertBookable(
           user.id,
@@ -482,7 +482,7 @@ export class BookingService {
     }
 
     if (action === 'reject') {
-      await this.prisma.$transaction(async (tx) => {
+      await this.bookingTx(async (tx) => {
         await tx.booking.update({
           where: { id },
           data: { status: BookingStatus.REJECTED },
@@ -500,7 +500,7 @@ export class BookingService {
     // accept → 크레딧 차감(§5-3) + confirmed
     const credits = b.charged_credits ?? 0;
     try {
-      await this.prisma.$transaction(async (tx) => {
+      await this.bookingTx(async (tx) => {
         const outcome = await this.credit.consumeWithin(
           tx,
           b.student_id,
@@ -621,7 +621,7 @@ export class BookingService {
     const mode = b.mode as ConsultMode;
 
     try {
-      const updated = await this.prisma.$transaction(async (tx) => {
+      const updated = await this.bookingTx(async (tx) => {
         await this.lockTeacherDate(tx, b.teacher_id, dto.date);
         // 기존 슬롯 먼저 해제(트랜잭션 내 가시) → 새 창 점유 시 자기 자신과 P2002 회피.
         await tx.time_slot.deleteMany({ where: { booking_id: id } });
@@ -726,7 +726,7 @@ export class BookingService {
       consumed;
     // 조건부 상태 전이(§7): updateMany where status=from 으로 동시 전이를 한 번만 적용
     // → 이중 취소/이중 환원·이벤트 중복 방지.
-    const applied = await this.prisma.$transaction(async (tx) => {
+    const applied = await this.bookingTx(async (tx) => {
       const upd = await tx.booking.updateMany({
         where: { id, status: from },
         data: { status: to },
@@ -839,6 +839,15 @@ export class BookingService {
     const key = `${teacherId}:${date}`;
     // $executeRaw 사용: void 반환 컬럼 역직렬화 회피(락은 실행 시 획득).
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`;
+  }
+
+  /**
+   * 예약 트랜잭션 래퍼(§7 동시성). advisory lock 으로 직렬화되므로 고동시성에선 뒤 요청이
+   * 대기 → 기본 5s 타임아웃 초과 시 500 이 아니라 우아한 409 로 안내. 타임아웃·대기 상향.
+   */
+  private bookingTx<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+    // 타임아웃·대기 상향(advisory lock 직렬화 여유). 포화 시 오류는 전역 필터가 503(재시도)로 매핑.
+    return this.prisma.$transaction(fn, { timeout: 20_000, maxWait: 20_000 });
   }
 
   /**
