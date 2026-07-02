@@ -23,9 +23,10 @@ import { STORAGE_PROVIDER } from './storage.types';
         const which = config.get<string>('STORAGE_PROVIDER') ?? 'local';
         switch (which) {
           case 's3':
-            return new S3StorageProvider(
-              config.get<string>('STORAGE_S3_BUCKET'),
-            );
+            return new S3StorageProvider({
+              bucket: config.get<string>('STORAGE_S3_BUCKET'),
+              region: config.get<string>('AWS_REGION'),
+            });
           default: {
             const dir =
               config.get<string>('STORAGE_LOCAL_DIR') ??
