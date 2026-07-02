@@ -11,9 +11,10 @@ const CENTERS = [
 const DEMO_PW = 'dev-password!';
 // 데모 모드에서만 로그인 편의(자동로그인·역할 원터치·기본 비번) 활성. 실서비스=false.
 const DEMO = process.env.EXPO_PUBLIC_DEMO_MODE === 'true';
-// 모바일 지원 역할(선생님·관리자는 웹 콘솔). 탭하면 아이디·비번 자동 채움.
+// 모바일 지원 역할(관리자·HR은 웹 콘솔). 탭하면 아이디·비번 자동 채움.
 const ROLES = [
   { label: '학생', id: 'student01' },
+  { label: '선생님', id: 'lt1' },
   { label: '학부모', id: 'guardian01' },
 ];
 
@@ -130,7 +131,7 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
             <View style={styles.demo}>
               <Text style={styles.demoText}>
                 데모 계정 · 비밀번호 <Text style={{ fontWeight: '800' }}>{DEMO_PW}</Text>{'\n'}
-                학생 student01~99 · 학부모 guardian01~80 (선생님·관리자는 웹 콘솔)
+                학생 student01~99 · 선생님 lt1~lt100 · 학부모 guardian01~80 (관리자·HR은 웹 콘솔)
               </Text>
             </View>
           </>
