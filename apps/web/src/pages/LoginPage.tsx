@@ -6,6 +6,8 @@ import { roleHome } from '../auth/roleHome';
 import { Button, ErrorText, TextField, PasswordField } from '../components/ui';
 
 const DEMO_PW = 'dev-password!';
+// 데모 모드에서만 로그인 편의(자동로그인·역할 원터치·기본 비번 노출) 활성. 실서비스=false.
+const DEMO = import.meta.env.VITE_DEMO_MODE === 'true';
 // 역할별 대표 데모 계정 — 클릭하면 아이디·비번 자동 채움.
 const ROLES = [
   { label: '선생님', id: 'teacher01' },
@@ -18,15 +20,16 @@ const ROLES = [
 export function LoginPage() {
   const { login, user } = useAuth();
   const navigate = useNavigate();
-  const [loginId, setLoginId] = useState('teacher01');
-  const [password, setPassword] = useState(DEMO_PW);
+  const [loginId, setLoginId] = useState(DEMO ? 'teacher01' : '');
+  const [password, setPassword] = useState(DEMO ? DEMO_PW : '');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
   if (user) navigate(roleHome(user.role), { replace: true });
 
-  // URL ?u=아이디&p=비번 → 자동 로그인(데모 편의). 예: /login?u=admin01&p=dev-password!
+  // URL ?u=아이디&p=비번 → 자동 로그인(데모 전용). 실서비스에선 비번 URL 노출 방지 위해 비활성.
   useEffect(() => {
+    if (!DEMO) return;
     const q = new URLSearchParams(window.location.search);
     const u = q.get('u');
     const p = q.get('p');
@@ -65,22 +68,26 @@ export function LoginPage() {
     <div style={{ display: 'grid', placeItems: 'center', height: '100vh' }}>
       <form className="card" style={{ width: 340 }} onSubmit={onSubmit}>
         <h2 style={{ marginTop: 0, color: 'var(--teal)' }}>멘토링 플랫폼 로그인</h2>
-        <label className="label" style={{ marginBottom: 6 }}>역할 선택(원터치 채움)</label>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-          {ROLES.map((r) => {
-            const on = loginId === r.id;
-            return (
-              <button type="button" key={r.id} onClick={() => { setLoginId(r.id); setPassword(DEMO_PW); setError(''); }} style={{
-                cursor: 'pointer', padding: '5px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700,
-                border: on ? '1px solid var(--teal)' : '1px solid var(--line)',
-                background: on ? 'var(--teal)' : 'var(--surface)', color: on ? '#fff' : 'var(--muted)',
-              }}>{r.label}</button>
-            );
-          })}
-        </div>
+        {DEMO && (
+          <>
+            <label className="label" style={{ marginBottom: 6 }}>역할 선택(원터치 채움)</label>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+              {ROLES.map((r) => {
+                const on = loginId === r.id;
+                return (
+                  <button type="button" key={r.id} onClick={() => { setLoginId(r.id); setPassword(DEMO_PW); setError(''); }} style={{
+                    cursor: 'pointer', padding: '5px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+                    border: on ? '1px solid var(--teal)' : '1px solid var(--line)',
+                    background: on ? 'var(--teal)' : 'var(--surface)', color: on ? '#fff' : 'var(--muted)',
+                  }}>{r.label}</button>
+                );
+              })}
+            </div>
+          </>
+        )}
         <TextField label="아이디" value={loginId} onChange={(e) => setLoginId(e.target.value)} />
         <PasswordField label="비밀번호" value={password} onChange={(e) => setPassword(e.target.value)} />
-        <p style={{ fontSize: 11, color: 'var(--caption)', margin: '4px 0 0' }}>데모 비밀번호 공통: <b>{DEMO_PW}</b> · 아이디 숫자만 바꿔 다른 계정 사용</p>
+        {DEMO && <p style={{ fontSize: 11, color: 'var(--caption)', margin: '4px 0 0' }}>데모 비밀번호 공통: <b>{DEMO_PW}</b> · 아이디 숫자만 바꿔 다른 계정 사용</p>}
         <ErrorText>{error}</ErrorText>
         <Button type="submit" block loading={busy} style={{ marginTop: 12 }}>
           로그인

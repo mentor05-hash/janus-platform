@@ -13,7 +13,12 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 execSync('npx expo export -p web', {
   cwd: root,
   stdio: 'inherit',
-  env: { ...process.env, EXPO_PUBLIC_API_BASE: process.env.EXPO_PUBLIC_API_BASE ?? '/api/v1' },
+  env: {
+    ...process.env,
+    EXPO_PUBLIC_API_BASE: process.env.EXPO_PUBLIC_API_BASE ?? '/api/v1',
+    // 로컬 데모 export — 로그인 편의 활성. 실서비스 export 시 false 로 넘겨 비활성.
+    EXPO_PUBLIC_DEMO_MODE: process.env.EXPO_PUBLIC_DEMO_MODE ?? 'true',
+  },
 });
 
 const indexPath = join(root, 'dist', 'index.html');

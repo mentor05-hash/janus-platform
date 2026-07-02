@@ -9,6 +9,8 @@ const CENTERS = [
   { key: '잠실', name: '잠실 센터', sub: '서울 송파구' },
 ];
 const DEMO_PW = 'dev-password!';
+// 데모 모드에서만 로그인 편의(자동로그인·역할 원터치·기본 비번) 활성. 실서비스=false.
+const DEMO = process.env.EXPO_PUBLIC_DEMO_MODE === 'true';
 // 모바일 지원 역할(선생님·관리자는 웹 콘솔). 탭하면 아이디·비번 자동 채움.
 const ROLES = [
   { label: '학생', id: 'student01' },
@@ -19,8 +21,8 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
   const { C } = useTheme();
   const ui = useUI();
   const styles = useMemo(() => makeStyles(C), [C]);
-  const [loginId, setLoginId] = useState('student01');
-  const [password, setPassword] = useState(DEMO_PW);
+  const [loginId, setLoginId] = useState(DEMO ? 'student01' : '');
+  const [password, setPassword] = useState(DEMO ? DEMO_PW : '');
   const [center, setCenter] = useState('강남');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -39,9 +41,9 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
     }
   }
 
-  // URL ?u=아이디&p=비번 → 자동 로그인(데모 편의). 예: /?u=student01&p=dev-password!
+  // URL ?u=아이디&p=비번 → 자동 로그인(데모 전용). 실서비스에선 비번 URL 노출 방지 위해 비활성.
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (!DEMO || typeof window === 'undefined') return;
     const q = new URLSearchParams(window.location.search);
     const u = q.get('u');
     const p = q.get('p');
@@ -112,23 +114,27 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
         </View>
         {error ? <Text style={ui.error}>{error}</Text> : null}
 
-        <Text style={[styles.label, { marginTop: SP.md }]}>역할 선택(원터치 채움)</Text>
-        <View style={styles.roleRow}>
-          {ROLES.map((r) => {
-            const on = loginId === r.id;
-            return (
-              <TouchableOpacity key={r.id} style={[styles.rolePill, on && styles.rolePillOn]} onPress={() => { setLoginId(r.id); setPassword(DEMO_PW); setError(''); }}>
-                <Text style={[styles.rolePillT, on && { color: '#fff' }]}>{r.label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-        <View style={styles.demo}>
-          <Text style={styles.demoText}>
-            데모 계정 · 비밀번호 <Text style={{ fontWeight: '800' }}>{DEMO_PW}</Text>{'\n'}
-            학생 student01~99 · 학부모 guardian01~80 (선생님·관리자는 웹 콘솔)
-          </Text>
-        </View>
+        {DEMO && (
+          <>
+            <Text style={[styles.label, { marginTop: SP.md }]}>역할 선택(원터치 채움)</Text>
+            <View style={styles.roleRow}>
+              {ROLES.map((r) => {
+                const on = loginId === r.id;
+                return (
+                  <TouchableOpacity key={r.id} style={[styles.rolePill, on && styles.rolePillOn]} onPress={() => { setLoginId(r.id); setPassword(DEMO_PW); setError(''); }}>
+                    <Text style={[styles.rolePillT, on && { color: '#fff' }]}>{r.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <View style={styles.demo}>
+              <Text style={styles.demoText}>
+                데모 계정 · 비밀번호 <Text style={{ fontWeight: '800' }}>{DEMO_PW}</Text>{'\n'}
+                학생 student01~99 · 학부모 guardian01~80 (선생님·관리자는 웹 콘솔)
+              </Text>
+            </View>
+          </>
+        )}
 
         <TouchableOpacity style={[ui.btn, { marginTop: SP.md }, busy && ui.btnDisabled]} onPress={submit} disabled={busy}>
           {busy ? <ActivityIndicator color="#fff" /> : <Text style={ui.btnText}>로그인</Text>}

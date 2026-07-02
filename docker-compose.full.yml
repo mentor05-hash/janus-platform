@@ -72,6 +72,9 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        # 로컬 데모 배포 — 데모 로그인 편의 활성. 실서비스 배포에선 이 줄을 제거/false.
+        VITE_DEMO_MODE: "true"
     ports:
       - "8080:80"
     depends_on:
