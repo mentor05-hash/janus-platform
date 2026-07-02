@@ -23,12 +23,14 @@ openssl rand -hex 32         # JWT_SECRET / JWT_REFRESH_SECRET 각각 생성
 - 프론트 빌드에 **`VITE_DEMO_MODE`/`EXPO_PUBLIC_DEMO_MODE` 미설정**(데모 자동로그인 비활성 — 보안①).
 
 ## 2. 마이그레이션 적용(코드화된 스키마)
+추적형 러너로 미적용분만 순서대로 반영(`schema_migrations` 이력):
 ```bash
-# 순서대로 apps/api/migrations/*.sql 적용(0001 → 최신). 예:
-for f in apps/api/migrations/*.sql; do psql "$DATABASE_URL" -f "$f"; done
+PSQL='psql "$DATABASE_URL"' ./ops/migrate.sh status   # 적용/미적용 확인
+PSQL='psql "$DATABASE_URL"' ./ops/migrate.sh          # 미적용분 적용
 npm run prisma:generate --workspace apps/api
 ```
 > 수동 SQL 임의 적용 금지 — 반드시 migrations/ 순서 유지(로컬·클라우드 동일).
+> 이미 수동 적용된 기존 DB는 최초 1회 `./ops/migrate.sh baseline` 로 이력만 기록.
 
 ## 3. 빌드·이미지
 ```bash
@@ -68,5 +70,5 @@ provider 스위치를 바꾸고 자격증명 설정 후 재기동하면 실연�
 - [ ] 개인정보 접근 감사로그(audit) 보존·검토 운영
 
 ## 7. 운영
-- 백업: `ops/backup-db.sh`(크론 등록). 복구 절차 문서화·정기 리허설.
+- 백업: `ops/backup-db.sh`(크론 등록). 복구·리허설: `ops/restore-db.sh`(별도 DB로 정기 복원 검증).
 - 관측성: 구조적 로그 수집 + `/health` 모니터. 크론은 Redis 리더락으로 다중 인스턴스 안전.

@@ -1,5 +1,17 @@
 # 운영 스크립트
 
+## 마이그레이션 러너 (`migrate.sh`)
+`apps/api/migrations/*.sql` 를 **순서대로 1회씩만** 적용하고 `schema_migrations` 테이블에
+이력을 기록(재실행 시 미적용분만 반영). 로컬은 postgres 컨테이너, 클라우드는 `PSQL` 로 접속 지정.
+```bash
+./ops/migrate.sh status      # 적용/미적용 목록
+./ops/migrate.sh baseline    # 이미 수동 적용된 DB → 전 파일을 '적용됨'으로 표시(실행 안 함)
+./ops/migrate.sh             # 미적용 마이그레이션만 순서대로 적용
+# 클라우드 예: PSQL='psql "$DATABASE_URL"' ./ops/migrate.sh
+# 적용 후 prisma client 재생성: npm run prisma:generate --workspace apps/api
+```
+> 신규 스키마 변경은 `migrations/NNNN_*.sql` 로 추가하고 이 러너로 적용(수동 임의 적용 금지).
+
 ## DB 백업 (`backup-db.sh`)
 postgres 컨테이너를 `pg_dump` 하여 `~/itall-backups/`에 gzip 저장(최근 14개 유지).
 ```bash
@@ -7,9 +19,16 @@ postgres 컨테이너를 `pg_dump` 하여 `~/itall-backups/`에 gzip 저장(최�
 # 매일 새벽 3시 크론 예:
 # 0 3 * * *  "/절대경로/ops/backup-db.sh"
 ```
-복구:
+
+## DB 복구 + 리허설 (`restore-db.sh`)
+백업(.sql.gz)을 복원. 파괴적이라 DB명 입력 확인을 요구(`--yes` 로 생략).
 ```bash
-gunzip -c ~/itall-backups/itall-YYYYMMDD-HHMMSS.sql.gz | docker exec -i itall-mentoring-postgres-1 psql -U itall -d itall
+./ops/restore-db.sh ~/itall-backups/itall-YYYYMMDD-HHMMSS.sql.gz
+```
+**복구 리허설(정기 권장)**: 최신 백업을 별도 DB로 복원해 실제로 되살아나는지 검증.
+```bash
+RESTORE_DB=itall_restore_test ./ops/restore-db.sh <최신백업> --yes
+# 검증 카운트(accounts/bookings/credit_accounts)가 0이 아니면 정상. 끝나면 DROP DATABASE.
 ```
 
 ## 데모 터널 재부팅 자동시작 (선택)
