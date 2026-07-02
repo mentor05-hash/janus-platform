@@ -5,7 +5,7 @@ import { useTheme, type Palette } from '../theme';
 import { useWebBack } from '../webBack';
 
 type Pt = { x: number; y: number };
-type Stroke = { points: Pt[]; color: string; width: number };
+type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean };
 const COLORS = ['#16242B', '#0E5C7C', '#E5484D', '#2F9E44', '#F08C00'];
 const W = 720, H = 900;
 
@@ -21,10 +21,13 @@ export function WhiteboardScreen({ bookingId, title, onClose }: { bookingId: str
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const colorRef = useRef(COLORS[0]);
   const widthRef = useRef(4);
+  const toolRef = useRef<'pen' | 'eraser'>('pen');
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [color, setColor] = useState(COLORS[0]);
   const [width, setWidth] = useState(4);
+  const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
   const [status, setStatus] = useState<'connecting' | 'ready' | 'off'>(isWeb ? 'connecting' : 'off');
-  const [saved, setSaved] = useState(false);
+  const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved'>('idle');
   useWebBack(true, onClose);
 
   function redraw() {
@@ -34,12 +37,19 @@ export function WhiteboardScreen({ bookingId, title, onClose }: { bookingId: str
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     for (const s of [...strokesRef.current, ...(drawingRef.current ? [drawingRef.current] : [])]) {
       if (s.points.length < 1) continue;
+      ctx.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over';
       ctx.strokeStyle = s.color; ctx.lineWidth = s.width;
       ctx.beginPath(); ctx.moveTo(s.points[0].x, s.points[0].y);
       for (const p of s.points.slice(1)) ctx.lineTo(p.x, p.y);
       if (s.points.length === 1) ctx.lineTo(s.points[0].x + 0.1, s.points[0].y + 0.1);
       ctx.stroke();
     }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  function scheduleAutosave() {
+    setSaveState('dirty');
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => save(), 1500);
   }
 
   useEffect(() => {
@@ -51,9 +61,15 @@ export function WhiteboardScreen({ bookingId, title, onClose }: { bookingId: str
     cv.style.cssText = 'width:100%;height:100%;background:#fff;touch-action:none;display:block;border-radius:8px;';
     host.appendChild(cv); canvasRef.current = cv;
     const toLogical = (e: PointerEvent) => { const r = cv.getBoundingClientRect(); return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H }; };
-    const down = (e: PointerEvent) => { if (status !== 'ready') return; cv.setPointerCapture?.(e.pointerId); drawingRef.current = { points: [toLogical(e)], color: colorRef.current, width: widthRef.current }; redraw(); };
+    const down = (e: PointerEvent) => {
+      if (status !== 'ready') return; cv.setPointerCapture?.(e.pointerId);
+      drawingRef.current = toolRef.current === 'eraser'
+        ? { points: [toLogical(e)], color: '#000', width: Math.max(16, widthRef.current * 4), erase: true }
+        : { points: [toLogical(e)], color: colorRef.current, width: widthRef.current };
+      redraw();
+    };
     const move = (e: PointerEvent) => { if (!drawingRef.current) return; drawingRef.current.points.push(toLogical(e)); redraw(); };
-    const up = () => { const st = drawingRef.current; drawingRef.current = null; if (!st || !st.points.length) return; strokesRef.current.push(st); redraw(); sockRef.current?.emit('wb:stroke', { bookingId, stroke: st }); setSaved(false); };
+    const up = () => { const st = drawingRef.current; drawingRef.current = null; if (!st || !st.points.length) return; strokesRef.current.push(st); redraw(); sockRef.current?.emit('wb:stroke', { bookingId, stroke: st }); scheduleAutosave(); };
     cv.addEventListener('pointerdown', down); cv.addEventListener('pointermove', move);
     cv.addEventListener('pointerup', up); cv.addEventListener('pointerleave', up);
 
@@ -71,10 +87,15 @@ export function WhiteboardScreen({ bookingId, title, onClose }: { bookingId: str
   }, [bookingId]);
 
   useEffect(() => { redraw(); }, [status]);
-  function pick(c: string) { setColor(c); colorRef.current = c; }
+  function pick(c: string) { setColor(c); colorRef.current = c; setTool('pen'); toolRef.current = 'pen'; }
   function pickW(w: number) { setWidth(w); widthRef.current = w; }
-  function clear() { strokesRef.current = []; redraw(); sockRef.current?.emit('wb:clear', { bookingId }); setSaved(false); }
-  function save() { sockRef.current?.emit('wb:save', { bookingId, strokes: strokesRef.current }, () => setSaved(true)); }
+  function pickTool(t: 'pen' | 'eraser') { setTool(t); toolRef.current = t; }
+  function clear() { strokesRef.current = []; redraw(); sockRef.current?.emit('wb:clear', { bookingId }); scheduleAutosave(); }
+  function save() {
+    if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
+    setSaveState('saving');
+    sockRef.current?.emit('wb:save', { bookingId, strokes: strokesRef.current }, () => setSaveState('saved'));
+  }
 
   return (
     <View style={styles.overlay}>
@@ -95,9 +116,13 @@ export function WhiteboardScreen({ bookingId, title, onClose }: { bookingId: str
               {[2, 4, 8].map((w) => (
                 <TouchableOpacity key={w} onPress={() => pickW(w)} style={[styles.wbtn, width === w && { borderColor: C.teal, borderWidth: 2 }]}><Text style={styles.wtxt}>{w}</Text></TouchableOpacity>
               ))}
+              <View style={{ width: 6 }} />
+              <TouchableOpacity onPress={() => pickTool('pen')} style={[styles.wbtn, { width: 40 }, tool === 'pen' && { borderColor: C.teal, borderWidth: 2 }]}><Text style={styles.wtxt}>✏️</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => pickTool('eraser')} style={[styles.wbtn, { width: 40 }, tool === 'eraser' && { borderColor: C.teal, borderWidth: 2 }]}><Text style={styles.wtxt}>🧽</Text></TouchableOpacity>
               <View style={{ flex: 1 }} />
-              <TouchableOpacity onPress={clear} style={styles.act}><Text style={styles.actT}>지우기</Text></TouchableOpacity>
-              <TouchableOpacity onPress={save} style={[styles.act, styles.actP]}><Text style={[styles.actT, { color: '#fff' }]}>{saved ? '저장됨 ✓' : '저장'}</Text></TouchableOpacity>
+              <Text style={{ fontSize: 10, color: C.muted, marginRight: 4 }}>{saveState === 'saving' ? '저장 중…' : saveState === 'saved' ? '자동저장 ✓' : saveState === 'dirty' ? '변경됨' : ''}</Text>
+              <TouchableOpacity onPress={clear} style={styles.act}><Text style={styles.actT}>전체 지우기</Text></TouchableOpacity>
+              <TouchableOpacity onPress={save} style={[styles.act, styles.actP]}><Text style={[styles.actT, { color: '#fff' }]}>저장</Text></TouchableOpacity>
             </View>
             <View ref={hostRef} style={styles.canvasHost} />
           </>

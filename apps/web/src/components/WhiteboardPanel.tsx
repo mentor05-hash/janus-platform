@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 
 type Pt = { x: number; y: number };
-type Stroke = { points: Pt[]; color: string; width: number };
+type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean };
 const COLORS = ['#16242B', '#0E5C7C', '#E5484D', '#2F9E44', '#F08C00'];
 const W = 900, H = 620; // 논리 좌표(비율 유지 스케일링)
 
@@ -14,8 +14,10 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
   const drawingRef = useRef<Stroke | null>(null);
   const [color, setColor] = useState(COLORS[0]);
   const [width, setWidth] = useState(3);
+  const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
   const [status, setStatus] = useState<'connecting' | 'ready' | 'off'>('connecting');
-  const [saved, setSaved] = useState(false);
+  const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved'>('idle');
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function redraw() {
     const cv = canvasRef.current; if (!cv) return;
@@ -24,12 +26,21 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     for (const s of [...strokesRef.current, ...(drawingRef.current ? [drawingRef.current] : [])]) {
       if (s.points.length < 1) continue;
+      ctx.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over'; // 지우개=투명화
       ctx.strokeStyle = s.color; ctx.lineWidth = s.width;
       ctx.beginPath(); ctx.moveTo(s.points[0].x, s.points[0].y);
       for (const p of s.points.slice(1)) ctx.lineTo(p.x, p.y);
       if (s.points.length === 1) ctx.lineTo(s.points[0].x + 0.1, s.points[0].y + 0.1);
       ctx.stroke();
     }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  /** 변경 후 자동저장(디바운스) — 수동 저장 없이도 스냅샷 영속. */
+  function scheduleAutosave() {
+    setSaveState('dirty');
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => save(), 1500);
   }
 
   useEffect(() => {
@@ -55,7 +66,10 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
   function down(e: React.PointerEvent) {
     if (status !== 'ready') return;
     (e.target as Element).setPointerCapture?.(e.pointerId);
-    drawingRef.current = { points: [toLogical(e)], color, width }; redraw();
+    drawingRef.current = tool === 'eraser'
+      ? { points: [toLogical(e)], color: '#000', width: Math.max(16, width * 4), erase: true }
+      : { points: [toLogical(e)], color, width };
+    redraw();
   }
   function move(e: React.PointerEvent) {
     if (!drawingRef.current) return;
@@ -66,10 +80,14 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     if (!st || st.points.length === 0) return;
     strokesRef.current.push(st); redraw();
     sockRef.current?.emit('wb:stroke', { bookingId, stroke: st });
-    setSaved(false);
+    scheduleAutosave();
   }
-  function clear() { strokesRef.current = []; redraw(); sockRef.current?.emit('wb:clear', { bookingId }); setSaved(false); }
-  function save() { sockRef.current?.emit('wb:save', { bookingId, strokes: strokesRef.current }, () => setSaved(true)); }
+  function clear() { strokesRef.current = []; redraw(); sockRef.current?.emit('wb:clear', { bookingId }); scheduleAutosave(); }
+  function save() {
+    if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
+    setSaveState('saving');
+    sockRef.current?.emit('wb:save', { bookingId, strokes: strokesRef.current }, () => setSaveState('saved'));
+  }
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 950, background: 'rgba(8,16,20,0.5)', display: 'grid', placeItems: 'center', padding: 16 }}>
@@ -92,9 +110,18 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
                 <button key={w} onClick={() => setWidth(w)}
                   style={{ width: 30, height: 26, borderRadius: 6, cursor: 'pointer', border: width === w ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontWeight: 700, fontSize: 12 }}>{w}</button>
               ))}
+              <span style={{ marginLeft: 8, display: 'inline-flex', gap: 4 }}>
+                <button onClick={() => setTool('pen')} aria-pressed={tool === 'pen'} title="펜"
+                  style={{ padding: '5px 9px', borderRadius: 6, cursor: 'pointer', border: tool === 'pen' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>✏️ 펜</button>
+                <button onClick={() => setTool('eraser')} aria-pressed={tool === 'eraser'} title="지우개"
+                  style={{ padding: '5px 9px', borderRadius: 6, cursor: 'pointer', border: tool === 'eraser' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>🧽 지우개</button>
+              </span>
               <div style={{ flex: 1 }} />
-              <button className="btn ghost sm" onClick={clear}>지우기</button>
-              <button className="btn sm" onClick={save}>{saved ? '저장됨 ✓' : '저장'}</button>
+              <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                {saveState === 'saving' ? '저장 중…' : saveState === 'saved' ? '자동 저장됨 ✓' : saveState === 'dirty' ? '변경됨' : ''}
+              </span>
+              <button className="btn ghost sm" onClick={clear}>전체 지우기</button>
+              <button className="btn sm" onClick={save}>저장</button>
             </div>
             <canvas ref={canvasRef} width={W} height={H} role="img" aria-label="공유 필기 캔버스"
               onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up}
