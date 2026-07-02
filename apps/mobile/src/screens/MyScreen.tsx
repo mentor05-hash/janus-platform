@@ -11,7 +11,7 @@ import { ScoresScreen } from './ScoresScreen';
 
 type Plan = { id: string; name: string; price: number; membership_grade?: { name: string; weekly_credits: number } | null };
 type Pay = { id: string; amount: number; created_at: string };
-type Noti = { id: string; type: string | null; read_at: string | null; created_at: string; payload?: Record<string, unknown> | null };
+type Noti = { id: string; type: string | null; read_at: string | null; created_at: string; payload?: Record<string, unknown> | null; title?: string; body?: string };
 type Tx = { id: string; type: 'charge' | 'spend' | 'weekly_grant' | 'weekly_expire' | 'refund'; amount: number; balance: number; description: string | null; created_at: string };
 const won = (n: number) => `${n.toLocaleString()}원`;
 const CHARGE = [30000, 50000, 100000];
@@ -169,7 +169,7 @@ export function MyScreen() {
       <Text style={styles.sec}>알림 {notis.filter((n) => !n.read_at).length > 0 ? `(미확인 ${notis.filter((n) => !n.read_at).length})` : ''}</Text>
       {notis.length === 0 ? <Text style={ui.sub}>알림이 없어요.</Text> : notis.slice(0, 8).map((n) => (
         <View key={n.id} style={[ui.card, { marginBottom: 6 }]}>
-          <Text style={{ fontSize: 13, color: n.read_at ? C.muted : C.ink }}>{!n.read_at ? '● ' : ''}{n.type ?? '알림'}{typeof n.payload?.message === 'string' ? ` · ${n.payload.message}` : ''}</Text>
+          <Text style={{ fontSize: 13, color: n.read_at ? C.muted : C.ink }}>{!n.read_at ? '● ' : ''}{n.title ?? n.type ?? '알림'}{n.body ? ` · ${n.body}` : ''}</Text>
           <Text style={styles.sub}>{KST(n.created_at)}</Text>
         </View>
       ))}

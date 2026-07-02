@@ -1,19 +1,25 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { renderNotification, type NotifPayload } from './notification-templates';
 
 /**
  * 알림 조회/읽음 (CLAUDE.md §3 notification). 발송은 NotificationProvider 어댑터가,
- * 수신함 조회는 여기서. 본인(recipient) 알림만.
+ * 수신함 조회는 여기서. 본인(recipient) 알림만. 표시 문구는 템플릿으로 렌더링(읽기 시점).
  */
 @Injectable()
 export class NotificationService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(recipientId: string) {
-    return this.prisma.notification.findMany({
+  async list(recipientId: string) {
+    const rows = await this.prisma.notification.findMany({
       where: { recipient_id: recipientId },
       orderBy: { created_at: 'desc' },
       take: 100,
+    });
+    // type+payload → 표시용 {title, body} 를 서버에서 일관 렌더링.
+    return rows.map((n) => {
+      const { title, body } = renderNotification(n.type ?? '', (n.payload as NotifPayload) ?? {});
+      return { ...n, title, body };
     });
   }
 

@@ -47,9 +47,9 @@ export function NotificationsPage() {
             <Card key={n.id} style={{ opacity: n.read_at ? 0.55 : 1 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <strong>{n.type ?? '알림'}</strong>{' '}
+                  <strong>{n.title ?? n.type ?? '알림'}</strong>{' '}
                   <span style={{ color: 'var(--muted)', fontSize: 12 }}>{new Date(n.created_at).toLocaleString('ko-KR')}</span>
-                  <div style={{ color: 'var(--muted)', fontSize: 13 }}>{JSON.stringify(n.payload ?? {})}</div>
+                  {n.body && <div style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2 }}>{n.body}</div>}
                 </div>
                 {!n.read_at && (
                   <Button size="sm" variant="ghost" onClick={() => read(n.id)}>

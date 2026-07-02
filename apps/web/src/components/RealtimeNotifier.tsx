@@ -35,8 +35,9 @@ export function RealtimeNotifier() {
     const token = localStorage.getItem('itall_access') ?? '';
     if (!token) return;
     const s: Socket = io(window.location.origin, { path: '/api/v1/socket.io', auth: { token }, transports: ['websocket'] });
-    s.on('notif:new', (n: { type: string; payload?: Record<string, unknown> }) => {
-      const text = (typeof n?.payload?.message === 'string' && n.payload.message) || LABEL[n?.type] || t('notif.new');
+    s.on('notif:new', (n: { type: string; payload?: Record<string, unknown>; title?: string; body?: string }) => {
+      // 서버 템플릿 렌더(body) 우선, 없으면 클라이언트 폴백.
+      const text = n?.body || (typeof n?.payload?.message === 'string' && n.payload.message) || LABEL[n?.type] || t('notif.new');
       const id = ++seq.current;
       setToasts((p) => [...p, { id, text }]);
       // 배지 갱신용 커스텀 이벤트(알림 페이지·레이아웃이 구독 가능)

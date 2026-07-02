@@ -3,6 +3,7 @@ import { NOTIFICATION_PROVIDER } from './notification.types';
 import type { NotificationProvider, NotifyChannel } from './notification.types';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { RealtimeService } from '../realtime/realtime.service';
+import { renderNotification } from './notification-templates';
 
 /**
  * 알림 발송 편의 래퍼 (§3 notification). 각 도메인 서비스가 이벤트 발생 시 호출.
@@ -34,7 +35,10 @@ export class NotifyService {
         void this.realtimeSvc
           .notifAllowed(recipientId)
           .then((ok) => {
-            if (ok) this.realtime!.emitToUser(recipientId, 'notif:new', { type, payload });
+            if (ok) {
+              const { title, body } = renderNotification(type, payload);
+              this.realtime!.emitToUser(recipientId, 'notif:new', { type, payload, title, body });
+            }
           })
           .catch(() => {});
       }

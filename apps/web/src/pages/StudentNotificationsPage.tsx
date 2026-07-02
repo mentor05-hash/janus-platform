@@ -3,11 +3,6 @@ import { api, ApiError } from '../api/client';
 import type { Notification } from '../api/types';
 import { PageHeader, Card, ErrorText, Spinner, EmptyState } from '../components/ui';
 
-const TYPE_LABEL: Record<string, string> = {
-  booking_requested: '예약 신청', booking_confirmed: '예약 확정', booking_cancelled: '예약 취소',
-  reverse_proposed: '역상담 제안', review_requested: '후기 요청', credit_granted: '크레딧 지급',
-};
-
 export function StudentNotificationsPage() {
   const [rows, setRows] = useState<Notification[] | null>(null);
   const [error, setError] = useState('');
@@ -24,8 +19,8 @@ export function StudentNotificationsPage() {
             <div key={n.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--line)' }}>
               <span style={{ fontSize: 14, color: n.read_at ? 'var(--muted)' : 'var(--ink)' }}>
                 {!n.read_at && <span style={{ color: 'var(--teal)' }}>● </span>}
-                <b>{TYPE_LABEL[n.type ?? ''] ?? n.type ?? '알림'}</b>
-                {typeof n.payload?.message === 'string' ? ` · ${n.payload.message}` : ''}
+                <b>{n.title ?? n.type ?? '알림'}</b>
+                {n.body ? ` · ${n.body}` : ''}
               </span>
               <span style={{ fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{new Date(n.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
             </div>

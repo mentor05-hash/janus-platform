@@ -220,6 +220,8 @@ export interface Notification {
   type: string | null;
   channels: string[];
   payload: Record<string, unknown> | null;
+  title?: string;   // 서버 템플릿 렌더링(표시용)
+  body?: string;    // 서버 템플릿 렌더링(표시용)
   read_at: string | null;
   created_at: string;
 }
