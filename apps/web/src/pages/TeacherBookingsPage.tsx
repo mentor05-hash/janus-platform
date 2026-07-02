@@ -8,19 +8,12 @@ import { ChatPanel } from '../components/ChatPanel';
 import { WhiteboardPanel } from '../components/WhiteboardPanel';
 import type { Column } from '../components/ui';
 import { StatCard, StatGrid } from '../components/dashboard/widgets';
+import { isSameDay, inThisWeek } from '../utils/schedule';
 
 const STATUS_LABEL: Record<string, string> = {
   new: '신규', confirmed: '예약됨', done: '완료', cancelled: '취소', rejected: '거절', noshow: '노쇼',
 };
 const timeOf = (s: string | null) => (s ? new Date(s).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '미정');
-const isSameDay = (s: string | null, ref: Date) => !!s && new Date(s).toDateString() === ref.toDateString();
-const inThisWeek = (s: string | null) => {
-  if (!s) return false;
-  const d = new Date(s), now = new Date();
-  const mon = new Date(now); mon.setDate(now.getDate() - ((now.getDay() + 6) % 7)); mon.setHours(0, 0, 0, 0);
-  const sun = new Date(mon); sun.setDate(mon.getDate() + 7);
-  return d >= mon && d < sun;
-};
 
 const TABS = [{ value: 'today', label: '오늘' }, { value: 'week', label: '이번 주' }, { value: 'all', label: '전체' }];
 

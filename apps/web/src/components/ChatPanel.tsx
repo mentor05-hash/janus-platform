@@ -2,11 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { api } from '../api/client';
 import { AuthImage } from './AuthImage';
+import { mineOf } from '../utils/chat';
 
 type Msg = { id: string; senderId: string | null; mine?: boolean; kind: string; body: string | null; imageFileId: string | null; createdAt: string };
 const KST = (iso: string) => new Date(iso).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-// 서버가 계산한 mine 을 신뢰(수신자별). 없을 때만 클라이언트 myId 로 폴백.
-const mineOf = (m: Msg, myId: string) => (typeof m.mine === 'boolean' ? m.mine : m.senderId === myId);
 
 /** 예약 기반 실시간 채팅. myId 로 좌/우 정렬(브로드캐스트 메시지엔 mine 미포함). */
 export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: string; myId: string; title?: string; onClose: () => void }) {

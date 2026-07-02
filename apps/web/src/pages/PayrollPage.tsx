@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
+import { won } from '../utils/format';
 import { useAuth } from '../auth/AuthContext';
 import type { Payroll } from '../api/types';
 import { PageHeader, Card, Spinner, ErrorText, Badge } from '../components/ui';
 import { StatCard, StatGrid } from '../components/dashboard/widgets';
 
-const won = (n: number) => `${n.toLocaleString()}원`;
 const GRADE_ORDER = ['S', 'A', 'B', 'C'];
 
 type Deductions = { 국민연금: number; 건강보험: number; 장기요양: number; 고용보험: number; 소득세: number; 지방소득세: number; total: number; net: number };
