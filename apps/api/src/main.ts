@@ -11,6 +11,7 @@ import { requestIdMiddleware } from './common/observability/request-id.middlewar
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
+    rawBody: true, // PG 웹훅 서명검증(HMAC)용 원문 보존 — JSON 파싱은 그대로 동작
     // 구조적 로깅(§10) — LOG_FORMAT=json|pretty, 기본 staging/prod=json
     logger: createLogger(
       process.env.APP_ENV ?? process.env.NODE_ENV,

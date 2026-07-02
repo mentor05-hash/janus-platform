@@ -419,15 +419,36 @@ model ops_stat {
 }
 
 model payment {
-  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  payer_account_id String   @db.Uuid
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  payer_account_id String          @db.Uuid
   amount           Int
   pg_provider      String?
   pg_txn_id        String?
   target           String?
-  status           String?  @default("pending")
-  created_at       DateTime @default(now()) @db.Timestamptz(6)
-  account          account  @relation(fields: [payer_account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  status           String?         @default("pending")
+  idempotency_key  String?         @unique
+  refunded_at      DateTime?       @db.Timestamptz(6)
+  created_at       DateTime        @default(now()) @db.Timestamptz(6)
+  account          account         @relation(fields: [payer_account_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  payment_event    payment_event[]
+}
+
+/// PG 웹훅 멱등 원장 — (provider,event_id) 로 1회만 처리(재전송 방지). §9 O2·§10.
+model payment_event {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  provider     String
+  event_id     String
+  type         String
+  payment_id   String?   @db.Uuid
+  payload      Json?
+  status       String    @default("received")
+  error        String?
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  processed_at DateTime? @db.Timestamptz(6)
+  payment      payment?  @relation(fields: [payment_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@unique([provider, event_id])
+  @@index([status, created_at])
 }
 
 model payment_request {

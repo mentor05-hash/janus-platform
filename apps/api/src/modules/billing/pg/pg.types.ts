@@ -21,3 +21,16 @@ export interface ChargeResult {
 export interface PgProvider {
   charge(input: ChargeInput): Promise<ChargeResult>;
 }
+
+/** PG 웹훅 정규화 이벤트 — 벤더별 페이로드를 이 형태로 매핑해 처리(§9 O2). */
+export type PgWebhookType = 'payment.paid' | 'payment.failed' | 'payment.refunded';
+export interface PgWebhookEvent {
+  /** 벤더 고유 이벤트 ID — (provider,eventId) 로 멱등 처리. */
+  eventId: string;
+  type: PgWebhookType;
+  /** 청구 멱등키 — 충전/환불 원장 매칭 키(payment.idempotency_key). */
+  idempotencyKey: string;
+  payerAccountId?: string;
+  amount?: number;
+  pgTxnId?: string;
+}

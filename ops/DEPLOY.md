@@ -60,6 +60,16 @@ provider 스위치를 바꾸고 자격증명 설정 후 재기동하면 실연�
 > 어댑터 구현체는 `apps/api/src/modules/*/providers|pg`에 존재. 실연동 시 해당 provider의
 > TODO(실 API 호출부)를 벤더 SDK로 채우면 됩니다.
 
+### 5-1. PG 웹훅(결제 확정·환불 수신)
+- 엔드포인트: `POST /api/v1/billing/pg/webhook/:provider` (공개 — 서명검증으로 인증).
+- 서명: 헤더 `x-pg-signature` = HMAC-SHA256(raw body, `PG_WEBHOOK_SECRET`). 시크릿 미설정 시
+  데모로 검증 생략 → **실서비스는 반드시 `PG_WEBHOOK_SECRET` 설정**.
+- 멱등: `(provider, event_id)` 원장(`payment_event`)으로 재전송 1회만 처리 + 충전/환불은
+  `payment.idempotency_key` 로 이중 반영 방지. 벤더 페이로드는 `pg-webhook.controller.ts`
+  `normalize()` 에서 `{eventId,type,idempotencyKey,payerAccountId,amount,pgTxnId}` 로 매핑.
+- 벤더 콘솔에 위 URL 을 웹훅 수신지로 등록하고, 이벤트 타입을
+  `payment.paid|payment.failed|payment.refunded` 로 매핑하면 됩니다.
+
 ## 6. 런칭 전 보안 체크리스트
 - [ ] `VITE_DEMO_MODE`/`EXPO_PUBLIC_DEMO_MODE` 미설정(자동로그인·기본 비번 비노출)
 - [ ] JWT 시크릿 강한 랜덤·시크릿 매니저 보관

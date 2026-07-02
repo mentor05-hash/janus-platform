@@ -139,6 +139,49 @@ export class CreditService {
     };
   }
 
+  /**
+   * PG 확정(웹훅) 충전 — idempotencyKey 로 이중 충전 방지. 이미 처리됐으면 no-op.
+   * 실 PG 연결 시 웹훅 핸들러가 호출. payment.idempotency_key UNIQUE 로 경합도 방지.
+   */
+  async applyPgCharge(
+    tx: Prisma.TransactionClient,
+    input: { studentId: string; amount: number; provider: string; pgTxnId?: string; idempotencyKey: string },
+  ): Promise<{ applied: boolean }> {
+    const existing = await tx.payment.findUnique({ where: { idempotency_key: input.idempotencyKey } });
+    if (existing) return { applied: false }; // 이미 반영됨(멱등)
+    const acct = await this.lockAccount(tx, input.studentId);
+    const balance = acct.purchased_balance + acct.granted_balance + input.amount;
+    await tx.credit_account.update({ where: { id: acct.id }, data: { purchased_balance: { increment: input.amount } } });
+    await tx.credit_transaction.create({
+      data: { account_id: acct.id, type: CreditTxnType.CHARGE, amount: input.amount, balance, description: `크레딧 충전(${input.provider} PG)`, method: input.provider },
+    });
+    await tx.payment.create({
+      data: { payer_account_id: input.studentId, amount: input.amount, pg_provider: input.provider, pg_txn_id: input.pgTxnId ?? null, target: '충전', status: 'done', idempotency_key: input.idempotencyKey },
+    });
+    return { applied: true };
+  }
+
+  /**
+   * PG 환불(웹훅) — 원 충전(payment)을 되돌림. refunded_at 로 이중 환불 방지.
+   * 구매 크레딧을 차감(0 미만 방지)하고 payment.refunded_at 을 찍는다.
+   */
+  async applyPgRefund(
+    tx: Prisma.TransactionClient,
+    input: { idempotencyKey: string; provider: string; amount?: number },
+  ): Promise<{ applied: boolean }> {
+    const payment = await tx.payment.findUnique({ where: { idempotency_key: input.idempotencyKey } });
+    if (!payment || payment.refunded_at) return { applied: false }; // 원결제 없음/이미 환불(멱등)
+    const amount = input.amount ?? payment.amount;
+    const acct = await this.lockAccount(tx, payment.payer_account_id);
+    const dec = Math.min(amount, acct.purchased_balance); // 이미 사용된 분은 차감 불가 — 잔액까지만
+    const updated = await tx.credit_account.update({ where: { id: acct.id }, data: { purchased_balance: { decrement: dec } } });
+    await tx.credit_transaction.create({
+      data: { account_id: acct.id, type: CreditTxnType.REFUND, amount: dec, balance: updated.purchased_balance + updated.granted_balance, description: `충전 환불(${input.provider} PG)`, ref_type: 'pg_refund', ref_id: payment.id },
+    });
+    await tx.payment.update({ where: { id: payment.id }, data: { status: 'refunded', refunded_at: new Date() } });
+    return { applied: true };
+  }
+
   /** 결제 내역(GET /payments/history) — 본인 결제(payment) 목록. */
   paymentHistory(payerId: string) {
     return this.prisma.payment.findMany({

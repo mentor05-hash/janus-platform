@@ -10,6 +10,8 @@ import { AutopayService } from './autopay.service';
 import { MockPgProvider } from './pg/mock-pg.provider';
 import { RealPgProvider } from './pg/real-pg.provider';
 import { PG_PROVIDER } from './pg/pg.types';
+import { PgWebhookController } from './pg/pg-webhook.controller';
+import { PgWebhookService } from './pg/pg-webhook.service';
 
 /**
  * Billing 바운디드 컨텍스트 (CLAUDE.md §3).
@@ -18,12 +20,13 @@ import { PG_PROVIDER } from './pg/pg.types';
  */
 @Module({
   imports: [NotificationModule],
-  controllers: [BillingController, PaymentRequestController],
+  controllers: [BillingController, PaymentRequestController, PgWebhookController],
   providers: [
     CreditService,
     WeeklyGrantService,
     PaymentRequestService,
     AutopayService,
+    PgWebhookService,
     {
       provide: PG_PROVIDER,
       inject: [ConfigService],
