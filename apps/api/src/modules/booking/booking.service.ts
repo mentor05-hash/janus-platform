@@ -112,13 +112,18 @@ export class BookingService {
     const studentId = user.role === AccountRole.STUDENT ? user.id : undefined;
     if (studentId) await this.requireStudent(studentId); // 미등록 승인계정 견적 시 500 방지
 
-    const valid = await this.availability.assertBookable(
+    const slotOk = await this.availability.assertBookable(
       dto.teacherId,
       dto.date,
       dto.slotStart * SLOT_GRANULARITY_MINUTES,
       dto.slotEnd * SLOT_GRANULARITY_MINUTES,
       studentId,
     );
+    // 방식·상담유형 열림 여부까지 견적에서 미리 확인(제출 후 403 대신 사전 안내).
+    const modeFeature = await this.adminPolicy.resolveFeature(teacher.center_id, 'mode', dto.mode);
+    const catFeature = dto.consultType
+      ? await this.adminPolicy.resolveFeature(teacher.center_id, 'category', dto.consultType)
+      : { enabled: true };
     const q = await this.pricing.quoteSession(
       dto.mode,
       minutes,
@@ -126,14 +131,15 @@ export class BookingService {
       teacher.center_id,
       dto.consultType,
     );
-    return {
-      minutes,
-      credits: q.credits,
-      valid,
-      message: valid
-        ? '예약 가능'
-        : '선택한 시간은 예약할 수 없습니다(휴게/근무/체류 위반).',
-    };
+    const valid = slotOk && modeFeature.enabled && catFeature.enabled;
+    const message = !slotOk
+      ? '선택한 시간은 예약할 수 없습니다(휴게/근무/체류 위반).'
+      : !modeFeature.enabled
+        ? `현재 ${dto.mode} 방식은 닫혀 있어요. 다른 방식을 선택하세요.`
+        : !catFeature.enabled
+          ? `현재 ${dto.consultType} 상담은 닫혀 있어요.`
+          : '예약 가능';
+    return { minutes, credits: q.credits, valid, message };
   }
 
   /** POST /bookings — 예약 생성. 트랜잭션 + 슬롯 UNIQUE 로 동시성 보호, 크레딧 차감(§5-3). */
