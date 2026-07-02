@@ -101,15 +101,6 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher, mode?: 
         </View>
       ) : (
         <>
-          {/* 필터 접기/열기 토글 — 접으면 상담방식~우수선생님을 가려 목록이 전체 화면을 쓴다 */}
-          <TouchableOpacity style={styles.filterToggle} onPress={() => setFiltersOpen((o) => !o)} activeOpacity={0.7}>
-            <Text style={styles.filterToggleT}>{filtersOpen ? '필터 접기 ▲' : '필터 열기 ▼'}</Text>
-            {!filtersOpen && (
-              <Text style={styles.filterToggleSub} numberOfLines={1}>
-                {(modeFilter ? MODE_META[modeFilter].label : '전체')} · {consultType ?? '유형 전체'} · {category}
-              </Text>
-            )}
-          </TouchableOpacity>
           {filtersOpen && (
           <>
           {/* 상담 방식 먼저 고르기(선택) — 그 방식으로 가능한 선생님만 필터 */}
@@ -181,10 +172,15 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher, mode?: 
           )}
           </>
           )}
-          {/* 맞춤 추천 */}
-          <TouchableOpacity style={styles.recToggle} onPress={() => setRecOpen((o) => !o)}>
-            <Text style={styles.recToggleT}>✨ 맞춤 추천 {recOpen ? '▲' : '▼'}</Text>
-          </TouchableOpacity>
+          {/* 필터 접기/열기 + 맞춤 추천 — 한 줄에 나란히(접으면 상담방식~우수선생님을 가려 목록이 전체 화면) */}
+          <View style={styles.toggleRow}>
+            <TouchableOpacity style={[styles.filterToggle, { flex: 1 }]} onPress={() => setFiltersOpen((o) => !o)} activeOpacity={0.7}>
+              <Text style={styles.filterToggleT}>{filtersOpen ? '필터 접기 ▲' : '필터 열기 ▼'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.recToggle, { flex: 1, marginTop: 0 }]} onPress={() => setRecOpen((o) => !o)}>
+              <Text style={styles.recToggleT}>✨ 맞춤 추천 {recOpen ? '▲' : '▼'}</Text>
+            </TouchableOpacity>
+          </View>
           {recOpen && (
             <View style={styles.recBox}>
               <Text style={styles.recSub}>필요한 점을 고르면 선생님 강점·평가로 매칭해 드려요.</Text>
@@ -287,9 +283,9 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   note: { fontSize: 12, color: C.teal, backgroundColor: C.teal50, borderRadius: 8, padding: 9, marginTop: 8 },
   recToggle: { marginTop: 10, backgroundColor: C.teal50, borderRadius: 9, paddingVertical: 9, alignItems: 'center' },
   recToggleT: { color: C.teal, fontWeight: '800', fontSize: 13 },
-  filterToggle: { marginTop: 10, backgroundColor: C.teal, borderRadius: 9, paddingVertical: 10, paddingHorizontal: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 },
+  toggleRow: { flexDirection: 'row', gap: 8, marginTop: 10, alignItems: 'stretch' },
+  filterToggle: { backgroundColor: C.teal, borderRadius: 9, paddingVertical: 9, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center' },
   filterToggleT: { color: C.white, fontWeight: '800', fontSize: 13 },
-  filterToggleSub: { color: C.white, fontSize: 11, opacity: 0.85, flexShrink: 1 },
   recBox: { marginTop: 8, backgroundColor: C.white, borderWidth: 1, borderColor: C.teal100, borderRadius: 12, padding: 12 },
   recSub: { fontSize: 12, color: C.muted, marginBottom: 8 },
   recPill: { alignSelf: 'flex-start', borderWidth: 1, borderColor: C.line, borderRadius: R.pill, paddingVertical: 4, paddingHorizontal: 11, backgroundColor: C.white },
