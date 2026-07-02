@@ -55,12 +55,17 @@ export function SlotsScreen({ teacher, onBack, initialMode }: { teacher: Teacher
     setQuote(null);
   }
 
-  useEffect(() => {
-    resetSel();
+  /** 슬롯 최신화(다른 학생 예약 반영). */
+  function loadSlots() {
     api
       .get<Slot[]>(`/teachers/${teacher.id}/slots?date=${date}`)
       .then(setSlots)
       .catch((e) => setError(e instanceof ApiError ? e.message : '슬롯 조회 실패'));
+  }
+  useEffect(() => {
+    resetSel();
+    loadSlots();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teacher.id, date]);
 
   // 범위·방식 선택 시 재견적
@@ -108,8 +113,15 @@ export function SlotsScreen({ teacher, onBack, initialMode }: { teacher: Teacher
       Alert.alert('예약 완료', '상담이 신청되었습니다.');
       onBack();
     } catch (e) {
-      if (e instanceof ApiError && e.status === 409 && mode === 'zoom') {
+      if (e instanceof ApiError && e.status === 409 && /줌.*초과/.test(e.message)) {
         Alert.alert('줌 상담실 만석', '지금은 줌 상담실이 가득 찼어요. 채팅·필기·오프라인 등 다른 방식을 선택해 주세요.');
+        return;
+      }
+      if (e instanceof ApiError && e.status === 409) {
+        // 다른 학생이 먼저 예약함 등 슬롯 충돌 → 선택 해제 + 슬롯 새로고침.
+        Alert.alert('예약할 수 없어요', e.message);
+        resetSel();
+        loadSlots();
         return;
       }
       const msg = e instanceof ApiError ? e.message : '예약 실패';

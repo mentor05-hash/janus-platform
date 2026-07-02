@@ -44,10 +44,15 @@ function BookingForm({ teacher, onDone, onBack, initialMode }: { teacher: Teache
   const fileRef = useRef<HTMLInputElement>(null);
 
   function resetSel() { setSelStart(null); setSelEnd(null); setNotice(''); setQuote(null); }
+  /** 슬롯 최신화(다른 학생 예약 반영). 선택은 유지하지 않고 호출측이 필요 시 resetSel. */
+  function loadSlots() {
+    setSlots(null);
+    api.get<Slot[]>(`/teachers/${teacher.id}/slots?date=${date}`).then(setSlots).catch((e) => setError(e instanceof ApiError ? e.message : '슬롯 조회 실패'));
+  }
 
   useEffect(() => {
-    resetSel(); setSlots(null);
-    api.get<Slot[]>(`/teachers/${teacher.id}/slots?date=${date}`).then(setSlots).catch((e) => setError(e instanceof ApiError ? e.message : '슬롯 조회 실패'));
+    resetSel(); loadSlots();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teacher.id, date]);
 
   useEffect(() => {
@@ -110,8 +115,16 @@ function BookingForm({ teacher, onDone, onBack, initialMode }: { teacher: Teache
       await api.post('/bookings', { teacherId: teacher.id, date, consultType: '교과', subType: subject, mode, slotStart: selStart, slotEnd: selEnd + 1, content: content || undefined, attachments });
       setMsg('상담이 신청되었습니다.'); setTimeout(onDone, 900);
     } catch (e) {
-      if (e instanceof ApiError && e.status === 409 && mode === 'zoom') {
+      if (e instanceof ApiError && e.status === 409 && /줌.*초과/.test(e.message)) {
+        // 줌 동시 한도 초과 — 슬롯은 유효하니 선택 유지, 방식만 바꾸도록 안내.
         setError('지금은 줌 상담실이 가득 찼어요. 채팅·필기·오프라인 등 다른 방식을 선택해 주세요.');
+        return;
+      }
+      if (e instanceof ApiError && e.status === 409) {
+        // 다른 학생이 먼저 예약함 등 슬롯 충돌 → 선택 해제 + 슬롯 새로고침(찬 자리 즉시 반영).
+        setError(e.message);
+        resetSel();
+        loadSlots();
         return;
       }
       setError(e instanceof ApiError ? (e.status === 402 ? '크레딧이 부족합니다.' : e.message) : '예약 실패');
@@ -295,12 +308,12 @@ const STRENGTH_POOL = ['개념정리', '문제풀이', '내신대비', '수능�
 const CTYPES: [string, string][] = [['담임', '🏫'], ['교과', '📐'], ['입시', '🎯'], ['심리', '💬']];
 const SUBTYPES: Record<string, string[]> = {
   담임: ['생활전반', '학습전반'],
-  교과: ['국어', '수학', '영어', '과학탐구', '사회탐구'],
-  입시: ['성적별 대학라인', '유리한 전형선택', '입시정보', '유료컨설팅'],
+  교과: ['국어', '수학', '영어', '과학', '사회'],
+  입시: ['대학라인', '전형선택', '입시정보', '유료상담'],
   심리: ['LCA코칭', '심리상담'],
 };
 // 교과 세부값(표시) → 실제 선생님 과목(DB) 매핑
-const SUBJECT_MAP: Record<string, string> = { 국어: '국어', 수학: '수학', 영어: '영어', 과학탐구: '과학', 사회탐구: '사회' };
+const SUBJECT_MAP: Record<string, string> = { 국어: '국어', 수학: '수학', 영어: '영어', 과학: '과학', 사회: '사회' };
 
 export function StudentSearchPage() {
   const navigate = useNavigate();
@@ -463,7 +476,7 @@ export function StudentSearchPage() {
         </>
       )}
       {consultType === '심리' && <p style={{ fontSize: 12, color: 'var(--teal)', background: 'var(--teal-50,#F0F7FA)', borderRadius: 8, padding: 9, marginBottom: 8 }}>💬 심리상담(LCA코칭·심리상담)은 현재 기숙 온/오프라인으로 운영돼요.</p>}
-      {subType === '유료컨설팅' && <p style={{ fontSize: 12, color: '#92600A', background: 'var(--chip-confirmed-bg,#FEF6E7)', borderRadius: 8, padding: 9, marginBottom: 8 }}>💎 입시 유료컨설팅은 별도 단가가 적용돼요.</p>}
+      {subType === '유료상담' && <p style={{ fontSize: 12, color: '#92600A', background: 'var(--chip-confirmed-bg,#FEF6E7)', borderRadius: 8, padding: 9, marginBottom: 8 }}>💎 입시 유료상담은 별도 단가가 적용돼요.</p>}
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 12 }}>
         <div style={{ flex: '1 1 220px', minWidth: 180 }}><TextField label="검색" placeholder="이름·과목" value={q} onChange={(e) => setQ(e.target.value)} /></div>
