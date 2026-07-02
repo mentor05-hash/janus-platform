@@ -21,6 +21,11 @@ export class TeacherQueryDto {
   @IsIn(['담임', '교과', '입시', '심리'])
   consultType?: string;
 
+  /** 상담 방식(줌·채팅·필기·오프라인) — 해당 방식으로 진행 가능한 선생님만 필터("방식 먼저 선택"). */
+  @IsOptional()
+  @IsIn(['zoom', 'chat', 'hand', 'offline'])
+  mode?: string;
+
   /** 이름·과목 검색어. */
   @IsOptional()
   @IsString()

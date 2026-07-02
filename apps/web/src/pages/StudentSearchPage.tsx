@@ -20,10 +20,13 @@ const SUBJECTS = ['국어', '수학', '영어', '탐구'];
 const MODES: { value: string; label: string }[] = [
   { value: 'zoom', label: '줌 화상' }, { value: 'chat', label: '실시간 채팅' }, { value: 'hand', label: '필기 공유' }, { value: 'offline', label: '오프라인(센터 대면)' },
 ];
+const MODE_META: Record<string, { label: string; icon: string }> = {
+  zoom: { label: '줌 화상', icon: '📹' }, chat: { label: '실시간 채팅', icon: '💬' }, hand: { label: '필기 공유', icon: '✍️' }, offline: { label: '오프라인 대면', icon: '🏫' },
+};
 type Attachment = { id: string; name: string; type?: string };
 const actBtn: React.CSSProperties = { flex: 1, background: 'none', border: '1px solid var(--line)', borderRadius: 8, padding: '6px 0', fontSize: 12, color: 'var(--muted)', cursor: 'pointer' };
 
-function BookingForm({ teacher, onDone, onBack }: { teacher: Teacher; onDone: () => void; onBack: () => void }) {
+function BookingForm({ teacher, onDone, onBack, initialMode }: { teacher: Teacher; onDone: () => void; onBack: () => void; initialMode?: string }) {
   const [date, setDate] = useState(todayStr());
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [selStart, setSelStart] = useState<number | null>(null);
@@ -31,7 +34,9 @@ function BookingForm({ teacher, onDone, onBack }: { teacher: Teacher; onDone: ()
   const [notice, setNotice] = useState('');
   const [subject, setSubject] = useState('수학');
   const [content, setContent] = useState('');
-  const [mode, setMode] = useState('zoom');
+  const supportedModes = teacher.modes?.length ? MODES.filter((m) => teacher.modes!.includes(m.value)) : MODES;
+  const supportedVals = supportedModes.map((m) => m.value);
+  const [mode, setMode] = useState(initialMode && supportedVals.includes(initialMode) ? initialMode : supportedVals.includes('zoom') ? 'zoom' : supportedVals[0]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [error, setError] = useState('');
@@ -187,7 +192,8 @@ function BookingForm({ teacher, onDone, onBack }: { teacher: Teacher; onDone: ()
 
         <Card style={{ flex: '1 1 320px', minWidth: 280 }}>
           <SelectField label="과목" value={subject} onChange={(e) => setSubject(e.target.value)} options={SUBJECTS.map((s) => ({ value: s, label: s }))} />
-          <SelectField label="진행 방식" value={mode} onChange={(e) => setMode(e.target.value)} options={MODES} />
+          <SelectField label="진행 방식" value={mode} onChange={(e) => setMode(e.target.value)} options={supportedModes} />
+          <p style={{ fontSize: 12, color: 'var(--muted)', margin: '-2px 0 8px' }}>이 선생님이 제공하는 방식: {supportedModes.map((m) => m.label).join(' · ')}</p>
           {mode === 'offline' && <p style={{ fontSize: 12, color: 'var(--muted)', background: 'var(--fill,#f6f8fa)', borderRadius: 8, padding: 9, margin: '0 0 8px' }}>🏫 오프라인은 가능한 선생님·센터·시간이 제한되며 센터 상담실 점유료가 가산됩니다.</p>}
           {mode === 'zoom' && <p style={{ fontSize: 12, color: '#92600a', background: '#FEF6E7', borderRadius: 8, padding: 9, margin: '0 0 8px' }}>🎥 줌은 센터 상담실 동시 이용 한도가 있어, 예약 시점에 자리가 없으면 다른 방식을 선택해야 할 수 있어요.</p>}
           <p style={{ fontSize: 12, color: 'var(--teal)', background: 'var(--teal-50,#F0F7FA)', borderRadius: 8, padding: 9, margin: '0 0 8px' }}>📋 게시판(문항·일반) 질문은 Q&A 게시판에서 건당 신청해요.</p>
@@ -303,6 +309,7 @@ export function StudentSearchPage() {
   const [mode, setMode] = useState<'상담' | '질문'>('상담');
   const [consultType, setConsultType] = useState<string | null>(null);
   const [subType, setSubType] = useState<string | null>(null);
+  const [modeFilter, setModeFilter] = useState<string | null>(null);
   const [category, setCategory] = useState('전체');
   const [sort, setSort] = useState('grade');
   const [q, setQ] = useState('');
@@ -326,11 +333,12 @@ export function StudentSearchPage() {
     if (category !== '전체') params.set('category', category);
     if (subjectFilter) params.set('subject', subjectFilter);
     if (consultType) params.set('consultType', consultType);
+    if (modeFilter) params.set('mode', modeFilter);
     if (sort) params.set('sort', sort);
     params.set('size', '100');
     setTeachers(null);
     api.get<{ data?: Teacher[] } | Teacher[]>(`/teachers?${params}`).then((r) => setTeachers(Array.isArray(r) ? r : (r.data ?? []))).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
-  }, [category, sort, subjectFilter, consultType]);
+  }, [category, sort, subjectFilter, consultType, modeFilter]);
   // 뒤로가기: 목록↔상세↔예약을 브라우저 히스토리와 동기화(뒤로가기 시 이전 단계로).
   const pickedRef = useRef(picked); pickedRef.current = picked;
   const phaseRef = useRef(phase); phaseRef.current = phase;
@@ -371,7 +379,7 @@ export function StudentSearchPage() {
     catch (e) { setNote(e instanceof ApiError ? e.message : '실패'); }
   }
 
-  if (picked && phase === 'book') return <BookingForm teacher={picked} onBack={() => window.history.back()} onDone={() => { setPicked(null); setPhase('detail'); }} />;
+  if (picked && phase === 'book') return <BookingForm teacher={picked} initialMode={modeFilter ?? undefined} onBack={() => window.history.back()} onDone={() => { setPicked(null); setPhase('detail'); }} />;
   if (picked) return <TeacherDetailView teacher={picked} onBook={openBook} onBack={() => window.history.back()} />;
 
   const rows = (teachers ?? []).filter((t) => !q.trim() || t.name.toLowerCase().includes(q.toLowerCase()) || t.subjects.join(',').includes(q));
@@ -412,6 +420,24 @@ export function StudentSearchPage() {
           </div>
         </Card>
       )}
+      {/* 상담 방식 먼저 고르기(선택) — 원하는 진행 방식으로 상담 가능한 선생님만 필터 */}
+      <Card style={{ marginBottom: 14, background: 'var(--teal-50,#F0F7FA)', borderColor: 'var(--teal-100,#DCECF3)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+          <b style={{ fontSize: 14 }}>🎛️ 상담 방식 먼저 고르기</b>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>원하는 진행 방식을 정하면 그 방식으로 상담 가능한 선생님만 보여드려요.</span>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button onClick={() => setModeFilter(null)} style={{ cursor: 'pointer', padding: '6px 14px', borderRadius: 999, fontSize: 13, fontWeight: 700,
+            border: modeFilter === null ? '1px solid var(--teal)' : '1px solid var(--line)', background: modeFilter === null ? 'var(--teal)' : '#fff', color: modeFilter === null ? '#fff' : 'var(--muted)' }}>전체</button>
+          {MODES.map((m) => {
+            const on = modeFilter === m.value;
+            return <button key={m.value} onClick={() => setModeFilter(on ? null : m.value)} style={{ cursor: 'pointer', padding: '6px 14px', borderRadius: 999, fontSize: 13, fontWeight: 700,
+              border: on ? '1px solid var(--teal)' : '1px solid var(--line)', background: on ? 'var(--teal)' : '#fff', color: on ? '#fff' : 'var(--muted)' }}>{MODE_META[m.value].icon} {m.label}</button>;
+          })}
+        </div>
+        {modeFilter && <p style={{ fontSize: 12, color: 'var(--teal)', margin: '10px 0 0' }}>✓ <b>{MODE_META[modeFilter].label}</b> 가능한 선생님만 표시 중 · 예약 시 이 방식이 기본 선택돼요.</p>}
+      </Card>
+
       {/* 상담 유형 → 세부 유형 */}
       <label className="label">상담 유형</label>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
@@ -489,8 +515,14 @@ export function StudentSearchPage() {
                   <span>⭐ {t.rating ?? 0}</span>
                   <span>· 상담 {t.totalConsult ?? 0}회</span>
                   <span>· 질문답변 {t.questionCount ?? 0}</span>
-                  {t.offlineAvailable && <Badge kind="done">오프라인 가능</Badge>}
                 </div>
+                {(t.modes?.length ?? 0) > 0 && (
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
+                    {t.modes!.map((m) => (
+                      <Badge key={m} kind={m === modeFilter ? 'done' : 'soft'}>{MODE_META[m]?.icon ?? ''} {MODE_META[m]?.label ?? m}</Badge>
+                    ))}
+                  </div>
+                )}
                 <div style={{ marginTop: 8 }}><Badge kind="confirmed">상세 보기 →</Badge></div>
               </button>
               <div style={{ display: 'flex', gap: 6, marginTop: 8, borderTop: '1px solid var(--line)', paddingTop: 8 }}>

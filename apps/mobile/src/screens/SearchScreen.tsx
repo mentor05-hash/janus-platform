@@ -14,9 +14,13 @@ const SUBTYPES: Record<string, string[]> = {
 // 교과 세부값(표시) → 실제 선생님 과목(DB) 매핑
 const SUBJECT_MAP: Record<string, string> = { 국어: '국어', 수학: '수학', 영어: '영어', 과학탐구: '과학', 사회탐구: '사회' };
 const STRENGTH_POOL = ['개념정리', '문제풀이', '내신대비', '수능대비', '오답관리', '동기부여', '기초탄탄', '심화학습'];
+const MODE_META: Record<string, { label: string; icon: string }> = {
+  zoom: { label: '줌 화상', icon: '📹' }, chat: { label: '실시간 채팅', icon: '💬' }, hand: { label: '필기 공유', icon: '✍️' }, offline: { label: '오프라인 대면', icon: '🏫' },
+};
+const MODE_KEYS = ['zoom', 'chat', 'hand', 'offline'];
 type Rec = Teacher & { matchedNeeds?: string[] };
 
-export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher) => void; onGoQna?: () => void }) {
+export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher, mode?: string) => void; onGoQna?: () => void }) {
   const { C } = useTheme();
   const ui = useUI();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -25,6 +29,7 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher) => void
   const [mode, setMode] = useState<'상담' | '질문'>('상담');
   const [consultType, setConsultType] = useState<string | null>(null);
   const [subType, setSubType] = useState<string | null>(null);
+  const [modeFilter, setModeFilter] = useState<string | null>(null);
   const [category, setCategory] = useState('전체');
   const [sort, setSort] = useState('grade');
   const [q, setQ] = useState('');
@@ -53,12 +58,13 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher) => void
     if (category !== '전체') p.set('category', category);
     if (subjectFilter) p.set('subject', subjectFilter);
     if (consultType) p.set('consultType', consultType);
+    if (modeFilter) p.set('mode', modeFilter);
     if (sort) p.set('sort', sort);
     p.set('size', '100');
     api.get<{ data?: Teacher[] } | Teacher[]>(`/teachers?${p}`)
       .then((r) => setTeachers(Array.isArray(r) ? r : (r.data ?? [])))
       .catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
-  }, [category, sort, subjectFilter, consultType]);
+  }, [category, sort, subjectFilter, consultType, modeFilter]);
 
   function pickType(t: string) {
     setConsultType((cur) => (cur === t ? null : t));
@@ -94,6 +100,18 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher) => void
         </View>
       ) : (
         <>
+          {/* 상담 방식 먼저 고르기(선택) — 그 방식으로 가능한 선생님만 필터 */}
+          <View style={styles.inlineRow}>
+            <Text style={styles.inlineLbl}>상담 방식</Text>
+            <View style={styles.inlinePills}>
+              <TouchableOpacity style={[styles.pill, modeFilter === null && styles.pillOn]} onPress={() => setModeFilter(null)}><Text style={[styles.pillT, modeFilter === null && { color: C.white }]}>전체</Text></TouchableOpacity>
+              {MODE_KEYS.map((m) => (
+                <TouchableOpacity key={m} style={[styles.pill, modeFilter === m && styles.pillOn]} onPress={() => setModeFilter((cur) => (cur === m ? null : m))}><Text style={[styles.pillT, modeFilter === m && { color: C.white }]}>{MODE_META[m].icon} {MODE_META[m].label}</Text></TouchableOpacity>
+              ))}
+            </View>
+          </View>
+          {modeFilter && <Text style={styles.note}>✓ {MODE_META[modeFilter].label} 가능한 선생님만 표시 · 예약 시 이 방식이 기본 선택돼요.</Text>}
+
           {/* 상담 유형 — 라벨 왼쪽, 버튼 오른쪽 */}
           <View style={styles.inlineRow}>
             <Text style={styles.inlineLbl}>상담 유형</Text>
@@ -187,17 +205,23 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher) => void
         data={rows}
         keyExtractor={(t) => t.id}
         renderItem={({ item }) => (
-          <TouchableOpacity style={[ui.card, styles.card]} onPress={() => onPick(item)} activeOpacity={0.7}>
+          <TouchableOpacity style={[ui.card, styles.card]} onPress={() => onPick(item, modeFilter ?? undefined)} activeOpacity={0.7}>
             <View style={styles.row}>
               <View style={styles.avatar}><Text style={styles.avatarText}>{(item.name ?? '?').slice(0, 1)}</Text></View>
               <View style={{ flex: 1 }}>
                 <View style={styles.nameRow}>
                   <Text style={styles.name}>{item.name}</Text>
                   <View style={[styles.grade, { backgroundColor: gradeColor(item.grade, C) }]}><Text style={styles.gradeText}>{item.grade}</Text></View>
-                  {item.offlineAvailable ? <View style={styles.offTag}><Text style={styles.offT}>오프라인</Text></View> : null}
                 </View>
                 <Text style={ui.sub}>{item.subjects.join(', ')}{item.category ? ` · ${item.category}` : ''}</Text>
                 <Text style={styles.stat}>⭐ {item.rating ?? 0} · 상담 {item.totalConsult ?? 0}회 · 질문답변 {item.questionCount ?? 0}</Text>
+                {(item.modes?.length ?? 0) > 0 && (
+                  <View style={styles.modeTagRow}>
+                    {item.modes!.map((m) => (
+                      <View key={m} style={[styles.modeTag, m === modeFilter && styles.modeTagOn]}><Text style={[styles.modeTagT, m === modeFilter && { color: C.teal }]}>{MODE_META[m]?.icon ?? ''} {MODE_META[m]?.label ?? m}</Text></View>
+                    ))}
+                  </View>
+                )}
               </View>
             </View>
           </TouchableOpacity>
@@ -225,6 +249,10 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   gradeText: { color: C.white, fontWeight: '800', fontSize: 11 },
   offTag: { backgroundColor: C.doneBg, borderRadius: R.pill, paddingHorizontal: 8, paddingVertical: 2 },
   offT: { color: C.done, fontSize: 10, fontWeight: '800' },
+  modeTagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 6 },
+  modeTag: { backgroundColor: C.lineSoft, borderRadius: R.pill, paddingHorizontal: 8, paddingVertical: 2 },
+  modeTagOn: { backgroundColor: C.teal50, borderWidth: 1, borderColor: C.teal100 },
+  modeTagT: { color: C.muted, fontSize: 10, fontWeight: '700' },
   stat: { fontSize: 12, color: C.muted, marginTop: 3 },
   pillRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 8 },
   pill: { alignSelf: 'flex-start', borderWidth: 1, borderColor: C.line, borderRadius: R.pill, paddingVertical: 4, paddingHorizontal: 12, backgroundColor: C.white },

@@ -205,6 +205,7 @@ export interface Teacher {
   totalConsult?: number;
   questionCount?: number;
   offlineAvailable?: boolean;
+  modes?: string[];
 }
 export interface Slot {
   index: number;

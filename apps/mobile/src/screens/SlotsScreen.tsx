@@ -27,10 +27,13 @@ const MODES = [
   { mode: 'offline', label: '오프라인', sub: '센터 대면', price: '점유료 가산' },
 ];
 
-export function SlotsScreen({ teacher, onBack }: { teacher: Teacher; onBack: () => void }) {
+export function SlotsScreen({ teacher, onBack, initialMode }: { teacher: Teacher; onBack: () => void; initialMode?: string }) {
   const { C } = useTheme();
   const ui = useUI();
   const styles = useMemo(() => makeStyles(C), [C]);
+  // 선생님이 제공하는 방식만 노출(방식 먼저 선택 흐름). 비어 있으면 전체.
+  const modeList = teacher.modes?.length ? MODES.filter((m) => teacher.modes!.includes(m.mode)) : MODES;
+  const modeVals = modeList.map((m) => m.mode);
   const [date, setDate] = useState(today());
   const [slots, setSlots] = useState<Slot[]>([]);
   // 선택 범위: selStart..selEnd(둘 다 포함, 10분 인덱스). null = 미선택
@@ -41,7 +44,7 @@ export function SlotsScreen({ teacher, onBack }: { teacher: Teacher; onBack: () 
   const [content, setContent] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [mode, setMode] = useState('zoom');
+  const [mode, setMode] = useState(initialMode && modeVals.includes(initialMode) ? initialMode : modeVals.includes('zoom') ? 'zoom' : modeVals[0]);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [error, setError] = useState('');
 
@@ -233,10 +236,10 @@ export function SlotsScreen({ teacher, onBack }: { teacher: Teacher; onBack: () 
       ))}
       {attachments.length > 0 && <Text style={styles.attHint}>첨부한 문제는 담당 선생님이 상담 화면에서 열어볼 수 있어요.</Text>}
 
-      {/* 진행 방식 */}
+      {/* 진행 방식 (이 선생님이 제공하는 방식만) */}
       <Text style={styles.sec}>진행 방식</Text>
       <View style={styles.modeGrid}>
-        {MODES.map((m) => {
+        {modeList.map((m) => {
           const on = mode === m.mode;
           return (
             <TouchableOpacity key={m.mode} style={[styles.modeCard, on && styles.modeOn]} onPress={() => setMode(m.mode)} activeOpacity={0.8}>

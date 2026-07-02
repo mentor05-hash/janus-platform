@@ -20,6 +20,7 @@ export class PeopleService {
       ...(q.category ? { teacher_category: q.category } : {}),
       ...(q.subject ? { subjects: { has: q.subject } } : {}),
       ...(q.consultType ? { consult_types: { has: q.consultType } } : {}),
+      ...(q.mode ? { modes: { has: q.mode } } : {}),
     };
     // 랭킹 가중치(§5-7): 등급 우선, 동급은 유효평점(평점 − 취소누적×가중치) 내림차순.
     // 계산 정렬이라 전체 후보를 가져와 JS 정렬 후 페이지네이션(센터 규모상 소량).
@@ -220,6 +221,7 @@ export class PeopleService {
     rating: unknown;
     total_consult: number | null;
     teacher_category: string | null;
+    modes?: string[];
     account: { name: string; center_id: string | null };
   }) {
     return {
@@ -233,6 +235,7 @@ export class PeopleService {
       career: t.career,
       rating: t.rating == null ? null : Number(t.rating),
       totalConsult: t.total_consult ?? 0,
+      modes: t.modes ?? [],
     };
   }
 }

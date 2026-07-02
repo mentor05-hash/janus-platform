@@ -32,6 +32,7 @@ function AppInner() {
   const [tab, setTab] = useState('a');
   const [teacher, setTeacher] = useState<Teacher | null>(null);
   const [booking, setBooking] = useState(false);
+  const [bookMode, setBookMode] = useState<string | undefined>(undefined);
   const [children, setChildren] = useState<Child[]>([]);
   const [activeChild, setActiveChild] = useState<string | null>(null);
 
@@ -136,12 +137,12 @@ function AppInner() {
           (tab === 'a' ? (
             teacher ? (
               booking ? (
-                <SlotsScreen teacher={teacher} onBack={() => setBooking(false)} />
+                <SlotsScreen teacher={teacher} initialMode={bookMode} onBack={() => setBooking(false)} />
               ) : (
                 <TeacherDetailScreen teacher={teacher} onBack={() => setTeacher(null)} onBook={() => setBooking(true)} />
               )
             ) : (
-              <SearchScreen onPick={(t) => { setTeacher(t); setBooking(false); }} onGoQna={() => setTab('c')} />
+              <SearchScreen onPick={(t, m) => { setTeacher(t); setBooking(false); setBookMode(m); }} onGoQna={() => setTab('c')} />
             )
           ) : tab === 'b' ? (
             <BookingsScreen myId={me.id} />
