@@ -2,11 +2,24 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import type { BlockedTime, Room, ZoomPolicy } from '../api/types';
 import { PageHeader, Card, Button, Badge, ErrorText, EmptyState } from '../components/ui';
+import { useAuth } from '../auth/AuthContext';
 
 const ZDAYS = ['월', '화', '수', '목', '금', '토', '일'];
 const ZHOURS = [14, 15, 16, 17, 18, 19, 20];
 
+type RtMode = 'off' | 'all' | 'premium';
+type RtFeatures = { chat: RtMode; whiteboard: RtMode; notif: RtMode };
+const RT_ITEMS: { key: keyof RtFeatures; label: string; desc: string }[] = [
+  { key: 'chat', label: '실시간 채팅', desc: '예약된 상담의 학생↔선생님 1:1 채팅' },
+  { key: 'whiteboard', label: '화이트보드', desc: '상담 중 공유 필기 보드' },
+  { key: 'notif', label: '실시간 알림', desc: '접속 중 즉시 알림 푸시(토스트)' },
+];
+const RT_MODE_LABEL: Record<RtMode, string> = { off: '사용 안 함', all: '전체 제공', premium: '프리미엄 전용' };
+
 export function AdminInfraPage() {
+  const { user } = useAuth();
+  const isHq = user?.role === 'admin' && !user?.center_id;
+  const [rt, setRt] = useState<RtFeatures | null>(null);
   const [zoom, setZoom] = useState<number>(6);
   const [zoomUsage, setZoomUsage] = useState<number>(0);
   const [allowMap, setAllowMap] = useState<Record<string, boolean>>({});
@@ -25,6 +38,7 @@ export function AdminInfraPage() {
       setZoomUsage(zp.currentUsage ?? 0);
       setRooms(await api.get<Room[]>('/admin/rooms'));
       setBlocked(await api.get<BlockedTime[]>('/admin/blocked-times'));
+      setRt(await api.get<RtFeatures>('/admin/realtime/policy').catch(() => null));
       setError('');
     } catch (e) {
       setError(e instanceof ApiError ? e.message : '조회 실패');
@@ -52,6 +66,38 @@ export function AdminInfraPage() {
       <PageHeader title="줌 · 상담실 · 차단" />
       <ErrorText>{error}</ErrorText>
       {msg && <p style={{ color: 'var(--chip-done)', fontSize: 13 }}>{msg}</p>}
+
+      {rt && (
+        <Card title="실시간 상담 기능 정책" style={{ marginBottom: 16 }}>
+          <p style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 0 }}>
+            채팅·화이트보드·실시간 알림을 전사 정책으로 제어합니다. <b>프리미엄 전용</b>은 프리미엄 등급 학생에게만 열립니다(선생님·직원은 항상 사용).
+            {!isHq && <span style={{ color: 'var(--chip-rejected,#c0392b)' }}> · 변경은 본사 마스터관리자만 가능합니다.</span>}
+          </p>
+          <div style={{ display: 'grid', gap: 10, maxWidth: 620 }}>
+            {RT_ITEMS.map((it) => (
+              <div key={it.key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>{it.label}</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>{it.desc}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {(['off', 'all', 'premium'] as RtMode[]).map((m) => {
+                    const active = rt[it.key] === m;
+                    return (
+                      <button key={m} disabled={!isHq}
+                        onClick={() => run(async () => { const next = await api.put<RtFeatures>('/admin/realtime/policy', { [it.key]: m }); setRt(next); }, `${it.label} 정책 저장됨`)}
+                        style={{ padding: '6px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: isHq ? 'pointer' : 'not-allowed', opacity: isHq ? 1 : 0.6,
+                          border: active ? '1px solid var(--teal)' : '1px solid var(--line)', background: active ? 'var(--teal)' : 'var(--surface)', color: active ? '#fff' : 'var(--muted)' }}>
+                        {RT_MODE_LABEL[m]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <Card title="줌 가능 시간" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>

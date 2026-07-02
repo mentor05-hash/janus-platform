@@ -1,6 +1,8 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { NOTIFICATION_PROVIDER } from './notification.types';
 import type { NotificationProvider, NotifyChannel } from './notification.types';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { RealtimeService } from '../realtime/realtime.service';
 
 /**
  * 알림 발송 편의 래퍼 (§3 notification). 각 도메인 서비스가 이벤트 발생 시 호출.
@@ -14,6 +16,8 @@ export class NotifyService {
   constructor(
     @Inject(NOTIFICATION_PROVIDER)
     private readonly provider: NotificationProvider,
+    @Optional() private readonly realtime?: RealtimeGateway,
+    @Optional() private readonly realtimeSvc?: RealtimeService,
   ) {}
 
   async notify(
@@ -25,6 +29,15 @@ export class NotifyService {
     if (!recipientId) return;
     try {
       await this.provider.send({ recipientId, type, channels, payload });
+      // 인앱 알림은 접속 중인 수신자에게 실시간 push(정책 notif=off/all/premium 게이팅).
+      if (channels.includes('app') && this.realtime && this.realtimeSvc) {
+        void this.realtimeSvc
+          .notifAllowed(recipientId)
+          .then((ok) => {
+            if (ok) this.realtime!.emitToUser(recipientId, 'notif:new', { type, payload });
+          })
+          .catch(() => {});
+      }
     } catch (e) {
       // 알림 실패가 본 트랜잭션/응답을 막지 않도록 격리(아웃박스가 재시도).
       this.logger.warn(

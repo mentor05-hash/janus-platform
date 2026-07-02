@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
+import { RealtimeNotifier } from './components/RealtimeNotifier';
 import { roleHome } from './auth/roleHome';
 import { AppLayout } from './components/AppLayout';
 import { AdminLayout } from './components/AdminLayout';
@@ -69,6 +70,8 @@ function HomeRedirect() {
 
 export function App() {
   return (
+    <>
+    <RealtimeNotifier />
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
@@ -158,5 +161,6 @@ export function App() {
 
       <Route path="*" element={<HomeRedirect />} />
     </Routes>
+    </>
   );
 }

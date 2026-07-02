@@ -12,6 +12,7 @@ import { OutboxNotificationProvider } from './providers/outbox-notification.prov
 import { StubChannelGateway } from './providers/stub-channel-gateway';
 import { CHANNEL_GATEWAY, NOTIFICATION_PROVIDER } from './notification.types';
 import type { ChannelGateway } from './notification.types';
+import { RealtimeModule } from '../realtime/realtime.module';
 
 /**
  * Notification 바운디드 컨텍스트 (CLAUDE.md §3·§10).
@@ -19,6 +20,7 @@ import type { ChannelGateway } from './notification.types';
  * notification.delivery 에 기록하고 실패분은 NotificationOutboxService 가 재시도.
  */
 @Module({
+  imports: [RealtimeModule],
   controllers: [NotificationController, AnnouncementController, PushController],
   providers: [
     NotificationService,

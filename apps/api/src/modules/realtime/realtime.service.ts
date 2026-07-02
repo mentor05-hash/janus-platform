@@ -57,6 +57,19 @@ export class RealtimeService {
     return { chat: await resolve(f.chat), whiteboard: await resolve(f.whiteboard), notif: await resolve(f.notif) };
   }
 
+  /** 실시간 알림 push 가 이 수신자에게 허용되는지(notif 정책 기준). 비학생(직원)은 premium 에서도 허용. */
+  async notifAllowed(recipientId: string): Promise<boolean> {
+    const f = await this.getFeatures();
+    if (f.notif === 'off') return false;
+    if (f.notif === 'all') return true;
+    const sp = await this.prisma.student_profile.findUnique({
+      where: { account_id: recipientId },
+      select: { membership_grade: { select: { name: true } } },
+    });
+    if (!sp) return true; // 학생 프로필 없음 = 직원/보호자
+    return /premium|프리미엄/i.test(sp.membership_grade?.name ?? '');
+  }
+
   /** 예약 참여자(학생/담당 선생님)만 방 접근. 반환: 예약 + 상대 정보. */
   async assertRoomAccess(user: AuthUser, bookingId: string) {
     const b = await this.prisma.booking.findUnique({
