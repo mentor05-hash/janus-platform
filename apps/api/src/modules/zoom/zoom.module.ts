@@ -17,7 +17,11 @@ import { ZOOM_PROVIDER } from './zoom.types';
         const which = config.get<string>('ZOOM_PROVIDER') ?? 'mock';
         switch (which) {
           case 'zoom':
-            return new ZoomApiProvider(config.get<string>('ZOOM_ACCOUNT_ID'));
+            return new ZoomApiProvider({
+              accountId: config.get<string>('ZOOM_ACCOUNT_ID'),
+              clientId: config.get<string>('ZOOM_CLIENT_ID'),
+              clientSecret: config.get<string>('ZOOM_CLIENT_SECRET'),
+            });
           default:
             return new MockZoomProvider();
         }

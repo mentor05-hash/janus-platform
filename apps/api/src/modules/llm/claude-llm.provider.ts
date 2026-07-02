@@ -25,12 +25,66 @@ export class ClaudeLlmProvider implements LlmProvider {
     if (!apiKey) this.logger.warn('ClaudeLlmProvider 자격증명 미구성(ANTHROPIC_API_KEY). OCR 은 키 설정 시 동작합니다.');
   }
 
-  reviewReport(_input: ReportReviewInput): Promise<ReportReviewResult> {
-    throw new Error('실모델 AI 검토가 아직 구성되지 않았습니다(ANTHROPIC_API_KEY 필요).');
+  /** Claude 텍스트 호출 → JSON 파싱(마크다운 펜스 제거). 키 없으면 예외. */
+  private async completeJson<T>(prompt: string, maxTokens = 800): Promise<T> {
+    if (!this.apiKey) throw new Error('실모델 AI 가 아직 구성되지 않았습니다(ANTHROPIC_API_KEY 필요).');
+    const res = await fetch(this.endpoint, {
+      method: 'POST',
+      headers: { 'x-api-key': this.apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      body: JSON.stringify({ model: this.model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`Claude API 오류 ${res.status}: ${body.slice(0, 200)}`);
+    }
+    const j = (await res.json()) as { content?: { text?: string }[] };
+    const raw = (j.content?.[0]?.text ?? '').trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+    return JSON.parse(raw) as T;
   }
 
-  checkAnswerSimilarity(_input: AnswerSimilarityInput): Promise<AnswerSimilarityResult> {
-    throw new Error('실모델 유사도 검사가 아직 구성되지 않았습니다(ANTHROPIC_API_KEY 필요).');
+  /** 신고 사유를 실모델로 1차 분류(위험도·분류·조치 제안). */
+  async reviewReport(input: ReportReviewInput): Promise<ReportReviewResult> {
+    const prompt =
+      '너는 교육 플랫폼 신고 1차 검토자다. 아래 신고를 검토해 **JSON만** 출력(설명 금지).\n' +
+      '형식: {"flagged":true|false,"severity":"none|low|high","category":"욕설|성희롱|사기|스팸|기타(있으면)","summary":"한줄 요약","suggestedAction":"none|warn|suspend"}\n' +
+      `대상유형: ${input.targetType}\n신고사유: ${input.reason}`;
+    try {
+      const r = await this.completeJson<ReportReviewResult>(prompt);
+      return {
+        flagged: !!r.flagged,
+        severity: (['none', 'low', 'high'] as const).includes(r.severity) ? r.severity : 'low',
+        category: r.category,
+        summary: r.summary ?? '검토 요약 없음',
+        suggestedAction: r.suggestedAction ?? 'none',
+      };
+    } catch (e) {
+      this.logger.warn(`신고 검토 실패, 보류 처리: ${(e as Error).message}`);
+      return { flagged: false, severity: 'none', summary: '자동 검토 실패 — 관리자 수동 확인 필요', suggestedAction: 'none' };
+    }
+  }
+
+  /** 새 답변이 기존 답변들과 얼마나 유사한지 실모델로 판정(표절·중복 탐지). */
+  async checkAnswerSimilarity(input: AnswerSimilarityInput): Promise<AnswerSimilarityResult> {
+    if (!input.priors?.length) return { flagged: false, maxSimilarity: 0, summary: '비교 대상 없음' };
+    const priorList = input.priors.slice(0, 20).map((p, i) => `[${i}] id=${p.id}: ${p.body.slice(0, 500)}`).join('\n');
+    const prompt =
+      '아래 새 답변이 기존 답변들과 얼마나 유사한지 0~1 로 평가하고 **JSON만** 출력.\n' +
+      '형식: {"maxSimilarity":0~1,"similarIndex":정수 또는 -1,"flagged":true|false(0.8이상이면 true),"summary":"한줄"}\n' +
+      `새 답변: ${input.body.slice(0, 1000)}\n\n기존 답변들:\n${priorList}`;
+    try {
+      const r = await this.completeJson<{ maxSimilarity: number; similarIndex: number; flagged: boolean; summary: string }>(prompt);
+      const sim = Math.max(0, Math.min(1, Number(r.maxSimilarity) || 0));
+      const idx = Number(r.similarIndex);
+      return {
+        flagged: !!r.flagged || sim >= 0.8,
+        maxSimilarity: sim,
+        similarToId: idx >= 0 ? input.priors[idx]?.id : undefined,
+        summary: r.summary ?? '',
+      };
+    } catch (e) {
+      this.logger.warn(`유사도 검사 실패: ${(e as Error).message}`);
+      return { flagged: false, maxSimilarity: 0, summary: '자동 유사도 검사 실패' };
+    }
   }
 
   /** 성적표 이미지 → Claude 비전으로 과목·점수를 구조화 추출. */
