@@ -27,6 +27,7 @@
     "seed:sim": "prisma db execute --file prisma/seed-sim.sql --schema prisma/schema.prisma",
     "seed:sim:schedules": "prisma db execute --file prisma/seed-sim-schedules.sql --schema prisma/schema.prisma",
     "seed:sim:large": "prisma db execute --file prisma/seed-sim-large.sql --schema prisma/schema.prisma",
+    "seed:sim:bulk": "prisma db execute --file prisma/seed-sim-bulk-bookings.sql --schema prisma/schema.prisma",
     "erd": "node scripts/gen-erd.mjs > ../../docs/ERD.mmd"
   },
   "dependencies": {
