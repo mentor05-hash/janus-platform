@@ -310,6 +310,105 @@ function NoteEditor({ booking, onClose, embedded }: { booking: Booking; onClose:
   );
 }
 
+const won = (n?: number | null) => (n == null ? '-' : `${Math.round(n).toLocaleString('ko-KR')}원`);
+const sameDay = (iso: string | null, d: Date) => { if (!iso) return false; const a = new Date(iso); return a.getFullYear() === d.getFullYear() && a.getMonth() === d.getMonth() && a.getDate() === d.getDate(); };
+
+/** 오늘·일정 — 오늘 상담·이번 주 예정 + 근무 상태. */
+export function TeacherToday({ myId }: { myId: string }) {
+  const { C } = useTheme();
+  const s = useMemo(() => mk(C), [C]);
+  const [bookings, setBookings] = useState<Booking[] | null>(null);
+  const [chatId, setChatId] = useState<string | null>(null);
+  const load = useCallback(() => { api.get<{ data?: Booking[] } | Booking[]>('/bookings?role=teacher').then((r) => setBookings(unwrap(r))).catch(() => setBookings([])); }, []);
+  useEffect(() => { load(); }, [load]);
+  if (chatId) return <ChatScreen bookingId={chatId} myId={myId} title="상담 채팅" onClose={() => { setChatId(null); load(); }} />;
+  if (bookings === null) return <Center C={C} />;
+  const now = new Date();
+  const all = bookings ?? [];
+  const active = new Set(['new', 'confirmed']);
+  const today = all.filter((b) => sameDay(b.start, now)).sort((a, b) => (a.start ?? '').localeCompare(b.start ?? ''));
+  const doneToday = today.filter((b) => b.status === 'done').length;
+  const upcoming = all.filter((b) => active.has(b.status) && b.start && new Date(b.start) > now && !sameDay(b.start, now))
+    .sort((a, b) => (a.start ?? '').localeCompare(b.start ?? '')).slice(0, 20);
+  const nextSession = today.find((b) => active.has(b.status) && b.start && new Date(b.start) >= now) ?? upcoming[0];
+  const ongoing = today.find((b) => b.status === 'confirmed' && b.start && b.end && new Date(b.start) <= now && new Date(b.end) >= now);
+  return (
+    <ScrollView style={s.wrap} contentContainerStyle={{ padding: 16, gap: 10 }}>
+      <Text style={s.h1}>오늘</Text>
+      <View style={[s.card, { backgroundColor: ongoing ? C.teal : C.white, borderColor: ongoing ? C.teal : C.line }]}>
+        <Text style={{ fontSize: 12.5, color: ongoing ? '#CDE7F0' : C.muted }}>{ongoing ? '상담 진행 중' : nextSession ? '다음 상담' : '오늘 상태'}</Text>
+        <Text style={{ fontSize: 18, fontWeight: '800', color: ongoing ? '#fff' : C.ink, marginTop: 3 }}>
+          {ongoing ? `${ongoing.consultType ?? '상담'} 진행 중` : nextSession ? `${KST(nextSession.start)} · ${nextSession.consultType ?? '상담'}` : '예정된 상담이 없어요'}
+        </Text>
+      </View>
+      <View style={s.summary}>
+        <Sum label="오늘 상담" n={today.length} C={C} />
+        <Sum label="오늘 완료" n={doneToday} C={C} />
+        <Sum label="이번 주 예정" n={upcoming.length} C={C} accent />
+      </View>
+      <Text style={s.secTitle}>오늘 일정</Text>
+      {today.length === 0 ? <Text style={s.empty}>오늘 상담이 없어요.</Text> : today.map((b) => (
+        <View key={b.id} style={s.card}>
+          <View style={s.row}><Text style={s.title}>{KST(b.start)} · {b.consultType ?? '상담'}</Text><Text style={s.time}>{statusLabel(b.status)}</Text></View>
+          <Text style={s.body}>{modeLabel(b.mode)}</Text>
+          {b.status === 'confirmed' && <View style={s.acts}><TouchableOpacity style={[s.btn, s.btnP]} onPress={() => setChatId(b.id)}><Text style={s.btnPT}>💬 상담 시작</Text></TouchableOpacity></View>}
+        </View>
+      ))}
+      {upcoming.length > 0 && <><Text style={s.secTitle}>이번 주 예정</Text>{upcoming.map((b) => (
+        <View key={b.id} style={s.card}><View style={s.row}><Text style={s.title}>{b.consultType ?? '상담'} · {modeLabel(b.mode)}</Text><Text style={s.time}>{KST(b.start)}</Text></View></View>
+      ))}</>}
+    </ScrollView>
+  );
+}
+
+type Prof = { name?: string; subjects?: string[]; grade?: string; career?: string | null; centerName?: string | null };
+type Evals = { overall: number; count: number; grade: string; topPercent: number | null; itemScores?: { attitude: number; content: number; skill: number; again: number } };
+type Pay = { expectedAmount: number; confirmedAmount: number; incentive: number; rates?: { employmentType?: string | null; basePay?: number } };
+
+/** 마이 — 프로필·평점·예상급여. */
+export function TeacherMy({ myId }: { myId: string }) {
+  const { C } = useTheme();
+  const s = useMemo(() => mk(C), [C]);
+  const [prof, setProf] = useState<Prof | null>(null);
+  const [ev, setEv] = useState<Evals | null>(null);
+  const [pay, setPay] = useState<Pay | null>(null);
+  useEffect(() => {
+    api.get<Prof>('/teachers/me/profile').then(setProf).catch(() => {});
+    api.get<Evals>('/me/evaluations').then(setEv).catch(() => {});
+    api.get<Pay>(`/teachers/${myId}/payroll`).then(setPay).catch(() => {});
+  }, [myId]);
+  return (
+    <ScrollView style={s.wrap} contentContainerStyle={{ padding: 16, gap: 10 }}>
+      <Text style={s.h1}>마이</Text>
+      <View style={s.card}>
+        <View style={s.row}><Text style={s.title}>{prof?.name ?? '선생님'}</Text><Text style={s.gradeBadge}>{ev?.grade ?? prof?.grade ?? 'B'}급</Text></View>
+        <Text style={s.body}>{(prof?.subjects ?? []).join(', ') || '과목 미설정'}{prof?.centerName ? ` · ${prof.centerName}` : ''}</Text>
+        {prof?.career ? <Text style={s.body}>{prof.career}</Text> : null}
+      </View>
+      <View style={s.card}>
+        <Text style={s.secTitle}>평점 · 리뷰</Text>
+        <View style={s.row}>
+          <Text style={{ fontSize: 26, fontWeight: '800', color: C.ink }}>⭐ {ev?.overall ?? 0}</Text>
+          <Text style={s.body}>리뷰 {ev?.count ?? 0}건{ev?.topPercent != null ? ` · 상위 ${ev.topPercent}%` : ''}</Text>
+        </View>
+        {ev?.itemScores && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
+            {([['태도', ev.itemScores.attitude], ['내용', ev.itemScores.content], ['실력', ev.itemScores.skill], ['재상담', ev.itemScores.again]] as const).map(([k, v]) => (
+              <View key={k} style={s.metric}><Text style={s.metricL}>{k}</Text><Text style={s.metricV}>{v}</Text></View>
+            ))}
+          </View>
+        )}
+      </View>
+      <View style={s.card}>
+        <Text style={s.secTitle}>이번 달 예상급여</Text>
+        <Text style={{ fontSize: 26, fontWeight: '800', color: C.teal }}>{won(pay?.expectedAmount)}</Text>
+        <Text style={s.body}>확정분 {won(pay?.confirmedAmount)}{pay?.incentive ? ` · 인센티브 ${won(pay.incentive)}` : ''}</Text>
+        {pay?.rates?.employmentType ? <Text style={[s.body, { color: C.caption }]}>고용형태 {pay.rates.employmentType}</Text> : null}
+      </View>
+    </ScrollView>
+  );
+}
+
 // ── 보조 ──
 function Center({ C }: { C: Palette }) { return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator color={C.teal} /></View>; }
 function Sum({ label, n, C, accent }: { label: string; n: number; C: Palette; accent?: boolean }) {
@@ -361,4 +460,9 @@ const mk = (C: Palette) => StyleSheet.create({
   knob: { width: 18, height: 18, borderRadius: 999, backgroundColor: '#fff', alignSelf: 'flex-end', marginRight: 3 },
   knobOff: { alignSelf: 'flex-start', marginLeft: 3 },
   back: { fontSize: 14, color: C.teal, fontWeight: '700' },
+  secTitle: { fontSize: 13, fontWeight: '800', color: C.muted, marginTop: 2 },
+  gradeBadge: { fontSize: 12, fontWeight: '800', color: '#fff', backgroundColor: C.teal, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, overflow: 'hidden' },
+  metric: { backgroundColor: C.lineSoft, borderRadius: 9, paddingVertical: 7, paddingHorizontal: 12, alignItems: 'center', minWidth: 64 },
+  metricL: { fontSize: 11, color: C.muted },
+  metricV: { fontSize: 15, fontWeight: '800', color: C.ink, marginTop: 1 },
 });

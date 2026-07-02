@@ -14,7 +14,7 @@ import { MaterialsScreen } from './src/screens/MaterialsScreen';
 import { CommunityScreen } from './src/screens/CommunityScreen';
 import { MyScreen } from './src/screens/MyScreen';
 import { GuardianHome, GuardianConsult, GuardianPay, GuardianCharge } from './src/screens/GuardianScreens';
-import { TeacherInbox, TeacherSessions, TeacherRecords } from './src/screens/TeacherScreens';
+import { TeacherInbox, TeacherToday, TeacherSessions, TeacherRecords, TeacherMy } from './src/screens/TeacherScreens';
 import { ThemeProvider, useTheme, type Palette, SP } from './src/theme';
 
 export default function App() {
@@ -138,13 +138,13 @@ function AppInner() {
   const isGuardian = me.role === 'guardian';
   const isStudent = me.role === 'student';
   const isTeacher = me.role === 'teacher';
-  const tabs = isGuardian ? ['a', 'b', 'c', 'd'] : isTeacher ? ['ti', 'ts', 'tr'] : ['a', 'b', 'e', 'c', 'f', 'd'];
+  const tabs = isGuardian ? ['a', 'b', 'c', 'd'] : isTeacher ? ['ti', 'to', 'ts', 'tr', 'tm'] : ['a', 'b', 'e', 'c', 'f', 'd'];
   const guardianLabel: Record<string, string> = { a: '홈', b: '상담', c: '결제', d: '충전' };
   const studentLabel: Record<string, string> = { a: '선생님', b: '내 예약', e: '자료실', c: 'Q&A', f: '커뮤니티', d: '마이' };
-  const teacherLabel: Record<string, string> = { ti: '인박스', ts: '상담', tr: '기록' };
+  const teacherLabel: Record<string, string> = { ti: '인박스', to: '오늘', ts: '상담', tr: '기록', tm: '마이' };
   const tabLabel = (t: string) => (isGuardian ? guardianLabel[t] ?? '' : isTeacher ? teacherLabel[t] ?? '' : studentLabel[t] ?? '');
   // 선생님은 탭키가 다르므로 기본 진입 탭 보정('a' → 'ti')
-  const tTab = isTeacher && !['ti', 'ts', 'tr'].includes(tab) ? 'ti' : tab;
+  const tTab = isTeacher && !['ti', 'to', 'ts', 'tr', 'tm'].includes(tab) ? 'ti' : tab;
 
   return (
     <SafeAreaView style={styles.app}>
@@ -169,7 +169,7 @@ function AppInner() {
       <View style={styles.body}>
         {!isStudent && !isGuardian && !isTeacher && <Text style={styles.notice}>이 역할은 웹(apps/web)을 이용하세요.</Text>}
 
-        {isTeacher && (tTab === 'ti' ? <TeacherInbox /> : tTab === 'ts' ? <TeacherSessions myId={me.id} /> : <TeacherRecords />)}
+        {isTeacher && (tTab === 'ti' ? <TeacherInbox /> : tTab === 'to' ? <TeacherToday myId={me.id} /> : tTab === 'ts' ? <TeacherSessions myId={me.id} /> : tTab === 'tr' ? <TeacherRecords /> : <TeacherMy myId={me.id} />)}
 
         {isStudent &&
           (tab === 'a' ? (
