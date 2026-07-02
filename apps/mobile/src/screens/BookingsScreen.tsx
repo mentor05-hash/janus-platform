@@ -4,6 +4,7 @@ import { api, ApiError, Booking, Note, Teacher } from '../api';
 import { R, SP, useTheme, useUI, type Palette } from '../theme';
 import { useWebBack } from '../webBack';
 import { RescheduleScreen } from './RescheduleScreen';
+import { ChatScreen } from './ChatScreen';
 
 const slotLen = (b: Booking) => (b.start && b.end ? Math.max(1, Math.round((new Date(b.end).getTime() - new Date(b.start).getTime()) / 600000)) : 3);
 
@@ -97,7 +98,7 @@ function Detail({ id, status }: { id: string; status: string }) {
   );
 }
 
-export function BookingsScreen() {
+export function BookingsScreen({ myId }: { myId?: string }) {
   const { C } = useTheme();
   const ui = useUI();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -108,6 +109,8 @@ export function BookingsScreen() {
   const [busy, setBusy] = useState<string | null>(null);
   const [tab, setTab] = useState<'upcoming' | 'done'>('upcoming');
   const [reschedule, setReschedule] = useState<Booking | null>(null);
+  const [chatId, setChatId] = useState<string | null>(null);
+  const [chatOn, setChatOn] = useState(false);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
   useWebBack(reschedule !== null, () => setReschedule(null));
@@ -123,6 +126,7 @@ export function BookingsScreen() {
       const list = Array.isArray(r) ? r : (r.data ?? []);
       setTeachers(Object.fromEntries(list.map((t) => [t.id, t.name])));
     }).catch(() => {});
+    api.get<{ chat: boolean }>('/realtime/features').then((f) => setChatOn(!!f.chat)).catch(() => {});
   }, []);
 
   async function respond(id: string, action: 'accept' | 'reject') {
@@ -220,6 +224,11 @@ export function BookingsScreen() {
                 <Text style={styles.more}>{open === b.id ? '접기 ▲' : '상담 상세 ▼'}</Text>
               </TouchableOpacity>
               {open === b.id && <Detail id={b.id} status={b.status} />}
+              {chatOn && myId && b.status !== 'new' && (
+                <TouchableOpacity style={styles.chatBtn} onPress={() => setChatId(b.id)}>
+                  <Text style={styles.chatT}>💬 상담 채팅</Text>
+                </TouchableOpacity>
+              )}
               {UPCOMING.has(b.status) && (
                 <View style={styles.actionRow}>
                   <TouchableOpacity style={styles.changeBtn} disabled={busy === b.id} onPress={() => setReschedule(b)}>
@@ -239,6 +248,7 @@ export function BookingsScreen() {
           );
         })
       )}
+      {chatId && myId && <ChatScreen bookingId={chatId} myId={myId} title="상담 채팅" onClose={() => setChatId(null)} />}
     </ScrollView>
   );
 }
@@ -278,4 +288,6 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   cancelBtn2: { flex: 1, borderWidth: 1, borderColor: C.dangerBorder, borderRadius: 9, paddingVertical: 10, alignItems: 'center' },
   reportBtn: { marginTop: 10, borderWidth: 1, borderColor: C.dangerBorder, borderRadius: 9, paddingVertical: 10, alignItems: 'center' },
   reportT: { color: C.danger, fontWeight: '700', fontSize: 13 },
+  chatBtn: { marginTop: 10, borderWidth: 1, borderColor: C.teal, borderRadius: 9, paddingVertical: 10, alignItems: 'center' },
+  chatT: { color: C.teal, fontWeight: '800', fontSize: 13 },
 });

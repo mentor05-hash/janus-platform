@@ -144,7 +144,7 @@ function AppInner() {
               <SearchScreen onPick={(t) => { setTeacher(t); setBooking(false); }} onGoQna={() => setTab('c')} />
             )
           ) : tab === 'b' ? (
-            <BookingsScreen />
+            <BookingsScreen myId={me.id} />
           ) : tab === 'e' ? (
             <MaterialsScreen />
           ) : tab === 'c' ? (
