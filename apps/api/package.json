@@ -30,6 +30,7 @@
     "seed:sim:bulk": "prisma db execute --file prisma/seed-sim-bulk-bookings.sql --schema prisma/schema.prisma",
     "seed:sim:consult": "prisma db execute --file prisma/seed-sim-consultations.sql --schema prisma/schema.prisma",
     "seed:sim:notif": "prisma db execute --file prisma/seed-sim-notifications.sql --schema prisma/schema.prisma",
+    "seed:sim:scores": "prisma db execute --file prisma/seed-sim-scores.sql --schema prisma/schema.prisma",
     "erd": "node scripts/gen-erd.mjs > ../../docs/ERD.mmd"
   },
   "dependencies": {
