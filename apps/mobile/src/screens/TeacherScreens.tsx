@@ -117,10 +117,12 @@ export function TeacherInbox() {
 export function TeacherSessions({ myId }: { myId: string }) {
   const { C } = useTheme();
   const s = useMemo(() => mk(C), [C]);
+  const wide = useWindowDimensions().width >= 900;
   const [bookings, setBookings] = useState<Booking[] | null>(null);
   const [tab, setTab] = useState<'upcoming' | 'done'>('upcoming');
   const [chatId, setChatId] = useState<string | null>(null);
   const [wbId, setWbId] = useState<string | null>(null);
+  const [sel, setSel] = useState<string | null>(null);
   const [unread, setUnread] = useState<Record<string, number>>({});
 
   const load = useCallback(() => {
@@ -133,10 +135,19 @@ export function TeacherSessions({ myId }: { myId: string }) {
   const all = bookings ?? [];
   const shown = all.filter((b) => (tab === 'upcoming' ? UP.has(b.status) : b.status === 'done'));
 
+  // 채팅·화이트보드는 몰입형이라 항상 전체화면 오버레이(태블릿에서도 위에 뜸)
   if (chatId) return <ChatScreen bookingId={chatId} myId={myId} title="상담 채팅" onClose={() => { setChatId(null); load(); }} />;
   if (wbId) return <WhiteboardScreen bookingId={wbId} title="공유 화이트보드" onClose={() => setWbId(null)} />;
   if (bookings === null) return <Center C={C} />;
-  return (
+
+  const launch = (b: Booking) => (
+    <View style={s.acts}>
+      <TouchableOpacity style={[s.btn, s.btnP]} onPress={() => setChatId(b.id)}><Text style={s.btnPT}>💬 채팅{(unread[b.id] ?? 0) > 0 ? ` · ${unread[b.id]}` : ''}</Text></TouchableOpacity>
+      <TouchableOpacity style={[s.btn, s.btnG]} onPress={() => setWbId(b.id)}><Text style={s.btnGT}>🖊 화이트보드</Text></TouchableOpacity>
+    </View>
+  );
+
+  const List = (
     <ScrollView style={s.wrap} contentContainerStyle={{ padding: 16, gap: 10 }}>
       <Text style={s.h1}>상담</Text>
       <View style={s.seg}>
@@ -145,24 +156,36 @@ export function TeacherSessions({ myId }: { myId: string }) {
         ))}
       </View>
       {shown.length === 0 ? <Text style={s.empty}>{tab === 'upcoming' ? '예정된 상담이 없어요.' : '완료된 상담이 없어요.'}</Text> : shown.map((b) => (
-        <View key={b.id} style={s.card}>
-          <View style={s.row}>
-            <Text style={s.title}>{b.consultType ?? "상담"} · {modeLabel(b.mode)}</Text>
-            <Text style={s.time}>{KST(b.start)}</Text>
-          </View>
-          <Text style={s.body}>{modeLabel(b.mode)} · {statusLabel(b.status)}</Text>
-          {b.status === 'confirmed' && (
-            <View style={s.acts}>
-              <TouchableOpacity style={[s.btn, s.btnP]} onPress={() => setChatId(b.id)}>
-                <Text style={s.btnPT}>💬 채팅{(unread[b.id] ?? 0) > 0 ? ` · ${unread[b.id]}` : ''}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[s.btn, s.btnG]} onPress={() => setWbId(b.id)}><Text style={s.btnGT}>🖊 화이트보드</Text></TouchableOpacity>
-            </View>
-          )}
-        </View>
+        <TouchableOpacity key={b.id} activeOpacity={wide ? 0.7 : 1} onPress={() => wide && setSel(b.id)} style={[s.card, wide && sel === b.id && s.cardSel]}>
+          <View style={s.row}><Text style={s.title}>{b.consultType ?? '상담'} · {modeLabel(b.mode)}</Text><Text style={s.time}>{KST(b.start)}</Text></View>
+          <Text style={s.body}>{modeLabel(b.mode)} · {statusLabel(b.status)}{(unread[b.id] ?? 0) > 0 ? ` · 새 메시지 ${unread[b.id]}` : ''}</Text>
+          {!wide && b.status === 'confirmed' && launch(b)}
+        </TouchableOpacity>
       ))}
     </ScrollView>
   );
+
+  if (wide) {
+    const cur = shown.find((b) => b.id === sel) ?? shown[0];
+    return (
+      <View style={{ flex: 1, flexDirection: 'row' }}>
+        <View style={{ width: 360, borderRightWidth: 1, borderRightColor: C.line }}>{List}</View>
+        <View style={{ flex: 1, padding: 20, gap: 12 }}>
+          {cur ? <>
+            <Text style={s.h1}>{cur.consultType ?? '상담'}</Text>
+            <View style={s.card}>
+              <Text style={s.body}>{modeLabel(cur.mode)} · {statusLabel(cur.status)}</Text>
+              <Text style={s.body}>{KST(cur.start)}</Text>
+              {cur.content ? <Text style={s.body}>{cur.content}</Text> : null}
+            </View>
+            {cur.status === 'confirmed' ? launch(cur) : <Text style={s.body}>{cur.status === 'new' ? '학생 신청 — 인박스에서 수락하세요.' : '진행 가능한 상태가 아니에요.'}</Text>}
+            <Text style={[s.body, { color: C.caption }]}>채팅·화이트보드에서 사진 촬영·필기·음성통화를 함께 사용할 수 있어요.</Text>
+          </> : <View style={s.paneEmpty}><Text style={s.empty}>좌측에서 상담을 선택하세요.</Text></View>}
+        </View>
+      </View>
+    );
+  }
+  return List;
 }
 
 type TStudent = { studentId: string; name: string; totalConsult: number; isHomeroom: boolean };
@@ -361,22 +384,33 @@ export function TeacherToday({ myId }: { myId: string }) {
   );
 }
 
-type Prof = { name?: string; subjects?: string[]; grade?: string; career?: string | null; centerName?: string | null };
+type Prof = { name?: string; subjects?: string[]; grade?: string; career?: string | null; centerName?: string | null; intro?: string | null; strengths?: string[] | null };
 type Evals = { overall: number; count: number; grade: string; topPercent: number | null; itemScores?: { attitude: number; content: number; skill: number; again: number } };
 type Pay = { expectedAmount: number; confirmedAmount: number; incentive: number; rates?: { employmentType?: string | null; basePay?: number } };
 
-/** 마이 — 프로필·평점·예상급여. */
+/** 마이 — 프로필·응답률·완성도·평점·예상급여. */
 export function TeacherMy({ myId }: { myId: string }) {
   const { C } = useTheme();
   const s = useMemo(() => mk(C), [C]);
   const [prof, setProf] = useState<Prof | null>(null);
   const [ev, setEv] = useState<Evals | null>(null);
   const [pay, setPay] = useState<Pay | null>(null);
+  const [bookings, setBookings] = useState<Booking[] | null>(null);
   useEffect(() => {
     api.get<Prof>('/teachers/me/profile').then(setProf).catch(() => {});
     api.get<Evals>('/me/evaluations').then(setEv).catch(() => {});
     api.get<Pay>(`/teachers/${myId}/payroll`).then(setPay).catch(() => {});
+    api.get<{ data?: Booking[] } | Booking[]>('/bookings?role=teacher').then((r) => setBookings(unwrap(r))).catch(() => setBookings([]));
   }, [myId]);
+
+  // 응답률: 상대(학생) 신청 중 내가 처리(new 아님)한 비율
+  const reqs = (bookings ?? []).filter((b) => b.direction === 'student');
+  const responded = reqs.filter((b) => b.status !== 'new').length;
+  const responseRate = reqs.length ? Math.round((responded / reqs.length) * 100) : null;
+  // 프로필 완성도: 과목·경력·소개·강점 채움 비율
+  const filled = [(prof?.subjects?.length ?? 0) > 0, !!prof?.career, !!prof?.intro, (prof?.strengths?.length ?? 0) > 0];
+  const completeness = prof ? Math.round((filled.filter(Boolean).length / filled.length) * 100) : null;
+
   return (
     <ScrollView style={s.wrap} contentContainerStyle={{ padding: 16, gap: 10 }}>
       <Text style={s.h1}>마이</Text>
@@ -385,6 +419,13 @@ export function TeacherMy({ myId }: { myId: string }) {
         <Text style={s.body}>{(prof?.subjects ?? []).join(', ') || '과목 미설정'}{prof?.centerName ? ` · ${prof.centerName}` : ''}</Text>
         {prof?.career ? <Text style={s.body}>{prof.career}</Text> : null}
       </View>
+      <View style={s.summary}>
+        <Sum label="응답률" n={responseRate ?? 0} C={C} accent suffix="%" />
+        <Sum label="프로필 완성도" n={completeness ?? 0} C={C} suffix="%" />
+      </View>
+      {completeness != null && completeness < 100 && (
+        <Text style={[s.msg]}>프로필을 채우면 매칭·랭킹에 유리해요{prof && !prof.intro ? ' · 소개 미작성' : ''}{prof && !(prof.strengths?.length) ? ' · 강점 미설정' : ''}.</Text>
+      )}
       <View style={s.card}>
         <Text style={s.secTitle}>평점 · 리뷰</Text>
         <View style={s.row}>
@@ -411,10 +452,10 @@ export function TeacherMy({ myId }: { myId: string }) {
 
 // ── 보조 ──
 function Center({ C }: { C: Palette }) { return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator color={C.teal} /></View>; }
-function Sum({ label, n, C, accent }: { label: string; n: number; C: Palette; accent?: boolean }) {
+function Sum({ label, n, C, accent, suffix }: { label: string; n: number; C: Palette; accent?: boolean; suffix?: string }) {
   return <View style={{ flex: 1, backgroundColor: C.white, borderWidth: 1, borderColor: C.line, borderRadius: 12, padding: 12 }}>
     <Text style={{ fontSize: 11.5, color: C.muted }}>{label}</Text>
-    <Text style={{ fontSize: 22, fontWeight: '800', color: accent ? C.teal : C.ink, marginTop: 2 }}>{n}</Text>
+    <Text style={{ fontSize: 22, fontWeight: '800', color: accent ? C.teal : C.ink, marginTop: 2 }}>{n}{suffix ?? ''}</Text>
   </View>;
 }
 const modeLabel = (m: string) => ({ chat: '실시간 채팅', zoom: '줌 화상', hand: '필기 공유', offline: '오프라인 대면', board: '게시판' }[m] ?? m);
