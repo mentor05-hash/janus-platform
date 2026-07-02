@@ -91,6 +91,17 @@ export class ScoresController {
     return this.scores.setGoal(user, dto.studentLoginId, dto.tier ?? null, dto.avg ?? null);
   }
 
+  /** GET /admin/scores/export?period= — 성적 CSV 내보내기. */
+  @Get('export')
+  async exportCsv(@CurrentUser() user: AuthUser, @Res() res: Response, @Query('period') period?: string) {
+    const csv = await this.scores.exportCsv(user, period);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    // 파일명은 ASCII(헤더 제약), 한글 기간은 RFC5987 filename* 로 전달
+    const fn = encodeURIComponent(`scores-${period ?? 'all'}.csv`);
+    res.setHeader('Content-Disposition', `attachment; filename="scores.csv"; filename*=UTF-8''${fn}`);
+    res.send(csv);
+  }
+
   /** GET /admin/scores/template — 업로드용 엑셀 템플릿 다운로드. */
   @Get('template')
   template(@Res() res: Response) {

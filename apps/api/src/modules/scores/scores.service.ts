@@ -294,6 +294,21 @@ export class ScoresService {
     return this.buildTrend(studentId, !!p.placement);
   }
 
+  /** 성적 CSV(현 목록) — 아이디·이름·시험·과목별 점수·평균·배치. */
+  async exportCsv(actor: AuthUser, period?: string): Promise<string> {
+    const rows = await this.list(actor, period);
+    const subjects = Array.from(new Set(rows.flatMap((r) => r.items.map((i) => i.subject))));
+    const head = ['아이디', '이름', '기간', '시험', ...subjects, '평균', '배치'];
+    const esc = (v: unknown) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    const lines = [head.join(',')];
+    for (const r of rows) {
+      const byS = new Map(r.items.map((i) => [i.subject, i.score]));
+      const cells = [r.loginId, r.studentName, r.period, r.examType ?? '', ...subjects.map((s) => byS.get(s) ?? ''), r.avg ?? '', r.placement ? `${r.placement.tier ?? ''} ${r.placement.line ?? ''}`.trim() : ''];
+      lines.push(cells.map(esc).join(','));
+    }
+    return '﻿' + lines.join('\n'); // BOM(엑셀 한글)
+  }
+
   async periods(actor: AuthUser) {
     this.assertAdmin(actor);
     const rows = await this.prisma.score_report.findMany({

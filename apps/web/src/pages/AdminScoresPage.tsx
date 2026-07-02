@@ -78,6 +78,10 @@ export function AdminScoresPage() {
     try { await api.downloadPath('/admin/scores/template', 'score-template.xlsx'); }
     catch (e) { setError(e instanceof ApiError ? e.message : '템플릿 다운로드 실패'); }
   }
+  async function downloadCsv() {
+    try { await api.downloadPath(`/admin/scores/export?period=${encodeURIComponent(period)}`, `scores-${period}.csv`); }
+    catch (e) { setError(e instanceof ApiError ? e.message : 'CSV 내보내기 실패'); }
+  }
   async function estimatePlacements() {
     setMsg(''); setError('');
     try { const r = await api.post<{ updated: number; note: string }>('/admin/scores/estimate-placements', { period }); setMsg(`배치 라인 추정 완료: ${r.updated}건 (${r.note})`); if (tab === 'list') loadList(); if (trend) loadTrend(); }
@@ -163,6 +167,7 @@ export function AdminScoresPage() {
         <input className="input" style={{ width: 220 }} value={period} onChange={(e) => setPeriod(e.target.value)} placeholder="예: 2026-1학기 중간고사" list="periods" />
         <datalist id="periods">{periods.map((p) => <option key={p} value={p} />)}</datalist>
         <Button size="sm" variant="ghost" onClick={estimatePlacements}>🎯 배치 라인 추정(데모)</Button>
+        <Button size="sm" variant="ghost" onClick={downloadCsv}>⬇ CSV 내보내기</Button>
       </div>
 
       {/* 노출 정책(본사 마스터) */}
