@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { api, ApiError, Booking } from '../api';
 import { useTheme, type Palette } from '../theme';
 import { ChatScreen } from './ChatScreen';
@@ -165,39 +165,97 @@ export function TeacherSessions({ myId }: { myId: string }) {
   );
 }
 
-/** ③ 기록 — 확정/완료 상담에 상담기록 작성·수정(draft/final). */
+type TStudent = { studentId: string; name: string; totalConsult: number; isHomeroom: boolean };
+type Detail = { kind: 'edit'; booking: Booking } | { kind: 'student'; student: TStudent } | null;
+
+/** ③ 기록 — 예약별 작성/수정 · 학생별 히스토리. 태블릿(넓은 폭)은 좌 목록 + 우 상세 2-pane. */
 export function TeacherRecords() {
   const { C } = useTheme();
   const s = useMemo(() => mk(C), [C]);
+  const wide = useWindowDimensions().width >= 900;
+  const [mode, setMode] = useState<'booking' | 'student'>('booking');
   const [bookings, setBookings] = useState<Booking[] | null>(null);
-  const [edit, setEdit] = useState<Booking | null>(null);
+  const [students, setStudents] = useState<TStudent[] | null>(null);
+  const [detail, setDetail] = useState<Detail>(null);
 
   const load = useCallback(() => {
     api.get<{ data?: Booking[] } | Booking[]>('/bookings?role=teacher').then((r) => setBookings(unwrap(r))).catch(() => setBookings([]));
+    api.get<{ data?: TStudent[] } | TStudent[]>('/me/students').then((r) => setStudents(unwrap(r))).catch(() => setStudents([]));
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  if (edit) return <NoteEditor booking={edit} onClose={() => { setEdit(null); load(); }} />;
-  if (bookings === null) return <Center C={C} />;
+  const detailNode = detail?.kind === 'edit'
+    ? <NoteEditor booking={detail.booking} embedded={wide} onClose={() => { setDetail(null); load(); }} />
+    : detail?.kind === 'student'
+      ? <StudentNotes student={detail.student} embedded={wide} onClose={() => setDetail(null)} onOpen={(b) => setDetail({ kind: 'edit', booking: b })} />
+      : null;
+
+  // 좁은 화면: 상세가 있으면 상세만 전체화면
+  if (!wide && detailNode) return detailNode;
+  if (bookings === null || students === null) return <Center C={C} />;
+
   const targets = (bookings ?? []).filter((b) => ['confirmed', 'done'].includes(b.status));
-  return (
+  const List = (
     <ScrollView style={s.wrap} contentContainerStyle={{ padding: 16, gap: 10 }}>
       <Text style={s.h1}>상담기록</Text>
-      <Text style={s.sub}>확정·완료 상담의 기록을 작성·수정합니다. 완료 처리는 최종 저장(final)이 선행돼요.</Text>
-      {targets.length === 0 ? <Text style={s.empty}>기록할 상담이 없어요.</Text> : targets.map((b) => (
-        <TouchableOpacity key={b.id} style={s.card} onPress={() => setEdit(b)}>
+      <View style={s.seg}>
+        {(['booking', 'student'] as const).map((m) => (
+          <TouchableOpacity key={m} style={[s.segItem, mode === m && s.segOn]} onPress={() => { setMode(m); setDetail(null); }}><Text style={[s.segT, mode === m && s.segTOn]}>{m === 'booking' ? '예약별' : '학생별'}</Text></TouchableOpacity>
+        ))}
+      </View>
+      {mode === 'booking' ? (
+        targets.length === 0 ? <Text style={s.empty}>기록할 상담이 없어요.</Text> : targets.map((b) => (
+          <TouchableOpacity key={b.id} style={[s.card, detail?.kind === 'edit' && detail.booking.id === b.id && s.cardSel]} onPress={() => setDetail({ kind: 'edit', booking: b })}>
+            <View style={s.row}><Text style={s.title}>{b.consultType ?? '상담'} · {modeLabel(b.mode)}</Text><Text style={s.time}>{KST(b.start)}</Text></View>
+            <Text style={s.body}>{statusLabel(b.status)} · 기록 {b.status === 'done' ? '완료' : '작성/수정'} ›</Text>
+          </TouchableOpacity>
+        ))
+      ) : (
+        (students ?? []).length === 0 ? <Text style={s.empty}>담당 학생이 없어요.</Text> : (students ?? []).map((st) => (
+          <TouchableOpacity key={st.studentId} style={[s.card, detail?.kind === 'student' && detail.student.studentId === st.studentId && s.cardSel]} onPress={() => setDetail({ kind: 'student', student: st })}>
+            <View style={s.row}><Text style={s.title}>{st.name}{st.isHomeroom ? ' · 담임' : ''}</Text><Text style={s.time}>기록 {st.totalConsult}건 ›</Text></View>
+          </TouchableOpacity>
+        ))
+      )}
+    </ScrollView>
+  );
+
+  if (wide) return (
+    <View style={{ flex: 1, flexDirection: 'row' }}>
+      <View style={{ width: 360, borderRightWidth: 1, borderRightColor: C.line }}>{List}</View>
+      <View style={{ flex: 1 }}>{detailNode ?? <View style={s.paneEmpty}><Text style={s.empty}>좌측에서 상담·학생을 선택하세요.</Text></View>}</View>
+    </View>
+  );
+  return List;
+}
+
+type SNote = { bookingId: string; teacherName?: string | null; consultType?: string | null; coreSummary: string | null; homework: string | null; futureDir: string | null; saveState: 'draft' | 'final'; createdAt?: string };
+/** 학생별 상담기록 히스토리. */
+function StudentNotes({ student, embedded, onClose, onOpen }: { student: TStudent; embedded: boolean; onClose: () => void; onOpen: (b: Booking) => void }) {
+  const { C } = useTheme();
+  const s = useMemo(() => mk(C), [C]);
+  const [notes, setNotes] = useState<SNote[] | null>(null);
+  useEffect(() => { api.get<{ data?: SNote[] } | SNote[]>(`/students/${student.studentId}/notes`).then((r) => setNotes(unwrap(r))).catch(() => setNotes([])); }, [student.studentId]);
+  if (notes === null) return <Center C={C} />;
+  return (
+    <ScrollView style={s.wrap} contentContainerStyle={{ padding: 16, gap: 10 }}>
+      {!embedded && <TouchableOpacity onPress={onClose}><Text style={s.back}>‹ 상담기록</Text></TouchableOpacity>}
+      <Text style={s.h1}>{student.name} · 기록</Text>
+      {notes.length === 0 ? <Text style={s.empty}>작성된 기록이 없어요.</Text> : notes.map((n) => (
+        <TouchableOpacity key={n.bookingId} style={s.card} onPress={() => onOpen({ id: n.bookingId, studentId: student.studentId, teacherId: '', consultType: n.consultType ?? null, mode: '', direction: 'student', start: n.createdAt ?? null, end: null, status: 'confirmed', chargedCredits: 0 })}>
           <View style={s.row}>
-            <Text style={s.title}>{b.consultType ?? "상담"} · {modeLabel(b.mode)}</Text>
-            <Text style={s.time}>{KST(b.start)}</Text>
+            <Text style={s.title}>{n.consultType ?? '상담'}</Text>
+            <Text style={[s.pill, n.saveState === 'final' ? s.pillFinal : s.pillDraft]}>{n.saveState === 'final' ? '최종' : '임시'}</Text>
           </View>
-          <Text style={s.body}>{statusLabel(b.status)} · 기록 {b.status === 'done' ? '완료' : '작성/수정'} ›</Text>
+          {n.coreSummary ? <Text style={s.body} numberOfLines={2}>{n.coreSummary}</Text> : <Text style={[s.body, { color: C.caption }]}>요약 없음</Text>}
+          <Text style={s.time}>{KST(n.createdAt)}{n.teacherName ? ` · ${n.teacherName}` : ''}</Text>
         </TouchableOpacity>
       ))}
     </ScrollView>
   );
 }
 
-function NoteEditor({ booking, onClose }: { booking: Booking; onClose: () => void }) {
+function NoteEditor({ booking, onClose, embedded }: { booking: Booking; onClose: () => void; embedded?: boolean }) {
   const { C } = useTheme();
   const s = useMemo(() => mk(C), [C]);
   const [f, setF] = useState({ coreSummary: '', homework: '', futureDir: '', memo: '' });
@@ -233,7 +291,7 @@ function NoteEditor({ booking, onClose }: { booking: Booking; onClose: () => voi
   );
   return (
     <ScrollView style={s.wrap} contentContainerStyle={{ padding: 16, gap: 10 }}>
-      <TouchableOpacity onPress={onClose}><Text style={s.back}>‹ 상담기록</Text></TouchableOpacity>
+      {!embedded && <TouchableOpacity onPress={onClose}><Text style={s.back}>‹ 상담기록</Text></TouchableOpacity>}
       <Text style={s.h1}>기록 작성</Text>
       {Field({ label: '핵심요약 (공개)', k: 'coreSummary', ph: '예: 합성함수 미분 개념 재정리' })}
       {Field({ label: '숙제 (공개)', k: 'homework', ph: '예: 유형서 32–40번' })}
@@ -270,6 +328,11 @@ const mk = (C: Palette) => StyleSheet.create({
   summary: { flexDirection: 'row', gap: 10 },
   card: { backgroundColor: C.white, borderWidth: 1, borderColor: C.line, borderRadius: 12, padding: 13, gap: 6 },
   cardNew: { borderColor: C.teal100 ?? C.teal, backgroundColor: C.teal50 ?? C.white },
+  cardSel: { borderColor: C.teal, borderWidth: 2 },
+  paneEmpty: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bg },
+  pill: { fontSize: 10.5, fontWeight: '800', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, overflow: 'hidden' },
+  pillFinal: { color: '#fff', backgroundColor: C.teal },
+  pillDraft: { color: C.muted, backgroundColor: C.lineSoft },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   title: { fontSize: 14.5, fontWeight: '800', color: C.ink, flex: 1 },
   time: { fontSize: 11, color: C.caption },
