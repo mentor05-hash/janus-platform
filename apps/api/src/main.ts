@@ -1,5 +1,6 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -52,6 +53,19 @@ async function bootstrap() {
     new LoggingInterceptor(),
     new TransformInterceptor(),
   ); // 요청로깅 + { data, meta }
+
+  // OpenAPI 문서 — 로컬/스테이징에서만 노출(/docs). prod 는 비노출.
+  if (!isProd) {
+    const config = new DocumentBuilder()
+      .setTitle('멘토링 플랫폼 API')
+      .setDescription('1:1 멘토링/상담 예약 플랫폼 — REST API 문서')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    const doc = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup(`${prefix}/docs`.replace(/^\//, ''), app, doc);
+    Logger.log(`API docs on /${prefix.replace(/^\//, '')}/docs`, 'Bootstrap');
+  }
 
   const port = Number(process.env.PORT ?? 3000);
   await app.listen(port);
