@@ -172,14 +172,17 @@ export class BookingService {
       teacher.center_id,
       dto.consultType,
     );
-    const valid = slotOk && modeFeature.enabled && catFeature.enabled;
-    const message = !slotOk
-      ? slotReasonMessage(slotReason)
-      : !modeFeature.enabled
-        ? `현재 ${dto.mode} 방식은 닫혀 있어요. 다른 방식을 선택하세요.`
-        : !catFeature.enabled
-          ? `현재 ${dto.consultType} 상담은 닫혀 있어요.`
-          : '예약 가능';
+    const working = !teacher.work_status || teacher.work_status === 'on';
+    const valid = slotOk && modeFeature.enabled && catFeature.enabled && working;
+    const message = !working
+      ? (teacher.work_status === 'rest' ? '선생님이 휴게 중이에요. 잠시 후 다시 시도해 주세요.' : '선생님이 오늘 상담을 마감했어요.')
+      : !slotOk
+        ? slotReasonMessage(slotReason)
+        : !modeFeature.enabled
+          ? `현재 ${dto.mode} 방식은 닫혀 있어요. 다른 방식을 선택하세요.`
+          : !catFeature.enabled
+            ? `현재 ${dto.consultType} 상담은 닫혀 있어요.`
+            : '예약 가능';
     return { minutes, credits: q.credits, valid, message };
   }
 
@@ -200,6 +203,10 @@ export class BookingService {
       throw new ForbiddenException('차단한 선생님에게는 예약할 수 없습니다.');
     }
     const teacher = await this.requireTeacher(dto.teacherId);
+    // 근무 상태 게이팅: 휴게중/퇴근인 선생님에겐 신규 상담 신청 차단(학생 발신 한정).
+    if (user.role === AccountRole.STUDENT && teacher.work_status && teacher.work_status !== 'on') {
+      throw new ForbiddenException(teacher.work_status === 'rest' ? '선생님이 휴게 중이라 지금은 신청할 수 없어요.' : '선생님이 오늘 상담을 마감했어요.');
+    }
     await this.assertConsultAllowed(
       teacher.center_id,
       dto.consultType,

@@ -15,6 +15,7 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
   const [peerTyping, setPeerTyping] = useState(false);
   const sockRef = useRef<Socket | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const docRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const [camOn, setCamOn] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -75,6 +76,13 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
     if (!f || !f.type.startsWith('image/')) return;
     await sendImage(f, f.name);
   }
+  async function onDoc(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]; e.target.value = '';
+    if (!f) return;
+    const form = new FormData(); form.append('file', f, f.name);
+    const r = await api.upload<{ id: string }>('/files', form);
+    sockRef.current?.emit('chat:send', { bookingId, fileId: r.id, fileName: f.name });
+  }
   async function openCamera() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
@@ -108,7 +116,13 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
             : msgs.map((m) => (
               <div key={m.id} style={{ alignSelf: m.mine ? 'flex-end' : 'flex-start', maxWidth: '78%' }}>
                 <div style={{ background: m.mine ? 'var(--teal)' : 'var(--surface)', color: m.mine ? '#fff' : 'var(--ink)', border: m.mine ? 'none' : '1px solid var(--line)', borderRadius: 12, padding: m.kind === 'image' ? 6 : '8px 12px', fontSize: 14, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                  {m.kind === 'image' && m.imageFileId ? <AuthImage fileId={m.imageFileId} size={160} /> : m.body}
+                  {m.kind === 'image' && m.imageFileId ? <AuthImage fileId={m.imageFileId} size={160} />
+                    : m.kind === 'file' && m.imageFileId ? (
+                      <button onClick={() => api.downloadFile(m.imageFileId!, m.body ?? '첨부파일')} style={{ display: 'flex', alignItems: 'center', gap: 8, border: 'none', background: 'none', cursor: 'pointer', color: 'inherit', font: 'inherit', padding: 0, textAlign: 'left' }}>
+                        <span style={{ fontSize: 20 }}>📎</span>
+                        <span style={{ textDecoration: 'underline', wordBreak: 'break-all' }}>{m.body ?? '첨부파일'}</span>
+                      </button>
+                    ) : m.body}
                 </div>
                 <div style={{ fontSize: 10, color: 'var(--caption)', textAlign: m.mine ? 'right' : 'left', marginTop: 2 }}>
                   {m.mine && m.readAt && <span style={{ color: 'var(--teal)', marginRight: 4 }}>읽음</span>}{KST(m.createdAt)}
@@ -123,6 +137,8 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
             <button onClick={() => fileRef.current?.click()} title="이미지 첨부" aria-label="이미지 첨부" style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer' }}>🖼</button>
             <button onClick={openCamera} title="사진 촬영(무음)" aria-label="사진 촬영" style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer' }}>📷</button>
+            <input ref={docRef} type="file" hidden onChange={onDoc} />
+            <button onClick={() => docRef.current?.click()} title="파일 첨부(PDF·문서)" aria-label="파일 첨부" style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer' }}>📎</button>
             <input className="input" value={text} onChange={(e) => onType(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && send()} placeholder="메시지 입력…" aria-label="메시지 입력" />
             <button className="btn sm" onClick={send} disabled={!text.trim()}>전송</button>
           </div>

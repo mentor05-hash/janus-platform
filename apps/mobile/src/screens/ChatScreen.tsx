@@ -89,6 +89,16 @@ export function ChatScreen({ bookingId, myId, title, onClose }: { bookingId: str
     input.onchange = async () => { const f = input.files?.[0]; if (f && f.type.startsWith('image/')) await sendImage(f, f.name); };
     input.click();
   }
+  function pickDoc() {
+    if (typeof document === 'undefined') return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.onchange = async () => {
+      const f = input.files?.[0]; if (!f) return;
+      try { const r = await api.uploadWeb(f as unknown as File, f.name); sockRef.current?.emit('chat:send', { bookingId, fileId: r.id, fileName: f.name }); } catch { /* noop */ }
+    };
+    input.click();
+  }
   /** 무소음 카메라 촬영 — getUserMedia 로 body 레벨 DOM 오버레이(네이티브 셔터음 없음). */
   async function openCamera() {
     if (typeof navigator === 'undefined' || !navigator.mediaDevices || typeof document === 'undefined') return;
@@ -131,7 +141,13 @@ export function ChatScreen({ bookingId, myId, title, onClose }: { bookingId: str
             : msgs.map((m) => (
               <View key={m.id} style={{ alignSelf: m.mine ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
                 <View style={[styles.bubble, m.mine ? styles.mine : styles.theirs, m.kind === 'image' && { padding: 5 }]}>
-                  {m.kind === 'image' && m.imageFileId ? <ChatImage fileId={m.imageFileId} /> : <Text style={[styles.bubbleT, m.mine && { color: '#fff' }]}>{m.body}</Text>}
+                  {m.kind === 'image' && m.imageFileId ? <ChatImage fileId={m.imageFileId} />
+                    : m.kind === 'file' && m.imageFileId ? (
+                      <TouchableOpacity onPress={() => api.downloadWeb(m.imageFileId!, m.body ?? '첨부파일')} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={{ fontSize: 18 }}>📎</Text>
+                        <Text style={[styles.bubbleT, m.mine && { color: '#fff' }, { textDecorationLine: 'underline' }]}>{m.body ?? '첨부파일'}</Text>
+                      </TouchableOpacity>
+                    ) : <Text style={[styles.bubbleT, m.mine && { color: '#fff' }]}>{m.body}</Text>}
                 </View>
                 <Text style={[styles.time, { textAlign: m.mine ? 'right' : 'left' }]}>{m.mine && m.readAt ? '읽음 · ' : ''}{KST(m.createdAt)}</Text>
               </View>
@@ -142,6 +158,7 @@ export function ChatScreen({ bookingId, myId, title, onClose }: { bookingId: str
           <View style={styles.inputRow}>
             <TouchableOpacity onPress={pickImage} style={styles.imgBtn}><Text style={{ fontSize: 20 }}>🖼</Text></TouchableOpacity>
             <TouchableOpacity onPress={openCamera} style={styles.imgBtn}><Text style={{ fontSize: 20 }}>📷</Text></TouchableOpacity>
+            <TouchableOpacity onPress={pickDoc} style={styles.imgBtn}><Text style={{ fontSize: 20 }}>📎</Text></TouchableOpacity>
             <TextInput style={styles.input} value={text} onChangeText={onType} placeholder="메시지 입력…" placeholderTextColor={C.caption} onSubmitEditing={send} returnKeyType="send" />
             <TouchableOpacity onPress={send} disabled={!text.trim()} style={[styles.sendBtn, !text.trim() && { opacity: 0.5 }]}><Text style={styles.sendT}>전송</Text></TouchableOpacity>
           </View>

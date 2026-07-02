@@ -71,13 +71,16 @@ export class RealtimeGateway implements OnGatewayConnection {
   }
 
   @SubscribeMessage('chat:send')
-  async chatSend(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, body, imageFileId }: { bookingId: string; body?: string; imageFileId?: string }) {
+  async chatSend(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, body, imageFileId, fileId, fileName }: { bookingId: string; body?: string; imageFileId?: string; fileId?: string; fileName?: string }) {
     const user = this.user(client);
     await this.svc.assertRoomAccess(user, bookingId);
     const access = await this.svc.featureAccess(user);
     if (!access.chat) return { ok: false, error: '채팅이 비활성화되어 있습니다.' };
-    if (!body?.trim() && !imageFileId) return { ok: false };
-    const msg = await this.svc.saveMessage(user.id, bookingId, imageFileId ? 'image' : 'text', body?.trim() || null, imageFileId ?? null);
+    if (!body?.trim() && !imageFileId && !fileId) return { ok: false };
+    // 파일(PDF·문서 등)은 kind='file' + image_file_id 재사용, body 에 파일명 저장(표시용)
+    const kind = imageFileId ? 'image' : fileId ? 'file' : 'text';
+    const savedBody = fileId ? (fileName ?? '첨부파일') : (body?.trim() || null);
+    const msg = await this.svc.saveMessage(user.id, bookingId, kind, savedBody, imageFileId ?? fileId ?? null);
     // 수신자별로 mine 을 서버에서 계산해 개별 전송(클라이언트 myId 오류와 무관하게 좌/우 정렬 보장).
     const sockets = await this.server.in(`booking:${bookingId}`).fetchSockets();
     for (const sock of sockets) {
