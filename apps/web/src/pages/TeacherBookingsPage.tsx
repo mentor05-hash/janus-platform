@@ -4,6 +4,7 @@ import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import type { Booking, WorkSchedule } from '../api/types';
 import { PageHeader, Button, Badge, Spinner, ErrorText, Table, Tabs } from '../components/ui';
+import { ChatPanel } from '../components/ChatPanel';
 import type { Column } from '../components/ui';
 import { StatCard, StatGrid } from '../components/dashboard/widgets';
 
@@ -27,6 +28,8 @@ export function TeacherBookingsPage() {
   const teacherId = user!.id;
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [todayHours, setTodayHours] = useState(0);
+  const [chatId, setChatId] = useState<string | null>(null);
+  const [chatOn, setChatOn] = useState(false);
   const [tab, setTab] = useState('today');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -39,6 +42,7 @@ export function TeacherBookingsPage() {
         api.get<WorkSchedule>(`/teachers/${teacherId}/work-schedule`).catch(() => null),
       ]);
       setBookings(bks);
+      api.get<{ chat: boolean }>('/realtime/features').then((f) => setChatOn(!!f.chat)).catch(() => {});
       // 오늘 근무 시간 합계
       const wd = String(new Date().getDay());
       const wins = (ws?.recurring_template as Record<string, { start: string; end: string }[]> | undefined)?.[wd] ?? [];
@@ -95,6 +99,7 @@ export function TeacherBookingsPage() {
             </>
           )}
           {b.status === 'done' && <Link className="btn ghost sm" to={`/app/bookings/${b.id}/note`}>기록</Link>}
+          {chatOn && b.status !== 'new' && <Button size="sm" variant="ghost" onClick={() => setChatId(b.id)}>💬</Button>}
         </span>
       ),
     },
@@ -116,6 +121,7 @@ export function TeacherBookingsPage() {
         <Tabs items={TABS} value={tab} onChange={setTab} />
         <Table columns={columns} rows={rows} rowKey={(b) => b.id} empty="해당 기간 예약이 없습니다." />
       </div>
+      {chatId && <ChatPanel bookingId={chatId} myId={teacherId} title="상담 채팅" onClose={() => setChatId(null)} />}
     </div>
   );
 }

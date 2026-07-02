@@ -45,6 +45,30 @@ model push_token {
   @@index([account_id])
 }
 
+model chat_message {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  booking_id    String   @db.Uuid
+  sender_id     String?  @db.Uuid
+  kind          String   @default("text")
+  body          String?
+  image_file_id String?  @db.Uuid
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  booking       booking  @relation(fields: [booking_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([booking_id, created_at])
+}
+
+model whiteboard_snapshot {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  booking_id String   @db.Uuid
+  strokes    Json
+  created_by String?  @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  booking    booking  @relation(fields: [booking_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([booking_id, created_at])
+}
+
 model system_setting {
   key        String   @id
   value      Json
@@ -173,6 +197,8 @@ model booking {
   teacher_profile    teacher_profile      @relation(fields: [teacher_id], references: [account_id], onDelete: NoAction, onUpdate: NoAction)
   cancellation_event cancellation_event[]
   consultation_note  consultation_note?
+  chat_message       chat_message[]
+  whiteboard_snapshot whiteboard_snapshot[]
   review             review?
   time_slot          time_slot[]
 
