@@ -797,6 +797,7 @@ model teacher_profile {
   type_code                                                          String?
   cancel_count                                                       Int                            @default(0)
   director_role                                                      String?
+  employment_type                                                    String?
   teacher_monthly_hours                                              teacher_monthly_hours[]
   material                                                           material[]
   board_question_board_question_assigned_teacher_idToteacher_profile board_question[]               @relation("board_question_assigned_teacher_idToteacher_profile")

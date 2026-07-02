@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import * as XLSX from 'xlsx';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { BookingStatus } from '../../config/enums';
@@ -114,6 +115,80 @@ export class DashboardService {
     return { data: saved };
   }
 
+  /** 월간 시수 엑셀 일괄 업로드 — 건당/기본급 등 모든 근무자 시수를 한 번에 upsert. */
+  async bulkMonthlyHoursExcel(actor: AuthUser, buffer: Buffer) {
+    if (actor.role !== 'admin' && actor.role !== 'hr') {
+      throw new ForbiddenException('관리자만 시수를 입력할 수 있습니다.');
+    }
+    let rows: Record<string, unknown>[];
+    try {
+      const wb = XLSX.read(buffer, { type: 'buffer' });
+      rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: null });
+    } catch {
+      throw new BadRequestException('엑셀을 읽을 수 없습니다(.xlsx).');
+    }
+    if (!rows.length) throw new BadRequestException('데이터가 없습니다.');
+
+    const scope = this.scope(actor); // null=전체(본사급), 그 외 자기 센터 강제
+    const result = { created: 0, updated: 0, skipped: 0, errors: [] as string[] };
+    for (let i = 0; i < rows.length; i++) {
+      const norm: Record<string, unknown> = {};
+      for (const k of Object.keys(rows[i])) norm[k.trim()] = rows[i][k];
+      const loginId = String(norm['아이디'] ?? norm['로그인아이디'] ?? norm['id'] ?? '').trim();
+      const name = String(norm['이름'] ?? norm['성명'] ?? '').trim();
+      const ym = this.normYearMonth(String(norm['기간'] ?? norm['월'] ?? norm['년월'] ?? '').trim());
+      const hoursRaw = norm['시수'] ?? norm['근무시수'] ?? norm['시간'] ?? norm['hours'];
+      const empType = String(norm['고용형태'] ?? norm['근무형태'] ?? '').trim() || null;
+      const hours = Number(hoursRaw);
+      if ((!loginId && !name) || !ym) { result.skipped++; result.errors.push(`${i + 2}행: 아이디(또는 이름)/기간 누락`); continue; }
+      if (hoursRaw == null || Number.isNaN(hours) || hours < 0 || hours > 744) { result.skipped++; result.errors.push(`${i + 2}행: 시수 값 오류(0~744)`); continue; }
+      try {
+        const teacher = await this.resolveTeacher(scope, loginId, name);
+        const existing = await this.prisma.teacher_monthly_hours.findFirst({ where: { teacher_id: teacher.account_id, year_month: ym } });
+        const data = { hours, updated_by: actor.id, updated_at: new Date() };
+        if (existing) await this.prisma.teacher_monthly_hours.update({ where: { id: existing.id }, data });
+        else await this.prisma.teacher_monthly_hours.create({ data: { teacher_id: teacher.account_id, year_month: ym, ...data } });
+        if (empType) await this.prisma.teacher_profile.update({ where: { account_id: teacher.account_id }, data: { employment_type: empType } });
+        existing ? result.updated++ : result.created++;
+      } catch (e) { result.skipped++; result.errors.push(`${i + 2}행(${loginId || name}): ${(e as Error).message}`); }
+    }
+    return result;
+  }
+
+  /** 기간 문자열을 YYYY-MM 으로 정규화(2026-07 / 2026.7 / 2026년 7월 / Date 직렬화 등). */
+  private normYearMonth(raw: string): string | null {
+    if (!raw) return null;
+    const m = raw.match(/(\d{4})\D*(\d{1,2})/);
+    if (!m) return null;
+    const y = m[1]; const mo = String(Math.min(12, Math.max(1, Number(m[2])))).padStart(2, '0');
+    return `${y}-${mo}`;
+  }
+
+  /** 로그인아이디 우선, 없으면 이름으로 선생님 조회(센터 스코프 강제·동명이인 방지). */
+  private async resolveTeacher(scope: string | null, loginId: string, name: string) {
+    const where: Prisma.teacher_profileWhereInput = { ...(scope ? { center_id: scope } : {}) };
+    if (loginId) where.account = { login_id: loginId };
+    else where.account = { name };
+    const matches = await this.prisma.teacher_profile.findMany({ where, select: { account_id: true, account: { select: { name: true } } }, take: 2 });
+    if (matches.length === 0) throw new NotFoundException('선생님을 찾을 수 없습니다.');
+    if (matches.length > 1) throw new BadRequestException('동명이인 — 아이디로 지정하세요.');
+    return matches[0];
+  }
+
+  /** 월간 시수 업로드용 엑셀 템플릿(건당·기본급 근무자 예시). */
+  monthlyHoursTemplate(): Buffer {
+    const sample = [
+      { 아이디: 'teacher01', 이름: '', 기간: '2026-07', 시수: 96, 고용형태: '기본급' },
+      { 아이디: 'teacher02', 이름: '', 기간: '2026-07', 시수: 40, 고용형태: '시급' },
+      { 아이디: 'teacher03', 이름: '', 기간: '2026-07', 시수: 0, 고용형태: '건당' },
+    ];
+    const ws = XLSX.utils.json_to_sheet(sample);
+    ws['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 8 }, { wch: 10 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '월간시수');
+    return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+  }
+
   async setDirector(actor: AuthUser, teacherId: string, dto: DirectorDto) {
     this.assertHqSetting(actor); // 원장 지정은 본사급만
     const t = await this.prisma.teacher_profile.findUnique({
@@ -162,6 +237,7 @@ export class DashboardService {
         re_request_rate: true,
         avg_response_min: true,
         director_role: true,
+        employment_type: true,
         account: { select: { name: true } },
         center: { select: { name: true } },
       },
@@ -213,6 +289,7 @@ export class DashboardService {
         center: t.center?.name ?? null,
         centerId: t.center_id,
         directorRole: t.director_role,
+        employmentType: t.employment_type ?? null,
         metrics: {
           total: b.total,
           completion: pct(b.done, b.total),

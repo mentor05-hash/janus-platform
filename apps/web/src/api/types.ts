@@ -300,6 +300,7 @@ export interface RankingRow {
   center: string | null;
   centerId: string | null;
   directorRole: string | null;
+  employmentType: string | null;
   metrics: {
     total: number;
     completion: number;

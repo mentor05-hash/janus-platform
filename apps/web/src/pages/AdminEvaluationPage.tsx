@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import type { Center, RankingRow, WeightPolicy } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
@@ -49,6 +49,24 @@ export function AdminEvaluationPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [blocked, setBlocked] = useState(false); // 본사 노출 정책상 이 센터 비활성
+  const hoursExcelRef = useRef<HTMLInputElement>(null);
+  const [hoursMsg, setHoursMsg] = useState('');
+
+  async function downloadHoursTemplate() {
+    try { await api.downloadPath('/admin/teachers/monthly-hours/template', 'monthly-hours-template.xlsx'); }
+    catch (e) { setError(e instanceof ApiError ? e.message : '템플릿 다운로드 실패'); }
+  }
+  async function onHoursExcel(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; e.target.value = '';
+    if (!file) return;
+    setHoursMsg(''); setError('');
+    try {
+      const form = new FormData(); form.append('file', file, file.name);
+      const r = await api.upload<{ created: number; updated: number; skipped: number; errors: string[] }>('/admin/teachers/monthly-hours/excel', form);
+      setHoursMsg(`시수 업로드: 신규 ${r.created} · 갱신 ${r.updated} · 건너뜀 ${r.skipped}${r.errors.length ? ` (${r.errors.slice(0, 2).join(' / ')}${r.errors.length > 2 ? '…' : ''})` : ''}`);
+      void load();
+    } catch (er) { setError(er instanceof ApiError ? er.message : '시수 업로드 실패'); }
+  }
 
   useEffect(() => {
     api.get<{ role: string; enabled?: boolean }>('/dashboard/access')
@@ -184,6 +202,8 @@ export function AdminEvaluationPage() {
       render: (r) => `${r.metrics.completion}% / ${r.metrics.reject}% / ${r.metrics.noshow}%`,
     },
     { key: 'satisfaction', header: '만족도', render: (r) => r.metrics.satisfaction },
+    { key: 'employmentType', header: '고용형태', render: (r) => (r.employmentType ? <Badge kind="soft">{r.employmentType}</Badge> : '–') },
+    { key: 'hours', header: '시수', render: (r) => (r.hours != null ? `${r.hours}h` : '–') },
     { key: 'perHour', header: '시간당', render: (r) => r.perHour ?? '–' },
     ...(isAdmin
       ? [
@@ -277,6 +297,17 @@ export function AdminEvaluationPage() {
               합계 {weightSum} / 100
             </span>
             <Button disabled={weightSum !== 100} onClick={saveWeights}>저장</Button>
+          </div>
+        </SectionCard>
+      )}
+
+      {isAdmin && (
+        <SectionCard title="월간 시수 엑셀 업로드" desc="건당·기본급·시급 근무자의 월 근무시수를 한 번에 입력합니다(시간당 상담·급여 반영). 열: 아이디·기간(YYYY-MM)·시수·고용형태.">
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <input ref={hoursExcelRef} type="file" accept=".xlsx,.xls" hidden onChange={onHoursExcel} />
+            <Button size="sm" onClick={() => hoursExcelRef.current?.click()}>엑셀 업로드(.xlsx)</Button>
+            <Button size="sm" variant="ghost" onClick={downloadHoursTemplate}>⬇ 템플릿 다운로드</Button>
+            {hoursMsg && <span style={{ fontSize: 13, color: 'var(--chip-done)' }}>{hoursMsg}</span>}
           </div>
         </SectionCard>
       )}

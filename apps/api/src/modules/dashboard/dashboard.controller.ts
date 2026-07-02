@@ -4,13 +4,20 @@ import {
   Get,
   Param,
   ParseUUIDPipe,
+  Post,
   Put,
   Query,
+  Res,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { MinPerm } from '../../common/decorators/min-perm.decorator';
+import type { UploadedFileLike } from '../storage/storage.types';
 import { DashboardService } from './dashboard.service';
 import { DashVisibilityDto, DirectorDto, MonthlyHoursDto, UpdateWeightsDto } from './dto/dashboard.dto';
 import type { PivotView } from './dto/dashboard.dto';
@@ -81,6 +88,22 @@ export class DashboardController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.dash.setMonthlyHours(user, id, dto);
+  }
+
+  /** POST /admin/teachers/monthly-hours/excel — 월간 시수 엑셀 일괄 업로드. */
+  @Post('admin/teachers/monthly-hours/excel')
+  @UseInterceptors(FileInterceptor('file'))
+  monthlyHoursExcel(@CurrentUser() user: AuthUser, @UploadedFile() file: UploadedFileLike) {
+    return this.dash.bulkMonthlyHoursExcel(user, file.buffer);
+  }
+
+  /** GET /admin/teachers/monthly-hours/template — 업로드용 엑셀 템플릿. */
+  @Get('admin/teachers/monthly-hours/template')
+  monthlyHoursTemplate(@Res() res: Response) {
+    const buf = this.dash.monthlyHoursTemplate();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="monthly-hours-template.xlsx"');
+    res.send(buf);
   }
 
   @Put('admin/teachers/:id/director')
