@@ -547,16 +547,32 @@ export class DashboardService {
       GROUP BY ${keyExpr}${groupMonth}
       ORDER BY ${keyExpr}${orderMonth}`);
 
-    const rows = agg.map((r) => ({
-      key: r.key,
-      ...(monthly ? { month: r.month } : {}),
-      total: r.total,
-      done: r.done,
-      rejected: r.rejected,
-      noshow: r.noshow,
-      cancelled: r.cancelled,
-      completion: pct(r.done, r.total),
-    }));
+    // 제거전(raw) 건수 — 중복제거 전 원 상담건수(프로토타입 '제거전' 지표).
+    const rawAgg = await this.prisma.$queryRaw<Array<{ key: string; month?: string; raw: number }>>(Prisma.sql`
+      SELECT ${keyExpr} AS key, ${selectMonth}
+        count(*)::int AS raw
+      FROM booking
+      WHERE ${whereSql}
+      GROUP BY ${keyExpr}${groupMonth}`);
+    const rawMap = new Map(rawAgg.map((r) => [`${r.key}|${r.month ?? ''}`, r.raw]));
+
+    const rows = agg.map((r) => {
+      const rawTotal = rawMap.get(`${r.key}|${r.month ?? ''}`) ?? r.total;
+      const removed = Math.max(0, rawTotal - r.total);
+      return {
+        key: r.key,
+        ...(monthly ? { month: r.month } : {}),
+        rawTotal, // 제거전
+        total: r.total, // 제거후(중복제거)
+        dedupRemoved: removed, // 중복제거 건수
+        dedupRate: pct(removed, rawTotal), // 중복제거율%
+        done: r.done,
+        rejected: r.rejected,
+        noshow: r.noshow,
+        cancelled: r.cancelled,
+        completion: pct(r.done, r.total),
+      };
+    });
 
     return {
       data: rows,

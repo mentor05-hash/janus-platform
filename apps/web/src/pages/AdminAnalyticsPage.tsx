@@ -23,7 +23,10 @@ const VIEWS = [
 const COL_LABEL: Record<string, string> = {
   key: '대상',
   month: '월',
-  total: '전체',
+  rawTotal: '제거전',
+  total: '제거후',
+  dedupRemoved: '중복제거',
+  dedupRate: '중복제거율%',
   done: '완료',
   rejected: '거부',
   noshow: '노쇼',
