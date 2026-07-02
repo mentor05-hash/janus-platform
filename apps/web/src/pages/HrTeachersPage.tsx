@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import type { HrTeacher } from '../api/types';
 import { PageHeader, Card, Button, Badge, GradeBadge, Spinner, ErrorText, EmptyState, TextField, SelectField } from '../components/ui';
@@ -13,6 +13,23 @@ export function HrTeachersPage() {
   const [msg, setMsg] = useState('');
   const [f, setF] = useState({ loginId: '', name: '', password: '', subject: '수학', grade: 'A', category: '교과 코치', career: '' });
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
+  const excelRef = useRef<HTMLInputElement>(null);
+
+  async function onExcel(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; e.target.value = '';
+    if (!file) return;
+    setMsg(''); setError('');
+    try {
+      const form = new FormData(); form.append('file', file, file.name);
+      const r = await api.upload<{ created: number; failed: number; errors: { loginId: string; reason: string }[] }>('/hr/teachers/excel', form);
+      setMsg(`엑셀 등록: ${r.created}명 완료${r.failed ? ` · 실패 ${r.failed}명(${r.errors.slice(0, 3).map((x) => x.loginId).join(', ')}${r.errors.length > 3 ? '…' : ''})` : ''}`);
+      await load();
+    } catch (er) { setError(er instanceof ApiError ? er.message : '엑셀 등록 실패'); }
+  }
+  async function downloadTemplate() {
+    try { await api.downloadPath('/hr/teachers/template', 'teachers-template.xlsx'); }
+    catch (e) { setError(e instanceof ApiError ? e.message : '템플릿 다운로드 실패'); }
+  }
 
   const load = useCallback(async () => {
     try { setRows(await api.get<HrTeacher[]>('/hr/teachers')); }
@@ -37,6 +54,11 @@ export function HrTeachersPage() {
   return (
     <div>
       <PageHeader title="선생님 등록 · 관리" sub="자격·급여 기준·직군 등록 → 예상급여(급여 화면)와 연동됩니다." />
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        <input ref={excelRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={onExcel} />
+        <Button onClick={() => excelRef.current?.click()}>📗 엑셀 일괄 등록</Button>
+        <Button variant="ghost" onClick={downloadTemplate}>⬇ 템플릿(과목·등급·직군·고용형태)</Button>
+      </div>
       {msg && <p style={{ color: 'var(--chip-done)', fontSize: 13 }}>{msg}</p>}
       <ErrorText>{error}</ErrorText>
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>

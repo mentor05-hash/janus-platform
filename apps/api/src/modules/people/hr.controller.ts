@@ -9,12 +9,19 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Res,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { $Enums } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import * as XLSX from 'xlsx';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
+import type { UploadedFileLike } from '../storage/storage.types';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccountRole, AccountStatus } from '../../config/enums';
 import { NotifyService } from '../notification/notify.service';
@@ -134,6 +141,96 @@ export class HrController {
       }
     }
     return { created, failed: errors.length, errors };
+  }
+
+  /** 엑셀 첫 시트를 행 배열로 파싱(공통). */
+  private parseSheet(file: UploadedFileLike): Record<string, unknown>[] {
+    try {
+      const wb = XLSX.read(file.buffer, { type: 'buffer' });
+      return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: null });
+    } catch {
+      throw new BadRequestException('엑셀을 읽을 수 없습니다(.xlsx).');
+    }
+  }
+  private cell(row: Record<string, unknown>, ...keys: string[]): string {
+    for (const k of keys) { const v = row[k]; if (v != null && String(v).trim()) return String(v).trim(); }
+    return '';
+  }
+
+  /** POST /hr/students/excel — 학생 명부 엑셀 일괄 등록(자기 센터·승인). 열: 아이디·이름·비밀번호(선택)·학년(선택). */
+  @Post('students/excel')
+  @UseInterceptors(FileInterceptor('file'))
+  async studentsExcel(@UploadedFile() file: UploadedFileLike, @CurrentUser() user: AuthUser) {
+    const rows = this.parseSheet(file);
+    let created = 0; const errors: { loginId: string; reason: string }[] = [];
+    for (let i = 0; i < rows.length; i++) {
+      const norm: Record<string, unknown> = {}; for (const k of Object.keys(rows[i])) norm[k.trim()] = rows[i][k];
+      const loginId = this.cell(norm, '아이디', '로그인아이디', 'id');
+      const name = this.cell(norm, '이름', '성명', 'name');
+      if (!loginId || !name) { errors.push({ loginId: loginId || `${i + 2}행`, reason: '아이디·이름 필수' }); continue; }
+      try {
+        const pw = this.cell(norm, '비밀번호', 'password') || `itall-${loginId}`;
+        const acc = await this.prisma.account.create({
+          data: { role: AccountRole.STUDENT, login_id: loginId, pw_hash: await bcrypt.hash(pw, 10), name, center_id: user.centerId ?? null, status: AccountStatus.APPROVED },
+        });
+        await this.prisma.student_profile.create({ data: { account_id: acc.id, center_id: user.centerId ?? null, school_grade: this.cell(norm, '학년', '학교학년') || null } });
+        created += 1;
+      } catch { errors.push({ loginId, reason: '이미 존재하는 아이디' }); }
+    }
+    return { created, failed: errors.length, errors: errors.slice(0, 50) };
+  }
+
+  /** POST /hr/teachers/excel — 선생님 명부 엑셀 일괄 등록. 열: 아이디·이름·비밀번호(선택)·과목(콤마)·등급(S/A/B)·경력(선택)·직군(선택). */
+  @Post('teachers/excel')
+  @UseInterceptors(FileInterceptor('file'))
+  async teachersExcel(@UploadedFile() file: UploadedFileLike, @CurrentUser() user: AuthUser) {
+    const rows = this.parseSheet(file);
+    let created = 0; const errors: { loginId: string; reason: string }[] = [];
+    for (let i = 0; i < rows.length; i++) {
+      const norm: Record<string, unknown> = {}; for (const k of Object.keys(rows[i])) norm[k.trim()] = rows[i][k];
+      const loginId = this.cell(norm, '아이디', '로그인아이디', 'id');
+      const name = this.cell(norm, '이름', '성명', 'name');
+      if (!loginId || !name) { errors.push({ loginId: loginId || `${i + 2}행`, reason: '아이디·이름 필수' }); continue; }
+      const gradeRaw = (this.cell(norm, '등급', 'grade') || 'B').toUpperCase();
+      const grade = (['S', 'A', 'B'].includes(gradeRaw) ? gradeRaw : 'B') as $Enums.teacher_grade_t;
+      const subjects = this.cell(norm, '과목', 'subjects').split(/[,·\/]/).map((s) => s.trim()).filter(Boolean);
+      try {
+        const pw = this.cell(norm, '비밀번호', 'password') || `itall-${loginId}`;
+        const acc = await this.prisma.account.create({
+          data: { role: AccountRole.TEACHER, login_id: loginId, pw_hash: await bcrypt.hash(pw, 10), name, center_id: user.centerId ?? null, status: AccountStatus.APPROVED },
+        });
+        await this.prisma.teacher_profile.create({
+          data: { account_id: acc.id, center_id: user.centerId ?? null, subjects, sub_subjects: [], grade, career: this.cell(norm, '경력', 'career') || null, teacher_category: this.cell(norm, '직군', '분류', 'category') || null, employment_type: this.cell(norm, '고용형태') || null },
+        });
+        created += 1;
+      } catch { errors.push({ loginId, reason: '이미 존재하는 아이디' }); }
+    }
+    return { created, failed: errors.length, errors: errors.slice(0, 50) };
+  }
+
+  /** GET /hr/students/template · /hr/teachers/template — 업로드용 엑셀 템플릿. */
+  @Get('students/template')
+  studentsTemplate(@Res() res: Response) {
+    this.sendXlsx(res, 'students-template.xlsx', '학생', [
+      { 아이디: 'student201', 이름: '홍길동', 비밀번호: '', 학년: '고2' },
+      { 아이디: 'student202', 이름: '김영희', 비밀번호: '', 학년: '고3' },
+    ]);
+  }
+  @Get('teachers/template')
+  teachersTemplate(@Res() res: Response) {
+    this.sendXlsx(res, 'teachers-template.xlsx', '선생님', [
+      { 아이디: 'teacher201', 이름: '이선생', 비밀번호: '', 과목: '수학,과학', 등급: 'A', 경력: '5년', 직군: '교과', 고용형태: '기본급' },
+      { 아이디: 'teacher202', 이름: '박선생', 비밀번호: '', 과목: '영어', 등급: 'B', 경력: '', 직군: '담임', 고용형태: '건당' },
+    ]);
+  }
+  private sendXlsx(res: Response, filename: string, sheet: string, sample: Record<string, unknown>[]) {
+    const ws = XLSX.utils.json_to_sheet(sample);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, sheet);
+    const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(buf);
   }
 
   /** POST /hr/students/import-external — 외부 시스템 명부 동기화(upsert: 있으면 갱신, 없으면 생성). */

@@ -14,6 +14,7 @@ export function HrStudentsPage() {
   const [extSource, setExtSource] = useState('학원 통합 관리시스템');
   const [extJson, setExtJson] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const excelRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -50,6 +51,21 @@ export function HrStudentsPage() {
     const r = new FileReader(); r.onload = () => { setCsv(String(r.result ?? '')); setBulkOpen(true); }; r.readAsText(f, 'utf-8');
     e.target.value = '';
   }
+  async function onExcel(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]; e.target.value = '';
+    if (!f) return;
+    setMsg(''); setError('');
+    try {
+      const form = new FormData(); form.append('file', f, f.name);
+      const r = await api.upload<{ created: number; failed: number; errors: { loginId: string; reason: string }[] }>('/hr/students/excel', form);
+      setMsg(`엑셀 등록: ${r.created}명 완료${r.failed ? ` · 실패 ${r.failed}명(${r.errors.slice(0, 3).map((x) => x.loginId).join(', ')}${r.errors.length > 3 ? '…' : ''})` : ''}`);
+      await load();
+    } catch (er) { setError(er instanceof ApiError ? er.message : '엑셀 등록 실패'); }
+  }
+  async function downloadTemplate() {
+    try { await api.downloadPath('/hr/students/template', 'students-template.xlsx'); }
+    catch (e) { setError(e instanceof ApiError ? e.message : '템플릿 다운로드 실패'); }
+  }
   async function syncExternal() {
     let records: unknown;
     try { records = JSON.parse(extJson); } catch { setError('JSON 형식이 올바르지 않습니다. [{"loginId","name","schoolGrade"}] 형태로 입력하세요.'); return; }
@@ -69,10 +85,13 @@ export function HrStudentsPage() {
   return (
     <div>
       <PageHeader title="학생 등록 · 관리" sub="자가가입 후 승인 기본 · DB 파일 일괄 등록(CSV) 지원" />
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <Button variant="ghost" onClick={() => setBulkOpen((o) => !o)}>📄 DB 일괄 등록(CSV)</Button>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        <input ref={excelRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={onExcel} />
+        <Button onClick={() => excelRef.current?.click()}>📗 엑셀 일괄 등록</Button>
+        <Button variant="ghost" onClick={downloadTemplate}>⬇ 템플릿</Button>
+        <Button variant="ghost" onClick={() => setBulkOpen((o) => !o)}>📄 CSV 등록</Button>
         <input ref={fileRef} type="file" accept=".csv,text/csv,text/plain" style={{ display: 'none' }} onChange={onFile} />
-        <Button variant="ghost" onClick={() => fileRef.current?.click()}>파일 선택</Button>
+        <Button variant="ghost" onClick={() => fileRef.current?.click()}>CSV 파일</Button>
         <Button variant="ghost" onClick={() => setExtOpen((o) => !o)}>🔗 외부 연동</Button>
       </div>
       <p style={{ fontSize: 12, color: 'var(--teal)', background: 'var(--teal-50,#F0F7FA)', border: '1px solid var(--teal-100,#DCECF3)', borderRadius: 10, padding: '10px 12px', lineHeight: 1.5 }}>
