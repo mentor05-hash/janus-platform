@@ -4,6 +4,7 @@ import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccountRole } from '../../config/enums';
 import { FilesService } from '../storage/files.service';
+import { AuditService } from '../audit/audit.service';
 import { LLM_PROVIDER } from '../llm/llm.types';
 import type { LlmProvider, ScoreOcrResult } from '../llm/llm.types';
 
@@ -19,6 +20,7 @@ export class ScoresService {
     private readonly prisma: PrismaService,
     private readonly files: FilesService,
     @Inject(LLM_PROVIDER) private readonly llm: LlmProvider,
+    private readonly audit: AuditService,
   ) {}
 
   private assertAdmin(actor: AuthUser) {
@@ -165,6 +167,7 @@ export class ScoresService {
       where: { id: reportId },
       data: { placement: { ...placement, source: placement.source ?? 'manual', updatedAt: new Date().toISOString() } as object },
     });
+    await this.audit.record(actor, { action: 'scores.placement', targetType: 'score_report', targetId: reportId, summary: `배치 라인 입력(${placement.tier ?? ''} ${placement.line ?? ''})`, meta: placement });
     return { ok: true };
   }
 
@@ -173,6 +176,7 @@ export class ScoresService {
     this.assertAdmin(actor);
     const sp = await this.resolveStudent(actor, undefined, studentLoginId);
     await this.prisma.student_profile.update({ where: { account_id: sp.account_id }, data: { goal_tier: tier, goal_avg: avg } });
+    await this.audit.record(actor, { action: 'scores.goal', targetType: 'student', targetId: sp.account_id, summary: `학생 목표 설정(${tier ?? '-'}·평균 ${avg ?? '-'})`, meta: { studentLoginId, tier, avg } });
     return { ok: true };
   }
 
@@ -262,6 +266,7 @@ export class ScoresService {
       create: { key: ScoresService.POLICY_KEY, value: next as object, updated_by: actor.id },
       update: { value: next as object, updated_by: actor.id, updated_at: new Date() },
     });
+    await this.audit.record(actor, { action: 'scores.policy', targetType: 'system_setting', summary: `성적 노출 정책 변경(학생 ${next.student ? 'ON' : 'OFF'}·학부모 ${next.guardian ? 'ON' : 'OFF'}·배치 ${next.placement ? 'ON' : 'OFF'})`, meta: next });
     return next;
   }
 
