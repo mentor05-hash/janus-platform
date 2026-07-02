@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import type { HrStudent } from '../api/types';
-import { PageHeader, Card, Button, Badge, Spinner, ErrorText, EmptyState, TextareaField, TextField } from '../components/ui';
+import { PageHeader, Card, Button, Badge, Spinner, ErrorText, EmptyState, Pager, TextareaField, TextField } from '../components/ui';
+
+const PAGE_SIZE = 20;
 
 export function HrStudentsPage() {
   const [rows, setRows] = useState<HrStudent[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(true);
@@ -16,13 +21,16 @@ export function HrStudentsPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const excelRef = useRef<HTMLInputElement>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (p = page) => {
     setLoading(true);
-    try { setRows(await api.get<HrStudent[]>('/hr/students')); setError(''); }
+    try {
+      const r = await api.getPage<HrStudent>(`/hr/students?page=${p}&size=${PAGE_SIZE}`);
+      setRows(r.data); setTotalPages(r.meta.totalPages); setTotal(r.meta.total); setPage(r.meta.page); setError('');
+    }
     catch (e) { setError(e instanceof ApiError ? e.message : '조회 실패'); }
     finally { setLoading(false); }
-  }, []);
-  useEffect(() => { void load(); }, [load]);
+  }, [page]);
+  useEffect(() => { void load(1); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function approve(id: string) {
     try { await api.post(`/hr/students/${id}/approve`, {}); await load(); }
@@ -78,7 +86,7 @@ export function HrStudentsPage() {
     } catch (e) { setError(e instanceof ApiError ? e.message : '외부 연동 실패'); }
   }
 
-  if (loading) return <Spinner />;
+  if (loading && rows.length === 0) return <Spinner />;
   const th: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', background: 'var(--fill,#f6f8fa)' };
   const td: React.CSSProperties = { padding: '10px 12px', fontSize: 13, borderTop: '1px solid var(--line)' };
 
@@ -135,6 +143,9 @@ export function HrStudentsPage() {
               ))}
             </tbody>
           </table>
+          <div style={{ borderTop: '1px solid var(--line)' }}>
+            <Pager page={page} totalPages={totalPages} total={total} onPage={(p) => void load(p)} />
+          </div>
         </Card>
       )}
     </div>

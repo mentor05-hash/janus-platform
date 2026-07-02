@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Res,
   UploadedFile,
   UseInterceptors,
@@ -23,6 +24,7 @@ import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import type { UploadedFileLike } from '../storage/storage.types';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { PaginationQueryDto, buildPageMeta } from '../../common/dto/pagination.dto';
 import { AccountRole, AccountStatus } from '../../config/enums';
 import { NotifyService } from '../notification/notify.service';
 import {
@@ -45,40 +47,52 @@ export class HrController {
     private readonly notify: NotifyService,
   ) {}
 
-  /** GET /hr/students — 자기 센터 학생(센터·회원등급 포함). */
+  /** GET /hr/students — 자기 센터 학생(센터·회원등급 포함). 서버 페이지네이션(§7). */
   @Get('students')
-  async listPendingStudents(@CurrentUser() user: AuthUser) {
-    const rows = await this.prisma.account.findMany({
-      where: {
-        role: 'student',
-        ...(user.centerId ? { center_id: user.centerId } : {}),
-      },
-      select: {
-        id: true,
-        login_id: true,
-        name: true,
-        status: true,
-        created_at: true,
-        center: { select: { name: true } },
-        student_profile: {
-          select: {
-            school_grade: true,
-            membership_grade: { select: { name: true } },
+  async listPendingStudents(
+    @CurrentUser() user: AuthUser,
+    @Query() q: PaginationQueryDto,
+  ) {
+    const where = {
+      role: 'student' as const,
+      ...(user.centerId ? { center_id: user.centerId } : {}),
+    };
+    const [total, rows] = await this.prisma.$transaction([
+      this.prisma.account.count({ where }),
+      this.prisma.account.findMany({
+        where,
+        select: {
+          id: true,
+          login_id: true,
+          name: true,
+          status: true,
+          created_at: true,
+          center: { select: { name: true } },
+          student_profile: {
+            select: {
+              school_grade: true,
+              membership_grade: { select: { name: true } },
+            },
           },
         },
-      },
-      orderBy: { created_at: 'desc' },
-    });
-    return rows.map((s) => ({
-      id: s.id,
-      login_id: s.login_id,
-      name: s.name,
-      status: s.status,
-      created_at: s.created_at,
-      centerName: s.center?.name ?? null,
-      schoolGrade: s.student_profile?.school_grade ?? null,
-      membershipGrade: s.student_profile?.membership_grade?.name ?? null,
-    }));
+        orderBy: { created_at: 'desc' },
+        skip: (q.page - 1) * q.size,
+        take: q.size,
+      }),
+    ]);
+    return {
+      data: rows.map((s) => ({
+        id: s.id,
+        login_id: s.login_id,
+        name: s.name,
+        status: s.status,
+        created_at: s.created_at,
+        centerName: s.center?.name ?? null,
+        schoolGrade: s.student_profile?.school_grade ?? null,
+        membershipGrade: s.student_profile?.membership_grade?.name ?? null,
+      })),
+      meta: buildPageMeta(total, q.page, q.size),
+    };
   }
 
   /** POST /hr/students/{id}/approve — 자기 센터 학생 활성화. */
@@ -336,31 +350,42 @@ export class HrController {
     }
   }
 
-  /** GET /hr/teachers — 자기 센터 선생님 목록. */
+  /** GET /hr/teachers — 자기 센터 선생님 목록. 서버 페이지네이션(§7). */
   @Get('teachers')
-  async listTeachers(@CurrentUser() user: AuthUser) {
-    const rows = await this.prisma.teacher_profile.findMany({
-      where: user.centerId ? { center_id: user.centerId } : {},
-      select: {
-        account_id: true,
-        subjects: true,
-        grade: true,
-        teacher_category: true,
-        account: { select: { name: true, status: true } },
-        center: { select: { name: true } },
-      },
-      orderBy: { account: { name: 'asc' } },
-      take: 300,
-    });
-    return rows.map((t) => ({
-      id: t.account_id,
-      name: t.account?.name ?? '선생님',
-      status: t.account?.status ?? null,
-      subjects: t.subjects,
-      grade: t.grade,
-      category: t.teacher_category,
-      centerName: t.center?.name ?? null,
-    }));
+  async listTeachers(
+    @CurrentUser() user: AuthUser,
+    @Query() q: PaginationQueryDto,
+  ) {
+    const where = user.centerId ? { center_id: user.centerId } : {};
+    const [total, rows] = await this.prisma.$transaction([
+      this.prisma.teacher_profile.count({ where }),
+      this.prisma.teacher_profile.findMany({
+        where,
+        select: {
+          account_id: true,
+          subjects: true,
+          grade: true,
+          teacher_category: true,
+          account: { select: { name: true, status: true } },
+          center: { select: { name: true } },
+        },
+        orderBy: { account: { name: 'asc' } },
+        skip: (q.page - 1) * q.size,
+        take: q.size,
+      }),
+    ]);
+    return {
+      data: rows.map((t) => ({
+        id: t.account_id,
+        name: t.account?.name ?? '선생님',
+        status: t.account?.status ?? null,
+        subjects: t.subjects,
+        grade: t.grade,
+        category: t.teacher_category,
+        centerName: t.center?.name ?? null,
+      })),
+      meta: buildPageMeta(total, q.page, q.size),
+    };
   }
 
   /** GET /hr/staff — 직원·권한 목록. */

@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import type { HrTeacher } from '../api/types';
-import { PageHeader, Card, Button, Badge, GradeBadge, Spinner, ErrorText, EmptyState, TextField, SelectField } from '../components/ui';
+import { PageHeader, Card, Button, Badge, GradeBadge, Spinner, ErrorText, EmptyState, Pager, TextField, SelectField } from '../components/ui';
 
 const SUBJECTS = ['국어', '수학', '영어', '과학', '사회', '입시'];
 const GRADES = ['S', 'A', 'B'];
 const CATEGORIES = ['교과 코치', '명문대 멘토', '입시 소장', '심리 코치'];
+const PAGE_SIZE = 20;
 
 export function HrTeachersPage() {
   const [rows, setRows] = useState<HrTeacher[] | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [f, setF] = useState({ loginId: '', name: '', password: '', subject: '수학', grade: 'A', category: '교과 코치', career: '' });
@@ -31,11 +35,14 @@ export function HrTeachersPage() {
     catch (e) { setError(e instanceof ApiError ? e.message : '템플릿 다운로드 실패'); }
   }
 
-  const load = useCallback(async () => {
-    try { setRows(await api.get<HrTeacher[]>('/hr/teachers')); }
+  const load = useCallback(async (p = page) => {
+    try {
+      const r = await api.getPage<HrTeacher>(`/hr/teachers?page=${p}&size=${PAGE_SIZE}`);
+      setRows(r.data); setTotalPages(r.meta.totalPages); setTotal(r.meta.total); setPage(r.meta.page);
+    }
     catch (e) { setError(e instanceof ApiError ? e.message : '조회 실패'); }
-  }, []);
-  useEffect(() => { void load(); }, [load]);
+  }, [page]);
+  useEffect(() => { void load(1); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function register() {
     setMsg(''); setError('');
@@ -91,6 +98,11 @@ export function HrTeachersPage() {
                 ))}
               </tbody>
             </table>
+          )}
+          {rows && rows.length > 0 && (
+            <div style={{ borderTop: '1px solid var(--line)' }}>
+              <Pager page={page} totalPages={totalPages} total={total} onPage={(p) => void load(p)} />
+            </div>
           )}
         </Card>
       </div>

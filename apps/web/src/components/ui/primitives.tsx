@@ -84,6 +84,34 @@ export function GradeBadge({ grade }: { grade?: string | null }) {
   return <Badge kind={kind as 'grade-s'}>{g}</Badge>;
 }
 
+// ── Pager (서버 페이지네이션 컨트롤, §7) ──
+export function Pager({
+  page,
+  totalPages,
+  total,
+  onPage,
+}: {
+  page: number;
+  totalPages: number;
+  total?: number;
+  onPage: (p: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '10px 12px', flexWrap: 'wrap' }}>
+      <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+        {total != null ? `총 ${total.toLocaleString()}건 · ` : ''}{page} / {totalPages} 페이지
+      </span>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <Button size="sm" variant="ghost" disabled={page <= 1} onClick={() => onPage(1)}>« 처음</Button>
+        <Button size="sm" variant="ghost" disabled={page <= 1} onClick={() => onPage(page - 1)}>‹ 이전</Button>
+        <Button size="sm" variant="ghost" disabled={page >= totalPages} onClick={() => onPage(page + 1)}>다음 ›</Button>
+        <Button size="sm" variant="ghost" disabled={page >= totalPages} onClick={() => onPage(totalPages)}>끝 »</Button>
+      </div>
+    </div>
+  );
+}
+
 // ── PageHeader ──
 export function PageHeader({
   title,

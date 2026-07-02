@@ -30,7 +30,24 @@ export class ApiError extends Error {
   }
 }
 
-async function raw<T>(method: string, path: string, body?: unknown, withAuth = true): Promise<T> {
+export interface PageMeta {
+  page: number;
+  size: number;
+  total: number;
+  totalPages: number;
+}
+export interface Paged<T> {
+  data: T[];
+  meta: PageMeta;
+}
+
+async function raw<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  withAuth = true,
+  unwrap = true,
+): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (withAuth && tokens.access) headers.Authorization = `Bearer ${tokens.access}`;
   const res = await fetch(BASE + path, {
@@ -44,7 +61,8 @@ async function raw<T>(method: string, path: string, body?: unknown, withAuth = t
     const err = json?.error ?? { code: 'ERROR', message: res.statusText };
     throw new ApiError(err.code, err.message, res.status);
   }
-  return (json?.data ?? json) as T;
+  // unwrap=false: {data,meta} 봉투 그대로 반환(페이지네이션용) / true: data 만
+  return (unwrap ? (json?.data ?? json) : json) as T;
 }
 
 async function tryRefresh(): Promise<boolean> {
@@ -64,12 +82,12 @@ async function tryRefresh(): Promise<boolean> {
   }
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function request<T>(method: string, path: string, body?: unknown, unwrap = true): Promise<T> {
   try {
-    return await raw<T>(method, path, body);
+    return await raw<T>(method, path, body, true, unwrap);
   } catch (e) {
     if (e instanceof ApiError && e.status === 401 && tokens.refresh) {
-      if (await tryRefresh()) return raw<T>(method, path, body);
+      if (await tryRefresh()) return raw<T>(method, path, body, true, unwrap);
     }
     throw e;
   }
@@ -99,6 +117,8 @@ async function upload<T>(path: string, form: FormData): Promise<T> {
 
 export const api = {
   get: <T>(p: string) => request<T>('GET', p),
+  /** 페이지네이션 목록: {data,meta} 봉투를 그대로 반환(§7). */
+  getPage: <T>(p: string) => request<Paged<T>>('GET', p, undefined, false),
   post: <T>(p: string, b?: unknown) => request<T>('POST', p, b),
   patch: <T>(p: string, b?: unknown) => request<T>('PATCH', p, b),
   put: <T>(p: string, b?: unknown) => request<T>('PUT', p, b),

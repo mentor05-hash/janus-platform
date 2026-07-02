@@ -4,6 +4,7 @@ export {
   Card,
   Badge,
   GradeBadge,
+  Pager,
   PageHeader,
   Spinner,
   EmptyState,
