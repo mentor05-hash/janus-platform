@@ -584,6 +584,71 @@ export class DashboardService {
     };
   }
 
+  /**
+   * 상담기록 종류별 통계(§5 상담기록). 상담 종류(담임/교과/입시/심리)별로
+   * done 상담 수·작성 기록 수(final/draft)·보호자 공개 수·기록작성률을 집계.
+   * 센터 스코프 fail-closed(L3 는 자기 센터만). period/centerId 필터.
+   */
+  async consultationStats(
+    actor: AuthUser,
+    q: { period?: string; from?: string; to?: string; centerId?: string },
+    now = new Date(),
+  ) {
+    const scope = this.scope(actor);
+    const centerFilter = scope ?? q.centerId ?? null;
+    const range = resolvePeriod(q.period, q.from, q.to, now);
+
+    const conds: Prisma.Sql[] = [Prisma.sql`b.status = 'done'`];
+    if (centerFilter) conds.push(Prisma.sql`b.center_id = ${centerFilter}::uuid`);
+    if (range?.gte) conds.push(Prisma.sql`b.start_at >= ${range.gte}`);
+    if (range?.lte) conds.push(Prisma.sql`b.start_at <= ${range.lte}`);
+    const whereSql = Prisma.join(conds, ' AND ');
+
+    const agg = await this.prisma.$queryRaw<
+      Array<{ type: string; done: number; notes: number; final: number; draft: number; guardian_visible: number }>
+    >(Prisma.sql`
+      SELECT b.consult_type::text AS type,
+        count(*)::int AS done,
+        count(n.id)::int AS notes,
+        count(n.id) FILTER (WHERE n.save_state = 'final')::int AS final,
+        count(n.id) FILTER (WHERE n.save_state = 'draft')::int AS draft,
+        count(n.id) FILTER (WHERE n.guardian_visible IS TRUE)::int AS guardian_visible
+      FROM booking b
+      LEFT JOIN consultation_note n ON n.booking_id = b.id
+      WHERE ${whereSql}
+      GROUP BY b.consult_type
+      ORDER BY b.consult_type`);
+
+    const rows = agg.map((r) => ({
+      type: r.type,
+      done: r.done, // 완료 상담 수
+      notes: r.notes, // 작성된 기록 수
+      final: r.final, // 최종저장(공개 대상)
+      draft: r.draft, // 임시저장(비공개)
+      guardianVisible: r.guardian_visible, // 보호자 공개 기록 수
+      recordRate: pct(r.notes, r.done), // 기록작성률%
+      finalRate: pct(r.final, r.done), // 최종저장률%
+    }));
+    const sum = (k: 'done' | 'notes' | 'final' | 'draft' | 'guardianVisible') =>
+      rows.reduce((a, r) => a + r[k], 0);
+    const totalDone = sum('done');
+    return {
+      data: rows,
+      meta: {
+        scope: centerFilter ?? 'global',
+        totals: {
+          done: totalDone,
+          notes: sum('notes'),
+          final: sum('final'),
+          draft: sum('draft'),
+          guardianVisible: sum('guardianVisible'),
+          recordRate: pct(sum('notes'), totalDone),
+          finalRate: pct(sum('final'), totalDone),
+        },
+      },
+    };
+  }
+
   // ── 대시보드 노출 정책(본사 마스터) ──────────────────────────────
   private static readonly VIS_KEY = 'dashboard_visibility';
   private static readonly VIS_DEFAULT: DashboardVisibility = {

@@ -138,4 +138,16 @@ export class DashboardController {
   ) {
     return this.dash.pivots(user, view, { period, from, to, centerId, teacherId });
   }
+
+  /** GET /ops/consultation-stats — 상담기록 종류별 통계(§5). */
+  @Get('ops/consultation-stats')
+  consultationStats(
+    @CurrentUser() user: AuthUser,
+    @Query('period') period?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('centerId') centerId?: string,
+  ) {
+    return this.dash.consultationStats(user, { period, from, to, centerId });
+  }
 }

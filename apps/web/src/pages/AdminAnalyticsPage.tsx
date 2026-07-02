@@ -34,6 +34,17 @@ const COL_LABEL: Record<string, string> = {
   completion: '완료율%',
 };
 
+type ConsultStat = {
+  type: string;
+  done: number;
+  notes: number;
+  final: number;
+  draft: number;
+  guardianVisible: number;
+  recordRate: number;
+  finalRate: number;
+};
+
 export function AdminAnalyticsPage() {
   const { user } = useAuth();
   const hq = isHq(user);
@@ -41,6 +52,7 @@ export function AdminAnalyticsPage() {
   const [centers, setCenters] = useState<CenterCompareRow[]>([]);
   const [view, setView] = useState('center');
   const [pivot, setPivot] = useState<Record<string, unknown>[]>([]);
+  const [consult, setConsult] = useState<ConsultStat[]>([]);
   const [error, setError] = useState('');
   const [blocked, setBlocked] = useState(false); // 본사 노출 정책상 이 센터 대시보드 비활성
 
@@ -67,12 +79,27 @@ export function AdminAnalyticsPage() {
     }
   }, [view, period]);
 
+  const loadConsult = useCallback(async () => {
+    try {
+      setConsult(await api.get<ConsultStat[]>(`/ops/consultation-stats?period=${period}`));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : '조회 실패');
+    }
+  }, [period]);
+
   useEffect(() => {
     void loadCompare();
   }, [loadCompare]);
   useEffect(() => {
     void loadPivot();
   }, [loadPivot]);
+  useEffect(() => {
+    void loadConsult();
+  }, [loadConsult]);
+  const consultTotals = consult.reduce(
+    (a, r) => ({ done: a.done + r.done, notes: a.notes + r.notes, final: a.final + r.final, guardianVisible: a.guardianVisible + r.guardianVisible }),
+    { done: 0, notes: 0, final: 0, guardianVisible: 0 },
+  );
 
   const cols: Column<Record<string, unknown>>[] = pivot.length
     ? Object.keys(pivot[0]).map((k) => ({
@@ -112,6 +139,50 @@ export function AdminAnalyticsPage() {
             caption: `완료 ${c.raw.completion}% · 만족 ${c.raw.satisfaction}`,
           }))}
         />
+      </SectionCard>
+
+      <SectionCard
+        title="상담기록 종류별 통계"
+        desc="완료 상담 대비 기록 작성(최종저장) 완비율 · 보호자 공개(§5 상담기록)"
+      >
+        {consult.length === 0 ? (
+          <p style={{ fontSize: 13, color: 'var(--muted)' }}>완료된 상담이 없습니다.</p>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ textAlign: 'left', color: 'var(--muted)', fontSize: 11 }}>
+                <th style={{ padding: '8px 10px' }}>종류</th>
+                <th style={{ padding: '8px 10px' }}>완료 상담</th>
+                <th style={{ padding: '8px 10px' }}>기록 수</th>
+                <th style={{ padding: '8px 10px' }}>최종저장</th>
+                <th style={{ padding: '8px 10px' }}>보호자 공개</th>
+                <th style={{ padding: '8px 10px' }}>기록작성률</th>
+              </tr>
+            </thead>
+            <tbody>
+              {consult.map((r) => (
+                <tr key={r.type} style={{ borderTop: '1px solid var(--line)' }}>
+                  <td style={{ padding: '8px 10px', fontWeight: 700 }}>{r.type}</td>
+                  <td style={{ padding: '8px 10px', fontVariantNumeric: 'tabular-nums' }}>{r.done.toLocaleString()}</td>
+                  <td style={{ padding: '8px 10px', fontVariantNumeric: 'tabular-nums' }}>{r.notes.toLocaleString()}</td>
+                  <td style={{ padding: '8px 10px', fontVariantNumeric: 'tabular-nums' }}>{r.final.toLocaleString()}</td>
+                  <td style={{ padding: '8px 10px', fontVariantNumeric: 'tabular-nums' }}>{r.guardianVisible.toLocaleString()}</td>
+                  <td style={{ padding: '8px 10px', fontVariantNumeric: 'tabular-nums' }}>{r.recordRate}%</td>
+                </tr>
+              ))}
+              <tr style={{ borderTop: '2px solid var(--line)', fontWeight: 700 }}>
+                <td style={{ padding: '8px 10px' }}>합계</td>
+                <td style={{ padding: '8px 10px', fontVariantNumeric: 'tabular-nums' }}>{consultTotals.done.toLocaleString()}</td>
+                <td style={{ padding: '8px 10px', fontVariantNumeric: 'tabular-nums' }}>{consultTotals.notes.toLocaleString()}</td>
+                <td style={{ padding: '8px 10px', fontVariantNumeric: 'tabular-nums' }}>{consultTotals.final.toLocaleString()}</td>
+                <td style={{ padding: '8px 10px', fontVariantNumeric: 'tabular-nums' }}>{consultTotals.guardianVisible.toLocaleString()}</td>
+                <td style={{ padding: '8px 10px', fontVariantNumeric: 'tabular-nums' }}>
+                  {consultTotals.done ? Math.round((consultTotals.notes / consultTotals.done) * 1000) / 10 : 0}%
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        )}
       </SectionCard>
 
       <SectionCard title="피벗">
