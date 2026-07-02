@@ -4,6 +4,7 @@ import { io, type Socket } from 'socket.io-client';
 import { api } from '../api';
 import { R, useTheme, type Palette } from '../theme';
 import { useWebBack } from '../webBack';
+import { useVoiceCall } from '../voiceCall';
 
 type Msg = { id: string; senderId: string | null; mine?: boolean; kind: string; body: string | null; imageFileId: string | null; createdAt: string; readAt?: string | null };
 const KST = (iso: string) => new Date(iso).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
@@ -31,6 +32,8 @@ export function ChatScreen({ bookingId, myId, title, onClose }: { bookingId: str
   const scrollRef = useRef<ScrollView>(null);
   const typingOffRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const peerTypingOffRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const camStreamRef = useRef<MediaStream | null>(null);
+  const call = useVoiceCall(() => sockRef.current, bookingId);
   useWebBack(true, onClose);
 
   useEffect(() => {
@@ -76,24 +79,50 @@ export function ChatScreen({ bookingId, myId, title, onClose }: { bookingId: str
     sockRef.current?.emit('chat:typing', { bookingId, typing: false });
     setText('');
   }
+  async function sendImage(blob: Blob, name: string) {
+    try { const r = await api.uploadWeb(blob as unknown as File, name); sockRef.current?.emit('chat:send', { bookingId, imageFileId: r.id }); } catch { /* noop */ }
+  }
   function pickImage() {
     if (typeof document === 'undefined') return;
     const input = document.createElement('input');
     input.type = 'file'; input.accept = 'image/*';
-    input.onchange = async () => {
-      const f = input.files?.[0];
-      if (!f || !f.type.startsWith('image/')) return;
-      try { const r = await api.uploadWeb(f, f.name); sockRef.current?.emit('chat:send', { bookingId, imageFileId: r.id }); } catch { /* noop */ }
-    };
+    input.onchange = async () => { const f = input.files?.[0]; if (f && f.type.startsWith('image/')) await sendImage(f, f.name); };
     input.click();
   }
+  /** 무소음 카메라 촬영 — getUserMedia 로 body 레벨 DOM 오버레이(네이티브 셔터음 없음). */
+  async function openCamera() {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices || typeof document === 'undefined') return;
+    try {
+      const st = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+      camStreamRef.current = st;
+      const ov = document.createElement('div'); ov.id = 'chat-cam-ov';
+      ov.style.cssText = 'position:fixed;inset:0;background:#000;display:flex;flex-direction:column;z-index:9999;';
+      const v = document.createElement('video'); v.playsInline = true; v.muted = true;
+      v.style.cssText = 'flex:1;width:100%;object-fit:contain;min-height:0;'; v.srcObject = st; void v.play();
+      const bar = document.createElement('div'); bar.style.cssText = 'display:flex;gap:12px;justify-content:center;padding:16px;background:#000;';
+      const mk = (t: string, bg: string) => { const b = document.createElement('button'); b.textContent = t; b.style.cssText = `padding:11px 20px;border-radius:10px;border:none;font-weight:800;font-size:15px;color:#fff;background:${bg};`; return b; };
+      const cancel = mk('취소', '#3a4a52'); cancel.onclick = () => closeCamera();
+      const shot = mk('📸 촬영(무음)', '#0E5C7C'); shot.onclick = async () => { const cw = v.videoWidth || 1280, ch = v.videoHeight || 720; const c = document.createElement('canvas'); c.width = cw; c.height = ch; c.getContext('2d')!.drawImage(v, 0, 0, cw, ch); const blob: Blob = await new Promise((res) => c.toBlob((b) => res(b!), 'image/jpeg', 0.85)); closeCamera(); await sendImage(blob, 'shot.jpg'); };
+      bar.append(cancel, shot); ov.append(v, bar); document.body.appendChild(ov);
+    } catch { /* 권한 거부 */ }
+  }
+  function closeCamera() { camStreamRef.current?.getTracks().forEach((t) => t.stop()); camStreamRef.current = null; if (typeof document !== 'undefined') document.getElementById('chat-cam-ov')?.remove(); }
+  useEffect(() => () => closeCamera(), []);
 
   return (
     <View style={styles.overlay}>
       <View style={styles.sheet}>
         <View style={styles.head}>
           <Text style={styles.headT}>💬 {title}</Text>
-          <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Text style={styles.close}>✕</Text></TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            {status === 'ready' && call.supported && (call.inCall
+              ? <>
+                  <TouchableOpacity onPress={call.toggleMute}><Text style={{ fontSize: 18 }}>{call.muted ? '🔇' : '🎙'}</Text></TouchableOpacity>
+                  <TouchableOpacity onPress={call.hangup}><Text style={{ color: '#E5484D', fontWeight: '800', fontSize: 13 }}>종료</Text></TouchableOpacity>
+                </>
+              : <TouchableOpacity onPress={call.start}><Text style={{ fontSize: 18 }}>📞</Text></TouchableOpacity>)}
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Text style={styles.close}>✕</Text></TouchableOpacity>
+          </View>
         </View>
         <ScrollView ref={scrollRef} style={styles.body} contentContainerStyle={{ padding: 14, gap: 8 }}>
           {status === 'off' ? <Text style={styles.hint}>채팅이 비활성화되어 있어요.</Text>
@@ -111,7 +140,8 @@ export function ChatScreen({ bookingId, myId, title, onClose }: { bookingId: str
         </ScrollView>
         {status !== 'off' && (
           <View style={styles.inputRow}>
-            <TouchableOpacity onPress={pickImage} style={styles.imgBtn}><Text style={{ fontSize: 20 }}>📷</Text></TouchableOpacity>
+            <TouchableOpacity onPress={pickImage} style={styles.imgBtn}><Text style={{ fontSize: 20 }}>🖼</Text></TouchableOpacity>
+            <TouchableOpacity onPress={openCamera} style={styles.imgBtn}><Text style={{ fontSize: 20 }}>📷</Text></TouchableOpacity>
             <TextInput style={styles.input} value={text} onChangeText={onType} placeholder="메시지 입력…" placeholderTextColor={C.caption} onSubmitEditing={send} returnKeyType="send" />
             <TouchableOpacity onPress={send} disabled={!text.trim()} style={[styles.sendBtn, !text.trim() && { opacity: 0.5 }]}><Text style={styles.sendT}>전송</Text></TouchableOpacity>
           </View>
