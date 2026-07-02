@@ -5,6 +5,7 @@ import { R, SP, useTheme, useUI, type Palette } from '../theme';
 import { useWebBack } from '../webBack';
 import { RescheduleScreen } from './RescheduleScreen';
 import { ChatScreen } from './ChatScreen';
+import { WhiteboardScreen } from './WhiteboardScreen';
 
 const slotLen = (b: Booking) => (b.start && b.end ? Math.max(1, Math.round((new Date(b.end).getTime() - new Date(b.start).getTime()) / 600000)) : 3);
 
@@ -111,6 +112,8 @@ export function BookingsScreen({ myId }: { myId?: string }) {
   const [reschedule, setReschedule] = useState<Booking | null>(null);
   const [chatId, setChatId] = useState<string | null>(null);
   const [chatOn, setChatOn] = useState(false);
+  const [wbId, setWbId] = useState<string | null>(null);
+  const [wbOn, setWbOn] = useState(false);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
   useWebBack(reschedule !== null, () => setReschedule(null));
@@ -126,7 +129,7 @@ export function BookingsScreen({ myId }: { myId?: string }) {
       const list = Array.isArray(r) ? r : (r.data ?? []);
       setTeachers(Object.fromEntries(list.map((t) => [t.id, t.name])));
     }).catch(() => {});
-    api.get<{ chat: boolean }>('/realtime/features').then((f) => setChatOn(!!f.chat)).catch(() => {});
+    api.get<{ chat: boolean; whiteboard: boolean }>('/realtime/features').then((f) => { setChatOn(!!f.chat); setWbOn(!!f.whiteboard); }).catch(() => {});
   }, []);
 
   async function respond(id: string, action: 'accept' | 'reject') {
@@ -229,6 +232,11 @@ export function BookingsScreen({ myId }: { myId?: string }) {
                   <Text style={styles.chatT}>💬 상담 채팅</Text>
                 </TouchableOpacity>
               )}
+              {wbOn && b.status !== 'new' && (
+                <TouchableOpacity style={styles.chatBtn} onPress={() => setWbId(b.id)}>
+                  <Text style={styles.chatT}>🖊 공유 화이트보드</Text>
+                </TouchableOpacity>
+              )}
               {UPCOMING.has(b.status) && (
                 <View style={styles.actionRow}>
                   <TouchableOpacity style={styles.changeBtn} disabled={busy === b.id} onPress={() => setReschedule(b)}>
@@ -249,6 +257,7 @@ export function BookingsScreen({ myId }: { myId?: string }) {
         })
       )}
       {chatId && myId && <ChatScreen bookingId={chatId} myId={myId} title="상담 채팅" onClose={() => setChatId(null)} />}
+      {wbId && <WhiteboardScreen bookingId={wbId} title="공유 화이트보드" onClose={() => setWbId(null)} />}
     </ScrollView>
   );
 }

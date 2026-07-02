@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import type { Booking, WorkSchedule } from '../api/types';
 import { PageHeader, Button, Badge, Spinner, ErrorText, Table, Tabs } from '../components/ui';
 import { ChatPanel } from '../components/ChatPanel';
+import { WhiteboardPanel } from '../components/WhiteboardPanel';
 import type { Column } from '../components/ui';
 import { StatCard, StatGrid } from '../components/dashboard/widgets';
 
@@ -30,6 +31,8 @@ export function TeacherBookingsPage() {
   const [todayHours, setTodayHours] = useState(0);
   const [chatId, setChatId] = useState<string | null>(null);
   const [chatOn, setChatOn] = useState(false);
+  const [wbId, setWbId] = useState<string | null>(null);
+  const [wbOn, setWbOn] = useState(false);
   const [tab, setTab] = useState('today');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -42,7 +45,7 @@ export function TeacherBookingsPage() {
         api.get<WorkSchedule>(`/teachers/${teacherId}/work-schedule`).catch(() => null),
       ]);
       setBookings(bks);
-      api.get<{ chat: boolean }>('/realtime/features').then((f) => setChatOn(!!f.chat)).catch(() => {});
+      api.get<{ chat: boolean; whiteboard: boolean }>('/realtime/features').then((f) => { setChatOn(!!f.chat); setWbOn(!!f.whiteboard); }).catch(() => {});
       // 오늘 근무 시간 합계
       const wd = String(new Date().getDay());
       const wins = (ws?.recurring_template as Record<string, { start: string; end: string }[]> | undefined)?.[wd] ?? [];
@@ -100,6 +103,7 @@ export function TeacherBookingsPage() {
           )}
           {b.status === 'done' && <Link className="btn ghost sm" to={`/app/bookings/${b.id}/note`}>기록</Link>}
           {chatOn && b.status !== 'new' && <Button size="sm" variant="ghost" onClick={() => setChatId(b.id)}>💬</Button>}
+          {wbOn && b.status !== 'new' && <Button size="sm" variant="ghost" onClick={() => setWbId(b.id)}>🖊</Button>}
         </span>
       ),
     },
@@ -122,6 +126,7 @@ export function TeacherBookingsPage() {
         <Table columns={columns} rows={rows} rowKey={(b) => b.id} empty="해당 기간 예약이 없습니다." />
       </div>
       {chatId && <ChatPanel bookingId={chatId} myId={teacherId} title="상담 채팅" onClose={() => setChatId(null)} />}
+      {wbId && <WhiteboardPanel bookingId={wbId} title="공유 화이트보드" onClose={() => setWbId(null)} />}
     </div>
   );
 }

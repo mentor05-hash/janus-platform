@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import type { Booking, ConsultationNote, Slot, Teacher } from '../api/types';
 import { PageHeader, Card, Button, Badge, ErrorText, Spinner, EmptyState } from '../components/ui';
 import { ChatPanel } from '../components/ChatPanel';
+import { WhiteboardPanel } from '../components/WhiteboardPanel';
 
 const KST = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '-';
@@ -165,6 +166,8 @@ export function StudentBookingsPage() {
   const [teachers, setTeachers] = useState<Record<string, string>>({});
   const [chatId, setChatId] = useState<string | null>(null);
   const [chatOn, setChatOn] = useState(false);
+  const [wbId, setWbId] = useState<string | null>(null);
+  const [wbOn, setWbOn] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const [rescheduling, setRescheduling] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -173,7 +176,7 @@ export function StudentBookingsPage() {
 
   function load() {
     api.get<Booking[]>('/bookings?role=student').then(setBookings).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
-    api.get<{ chat: boolean }>('/realtime/features').then((f) => setChatOn(!!f.chat)).catch(() => {});
+    api.get<{ chat: boolean; whiteboard: boolean }>('/realtime/features').then((f) => { setChatOn(!!f.chat); setWbOn(!!f.whiteboard); }).catch(() => {});
   }
   useEffect(() => {
     load();
@@ -267,6 +270,7 @@ export function StudentBookingsPage() {
                 {UPCOMING.has(b.status) && <Button variant="ghost" size="sm" disabled={busy === b.id} onClick={() => cancel(b.id)} style={{ color: 'var(--danger)' }}>예약 취소</Button>}
                 {b.status === 'done' && <Button variant="ghost" size="sm" disabled={busy === b.id} onClick={() => reportNoshow(b.id)} style={{ color: 'var(--danger)' }}>미진행 신고</Button>}
                 {chatOn && <Button variant="ghost" size="sm" onClick={() => setChatId(b.id)}>💬 채팅</Button>}
+                {wbOn && b.status !== 'new' && <Button variant="ghost" size="sm" onClick={() => setWbId(b.id)}>🖊 화이트보드</Button>}
                 <Button variant="ghost" size="sm" onClick={() => setOpen(open === b.id ? null : b.id)}>{open === b.id ? '접기' : '상세'}</Button>
               </div>
             </div>
@@ -276,6 +280,7 @@ export function StudentBookingsPage() {
         ))
       )}
       {chatId && user && <ChatPanel bookingId={chatId} myId={user.id} title="상담 채팅" onClose={() => setChatId(null)} />}
+      {wbId && <WhiteboardPanel bookingId={wbId} title="공유 화이트보드" onClose={() => setWbId(null)} />}
     </div>
   );
 }
