@@ -17,7 +17,7 @@ import {
   SLOT_GRANULARITY_MINUTES,
 } from '../../config/constants';
 import { BookingStatus } from '../../config/enums';
-import { buildDaySlots, Interval, isRangeBookable } from './domain/slots';
+import { buildDaySlots, Interval, isRangeBookable, rangeBlockReason } from './domain/slots';
 
 export interface DayWindow {
   start: string; // "HH:MM"
@@ -122,13 +122,8 @@ export class AvailabilityService {
   }
 
   /** 예약 생성 직전 재검증용 — [start,end) 가 모두 avail 인지 (§5-1). */
-  async assertBookable(
-    teacherId: string,
-    dateStr: string,
-    startMin: number,
-    endMin: number,
-    studentId?: string,
-  ): Promise<boolean> {
+  /** 예약 검증용 슬롯 입력(근무·체류·예약·차단) 구성 — assertBookable/bookableReason 공용. */
+  private async buildSlotInput(teacherId: string, dateStr: string, studentId?: string) {
     const teacher = await this.prisma.teacher_profile.findUnique({
       where: { account_id: teacherId },
       include: { work_schedule: true },
@@ -137,36 +132,40 @@ export class AvailabilityService {
 
     const weekday = String(weekdayKst(dateStr));
     const ws = teacher.work_schedule[0];
-    // 주별 근무계획(week_plans)이 있으면 그 주 템플릿, 없으면 기본(recurring_template)
     const plans = readWeekPlans((ws as { week_plans?: unknown } | undefined)?.week_plans);
     const plan = plans.find((p) => p.weekStart === mondayOf(dateStr));
     const recurring = (ws?.recurring_template as unknown as WeeklyTemplate) ?? {};
-    // 주계획은 부분 override — 지정한 요일만 덮어쓰고(휴무=빈 배열), 미지정 요일은 기본 유지.
     const template: WeeklyTemplate = plan ? { ...recurring, ...plan.template } : recurring;
     let work = this.windowsToIntervals(template[weekday]);
-    // 사유 제외(연차·반차·병가): 연차·병가=종일 제외, 반차=오후(13:00~) 제외.
     const leave = this.readLeaves(ws?.weekly_overrides).find((l) => l.date === dateStr);
     if (leave) work = leave.type === '반차' ? work.filter((w) => w.end <= 780) : [];
 
     const stay = await this.resolveStay(studentId, weekday);
+    const { bookings, blocked } = await this.loadDayOccupancy(teacherId, teacher.center_id, dateStr);
+    return { work, stay, bookings, blocked, bufferMin: REST_BUFFER_MINUTES, slotMin: SLOT_GRANULARITY_MINUTES };
+  }
 
-    const { bookings, blocked } = await this.loadDayOccupancy(
-      teacherId,
-      teacher.center_id,
-      dateStr,
-    );
-    return isRangeBookable(
-      {
-        work,
-        stay,
-        bookings,
-        blocked,
-        bufferMin: REST_BUFFER_MINUTES,
-        slotMin: SLOT_GRANULARITY_MINUTES,
-      },
-      startMin,
-      endMin,
-    );
+  async assertBookable(
+    teacherId: string,
+    dateStr: string,
+    startMin: number,
+    endMin: number,
+    studentId?: string,
+  ): Promise<boolean> {
+    const input = await this.buildSlotInput(teacherId, dateStr, studentId);
+    return isRangeBookable(input, startMin, endMin);
+  }
+
+  /** 예약 불가 사유(구체) — null=가능. 학생 안내 메시지용. */
+  async bookableReason(
+    teacherId: string,
+    dateStr: string,
+    startMin: number,
+    endMin: number,
+    studentId?: string,
+  ): Promise<'booked' | 'blocked' | 'rest' | 'off' | 'range' | null> {
+    const input = await this.buildSlotInput(teacherId, dateStr, studentId);
+    return rangeBlockReason(input, startMin, endMin);
   }
 
   /** 그날 선생님 예약(점유) + 센터 차단시간을 '날짜 자정 기준 분' 인터벌로(L1: 24:00·자정 교차 안전). */

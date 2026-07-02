@@ -105,11 +105,23 @@ export function isRangeBookable(
   startMin: number,
   endMin: number,
 ): boolean {
-  if (endMin <= startMin) return false;
-  const slots = buildDaySlots({
-    ...input,
-    dayStartMin: startMin,
-    dayEndMin: endMin,
-  });
-  return slots.length > 0 && slots.every((s) => s.status === 'avail');
+  return rangeBlockReason(input, startMin, endMin) === null;
+}
+
+/**
+ * 예약 불가 사유(구체) — 범위 내 avail 이 아닌 첫 상태(우선순위: booked>blocked>rest>off).
+ * 모두 avail 이면 null. 학생에게 왜 안 되는지 안내하기 위한 사유 계산.
+ */
+export function rangeBlockReason(
+  input: BuildSlotsInput,
+  startMin: number,
+  endMin: number,
+): Exclude<SlotStatus, 'avail'> | 'range' | null {
+  if (endMin <= startMin) return 'range';
+  const slots = buildDaySlots({ ...input, dayStartMin: startMin, dayEndMin: endMin });
+  if (slots.length === 0) return 'off';
+  const nonAvail = slots.filter((s) => s.status !== 'avail').map((s) => s.status);
+  if (nonAvail.length === 0) return null;
+  const priority: Exclude<SlotStatus, 'avail'>[] = ['booked', 'blocked', 'rest', 'off'];
+  return priority.find((p) => nonAvail.includes(p)) ?? 'off';
 }

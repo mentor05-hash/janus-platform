@@ -49,6 +49,18 @@ import {
 } from './domain/state-machine';
 import { canProposeReverse } from './domain/reverse';
 
+/** 예약 불가 사유 → 학생 안내 문구(구체). null 은 호출측에서 처리(가능). */
+function slotReasonMessage(reason: 'booked' | 'blocked' | 'rest' | 'off' | 'range' | null): string {
+  switch (reason) {
+    case 'booked': return '이미 예약된 시간이에요. 다른 시간을 선택해 주세요.';
+    case 'rest': return '앞뒤 상담 사이 휴게시간(10분)이라 예약할 수 없어요. 10분 이상 떨어진 시간을 골라 주세요.';
+    case 'blocked': return '관리자가 차단한 시간이라 예약할 수 없어요.';
+    case 'off': return '선생님 근무시간(또는 내 체류시간)이 아니에요. 다른 날짜·시간을 선택해 주세요.';
+    case 'range': return '상담 시간 범위가 올바르지 않아요.';
+    default: return '선택한 시간은 예약할 수 없어요.';
+  }
+}
+
 @Injectable()
 export class BookingService {
   constructor(
@@ -112,13 +124,14 @@ export class BookingService {
     const studentId = user.role === AccountRole.STUDENT ? user.id : undefined;
     if (studentId) await this.requireStudent(studentId); // 미등록 승인계정 견적 시 500 방지
 
-    const slotOk = await this.availability.assertBookable(
+    const slotReason = await this.availability.bookableReason(
       dto.teacherId,
       dto.date,
       dto.slotStart * SLOT_GRANULARITY_MINUTES,
       dto.slotEnd * SLOT_GRANULARITY_MINUTES,
       studentId,
     );
+    const slotOk = slotReason === null;
     // 방식·상담유형 열림 여부까지 견적에서 미리 확인(제출 후 403 대신 사전 안내).
     const modeFeature = await this.adminPolicy.resolveFeature(teacher.center_id, 'mode', dto.mode);
     const catFeature = dto.consultType
@@ -133,7 +146,7 @@ export class BookingService {
     );
     const valid = slotOk && modeFeature.enabled && catFeature.enabled;
     const message = !slotOk
-      ? '선택한 시간은 예약할 수 없습니다(휴게/근무/체류 위반).'
+      ? slotReasonMessage(slotReason)
       : !modeFeature.enabled
         ? `현재 ${dto.mode} 방식은 닫혀 있어요. 다른 방식을 선택하세요.`
         : !catFeature.enabled
@@ -167,17 +180,15 @@ export class BookingService {
     const startMin = dto.slotStart * SLOT_GRANULARITY_MINUTES;
     const endMin = dto.slotEnd * SLOT_GRANULARITY_MINUTES;
 
-    const bookable = await this.availability.assertBookable(
+    const reason = await this.availability.bookableReason(
       dto.teacherId,
       dto.date,
       startMin,
       endMin,
       studentId,
     );
-    if (!bookable) {
-      throw new ConflictException(
-        '선택한 시간은 예약할 수 없습니다(휴게/근무/체류 위반).',
-      );
+    if (reason !== null) {
+      throw new ConflictException(slotReasonMessage(reason));
     }
 
     const q = await this.pricing.quoteSession(
@@ -195,17 +206,15 @@ export class BookingService {
       const booking = await this.prisma.$transaction(async (tx) => {
         await this.lockTeacherDate(tx, dto.teacherId, dto.date);
         // 락 확보 후 재검증(§5-1 TOCTOU 방지) — 직렬화되어 권위 있는 판정
-        const stillBookable = await this.availability.assertBookable(
+        const stillReason = await this.availability.bookableReason(
           dto.teacherId,
           dto.date,
           startMin,
           endMin,
           studentId,
         );
-        if (!stillBookable) {
-          throw new ConflictException(
-            '선택한 시간은 예약할 수 없습니다(휴게/근무/체류 위반).',
-          );
+        if (stillReason !== null) {
+          throw new ConflictException(slotReasonMessage(stillReason));
         }
         if (dto.mode === ConsultMode.ZOOM) {
           await this.assertZoomCapacity(
@@ -616,17 +625,15 @@ export class BookingService {
         await this.lockTeacherDate(tx, b.teacher_id, dto.date);
         // 기존 슬롯 먼저 해제(트랜잭션 내 가시) → 새 창 점유 시 자기 자신과 P2002 회피.
         await tx.time_slot.deleteMany({ where: { booking_id: id } });
-        const ok = await this.availability.assertBookable(
+        const rzn = await this.availability.bookableReason(
           b.teacher_id,
           dto.date,
           startMin,
           endMin,
           user.id,
         );
-        if (!ok)
-          throw new ConflictException(
-            '선택한 시간은 예약할 수 없습니다(휴게/근무/체류 위반). 겹치는 시간이면 취소 후 다시 예약해 주세요.',
-          );
+        if (rzn !== null)
+          throw new ConflictException(slotReasonMessage(rzn));
         if (mode === ConsultMode.ZOOM)
           await this.assertZoomCapacity(
             tx,

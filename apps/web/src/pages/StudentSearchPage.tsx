@@ -172,6 +172,9 @@ function BookingForm({ teacher, onDone, onBack, initialMode }: { teacher: Teache
                 ))}
               </div>
               {notice && <div style={{ marginTop: 8, background: '#FEF6E7', border: '1px solid #F0DCAE', borderRadius: 8, padding: 8, fontSize: 12, color: '#92600a' }}>ⓘ {notice}</div>}
+              {quote && !quote.valid && quote.message && (
+                <div style={{ marginTop: 8, background: 'var(--danger-bg,#FAD9D9)', border: '1px solid var(--danger-border,#F0BEBE)', borderRadius: 8, padding: 8, fontSize: 12.5, color: 'var(--danger,#c0392b)' }}>⚠ {quote.message}</div>
+              )}
               {selStart !== null && selEnd !== null && (
                 <div style={{ marginTop: 10, background: 'var(--teal-50, #eef6fa)', borderRadius: 10, padding: 12 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
