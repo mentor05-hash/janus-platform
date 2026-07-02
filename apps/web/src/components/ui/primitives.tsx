@@ -116,6 +116,26 @@ export function Spinner() {
 export function EmptyState({ children }: { children: ReactNode }) {
   return <div className="empty">{children}</div>;
 }
+
+/** 로딩 스켈레톤 블록. w/h 는 CSS 크기. */
+export function Skeleton({ w = '100%', h = 16, radius = 8, style }: { w?: number | string; h?: number | string; radius?: number; style?: React.CSSProperties }) {
+  return <div className="skeleton" aria-hidden="true" style={{ width: w, height: h, borderRadius: radius, ...style }} />;
+}
+/** 카드형 스켈레톤 목록(로딩 자리표시). */
+export function SkeletonList({ rows = 3, cols = 1 }: { rows?: number; cols?: number }) {
+  return (
+    <div role="status" aria-busy="true" aria-label="불러오는 중" style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 12 }}>
+      {Array.from({ length: rows * cols }).map((_, i) => (
+        <div key={i} className="card" style={{ display: 'grid', gap: 10 }}>
+          <Skeleton w="45%" h={16} />
+          <Skeleton w="70%" h={12} />
+          <Skeleton w="30%" h={12} />
+        </div>
+      ))}
+      <span className="sr-only">불러오는 중…</span>
+    </div>
+  );
+}
 export function ErrorText({ children }: { children: ReactNode }) {
   return children ? <p className="error">{children}</p> : null;
 }

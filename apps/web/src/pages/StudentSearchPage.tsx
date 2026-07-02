@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import type { CreditAccount, Material, Quote, Slot, Teacher } from '../api/types';
-import { PageHeader, Card, Button, Badge, GradeBadge, ErrorText, Spinner, EmptyState, TextField, TextareaField, SelectField } from '../components/ui';
+import { PageHeader, Card, Button, Badge, GradeBadge, ErrorText, Spinner, EmptyState, SkeletonList, TextField, TextareaField, SelectField } from '../components/ui';
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
 const minToTime = (idx: number) => `${String(Math.floor((idx * 10) / 60)).padStart(2, '0')}:${String((idx * 10) % 60).padStart(2, '0')}`;
@@ -501,7 +501,7 @@ export function StudentSearchPage() {
         ))}
       </Card>
 
-      {teachers === null ? <Spinner /> : rows.length === 0 ? <Card><EmptyState>선생님이 없어요.</EmptyState></Card> : (
+      {teachers === null ? <SkeletonList rows={4} cols={2} /> : rows.length === 0 ? <Card><EmptyState>선생님이 없어요.</EmptyState></Card> : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
           {rows.map((t) => (
             <Card key={t.id}>

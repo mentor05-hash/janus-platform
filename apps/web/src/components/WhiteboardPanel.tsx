@@ -73,10 +73,10 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 950, background: 'rgba(8,16,20,0.5)', display: 'grid', placeItems: 'center', padding: 16 }}>
-      <div onClick={(e) => e.stopPropagation()} className="card" style={{ width: '100%', maxWidth: 960, display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
+      <div role="dialog" aria-modal="true" aria-label={title ?? '공유 화이트보드'} onClick={(e) => e.stopPropagation()} className="card" style={{ width: '100%', maxWidth: 960, display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <b style={{ fontSize: 15 }}>🖊 {title ?? '공유 화이트보드'}</b>
-          <button onClick={onClose} style={{ border: 'none', background: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--muted)' }}>✕</button>
+          <button onClick={onClose} aria-label="닫기" style={{ border: 'none', background: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--muted)' }}>✕</button>
         </div>
         {status === 'off' ? (
           <p style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center', padding: 40 }}>화이트보드는 프리미엄 상품에서 제공됩니다.</p>
@@ -84,7 +84,7 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
           <>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '10px 14px', flexWrap: 'wrap', borderBottom: '1px solid var(--line)' }}>
               {COLORS.map((c) => (
-                <button key={c} onClick={() => setColor(c)} title={c}
+                <button key={c} onClick={() => setColor(c)} title={c} aria-label={`색상 ${c}`} aria-pressed={color === c}
                   style={{ width: 24, height: 24, borderRadius: '50%', background: c, cursor: 'pointer', border: color === c ? '3px solid var(--teal)' : '2px solid var(--line)' }} />
               ))}
               <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--muted)' }}>굵기</span>
@@ -96,7 +96,7 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
               <button className="btn ghost sm" onClick={clear}>지우기</button>
               <button className="btn sm" onClick={save}>{saved ? '저장됨 ✓' : '저장'}</button>
             </div>
-            <canvas ref={canvasRef} width={W} height={H}
+            <canvas ref={canvasRef} width={W} height={H} role="img" aria-label="공유 필기 캔버스"
               onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up}
               style={{ width: '100%', aspectRatio: `${W} / ${H}`, background: '#fff', touchAction: 'none', cursor: 'crosshair', display: 'block' }} />
           </>

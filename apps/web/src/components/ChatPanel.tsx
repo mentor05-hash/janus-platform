@@ -48,10 +48,10 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 950, background: 'rgba(8,16,20,0.5)', display: 'grid', placeItems: 'center', padding: 16 }}>
-      <div onClick={(e) => e.stopPropagation()} className="card" style={{ width: '100%', maxWidth: 460, height: '80vh', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
+      <div role="dialog" aria-modal="true" aria-label={title ?? '상담 채팅'} onClick={(e) => e.stopPropagation()} className="card" style={{ width: '100%', maxWidth: 460, height: '80vh', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <b style={{ fontSize: 15 }}>💬 {title ?? '상담 채팅'}</b>
-          <button onClick={onClose} style={{ border: 'none', background: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--muted)' }}>✕</button>
+          <button onClick={onClose} aria-label="닫기" style={{ border: 'none', background: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--muted)' }}>✕</button>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--surface-2,#f6f8fa)' }}>
           {status === 'off' ? <p style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center', marginTop: 20 }}>채팅이 비활성화되어 있어요.</p>
@@ -70,8 +70,8 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
         {status !== 'off' && (
           <div style={{ display: 'flex', gap: 6, padding: 10, borderTop: '1px solid var(--line)', alignItems: 'center' }}>
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
-            <button onClick={() => fileRef.current?.click()} title="이미지" style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer' }}>📷</button>
-            <input className="input" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && send()} placeholder="메시지 입력…" />
+            <button onClick={() => fileRef.current?.click()} title="이미지" aria-label="이미지 첨부" style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer' }}>📷</button>
+            <input className="input" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && send()} placeholder="메시지 입력…" aria-label="메시지 입력" />
             <button className="btn sm" onClick={send} disabled={!text.trim()}>전송</button>
           </div>
         )}

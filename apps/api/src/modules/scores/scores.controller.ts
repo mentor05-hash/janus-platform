@@ -67,6 +67,12 @@ export class ScoresController {
     return this.scores.missing(user, period);
   }
 
+  /** GET /admin/scores/stats?period= — 성적 통계(대시보드). */
+  @Get('stats')
+  stats(@CurrentUser() user: AuthUser, @Query('period') period?: string) {
+    return this.scores.statistics(user, period);
+  }
+
   /** GET /admin/scores/trend?studentLoginId= — 성적 추이 + 배치 라인 변화. */
   @Get('trend')
   trend(@CurrentUser() user: AuthUser, @Query('studentLoginId') studentLoginId: string) {

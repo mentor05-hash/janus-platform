@@ -309,13 +309,22 @@ export class ScoresService {
     return '﻿' + lines.join('\n'); // BOM(엑셀 한글)
   }
 
+  /** 기간 문자열의 시간순 정렬키(연도→학기→시험차수). 문자열 정렬은 중간>기말 로 역전되므로 별도 계산. */
+  private periodSortKey(period: string): number {
+    const year = Number(period.match(/(\d{4})/)?.[1] ?? 0);
+    const sem = Number(period.match(/(\d)\s*학기/)?.[1] ?? 1);
+    const examRank = /기말/.test(period) ? 3 : /중간/.test(period) ? 2 : /모의|진단/.test(period) ? 1 : 0;
+    return year * 1000 + sem * 10 + examRank;
+  }
+
   async periods(actor: AuthUser) {
     this.assertAdmin(actor);
     const rows = await this.prisma.score_report.findMany({
       where: this.isHq(actor) ? {} : { center_id: actor.centerId },
-      distinct: ['period'], select: { period: true }, orderBy: { period: 'desc' },
+      distinct: ['period'], select: { period: true },
     });
-    return rows.map((r) => r.period);
+    // 최신 기간이 앞(내림차순) — 시간순 정렬키 기준.
+    return rows.map((r) => r.period).sort((a, b) => this.periodSortKey(b) - this.periodSortKey(a));
   }
 
   /** 해당 기간 미업로드 학생 목록(정렬용). */
@@ -335,6 +344,84 @@ export class ScoresService {
       period,
       count: students.length,
       students: students.map((s) => ({ studentId: s.account_id, name: s.account.name, loginId: s.account.login_id, center: s.center?.name ?? null, schoolGrade: s.school_grade ?? null })),
+    };
+  }
+
+  /** 관리자 대시보드 성적 통계(기간별): 분포·과목평균·배치 티어·업로드 커버리지·직전 대비 향상/하락. */
+  async statistics(actor: AuthUser, period?: string) {
+    this.assertAdmin(actor);
+    const scope = this.isHq(actor) ? {} : { center_id: actor.centerId };
+    const periods = await this.periods(actor); // desc
+    const target = period && periods.includes(period) ? period : periods[0];
+    const empty = { period: null as string | null, periods, totalStudents: 0, uploaded: 0, coverage: 0, avgMean: null as number | null, goalMet: 0, goalTotal: 0, distribution: [] as { bucket: string; count: number }[], subjects: [] as { subject: string; avg: number; count: number }[], tiers: [] as { tier: string; count: number }[], movement: { prevPeriod: null as string | null, improved: 0, declined: 0, same: 0, avgDelta: null as number | null } };
+    if (!target) return empty;
+
+    const reports = await this.prisma.score_report.findMany({
+      where: { ...scope, period: target },
+      include: { items: { select: { subject: true, score: true } } },
+    });
+    const totalStudents = await this.prisma.student_profile.count({ where: scope });
+
+    const avgOf = (items: { score: unknown }[]) => {
+      const s = items.map((i) => (i.score == null ? null : Number(i.score))).filter((x): x is number => x != null);
+      return s.length ? s.reduce((a, b) => a + b, 0) / s.length : null;
+    };
+    const perStudent = new Map<string, number>(); // studentId → avg(target)
+    const avgs: number[] = [];
+    for (const r of reports) {
+      const a = avgOf(r.items);
+      if (a != null) { perStudent.set(r.student_id, a); avgs.push(a); }
+    }
+    const avgMean = avgs.length ? Math.round((avgs.reduce((x, y) => x + y, 0) / avgs.length) * 10) / 10 : null;
+
+    // 평균 분포(구간)
+    const buckets = [{ bucket: '90+', min: 90, max: 101 }, { bucket: '80–89', min: 80, max: 90 }, { bucket: '70–79', min: 70, max: 80 }, { bucket: '60–69', min: 60, max: 70 }, { bucket: '60 미만', min: -1, max: 60 }];
+    const distribution = buckets.map((b) => ({ bucket: b.bucket, count: avgs.filter((a) => a >= b.min && a < b.max).length }));
+
+    // 과목별 평균
+    const subjMap = new Map<string, { sum: number; n: number }>();
+    for (const r of reports) for (const i of r.items) {
+      if (i.score == null) continue;
+      const cur = subjMap.get(i.subject) ?? { sum: 0, n: 0 };
+      cur.sum += Number(i.score); cur.n += 1; subjMap.set(i.subject, cur);
+    }
+    const subjects = [...subjMap.entries()].map(([subject, v]) => ({ subject, avg: Math.round((v.sum / v.n) * 10) / 10, count: v.n })).sort((a, b) => b.avg - a.avg);
+
+    // 배치 티어 분포
+    const tierMap = new Map<string, number>();
+    for (const r of reports) {
+      const tier = (r.placement as { tier?: string } | null)?.tier;
+      if (tier) tierMap.set(tier, (tierMap.get(tier) ?? 0) + 1);
+    }
+    const tiers = [...tierMap.entries()].map(([tier, count]) => ({ tier, count })).sort((a, b) => b.count - a.count);
+
+    // 목표 달성(goal_avg 대비 target 평균)
+    const goalStudents = await this.prisma.student_profile.findMany({ where: { ...scope, goal_avg: { not: null } }, select: { account_id: true, goal_avg: true } });
+    let goalMet = 0;
+    for (const g of goalStudents) { const a = perStudent.get(g.account_id); if (a != null && g.goal_avg != null && a >= Number(g.goal_avg)) goalMet += 1; }
+
+    // 직전 기간 대비 향상/하락
+    const idx = periods.indexOf(target);
+    const prevPeriod = idx >= 0 && idx + 1 < periods.length ? periods[idx + 1] : null;
+    let improved = 0, declined = 0, same = 0; const deltas: number[] = [];
+    if (prevPeriod) {
+      const prev = await this.prisma.score_report.findMany({ where: { ...scope, period: prevPeriod }, include: { items: { select: { score: true } } } });
+      const prevAvg = new Map<string, number>();
+      for (const r of prev) { const a = avgOf(r.items); if (a != null) prevAvg.set(r.student_id, a); }
+      for (const [sid, cur] of perStudent) {
+        const p = prevAvg.get(sid); if (p == null) continue;
+        const d = Math.round((cur - p) * 10) / 10; deltas.push(d);
+        if (d > 0.05) improved += 1; else if (d < -0.05) declined += 1; else same += 1;
+      }
+    }
+    const avgDelta = deltas.length ? Math.round((deltas.reduce((a, b) => a + b, 0) / deltas.length) * 10) / 10 : null;
+
+    return {
+      period: target, periods, totalStudents, uploaded: perStudent.size,
+      coverage: totalStudents ? Math.round((perStudent.size / totalStudents) * 100) : 0,
+      avgMean, goalMet, goalTotal: goalStudents.length,
+      distribution, subjects, tiers,
+      movement: { prevPeriod, improved, declined, same, avgDelta },
     };
   }
 }

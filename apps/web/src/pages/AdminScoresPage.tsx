@@ -2,13 +2,21 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { isHq } from '../auth/roleHome';
-import { PageHeader, Card, Button, Badge, Spinner, ErrorText, EmptyState } from '../components/ui';
+import { PageHeader, Card, Button, Badge, ErrorText, EmptyState, SkeletonList } from '../components/ui';
 import { ScoreTrend, TIER_KIND, type Placement, type Trend } from '../components/ScoreTrend';
 
 type Item = { subject: string; score: number | null; maxScore: number | null; grade?: string | null };
 type Report = { id: string; studentName: string; loginId: string; period: string; examType: string | null; source: string; items: Item[]; avg: number | null; placement: Placement };
 type Missing = { period: string; count: number; students: { studentId: string; name: string; loginId: string; center: string | null; schoolGrade: string | null }[] };
 type Policy = { student: boolean; guardian: boolean; placement: boolean };
+type Stats = {
+  period: string | null; totalStudents: number; uploaded: number; coverage: number; avgMean: number | null;
+  goalMet: number; goalTotal: number;
+  distribution: { bucket: string; count: number }[];
+  subjects: { subject: string; avg: number; count: number }[];
+  tiers: { tier: string; count: number }[];
+  movement: { prevPeriod: string | null; improved: number; declined: number; same: number; avgDelta: number | null };
+};
 
 const DEFAULT_SUBJECTS = ['국어', '수학', '영어', '과학', '사회'];
 
@@ -16,11 +24,12 @@ export function AdminScoresPage() {
   const { user } = useAuth();
   const master = isHq(user); // 본사 마스터관리자만 정책 편집
   const [policy, setPolicy] = useState<Policy | null>(null);
-  const [period, setPeriod] = useState('2026-1학기 중간고사');
+  const [period, setPeriod] = useState('2026-1학기 기말고사');
   const [periods, setPeriods] = useState<string[]>([]);
   const [reports, setReports] = useState<Report[] | null>(null);
-  const [tab, setTab] = useState<'list' | 'missing'>('list');
+  const [tab, setTab] = useState<'list' | 'missing' | 'stats'>('list');
   const [missing, setMissing] = useState<Missing | null>(null);
+  const [stats, setStats] = useState<Stats | null>(null);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
 
@@ -97,9 +106,13 @@ export function AdminScoresPage() {
     setMissing(null);
     api.get<Missing>(`/admin/scores/missing?period=${encodeURIComponent(period)}`).then(setMissing).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
   }, [period]);
+  const loadStats = useCallback(() => {
+    setStats(null);
+    api.get<Stats>(`/admin/scores/stats?period=${encodeURIComponent(period)}`).then(setStats).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
+  }, [period]);
 
   useEffect(() => { loadPeriods(); api.get<Policy>('/admin/scores/policy').then(setPolicy).catch(() => {}); }, [loadPeriods]);
-  useEffect(() => { tab === 'list' ? loadList() : loadMissing(); }, [tab, loadList, loadMissing]);
+  useEffect(() => { tab === 'list' ? loadList() : tab === 'missing' ? loadMissing() : loadStats(); }, [tab, loadList, loadMissing, loadStats]);
 
   async function togglePolicy(k: keyof Policy) {
     if (!master || !policy) return;
@@ -259,13 +272,13 @@ export function AdminScoresPage() {
 
       {/* 탭 */}
       <div style={{ display: 'inline-flex', background: 'var(--fill,#eef2f4)', borderRadius: 10, padding: 3, marginBottom: 12 }}>
-        {([['list', '성적 목록'], ['missing', '미업로드 학생']] as const).map(([v, l]) => (
+        {([['list', '성적 목록'], ['missing', '미업로드 학생'], ['stats', '📊 성적 통계']] as const).map(([v, l]) => (
           <button key={v} onClick={() => setTab(v)} style={{ border: 'none', cursor: 'pointer', padding: '7px 16px', borderRadius: 8, fontWeight: 700, fontSize: 13, background: tab === v ? 'var(--surface)' : 'transparent', color: tab === v ? 'var(--teal)' : 'var(--muted)' }}>{l}</button>
         ))}
       </div>
 
       {tab === 'list' ? (
-        reports === null ? <Spinner /> : reports.length === 0 ? <Card><EmptyState>이 기간에 등록된 성적이 없어요.</EmptyState></Card> : (
+        reports === null ? <SkeletonList rows={4} /> : reports.length === 0 ? <Card><EmptyState>이 기간에 등록된 성적이 없어요.</EmptyState></Card> : (
           <Card style={{ padding: 0, overflow: 'hidden' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead><tr><th style={th}>학생</th><th style={th}>시험</th><th style={th}>과목·점수</th><th style={th}>평균</th><th style={th}>배치 라인</th><th style={th}>출처</th></tr></thead>
@@ -287,8 +300,8 @@ export function AdminScoresPage() {
             </table>
           </Card>
         )
-      ) : (
-        missing === null ? <Spinner /> : (
+      ) : tab === 'missing' ? (
+        missing === null ? <SkeletonList rows={4} /> : (
           <Card style={{ padding: 0, overflow: 'hidden' }}>
             <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--line)', fontSize: 13 }}>
               <b>{missing.period}</b> 미업로드 <Badge kind={missing.count > 0 ? 'danger' : 'done'}>{missing.count}명</Badge>
@@ -311,6 +324,8 @@ export function AdminScoresPage() {
             )}
           </Card>
         )
+      ) : (
+        stats === null ? <SkeletonList rows={3} /> : !stats.period ? <Card><EmptyState>집계할 성적 데이터가 없어요.</EmptyState></Card> : <StatsView s={stats} />
       )}
 
       {/* 배치 라인 수동 입력(관리자/배치표 서비스 결과) */}
@@ -332,6 +347,93 @@ export function AdminScoresPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** 관리자 성적 통계 뷰 — 커버리지·평균·분포·과목·배치·향상. */
+function StatsView({ s }: { s: Stats }) {
+  const maxDist = Math.max(1, ...s.distribution.map((d) => d.count));
+  const maxSubj = 100;
+  const movTotal = s.movement.improved + s.movement.declined + s.movement.same;
+  const kpi = (label: string, value: React.ReactNode, sub?: string) => (
+    <div style={{ flex: '1 1 160px', background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 12, padding: 14 }}>
+      <div style={{ fontSize: 12, color: 'var(--muted)' }}>{label}</div>
+      <div style={{ fontSize: 24, fontWeight: 800, marginTop: 2 }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: 'var(--caption)', marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+  return (
+    <div style={{ display: 'grid', gap: 14 }}>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        {kpi('업로드 커버리지', `${s.coverage}%`, `${s.uploaded} / ${s.totalStudents}명`)}
+        {kpi('평균 점수', s.avgMean ?? '-', `${s.period}`)}
+        {kpi('목표 달성', `${s.goalMet}`, s.goalTotal ? `목표 설정 ${s.goalTotal}명 중` : '목표 설정 학생 없음')}
+        {kpi('직전 대비 평균', s.movement.avgDelta == null ? '-' : `${s.movement.avgDelta > 0 ? '▲' : s.movement.avgDelta < 0 ? '▼' : ''}${Math.abs(s.movement.avgDelta)}`, s.movement.prevPeriod ? `vs ${s.movement.prevPeriod}` : '직전 기간 없음')}
+      </div>
+
+      <Card title="평균 점수 분포">
+        <div style={{ display: 'grid', gap: 8 }}>
+          {s.distribution.map((d) => (
+            <div key={d.bucket} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ width: 56, fontSize: 12, color: 'var(--muted)', textAlign: 'right' }}>{d.bucket}</span>
+              <div style={{ flex: 1, background: 'var(--fill,#eef2f4)', borderRadius: 6, height: 22, overflow: 'hidden' }}>
+                <div style={{ width: `${(d.count / maxDist) * 100}%`, height: '100%', background: 'var(--teal)', borderRadius: 6, transition: 'width .3s' }} />
+              </div>
+              <span style={{ width: 40, fontSize: 12, fontWeight: 700 }}>{d.count}명</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }}>
+        <Card title="과목별 평균">
+          {s.subjects.length === 0 ? <EmptyState>데이터 없음</EmptyState> : (
+            <div style={{ display: 'grid', gap: 8 }}>
+              {s.subjects.map((sub) => (
+                <div key={sub.subject} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ width: 56, fontSize: 12, fontWeight: 700 }}>{sub.subject}</span>
+                  <div style={{ flex: 1, background: 'var(--fill,#eef2f4)', borderRadius: 6, height: 22, overflow: 'hidden' }}>
+                    <div style={{ width: `${(sub.avg / maxSubj) * 100}%`, height: '100%', background: sub.avg >= 80 ? '#2F9E44' : sub.avg >= 70 ? 'var(--teal)' : sub.avg >= 60 ? '#F08C00' : '#E5484D', borderRadius: 6 }} />
+                  </div>
+                  <span style={{ width: 40, fontSize: 12, fontWeight: 700 }}>{sub.avg}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card title="배치 라인(티어) 분포">
+          {s.tiers.length === 0 ? <EmptyState>배치 데이터 없음 — 배치 추정 실행 후 표시</EmptyState> : (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {s.tiers.map((t) => (
+                <div key={t.tier} style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--line)', borderRadius: 999, padding: '6px 12px' }}>
+                  <Badge kind={TIER_KIND[t.tier] ?? 'soft'}>{t.tier}</Badge>
+                  <b style={{ fontSize: 14 }}>{t.count}</b><span style={{ fontSize: 12, color: 'var(--muted)' }}>명</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      <Card title={`직전 기간 대비 변화${s.movement.prevPeriod ? ` (vs ${s.movement.prevPeriod})` : ''}`}>
+        {!s.movement.prevPeriod || movTotal === 0 ? <EmptyState>비교할 직전 기간 데이터가 없어요.</EmptyState> : (
+          <>
+            <div style={{ display: 'flex', height: 26, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--line)' }}>
+              {s.movement.improved > 0 && <div style={{ width: `${(s.movement.improved / movTotal) * 100}%`, background: '#2F9E44', color: '#fff', fontSize: 11, fontWeight: 700, display: 'grid', placeItems: 'center' }}>▲{s.movement.improved}</div>}
+              {s.movement.same > 0 && <div style={{ width: `${(s.movement.same / movTotal) * 100}%`, background: 'var(--line)', color: 'var(--ink)', fontSize: 11, fontWeight: 700, display: 'grid', placeItems: 'center' }}>={s.movement.same}</div>}
+              {s.movement.declined > 0 && <div style={{ width: `${(s.movement.declined / movTotal) * 100}%`, background: '#E5484D', color: '#fff', fontSize: 11, fontWeight: 700, display: 'grid', placeItems: 'center' }}>▼{s.movement.declined}</div>}
+            </div>
+            <div style={{ display: 'flex', gap: 16, marginTop: 10, fontSize: 12, color: 'var(--muted)' }}>
+              <span><b style={{ color: '#2F9E44' }}>▲ 향상 {s.movement.improved}명</b></span>
+              <span>= 유지 {s.movement.same}명</span>
+              <span><b style={{ color: '#E5484D' }}>▼ 하락 {s.movement.declined}명</b></span>
+              <span style={{ marginLeft: 'auto' }}>두 기간 모두 업로드된 {movTotal}명 기준</span>
+            </div>
+          </>
+        )}
+      </Card>
     </div>
   );
 }
