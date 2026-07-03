@@ -33,6 +33,7 @@ import { AdminMemberTypesPage } from './pages/AdminMemberTypesPage';
 import { AdminEvaluationPage } from './pages/AdminEvaluationPage';
 import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
 import { AdminAssignmentPage } from './pages/AdminAssignmentPage';
+import { EmbedSessionPage } from './pages/EmbedSessionPage';
 import { AdminAuditPage } from './pages/AdminAuditPage';
 import { AdminPayrollPage } from './pages/AdminPayrollPage';
 import { AdminScoresPage } from './pages/AdminScoresPage';
@@ -79,6 +80,7 @@ export function App() {
       <Route path="/forgot" element={<ForgotPasswordPage />} />
       <Route path="/terms" element={<LegalDocPage which="terms" />} />
       <Route path="/privacy" element={<LegalDocPage which="privacy" />} />
+      <Route path="/embed/session" element={<EmbedSessionPage />} />
 
       <Route
         path="/app"
