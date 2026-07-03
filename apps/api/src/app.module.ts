@@ -38,6 +38,7 @@ import { MetricsModule } from './modules/metrics/metrics.module';
 import { ScoresModule } from './modules/scores/scores.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { InboxModule } from './modules/inbox/inbox.module';
+import { AssignmentModule } from './modules/assignment/assignment.module';
 
 @Module({
   imports: [
@@ -77,6 +78,7 @@ import { InboxModule } from './modules/inbox/inbox.module';
     ScoresModule,
     RealtimeModule,
     InboxModule,
+    AssignmentModule,
   ],
   providers: [
     // 전역 가드: rate limit(§10) → 인증 → 인가 순. @Public() 은 인증 통과, @Roles() 로 역할 제한.

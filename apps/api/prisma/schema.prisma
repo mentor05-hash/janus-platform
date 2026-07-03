@@ -973,6 +973,22 @@ enum consult_mode {
   offline
 }
 
+model auto_assign_request {
+  id                  String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  student_id          String       @db.Uuid
+  center_id           String?      @db.Uuid
+  consult_type        consult_type
+  sub_type            String?
+  mode                String       @default("zoom")
+  status              String       @default("waiting")
+  assigned_booking_id String?      @db.Uuid
+  created_at          DateTime     @default(now()) @db.Timestamptz(6)
+  assigned_at         DateTime?    @db.Timestamptz(6)
+
+  @@index([status, created_at])
+  @@index([student_id, status])
+}
+
 enum consult_type {
   homeroom  @map("담임")
   subject   @map("교과")

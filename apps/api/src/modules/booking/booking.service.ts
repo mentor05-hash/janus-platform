@@ -463,6 +463,77 @@ export class BookingService {
     }
   }
 
+  /**
+   * 내부 강제 배정용 자동확정 예약 생성(전임 배치 — 자동배정 대기·질문·역상담).
+   * 유효 슬롯이 아니거나 크레딧 부족이면 배정하지 않고 사유 반환(예외 대신).
+   */
+  async createAssigned(p: {
+    studentId: string;
+    teacherId: string;
+    centerId: string | null;
+    teacherGrade: TeacherGrade;
+    consultType: ConsultType;
+    subType?: string | null;
+    mode: ConsultMode;
+    dateStr: string;
+    slotStart: number;
+    slotEnd: number;
+    charge: 'session' | 'free'; // free = 질문 답변블록·무료 역상담(이미 과금됨/무료 정책)
+    origin: string;
+    direction?: 'student' | 'reverse';
+    content?: string | null;
+  }): Promise<{ ok: boolean; bookingId?: string; reason?: string }> {
+    const startMin = p.slotStart * SLOT_GRANULARITY_MINUTES;
+    const endMin = p.slotEnd * SLOT_GRANULARITY_MINUTES;
+    const minutes = endMin - startMin;
+    if (minutes <= 0) return { ok: false, reason: 'invalid_slot' };
+    const startAt = utcFromKst(p.dateStr, startMin);
+    const endAt = utcFromKst(p.dateStr, endMin);
+    const credits = p.charge === 'free'
+      ? 0
+      : (await this.pricing.quoteSession(p.mode, minutes, p.teacherGrade, p.centerId, p.consultType)).credits;
+    try {
+      const booking = await this.bookingTx(async (tx) => {
+        await this.lockTeacherDate(tx, p.teacherId, p.dateStr);
+        const reason = await this.availability.bookableReason(p.teacherId, p.dateStr, startMin, endMin, p.studentId);
+        if (reason !== null) throw new ConflictException(slotReasonMessage(reason));
+        if (p.mode === ConsultMode.ZOOM) await this.assertZoomCapacity(tx, p.centerId, p.dateStr, startAt, endAt);
+        let roomId: string | null = null;
+        if (p.mode === ConsultMode.OFFLINE) roomId = await this.assignRoom(tx, p.centerId, p.dateStr, startAt, endAt);
+        const b = await tx.booking.create({
+          data: {
+            student_id: p.studentId, teacher_id: p.teacherId, center_id: p.centerId,
+            consult_type: consultTypeToPrisma(p.consultType), sub_type: p.subType ?? null,
+            mode: p.mode, direction: p.direction ?? 'student',
+            start_at: startAt, end_at: endAt, status: BookingStatus.CONFIRMED,
+            room_id: roomId, charged_credits: credits, origin: p.origin, content: p.content ?? null,
+          },
+        });
+        if (credits > 0) {
+          const outcome = await this.credit.consumeWithin(tx, p.studentId, credits, {
+            refType: 'booking', refId: b.id, description: '전임 자동 배정 크레딧 차감',
+          });
+          if (!outcome.ok) throw new ShortfallError(outcome.shortfall);
+        }
+        await tx.time_slot.createMany({
+          data: this.sessionSlotIndices(p.slotStart, p.slotEnd).map((i) => ({
+            teacher_id: p.teacherId, slot_date: new Date(p.dateStr), slot_index: i, status: 'booked', booking_id: b.id,
+          })),
+        });
+        return b;
+      });
+      await this.issueMeetingUrlIfZoom(booking.id);
+      await this.notify.notify(p.studentId, 'booking_confirmed', { bookingId: booking.id });
+      await this.notify.notify(p.teacherId, 'booking_assigned', { bookingId: booking.id, studentId: p.studentId, date: p.dateStr });
+      return { ok: true, bookingId: booking.id };
+    } catch (e) {
+      if (e instanceof ShortfallError) return { ok: false, reason: 'shortfall' };
+      if (e instanceof ConflictException) return { ok: false, reason: 'slot_taken' };
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') return { ok: false, reason: 'slot_taken' };
+      throw e;
+    }
+  }
+
   /** GET /bookings — 역할별 목록. */
   async list(
     user: AuthUser,
