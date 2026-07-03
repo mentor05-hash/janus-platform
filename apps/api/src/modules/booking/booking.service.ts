@@ -30,6 +30,7 @@ import {
 } from '../../config/prisma-enums';
 import { permAtLeast } from '../../config/perm';
 import { resolveStudentType, type StudentType } from '../../common/student-type';
+import { DEFAULT_CONSULT_DURATION, CONSULT_TYPES } from '../../common/consult-assignment';
 import { AvailabilityService } from '../availability/availability.service';
 import { CreditService } from '../billing/credit.service';
 import { evaluatePenalty } from '../pricing-policy/domain/penalty';
@@ -148,6 +149,39 @@ export class BookingService {
     await this.prisma.system_setting.upsert({
       where: { key: BookingService.EXTERNAL_KEY },
       create: { key: BookingService.EXTERNAL_KEY, value: next, updated_by: actor.id },
+      update: { value: next, updated_by: actor.id, updated_at: new Date() },
+    });
+    return next;
+  }
+
+  // ── 상담 종류별 기본 상담시간(분) — 본사 관리자(isHq) 조정. 강제배정·자동매칭 슬롯 길이 기준. ──
+  private static readonly DURATION_KEY = 'consult_duration_policy';
+
+  async getDurationPolicy(): Promise<Record<string, number>> {
+    const row = await this.prisma.system_setting.findUnique({ where: { key: BookingService.DURATION_KEY } });
+    return { ...DEFAULT_CONSULT_DURATION, ...((row?.value as Record<string, number>) ?? {}) };
+  }
+
+  /** 특정 상담 종류의 기본 시간(분). */
+  async defaultMinutes(consultType: string): Promise<number> {
+    const pol = await this.getDurationPolicy();
+    return pol[consultType] ?? DEFAULT_CONSULT_DURATION[consultType] ?? 30;
+  }
+
+  /** 정책 변경: 본사 관리자(isHq)만. 값은 10~240분, 10분 슬롯 배수. */
+  async setDurationPolicy(actor: AuthUser, dto: Record<string, number>) {
+    const isHq = actor.role === AccountRole.ADMIN && !actor.centerId;
+    if (!isHq) throw new ForbiddenException('상담 종류별 기본시간은 본사 관리자만 변경할 수 있습니다.');
+    for (const [k, v] of Object.entries(dto)) {
+      if (!CONSULT_TYPES.includes(k as never)) throw new BadRequestException(`알 수 없는 상담 종류: ${k}`);
+      if (typeof v !== 'number' || v < 10 || v > 240 || v % SLOT_GRANULARITY_MINUTES !== 0) {
+        throw new BadRequestException(`${k} 기본시간은 10~240분, ${SLOT_GRANULARITY_MINUTES}분 배수여야 합니다.`);
+      }
+    }
+    const next = { ...(await this.getDurationPolicy()), ...dto };
+    await this.prisma.system_setting.upsert({
+      where: { key: BookingService.DURATION_KEY },
+      create: { key: BookingService.DURATION_KEY, value: next, updated_by: actor.id },
       update: { value: next, updated_by: actor.id, updated_at: new Date() },
     });
     return next;

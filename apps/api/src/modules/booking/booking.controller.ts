@@ -76,6 +76,20 @@ export class BookingController {
     return this.booking.setReversePolicy(user, dto);
   }
 
+  /** GET /bookings/duration/policy — 상담 종류별 기본 상담시간(분) 조회. */
+  @Get('duration/policy')
+  @Roles('admin', 'hr', 'teacher')
+  getDurationPolicy() {
+    return this.booking.getDurationPolicy();
+  }
+
+  /** PATCH /bookings/duration/policy — 종류별 기본시간 변경(본사 관리자). */
+  @Patch('duration/policy')
+  @Roles('admin')
+  setDurationPolicy(@CurrentUser() user: AuthUser, @Body() dto: Record<string, number>) {
+    return this.booking.setDurationPolicy(user, dto);
+  }
+
   /** GET /bookings/external/policy — 외부학생 전사 정책(온라인 한정·할증·주간크레딧·상담제한) 조회. */
   @Get('external/policy')
   @Roles('admin', 'hr')

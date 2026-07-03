@@ -11,11 +11,12 @@ import { AvailabilityService } from '../availability/availability.service';
 import { BlockService } from '../report/block.service';
 import { MatchAutoDto } from './dto/match.dto';
 import { resolveStudentType } from '../../common/student-type';
+import { DEFAULT_CONSULT_DURATION } from '../../common/consult-assignment';
+import { SLOT_GRANULARITY_MINUTES } from '../../config/constants';
 
 const ONLINE_MODES = ['zoom', 'chat', 'hand'];
 
-const MATCH_MINUTES = 30;
-const SLOTS_NEEDED = MATCH_MINUTES / 10; // 3
+const MATCH_MINUTES = 30; // 정책 미설정·미매핑 종류 폴백
 const HORIZON_DAYS = 7;
 
 /**
@@ -54,6 +55,12 @@ export class MatchingService {
       select: { account_id: true },
     });
 
+    // 상담 종류별 기본 상담시간(본사 정책) → 필요한 연속 슬롯 수
+    const durRow = await this.prisma.system_setting.findUnique({ where: { key: 'consult_duration_policy' } });
+    const durMap = { ...DEFAULT_CONSULT_DURATION, ...((durRow?.value as Record<string, number>) ?? {}) };
+    const minutes = durMap[dto.consultType] ?? MATCH_MINUTES;
+    const slotsNeeded = Math.max(1, Math.round(minutes / SLOT_GRANULARITY_MINUTES));
+
     for (let d = 0; d < HORIZON_DAYS; d++) {
       const dateStr = kstDateString(new Date(now.getTime() + d * 86_400_000));
       for (const t of teachers) {
@@ -64,7 +71,7 @@ export class MatchingService {
         );
         const start = this.firstFreeRun(
           slots.map((s) => s.status),
-          SLOTS_NEEDED,
+          slotsNeeded,
         );
         if (start !== null) {
           return {
@@ -72,8 +79,8 @@ export class MatchingService {
             teacherId: t.account_id,
             date: dateStr,
             slotStart: slots[start].index,
-            slotEnd: slots[start].index + SLOTS_NEEDED,
-            minutes: MATCH_MINUTES,
+            slotEnd: slots[start].index + slotsNeeded,
+            minutes,
             mode,
             consultType: dto.consultType,
             subType: dto.subType ?? null,
