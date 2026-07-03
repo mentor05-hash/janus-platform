@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { Button, ErrorText, TextField, PasswordField, SelectField } from '../components/ui';
+import { APP_NAME } from '../branding.generated';
 
 const ROLES = [
   { value: 'student', label: '학생' },
@@ -48,7 +49,7 @@ export function SignupPage() {
   return (
     <div style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', padding: '30px 0' }}>
       <form className="card" style={{ width: 360 }} onSubmit={onSubmit}>
-        <h2 style={{ marginTop: 0, color: 'var(--teal)' }}>멘토링 플랫폼 회원가입</h2>
+        <h2 style={{ marginTop: 0, color: 'var(--teal)' }}>{APP_NAME} 회원가입</h2>
         <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 12px' }}>
           가입 후 관리자 승인이 완료되면 로그인할 수 있습니다.
         </p>

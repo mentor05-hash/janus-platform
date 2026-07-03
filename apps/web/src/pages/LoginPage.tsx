@@ -4,6 +4,7 @@ import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { roleHome } from '../auth/roleHome';
 import { Button, ErrorText, TextField, PasswordField } from '../components/ui';
+import { APP_NAME } from '../branding.generated';
 
 const DEMO_PW = 'dev-password!';
 // 데모 모드에서만 로그인 편의(자동로그인·역할 원터치·기본 비번 노출) 활성. 실서비스=false.
@@ -67,7 +68,7 @@ export function LoginPage() {
   return (
     <div style={{ display: 'grid', placeItems: 'center', height: '100vh' }}>
       <form className="card" style={{ width: 340 }} onSubmit={onSubmit}>
-        <h2 style={{ marginTop: 0, color: 'var(--teal)' }}>멘토링 플랫폼 로그인</h2>
+        <h2 style={{ marginTop: 0, color: 'var(--teal)' }}>{APP_NAME} 로그인</h2>
         {DEMO && (
           <>
             <label className="label" style={{ marginBottom: 6 }}>역할 선택(원터치 채움)</label>

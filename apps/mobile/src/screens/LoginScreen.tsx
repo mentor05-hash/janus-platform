@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api, ApiError } from '../api';
 import { R, SP, useTheme, useUI, type Palette } from '../theme';
+import { APP_NAME } from '../branding.generated';
 
 const CENTERS = [
   { key: '강남', name: '강남 센터', sub: '서울 강남구 · 본원' },
@@ -64,7 +65,7 @@ export function LoginScreen({ onLogin }: { onLogin: () => void }) {
       {/* 히어로 */}
       <View style={styles.hero}>
         <View style={styles.mark}><Text style={styles.markText}>멘</Text></View>
-        <Text style={styles.brand}>멘토링 플랫폼</Text>
+        <Text style={styles.brand}>{APP_NAME}</Text>
         <Text style={styles.heroSub}>우리 센터를 선택하면{'\n'}계정에 자동으로 연동돼요.</Text>
       </View>
 
