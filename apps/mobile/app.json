@@ -45,6 +45,7 @@
     "plugins": ["expo-notifications"],
     "extra": {
       "apiBase": "http://localhost:3000/api/v1",
+      "webOrigin": "",
       "eas": {
         "projectId": "00000000-0000-0000-0000-000000000000"
       }
