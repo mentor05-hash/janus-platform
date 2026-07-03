@@ -44,6 +44,13 @@ export class AssignmentController {
     return this.svc.cancelRequest(user, id);
   }
 
+  /** GET /assignment/dashboard — 관리자: 자동배정 큐·배치 결과·전임 부하(센터 스코프). */
+  @Get('dashboard')
+  @Roles('admin', 'hr')
+  dashboard(@CurrentUser() user: AuthUser) {
+    return this.svc.dashboard(user);
+  }
+
   /** POST /assignment/run-fill — 관리자: 전임 자동배정 채우기 즉시 실행(운영/점검). */
   @Post('run-fill')
   @Roles('admin')

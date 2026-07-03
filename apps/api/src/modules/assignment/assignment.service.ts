@@ -7,7 +7,7 @@ import type { CacheProvider } from '../../common/cache/cache.types';
 import { withCronLock } from '../../common/cache/cron-lock';
 import { AvailabilityService } from '../availability/availability.service';
 import { BookingService } from '../booking/booking.service';
-import { kstDateString } from '../../common/time/kst';
+import { kstDateString, utcFromKst } from '../../common/time/kst';
 import { AccountRole, ConsultMode, ConsultType, TeacherGrade } from '../../config/enums';
 import { consultTypeFromPrisma, consultTypeToPrisma } from '../../config/prisma-enums';
 import { resolveStudentType } from '../../common/student-type';
@@ -84,6 +84,80 @@ export class AssignmentService {
     if (!r || r.student_id !== user.id) throw new NotFoundException('신청을 찾을 수 없습니다.');
     if (r.status === 'waiting') await this.prisma.auto_assign_request.update({ where: { id }, data: { status: 'cancelled' } });
     return { ok: true };
+  }
+
+  // ── 관리자 대시보드: 큐 상태 · 배치 결과 · 전임 부하 ──────────────
+  private static readonly ORIGINS = ['전임자동', '자동배정', '질문배정', '역상담자동'];
+
+  async dashboard(actor: AuthUser, now = new Date()) {
+    const centerId = actor.centerId ?? null; // null = 전사(본사)
+    const cWhere = centerId ? { center_id: centerId } : {};
+
+    // 1) 대기열 상태 카운트
+    const queueGroups = await this.prisma.auto_assign_request.groupBy({ by: ['status'], where: cWhere, _count: { _all: true } });
+    const queue = { waiting: 0, assigned: 0, cancelled: 0 } as Record<string, number>;
+    for (const g of queueGroups) queue[g.status] = g._count._all;
+
+    // 2) 대기 목록(오래된 순)
+    const waitingRows = await this.prisma.auto_assign_request.findMany({ where: { ...cWhere, status: 'waiting' }, orderBy: { created_at: 'asc' }, take: 50 });
+    const names = await this.nameMap(waitingRows.map((r) => r.student_id));
+    const waitingList = waitingRows.map((r) => ({
+      id: r.id, studentName: names[r.student_id] ?? '학생',
+      consultType: consultTypeFromPrisma(r.consult_type), mode: r.mode, createdAt: r.created_at,
+    }));
+
+    // 3) 최근 7일 강제배정 건수 by 출처
+    const since = new Date(now.getTime() - 7 * 86_400_000);
+    const originGroups = await this.prisma.booking.groupBy({
+      by: ['origin'], where: { ...cWhere, origin: { in: AssignmentService.ORIGINS }, created_at: { gte: since } }, _count: { _all: true },
+    });
+    const byOrigin = Object.fromEntries(AssignmentService.ORIGINS.map((o) => [o, 0]));
+    for (const g of originGroups) if (g.origin) byOrigin[g.origin] = g._count._all;
+
+    // 4) 전임 현황 + 오늘 배정 건수
+    const todayStr = kstDateString(now);
+    const dayStart = utcFromKst(todayStr, 0);
+    const dayEnd = utcFromKst(todayStr, 1440);
+    const fullTimers = await this.prisma.teacher_profile.findMany({
+      where: { employment_type: '전임', ...(centerId ? { center_id: centerId } : {}) },
+      select: { account_id: true, account: { select: { name: true } }, center: { select: { name: true } } },
+    });
+    const ftIds = fullTimers.map((t) => t.account_id);
+    const todayGroups = ftIds.length
+      ? await this.prisma.booking.groupBy({
+          by: ['teacher_id'], where: { teacher_id: { in: ftIds }, origin: { in: AssignmentService.ORIGINS }, start_at: { gte: dayStart, lt: dayEnd } }, _count: { _all: true },
+        })
+      : [];
+    const todayByTeacher = new Map(todayGroups.map((g) => [g.teacher_id, g._count._all]));
+    const teachers = fullTimers.map((t) => ({
+      teacherId: t.account_id, name: t.account?.name ?? '선생님', center: t.center?.name ?? null,
+      todayAssigned: todayByTeacher.get(t.account_id) ?? 0,
+    })).sort((a, b) => b.todayAssigned - a.todayAssigned);
+
+    // 5) 센터별 요약(본사만)
+    let byCenter: Array<{ centerId: string; center: string; waiting: number; assigned7d: number; fullTimers: number }> | undefined;
+    if (!centerId) {
+      const centers = await this.prisma.center.findMany({ select: { id: true, name: true } });
+      const waitByCenter = await this.prisma.auto_assign_request.groupBy({ by: ['center_id'], where: { status: 'waiting' }, _count: { _all: true } });
+      const asgByCenter = await this.prisma.booking.groupBy({ by: ['center_id'], where: { origin: { in: AssignmentService.ORIGINS }, created_at: { gte: since } }, _count: { _all: true } });
+      const ftByCenter = await this.prisma.teacher_profile.groupBy({ by: ['center_id'], where: { employment_type: '전임' }, _count: { _all: true } });
+      const wMap = new Map(waitByCenter.map((g) => [g.center_id, g._count._all]));
+      const aMap = new Map(asgByCenter.map((g) => [g.center_id, g._count._all]));
+      const fMap = new Map(ftByCenter.map((g) => [g.center_id, g._count._all]));
+      byCenter = centers
+        .map((c) => ({ centerId: c.id, center: c.name, waiting: wMap.get(c.id) ?? 0, assigned7d: aMap.get(c.id) ?? 0, fullTimers: fMap.get(c.id) ?? 0 }))
+        .filter((c) => c.waiting || c.assigned7d || c.fullTimers)
+        .sort((a, b) => b.assigned7d - a.assigned7d);
+    }
+
+    return { scope: centerId ?? 'global', queue, waitingList, byOrigin, teachers, byCenter };
+  }
+
+  private async nameMap(ids: string[]): Promise<Record<string, string>> {
+    const uniq = [...new Set(ids)];
+    if (!uniq.length) return {};
+    const rows = await this.prisma.account.findMany({ where: { id: { in: uniq } }, select: { id: true, name: true } });
+    return Object.fromEntries(rows.map((r) => [r.id, r.name]));
   }
 
   // ── 배치: 전임 빈 슬롯에 우선순위대로 배정(①자동매칭 대기 → ②질문) ──
