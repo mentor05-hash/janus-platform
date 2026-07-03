@@ -48,6 +48,17 @@ export function computeEmployerContribution(gross: number): EmployerContribution
   return { 국민연금, 건강보험, 장기요양, 고용보험, 산재보험, total };
 }
 
+/** 퇴직금 적립(근로자, 1년 이상) — 연 1개월분 ≈ 월 급여의 1/12(8.33%). 프리랜서는 없음. */
+export const SEVERANCE_RATE = 1 / 12;
+export const severanceAccrual = (gross: number) => Math.round((Math.max(0, gross) * SEVERANCE_RATE) / 10) * 10;
+
+/** 프리랜서(사업소득) — 3.3% 원천징수(3% 소득세 + 0.3% 지방). 4대보험·퇴직금 없음. */
+export function computeFreelancer(payment: number) {
+  const p = Math.max(0, Math.round(payment));
+  const withholding = Math.round((p * 0.033) / 10) * 10;
+  return { payment: p, withholding, net: p - withholding };
+}
+
 export function computeDeductions(gross: number): Deductions {
   const g = Math.max(0, Math.round(gross));
   const 국민연금 = Math.round((g * RATE.pension) / 10) * 10;

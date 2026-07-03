@@ -25,7 +25,7 @@ import {
   PayrollRates,
 } from './domain/payroll';
 import { AuditService } from '../audit/audit.service';
-import { computeDeductions, computeEmployerContribution } from './domain/deductions';
+import { computeDeductions, computeEmployerContribution, severanceAccrual, computeFreelancer } from './domain/deductions';
 import { isFullTime } from '../../common/consult-assignment';
 
 const STALE_ANSWER_HOURS = 48; // 48시간 미답 → 답변 보상 기준(T5c)
@@ -96,7 +96,11 @@ export class PayrollService {
     const gross = Math.round((revenue * sharePct) / 100);
     const deductions = computeDeductions(gross);
     const employer = computeEmployerContribution(gross);
-    const totalCost = gross + employer.total;
+    const severance = severanceAccrual(gross);          // 퇴직금 적립(전임만)
+    const totalCost = gross + employer.total + severance; // 회사 총부담(4대보험+퇴직금 포함)
+    // 같은 배분액을 프리랜서(사업소득 3.3%)로 지급했을 때 비교
+    const freelancer = computeFreelancer(gross);
+    const fullTimePremium = totalCost - gross;           // 전임 추가비용(사업주보험+퇴직금)
     return {
       period: label,
       teacherId,
@@ -108,10 +112,17 @@ export class PayrollService {
       sharePct,
       gross,                // 세전 급여
       deductions,           // 근로자 4대보험 + 소득세/지방세 + net
-      net: deductions.net,  // 실수령
+      net: deductions.net,  // 전임 실수령
       employer,             // 사업주 4대보험
-      totalCost,            // 회사 총부담
+      severance,            // 퇴직금 적립(월)
+      totalCost,            // 회사 총부담(급여+사업주보험+퇴직금)
       laborRatioPct: revenue > 0 ? Math.round((totalCost / revenue) * 1000) / 10 : 0,
+      freelancer: {         // 동일 배분액을 프리랜서로 지급 시
+        companyCost: gross,           // 회사 부담 = 지급액(추가부담 0)
+        net: freelancer.net,          // 프리랜서 실수령(3.3% 원천징수 후)
+        withholding: freelancer.withholding,
+        savingVsFullTime: fullTimePremium, // 전임 대비 회사 절감액(=전임 추가비용)
+      },
     };
   }
 

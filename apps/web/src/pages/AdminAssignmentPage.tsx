@@ -154,7 +154,7 @@ export function AdminAssignmentPage() {
           <div className="scroll" style={{ overflowX: 'auto' }}>
             <Table columns={payCols} rows={pay.rows} rowKey={(r) => r.teacherId} empty="전임 실적이 없습니다." />
           </div>
-          <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 10 }}>세전 = 매출 × {pay.sharePct}%. 실수령 = 세전 − 근로자 4대보험·소득세. 회사 총부담 = 세전 + 사업주 4대보험(≈10.35%). 크레딧↔현금 비율(O1)이 1:1이 아니면 비례 조정 필요.</p>
+          <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 10 }}>세전 = 매출 × {pay.sharePct}%. 실수령 = 세전 − 근로자 4대보험·소득세. <b>회사 총부담 = 세전 + 사업주 4대보험(≈10.35%) + 퇴직금 적립(8.33%)</b>. 같은 배분액을 프리랜서(사업소득 3.3%)로 지급하면 회사부담은 세전과 동일(추가부담 0). 크레딧↔현금 비율(O1)이 1:1이 아니면 비례 조정.</p>
         </SectionCard>
       )}
     </>
