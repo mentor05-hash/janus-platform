@@ -25,7 +25,8 @@ import {
   PayrollRates,
 } from './domain/payroll';
 import { AuditService } from '../audit/audit.service';
-import { computeDeductions } from './domain/deductions';
+import { computeDeductions, computeEmployerContribution } from './domain/deductions';
+import { isFullTime } from '../../common/consult-assignment';
 
 const STALE_ANSWER_HOURS = 48; // 48시간 미답 → 답변 보상 기준(T5c)
 
@@ -48,6 +49,97 @@ export class PayrollService {
     if (!isSelf && !isAdmin)
       throw new ForbiddenException('급여 조회 권한이 없습니다.');
     return this.compute(teacherId, actor);
+  }
+
+  // ── 매출 배분(전임) 급여 — 크레딧 매출 × 배분율(본사) + 4대보험 ──
+  private static readonly SHARE_KEY = 'payroll_share_policy';
+  private static readonly SHARE_DEFAULT = { sharePct: 60 };
+
+  async getSharePolicy(): Promise<{ sharePct: number }> {
+    const row = await this.prisma.system_setting.findUnique({ where: { key: PayrollService.SHARE_KEY } });
+    return { ...PayrollService.SHARE_DEFAULT, ...((row?.value as object) ?? {}) };
+  }
+
+  async setSharePolicy(actor: AuthUser, dto: { sharePct?: number }) {
+    const isHq = actor.role === AccountRole.ADMIN && !actor.centerId;
+    if (!isHq) throw new ForbiddenException('배분율은 본사 관리자만 변경할 수 있습니다.');
+    if (dto.sharePct !== undefined && (dto.sharePct < 0 || dto.sharePct > 100)) {
+      throw new BadRequestException('배분율은 0~100% 범위여야 합니다.');
+    }
+    const next = { ...(await this.getSharePolicy()), ...dto };
+    await this.prisma.system_setting.upsert({
+      where: { key: PayrollService.SHARE_KEY },
+      create: { key: PayrollService.SHARE_KEY, value: next, updated_by: actor.id },
+      update: { value: next, updated_by: actor.id, updated_at: new Date() },
+    });
+    return next;
+  }
+
+  /** 한 선생님의 기간 매출배분 급여 명세(완료·확정 세션 매출 × 배분율, 4대보험 반영). */
+  async revenueSharePayslip(teacherId: string, actor: AuthUser, period?: string) {
+    const isSelf = actor.role === AccountRole.TEACHER && actor.id === teacherId;
+    const isAdmin = actor.role === AccountRole.ADMIN || actor.role === AccountRole.HR;
+    if (!isSelf && !isAdmin) throw new ForbiddenException('명세 조회 권한이 없습니다.');
+    const { start, end, label } = this.periodBounds(period);
+    const tp = await this.prisma.teacher_profile.findUnique({
+      where: { account_id: teacherId },
+      include: { account: { select: { name: true } }, center: { select: { name: true } } },
+    });
+    if (!tp) throw new NotFoundException('선생님을 찾을 수 없습니다.');
+    const { sharePct } = await this.getSharePolicy();
+    const agg = await this.prisma.booking.aggregate({
+      where: { teacher_id: teacherId, status: { in: [BookingStatus.CONFIRMED, BookingStatus.DONE] }, start_at: { gte: start, lte: end } },
+      _sum: { charged_credits: true }, _count: { _all: true },
+    });
+    const revenue = agg._sum.charged_credits ?? 0;
+    const sessions = agg._count._all;
+    const gross = Math.round((revenue * sharePct) / 100);
+    const deductions = computeDeductions(gross);
+    const employer = computeEmployerContribution(gross);
+    const totalCost = gross + employer.total;
+    return {
+      period: label,
+      teacherId,
+      teacherName: tp.account.name,
+      center: tp.center?.name ?? '-',
+      fullTime: isFullTime(tp.employment_type),
+      sessions,
+      revenue,              // 크레딧 매출(원)
+      sharePct,
+      gross,                // 세전 급여
+      deductions,           // 근로자 4대보험 + 소득세/지방세 + net
+      net: deductions.net,  // 실수령
+      employer,             // 사업주 4대보험
+      totalCost,            // 회사 총부담
+      laborRatioPct: revenue > 0 ? Math.round((totalCost / revenue) * 1000) / 10 : 0,
+    };
+  }
+
+  /** 관리자: 스코프 내 전임 전원의 매출배분 급여 요약(합계 포함). */
+  async revenueShareList(actor: AuthUser, period?: string) {
+    if (actor.role !== AccountRole.ADMIN && actor.role !== AccountRole.HR) {
+      throw new ForbiddenException('관리자만 조회할 수 있습니다.');
+    }
+    const centerId = actor.centerId ?? null;
+    const teachers = await this.prisma.teacher_profile.findMany({
+      where: { employment_type: '전임', ...(centerId ? { center_id: centerId } : {}) },
+      select: { account_id: true },
+    });
+    const rows: Array<{ teacherId: string; name: string; center: string; sessions: number; revenue: number; gross: number; net: number; totalCost: number }> = [];
+    for (const t of teachers) {
+      const p = await this.revenueSharePayslip(t.account_id, actor, period);
+      rows.push({ teacherId: p.teacherId, name: p.teacherName, center: p.center, sessions: p.sessions, revenue: p.revenue, gross: p.gross, net: p.net, totalCost: p.totalCost });
+    }
+    rows.sort((a, b) => b.gross - a.gross);
+    const sum = (k: 'revenue' | 'gross' | 'net' | 'totalCost') => rows.reduce((a, r) => a + r[k], 0);
+    const { sharePct } = await this.getSharePolicy();
+    return {
+      period: this.periodBounds(period).label,
+      sharePct,
+      count: rows.length,
+      totals: { revenue: sum('revenue'), gross: sum('gross'), net: sum('net'), totalCost: sum('totalCost') },
+      rows,
+    };
   }
 
   /** 확정 정산: 산정 결과를 payroll_estimate 에 기록(관리자/HR). */

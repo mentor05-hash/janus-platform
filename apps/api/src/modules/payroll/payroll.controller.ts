@@ -1,4 +1,4 @@
-import { Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -27,6 +27,16 @@ export class PayrollController {
     @Query('period') period?: string,
   ) {
     return this.payroll.markPaid(id, user, period);
+  }
+
+  /** GET /teachers/{id}/payroll/revenue-share?period= — 매출배분(60%) 급여 명세(본인/관리자). */
+  @Get(':id/payroll/revenue-share')
+  revenueShare(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+    @Query('period') period?: string,
+  ) {
+    return this.payroll.revenueSharePayslip(id, user, period);
   }
 
   /** GET /teachers/{id}/payroll — 예상급여(본인 또는 관리자/HR). */
@@ -58,5 +68,26 @@ export class PayrollAdminController {
   @Roles('admin', 'hr')
   report(@CurrentUser() user: AuthUser, @Query('period') period?: string) {
     return this.payroll.financeReport(user, period);
+  }
+
+  /** GET /admin/payroll/revenue-share?period= — 전임 매출배분(60%) 급여 요약(관리자/HR·센터 스코프). */
+  @Get('revenue-share')
+  @Roles('admin', 'hr')
+  revenueShareList(@CurrentUser() user: AuthUser, @Query('period') period?: string) {
+    return this.payroll.revenueShareList(user, period);
+  }
+
+  /** GET /admin/payroll/share-policy — 매출 배분율 조회. */
+  @Get('share-policy')
+  @Roles('admin', 'hr')
+  getSharePolicy() {
+    return this.payroll.getSharePolicy();
+  }
+
+  /** PATCH /admin/payroll/share-policy — 배분율 변경(본사 관리자). */
+  @Patch('share-policy')
+  @Roles('admin')
+  setSharePolicy(@CurrentUser() user: AuthUser, @Body() dto: { sharePct?: number }) {
+    return this.payroll.setSharePolicy(user, dto);
   }
 }

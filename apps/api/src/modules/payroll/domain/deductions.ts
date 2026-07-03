@@ -24,6 +24,30 @@ function incomeTaxApprox(gross: number): number {
   return Math.round(257_600 + (gross - 5_000_000) * 0.15);
 }
 
+/** 사업주(회사) 4대보험 부담 — 급여 위에 얹히는 비용. 회사 총부담 = gross + total. */
+export type EmployerContribution = {
+  국민연금: number;
+  건강보험: number;
+  장기요양: number;
+  고용보험: number; // 실업급여 + 고용안정·직업능력
+  산재보험: number;
+  total: number;
+};
+
+// 사업주 부담 요율(2025 근사). 고용보험=실업 0.9% + 고용안정·직능 0.25%(150인 미만). 산재=교육서비스 근사 0.7%.
+const EMP_RATE = { pension: 0.045, health: 0.03545, care: 0.1295, employment: 0.009 + 0.0025, accident: 0.007 };
+
+export function computeEmployerContribution(gross: number): EmployerContribution {
+  const g = Math.max(0, Math.round(gross));
+  const 국민연금 = Math.round((g * EMP_RATE.pension) / 10) * 10;
+  const 건강보험 = Math.round((g * EMP_RATE.health) / 10) * 10;
+  const 장기요양 = Math.round((건강보험 * EMP_RATE.care) / 10) * 10;
+  const 고용보험 = Math.round((g * EMP_RATE.employment) / 10) * 10;
+  const 산재보험 = Math.round((g * EMP_RATE.accident) / 10) * 10;
+  const total = 국민연금 + 건강보험 + 장기요양 + 고용보험 + 산재보험;
+  return { 국민연금, 건강보험, 장기요양, 고용보험, 산재보험, total };
+}
+
 export function computeDeductions(gross: number): Deductions {
   const g = Math.max(0, Math.round(gross));
   const 국민연금 = Math.round((g * RATE.pension) / 10) * 10;

@@ -25,8 +25,13 @@ const ORIGIN_LABEL: Record<string, string> = {
 const MODE_LABEL: Record<string, string> = { zoom: '줌 화상', chat: '채팅', hand: '필기', offline: '오프라인' };
 const fmt = (s: string) => new Date(s).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+type PayRow = { teacherId: string; name: string; center: string; sessions: number; revenue: number; gross: number; net: number; totalCost: number };
+type Pay = { period: string; sharePct: number; count: number; totals: { revenue: number; gross: number; net: number; totalCost: number }; rows: PayRow[] };
+
 export function AdminAssignmentPage() {
   const [d, setD] = useState<Dash | null>(null);
+  const [pay, setPay] = useState<Pay | null>(null);
+  const [shareIn, setShareIn] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
   const [msg, setMsg] = useState('');
@@ -34,6 +39,7 @@ export function AdminAssignmentPage() {
   const load = useCallback(async () => {
     try { setD(await api.get<Dash>('/assignment/dashboard')); setError(''); }
     catch (e) { setError(e instanceof ApiError ? e.message : '조회 실패'); }
+    try { const p = await api.get<Pay>('/admin/payroll/revenue-share'); setPay(p); setShareIn(String(p.sharePct)); } catch { /* noop */ }
   }, []);
   useEffect(() => { load(); }, [load]);
 
@@ -69,6 +75,16 @@ export function AdminAssignmentPage() {
     { key: 'fullTimers', header: '전임', align: 'right' },
     { key: 'waiting', header: '대기', align: 'right' },
     { key: 'assigned7d', header: '7일 배정', align: 'right' },
+  ];
+  const w = (n: number) => n.toLocaleString();
+  const payCols: Column<PayRow>[] = [
+    { key: 'name', header: '전임' },
+    { key: 'center', header: '센터' },
+    { key: 'sessions', header: '세션', align: 'right' },
+    { key: 'revenue', header: '매출', align: 'right', render: (r) => w(r.revenue) },
+    { key: 'gross', header: '세전급여', align: 'right', render: (r) => w(r.gross) },
+    { key: 'net', header: '실수령', align: 'right', render: (r) => w(r.net) },
+    { key: 'totalCost', header: '회사총부담', align: 'right', render: (r) => w(r.totalCost) },
   ];
 
   return (
@@ -113,6 +129,39 @@ export function AdminAssignmentPage() {
           <Table columns={centerCols} rows={d.byCenter} rowKey={(r) => r.centerId} empty="데이터가 없습니다." />
         </SectionCard>
       )}
+
+      {pay && (
+        <SectionCard title={`전임 매출배분 급여 · ${pay.period}`} desc="완료·확정 세션 매출 × 배분율 − 4대보험(2025). 크레딧=원 가정.">
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink)' }}>배분율</span>
+              <input type="number" min={0} max={100} value={shareIn} onChange={(e) => setShareIn(e.target.value)}
+                style={{ width: 60, padding: '5px 8px', borderRadius: 8, border: '1px solid var(--line)', textAlign: 'right' }} />
+              <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>%</span>
+              <button onClick={() => run2('/admin/payroll/share-policy', { sharePct: Number(shareIn) })}
+                style={{ padding: '5px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, border: '1px solid var(--teal)', background: 'var(--teal)', color: '#fff', cursor: 'pointer' }}>저장</button>
+              <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>본사 관리자</span>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
+            {[['매출 합계', pay.totals.revenue], ['세전 급여', pay.totals.gross], ['실수령', pay.totals.net], ['회사 총부담', pay.totals.totalCost]].map(([l, v]) => (
+              <div key={l as string} style={{ flex: '1 1 150px', minWidth: 140, border: '1px solid var(--line)', borderRadius: 12, padding: '12px 14px', background: 'var(--surface)' }}>
+                <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>{l}</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--ink)', fontVariantNumeric: 'tabular-nums' }}>{(v as number).toLocaleString()}<span style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}> 원</span></div>
+              </div>
+            ))}
+          </div>
+          <div className="scroll" style={{ overflowX: 'auto' }}>
+            <Table columns={payCols} rows={pay.rows} rowKey={(r) => r.teacherId} empty="전임 실적이 없습니다." />
+          </div>
+          <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 10 }}>세전 = 매출 × {pay.sharePct}%. 실수령 = 세전 − 근로자 4대보험·소득세. 회사 총부담 = 세전 + 사업주 4대보험(≈10.35%). 크레딧↔현금 비율(O1)이 1:1이 아니면 비례 조정 필요.</p>
+        </SectionCard>
+      )}
     </>
   );
+
+  function run2(path: string, body: Record<string, number>) {
+    setBusy(path);
+    api.patch(path, body).then(() => load()).catch(() => {}).finally(() => setBusy(''));
+  }
 }
