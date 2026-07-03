@@ -12,7 +12,7 @@ const COLORS = ['#16242B', '#0E5C7C', '#E5484D', '#2F9E44', '#F08C00'];
 const W = 720, H = 900;
 
 /** 공유 화이트보드(모바일/expo-web). web 에서는 실제 canvas 를 DOM 에 주입해 웹 패널과 동일 프로토콜 사용. */
-export function WhiteboardScreen({ bookingId, title, onClose }: { bookingId: string; title: string; onClose: () => void }) {
+export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { bookingId: string; title: string; onClose: () => void; embedded?: boolean }) {
   const { C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
   const isWeb = typeof document !== 'undefined';
@@ -35,7 +35,7 @@ export function WhiteboardScreen({ bookingId, title, onClose }: { bookingId: str
   const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
   const [status, setStatus] = useState<'connecting' | 'ready' | 'off'>(isWeb ? 'connecting' : 'off');
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved'>('idle');
-  useWebBack(true, onClose);
+  useWebBack(!embedded, onClose); // 임베드(통합 화면)면 back은 호스트가 처리
 
   function redraw() {
     const cv = canvasRef.current; if (!cv) return;
@@ -163,8 +163,8 @@ export function WhiteboardScreen({ bookingId, title, onClose }: { bookingId: str
   }
 
   return (
-    <View style={styles.overlay}>
-      <View style={styles.sheet}>
+    <View style={embedded ? styles.embWrap : styles.overlay}>
+      <View style={[styles.sheet, embedded && styles.embSheet]}>
         <View style={styles.head}>
           <Text style={styles.headT}>🖊 {title}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -174,7 +174,7 @@ export function WhiteboardScreen({ bookingId, title, onClose }: { bookingId: str
                   <TouchableOpacity onPress={call.hangup}><Text style={{ color: '#E5484D', fontWeight: '800', fontSize: 13 }}>종료</Text></TouchableOpacity>
                 </>
               : <TouchableOpacity onPress={call.start}><Text style={{ fontSize: 18 }}>📞</Text></TouchableOpacity>)}
-            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Text style={styles.close}>✕</Text></TouchableOpacity>
+            {!embedded && <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Text style={styles.close}>✕</Text></TouchableOpacity>}
           </View>
         </View>
         {status === 'off' ? (
@@ -209,7 +209,9 @@ export function WhiteboardScreen({ bookingId, title, onClose }: { bookingId: str
 
 const makeStyles = (C: Palette) => StyleSheet.create({
   overlay: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(8,16,20,0.5)', justifyContent: 'center', alignItems: 'center', padding: 10, zIndex: 100 },
+  embWrap: { flex: 1, backgroundColor: C.bg },
   sheet: { width: '100%', maxWidth: 480, height: '90%', backgroundColor: C.bg, borderRadius: 14, overflow: 'hidden' },
+  embSheet: { maxWidth: 100000, height: '100%', borderRadius: 0 },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderBottomWidth: 1, borderBottomColor: C.line },
   headT: { fontSize: 15, fontWeight: '800', color: C.ink },
   close: { fontSize: 18, color: C.muted },

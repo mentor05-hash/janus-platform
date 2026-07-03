@@ -21,7 +21,7 @@ function ChatImage({ fileId }: { fileId: string }) {
 }
 
 /** 예약 기반 실시간 채팅(모바일). myId 로 좌/우 정렬. */
-export function ChatScreen({ bookingId, myId, title, onClose }: { bookingId: string; myId: string; title: string; onClose: () => void }) {
+export function ChatScreen({ bookingId, myId, title, onClose, embedded }: { bookingId: string; myId: string; title: string; onClose: () => void; embedded?: boolean }) {
   const { C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
   const [msgs, setMsgs] = useState<Msg[]>([]);
@@ -34,7 +34,7 @@ export function ChatScreen({ bookingId, myId, title, onClose }: { bookingId: str
   const peerTypingOffRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const camStreamRef = useRef<MediaStream | null>(null);
   const call = useVoiceCall(() => sockRef.current, bookingId);
-  useWebBack(true, onClose);
+  useWebBack(!embedded, onClose); // 임베드(통합 화면)면 back은 호스트가 처리
 
   useEffect(() => {
     const token = (typeof localStorage !== 'undefined' ? localStorage.getItem('itall_access') : '') ?? '';
@@ -120,8 +120,8 @@ export function ChatScreen({ bookingId, myId, title, onClose }: { bookingId: str
   useEffect(() => () => closeCamera(), []);
 
   return (
-    <View style={styles.overlay}>
-      <View style={styles.sheet}>
+    <View style={embedded ? styles.embWrap : styles.overlay}>
+      <View style={[styles.sheet, embedded && styles.embSheet]}>
         <View style={styles.head}>
           <Text style={styles.headT}>💬 {title}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -131,7 +131,7 @@ export function ChatScreen({ bookingId, myId, title, onClose }: { bookingId: str
                   <TouchableOpacity onPress={call.hangup}><Text style={{ color: '#E5484D', fontWeight: '800', fontSize: 13 }}>종료</Text></TouchableOpacity>
                 </>
               : <TouchableOpacity onPress={call.start}><Text style={{ fontSize: 18 }}>📞</Text></TouchableOpacity>)}
-            <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Text style={styles.close}>✕</Text></TouchableOpacity>
+            {!embedded && <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Text style={styles.close}>✕</Text></TouchableOpacity>}
           </View>
         </View>
         <ScrollView ref={scrollRef} style={styles.body} contentContainerStyle={{ padding: 14, gap: 8 }}>
@@ -170,7 +170,9 @@ export function ChatScreen({ bookingId, myId, title, onClose }: { bookingId: str
 
 const makeStyles = (C: Palette) => StyleSheet.create({
   overlay: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(8,16,20,0.5)', justifyContent: 'center', alignItems: 'center', padding: 12, zIndex: 100 },
+  embWrap: { flex: 1, backgroundColor: C.bg },
   sheet: { width: '100%', maxWidth: 460, height: '86%', backgroundColor: C.bg, borderRadius: 14, overflow: 'hidden' },
+  embSheet: { maxWidth: 100000, height: '100%', borderRadius: 0 },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderBottomWidth: 1, borderBottomColor: C.line },
   headT: { fontSize: 15, fontWeight: '800', color: C.ink },
   close: { fontSize: 18, color: C.muted },

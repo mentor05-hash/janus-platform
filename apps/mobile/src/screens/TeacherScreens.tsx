@@ -2,8 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { api, ApiError, Booking } from '../api';
 import { useTheme, type Palette } from '../theme';
-import { ChatScreen } from './ChatScreen';
-import { WhiteboardScreen } from './WhiteboardScreen';
+import { useSessionHost, SessionHost } from './SessionHost';
 import { queueNote, flushNotes, queuedCount, onlineFlush } from '../offlineQueue';
 
 // ── 공통 ──
@@ -124,8 +123,7 @@ export function TeacherSessions({ myId }: { myId: string }) {
   const wide = useWindowDimensions().width >= 900;
   const [bookings, setBookings] = useState<Booking[] | null>(null);
   const [tab, setTab] = useState<'upcoming' | 'done'>('upcoming');
-  const [chatId, setChatId] = useState<string | null>(null);
-  const [wbId, setWbId] = useState<string | null>(null);
+  const host = useSessionHost();
   const [sel, setSel] = useState<string | null>(null);
   const [unread, setUnread] = useState<Record<string, number>>({});
 
@@ -139,21 +137,34 @@ export function TeacherSessions({ myId }: { myId: string }) {
   const all = bookings ?? [];
   const shown = all.filter((b) => (tab === 'upcoming' ? UP.has(b.status) : b.status === 'done'));
 
-  // 채팅·화이트보드는 몰입형이라 항상 전체화면 오버레이(태블릿에서도 위에 뜸)
-  if (chatId) return <ChatScreen bookingId={chatId} myId={myId} title="상담 채팅" onClose={() => { setChatId(null); load(); }} />;
-  if (wbId) return <WhiteboardScreen bookingId={wbId} title="공유 화이트보드" onClose={() => setWbId(null)} />;
+  // 다중 세션 몰입형 오버레이(채팅·화이트보드·음성 통합). 활성 세션이 있으면 위에 뜸.
+  if (host.activeId) return <SessionHost host={host} myId={myId} onClosed={load} />;
   if (bookings === null) return <Center C={C} />;
 
+  const sess = (b: Booking) => ({ id: b.id, title: `${b.consultType ?? '상담'} · ${modeLabel(b.mode)}`, sub: KST(b.start) });
   const launch = (b: Booking) => (
     <View style={s.acts}>
-      <TouchableOpacity style={[s.btn, s.btnP]} onPress={() => setChatId(b.id)}><Text style={s.btnPT}>💬 채팅{(unread[b.id] ?? 0) > 0 ? ` · ${unread[b.id]}` : ''}</Text></TouchableOpacity>
-      <TouchableOpacity style={[s.btn, s.btnG]} onPress={() => setWbId(b.id)}><Text style={s.btnGT}>🖊 화이트보드</Text></TouchableOpacity>
+      <TouchableOpacity style={[s.btn, s.btnP]} onPress={() => host.openSession(sess(b), 'chat')}><Text style={s.btnPT}>💬 채팅{(unread[b.id] ?? 0) > 0 ? ` · ${unread[b.id]}` : ''}</Text></TouchableOpacity>
+      <TouchableOpacity style={[s.btn, s.btnG]} onPress={() => host.openSession(sess(b), 'wb')}><Text style={s.btnGT}>🖊 화이트보드</Text></TouchableOpacity>
     </View>
   );
 
   const List = (
     <ScrollView style={s.wrap} contentContainerStyle={{ padding: 16, gap: 10 }}>
       <Text style={s.h1}>상담</Text>
+      {host.open.length > 0 && (
+        <View style={{ gap: 6 }}>
+          <Text style={[s.body, { color: C.caption }]}>진행 중 상담 {host.open.length} — 눌러서 재개</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 8 }}>
+            {host.open.map((o) => (
+              <TouchableOpacity key={o.id} onPress={() => host.setActiveId(o.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 12, paddingRight: 10, paddingVertical: 8, borderRadius: 999, backgroundColor: C.teal }}>
+                <Text numberOfLines={1} style={{ color: '#fff', fontWeight: '700', fontSize: 12, maxWidth: 160 }}>{o.title}</Text>
+                <TouchableOpacity hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }} onPress={() => host.close(o.id)}><Text style={{ color: '#CDE7F0', fontSize: 11, fontWeight: '800' }}>✕</Text></TouchableOpacity>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
       <View style={s.seg}>
         {(['upcoming', 'done'] as const).map((t) => (
           <TouchableOpacity key={t} style={[s.segItem, tab === t && s.segOn]} onPress={() => setTab(t)}><Text style={[s.segT, tab === t && s.segTOn]}>{t === 'upcoming' ? '진행 예정' : '완료'}</Text></TouchableOpacity>
@@ -359,12 +370,12 @@ export function TeacherToday({ myId }: { myId: string }) {
   const { C } = useTheme();
   const s = useMemo(() => mk(C), [C]);
   const [bookings, setBookings] = useState<Booking[] | null>(null);
-  const [chatId, setChatId] = useState<string | null>(null);
+  const host = useSessionHost();
   const [work, setWork] = useState<string>('on');
   const load = useCallback(() => { api.get<{ data?: Booking[] } | Booking[]>('/bookings?role=teacher').then((r) => setBookings(unwrap(r))).catch(() => setBookings([])); }, []);
   useEffect(() => { load(); api.get<{ workStatus?: string }>('/teachers/me/profile').then((p) => setWork(p.workStatus ?? 'on')).catch(() => {}); }, [load]);
   async function setStatus(k: string) { setWork(k); api.patch('/teachers/me/status', { status: k }).catch(() => {}); }
-  if (chatId) return <ChatScreen bookingId={chatId} myId={myId} title="상담 채팅" onClose={() => { setChatId(null); load(); }} />;
+  if (host.activeId) return <SessionHost host={host} myId={myId} onClosed={load} />;
   if (bookings === null) return <Center C={C} />;
   const now = new Date();
   const all = bookings ?? [];
@@ -401,7 +412,7 @@ export function TeacherToday({ myId }: { myId: string }) {
         <View key={b.id} style={s.card}>
           <View style={s.row}><Text style={s.title}>{KST(b.start)} · {b.consultType ?? '상담'}</Text><Text style={s.time}>{statusLabel(b.status)}</Text></View>
           <Text style={s.body}>{modeLabel(b.mode)}</Text>
-          {b.status === 'confirmed' && <View style={s.acts}><TouchableOpacity style={[s.btn, s.btnP]} onPress={() => setChatId(b.id)}><Text style={s.btnPT}>💬 상담 시작</Text></TouchableOpacity></View>}
+          {b.status === 'confirmed' && <View style={s.acts}><TouchableOpacity style={[s.btn, s.btnP]} onPress={() => host.openSession({ id: b.id, title: `${b.consultType ?? '상담'} · ${modeLabel(b.mode)}`, sub: KST(b.start) }, 'chat')}><Text style={s.btnPT}>💬 상담 시작</Text></TouchableOpacity></View>}
         </View>
       ))}
       {upcoming.length > 0 && <><Text style={s.secTitle}>이번 주 예정</Text>{upcoming.map((b) => (
