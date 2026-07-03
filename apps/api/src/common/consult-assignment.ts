@@ -16,3 +16,21 @@ export const CONSULT_TYPES = ['담임', '교과', '입시', '심리'] as const;
 export const FULL_TIME = '전임';
 export const isFullTime = (employmentType?: string | null): boolean =>
   (employmentType ?? '').trim() === FULL_TIME;
+
+/** 질문 답변블록 난이도 티어별 기본 길이(분) — 본사 조정. */
+export const DEFAULT_QUESTION_DURATION: Record<string, number> = {
+  기초: 10,
+  중급: 20,
+  심화: 30,
+  기본: 15, // 난이도 미지정/미매핑
+};
+export const QUESTION_TIERS = ['기초', '중급', '심화', '기본'] as const;
+
+/** 자유 텍스트 난이도 → 티어(기초/중급/심화/기본) 매핑. */
+export function difficultyTier(d?: string | null): string {
+  const t = (d ?? '').trim();
+  if (['기초', '하', '쉬움'].includes(t)) return '기초';
+  if (['중급', '보통', '중'].includes(t)) return '중급';
+  if (['심화', '상', '어려움'].includes(t)) return '심화';
+  return '기본';
+}

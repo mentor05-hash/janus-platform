@@ -90,6 +90,20 @@ export class BookingController {
     return this.booking.setDurationPolicy(user, dto);
   }
 
+  /** GET /bookings/question-duration/policy — 질문 답변블록 난이도별 길이(분) 조회. */
+  @Get('question-duration/policy')
+  @Roles('admin', 'hr', 'teacher')
+  getQuestionDurationPolicy() {
+    return this.booking.getQuestionDurationPolicy();
+  }
+
+  /** PATCH /bookings/question-duration/policy — 난이도별 길이 변경(본사 관리자). */
+  @Patch('question-duration/policy')
+  @Roles('admin')
+  setQuestionDurationPolicy(@CurrentUser() user: AuthUser, @Body() dto: Record<string, number>) {
+    return this.booking.setQuestionDurationPolicy(user, dto);
+  }
+
   /** GET /bookings/external/policy — 외부학생 전사 정책(온라인 한정·할증·주간크레딧·상담제한) 조회. */
   @Get('external/policy')
   @Roles('admin', 'hr')

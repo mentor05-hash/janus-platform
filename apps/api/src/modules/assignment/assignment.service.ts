@@ -15,14 +15,6 @@ import { resolveStudentType } from '../../common/student-type';
 const HORIZON_DAYS = 7;
 const SLOT_MIN = 10;
 
-/** 질문 난이도별 답변블록 길이(분). 미지정/미매핑은 15분. (본사 조정 후결합 여지) */
-const QUESTION_MINUTES: Record<string, number> = {
-  기초: 10, 하: 10, 쉬움: 10,
-  중급: 20, 보통: 20, 중: 20,
-  심화: 30, 상: 30, 어려움: 30,
-};
-const questionMinutes = (d?: string | null) => QUESTION_MINUTES[(d ?? '').trim()] ?? 15;
-
 /** slots 상태 배열에서 need 개 연속 'avail' 시작 위치(배열 인덱스). 없으면 null. */
 function firstFreeRun(statuses: string[], need: number): number | null {
   let run = 0;
@@ -62,8 +54,14 @@ export class AssignmentService {
   // ── 학생: 자동배정 신청/조회/취소 ─────────────────────────────
   async requestAutoAssign(user: AuthUser, dto: { consultType: ConsultType; mode?: ConsultMode; subType?: string }) {
     if (user.role !== AccountRole.STUDENT) throw new ForbiddenException('학생만 자동배정을 신청할 수 있습니다.');
-    const sp = await this.prisma.student_profile.findUnique({ where: { account_id: user.id }, select: { center_id: true } });
+    const sp = await this.prisma.student_profile.findUnique({ where: { account_id: user.id }, select: { center_id: true, type_code: true } });
     if (!sp) throw new NotFoundException('학생 등록(프로필)이 완료되지 않았습니다.');
+    let mode = dto.mode ?? ConsultMode.ZOOM;
+    // 외부학생 온라인 한정이면 오프라인 요청을 온라인으로 보정(예약 게이트와 일관)
+    if (resolveStudentType(sp) === 'external' && mode === ConsultMode.OFFLINE) {
+      const extPol = await this.booking.getExternalPolicy();
+      if (extPol.onlineOnly) mode = ConsultMode.ZOOM;
+    }
     const ctPrisma = consultTypeToPrisma(dto.consultType);
     const dup = await this.prisma.auto_assign_request.findFirst({
       where: { student_id: user.id, status: 'waiting', consult_type: ctPrisma as never },
@@ -72,7 +70,7 @@ export class AssignmentService {
     return this.prisma.auto_assign_request.create({
       data: {
         student_id: user.id, center_id: sp.center_id, consult_type: ctPrisma as never,
-        sub_type: dto.subType ?? null, mode: dto.mode ?? ConsultMode.ZOOM, status: 'waiting',
+        sub_type: dto.subType ?? null, mode, status: 'waiting',
       },
     });
   }
@@ -138,7 +136,7 @@ export class AssignmentService {
     for (const q of openQs) {
       const t = teachers.find((x) => x.account_id === q.assigned_teacher_id);
       if (!t || !q.assigned_teacher_id) continue;
-      const need = Math.max(1, Math.round(questionMinutes(q.difficulty) / SLOT_MIN));
+      const need = Math.max(1, Math.round((await this.booking.questionMinutes(q.difficulty)) / SLOT_MIN));
       let placed = false;
       for (let d = 0; d < HORIZON_DAYS && !placed; d++) {
         const dateStr = kstDateString(new Date(now.getTime() + d * 86_400_000));

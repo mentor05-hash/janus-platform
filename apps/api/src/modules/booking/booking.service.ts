@@ -30,7 +30,7 @@ import {
 } from '../../config/prisma-enums';
 import { permAtLeast } from '../../config/perm';
 import { resolveStudentType, type StudentType } from '../../common/student-type';
-import { DEFAULT_CONSULT_DURATION, CONSULT_TYPES, isFullTime } from '../../common/consult-assignment';
+import { DEFAULT_CONSULT_DURATION, CONSULT_TYPES, isFullTime, DEFAULT_QUESTION_DURATION, QUESTION_TIERS, difficultyTier } from '../../common/consult-assignment';
 import { AvailabilityService } from '../availability/availability.service';
 import { CreditService } from '../billing/credit.service';
 import { evaluatePenalty } from '../pricing-policy/domain/penalty';
@@ -182,6 +182,39 @@ export class BookingService {
     await this.prisma.system_setting.upsert({
       where: { key: BookingService.DURATION_KEY },
       create: { key: BookingService.DURATION_KEY, value: next, updated_by: actor.id },
+      update: { value: next, updated_by: actor.id, updated_at: new Date() },
+    });
+    return next;
+  }
+
+  // ── 질문 답변블록 난이도별 길이(분) — 본사 관리자 조정 ──
+  private static readonly QUESTION_DURATION_KEY = 'question_duration_policy';
+
+  async getQuestionDurationPolicy(): Promise<Record<string, number>> {
+    const row = await this.prisma.system_setting.findUnique({ where: { key: BookingService.QUESTION_DURATION_KEY } });
+    return { ...DEFAULT_QUESTION_DURATION, ...((row?.value as Record<string, number>) ?? {}) };
+  }
+
+  /** 난이도 문자열 → 답변블록 분. 티어 매핑 후 정책값. */
+  async questionMinutes(difficulty?: string | null): Promise<number> {
+    const pol = await this.getQuestionDurationPolicy();
+    const tier = difficultyTier(difficulty);
+    return pol[tier] ?? DEFAULT_QUESTION_DURATION[tier] ?? 15;
+  }
+
+  async setQuestionDurationPolicy(actor: AuthUser, dto: Record<string, number>) {
+    const isHq = actor.role === AccountRole.ADMIN && !actor.centerId;
+    if (!isHq) throw new ForbiddenException('질문 답변블록 길이는 본사 관리자만 변경할 수 있습니다.');
+    for (const [k, v] of Object.entries(dto)) {
+      if (!QUESTION_TIERS.includes(k as never)) throw new BadRequestException(`알 수 없는 난이도 티어: ${k}`);
+      if (typeof v !== 'number' || v < 10 || v > 120 || v % SLOT_GRANULARITY_MINUTES !== 0) {
+        throw new BadRequestException(`${k} 길이는 10~120분, ${SLOT_GRANULARITY_MINUTES}분 배수여야 합니다.`);
+      }
+    }
+    const next = { ...(await this.getQuestionDurationPolicy()), ...dto };
+    await this.prisma.system_setting.upsert({
+      where: { key: BookingService.QUESTION_DURATION_KEY },
+      create: { key: BookingService.QUESTION_DURATION_KEY, value: next, updated_by: actor.id },
       update: { value: next, updated_by: actor.id, updated_at: new Date() },
     });
     return next;
@@ -489,9 +522,15 @@ export class BookingService {
     if (minutes <= 0) return { ok: false, reason: 'invalid_slot' };
     const startAt = utcFromKst(p.dateStr, startMin);
     const endAt = utcFromKst(p.dateStr, endMin);
+    // 외부학생이면 세션 과금에 할증 반영(외부생 정책과 일관)
+    let extSurcharge = 0;
+    if (p.charge === 'session') {
+      const sp = await this.prisma.student_profile.findUnique({ where: { account_id: p.studentId }, select: { type_code: true, center_id: true } });
+      if (sp && resolveStudentType(sp) === 'external') extSurcharge = (await this.getExternalPolicy()).surchargePct;
+    }
     const credits = p.charge === 'free'
       ? 0
-      : (await this.pricing.quoteSession(p.mode, minutes, p.teacherGrade, p.centerId, p.consultType)).credits;
+      : (await this.pricing.quoteSession(p.mode, minutes, p.teacherGrade, p.centerId, p.consultType, extSurcharge)).credits;
     try {
       const booking = await this.bookingTx(async (tx) => {
         await this.lockTeacherDate(tx, p.teacherId, p.dateStr);
