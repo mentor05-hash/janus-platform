@@ -64,7 +64,7 @@ async function main() {
     await client.query(
       `INSERT INTO center (id, name, region) VALUES ($1,$2,$3)
        ON CONFLICT (id) DO NOTHING`,
-      [ID.center, '잇올 강남센터(더미)', '서울'],
+      [ID.center, '강남센터(더미)', '서울'],
     );
 
     // 2) 회원 등급 4단계 (주간 부여 크레딧)

@@ -17,7 +17,7 @@ BEGIN
 
   -- 센터 3개
   INSERT INTO center(id,name,region) VALUES
-    (c1,'잇올 강남센터(더미)','강남'),(c2,'잇올 분당센터(더미)','분당'),(c3,'잇올 잠실센터(더미)','잠실')
+    (c1,'강남센터(더미)','강남'),(c2,'분당센터(더미)','분당'),(c3,'잠실센터(더미)','잠실')
   ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name, region=EXCLUDED.region;
 
   -- 관리자: M1(L1) / HQ1·HQ2(L2,센터null) / CA1~6(L3,센터배정)

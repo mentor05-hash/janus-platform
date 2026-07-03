@@ -1,7 +1,7 @@
 {
   "name": "@itall/api",
   "version": "0.0.1",
-  "description": "잇올 멘토링 — NestJS 백엔드 API",
+  "description": "멘토링 플랫폼 — NestJS 백엔드 API",
   "author": "",
   "private": true,
   "license": "UNLICENSED",

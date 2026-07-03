@@ -4,7 +4,7 @@
 경로를 위한 스캐폴딩과 절차를 정리합니다. 실제 빌드·제출에는 아래 **외부 계정**이 필요합니다.
 
 ## 준비된 것 (이 커밋)
-- `app.json`: iOS `bundleIdentifier`(com.itall.mentoring)·Android `package`, 알림 설정,
+- `app.json`: iOS `bundleIdentifier`(com.example.mentoring)·Android `package`, 알림 설정,
   `expo-notifications` 플러그인, `scheme`, `runtimeVersion`, `extra.eas.projectId` 자리표시자.
 - `eas.json`: `development`/`preview`/`production` 빌드 프로파일 + `submit` 설정(자리표시자).
 - `expo-notifications`·`expo-device` 의존성 + `src/push.ts` 네이티브 푸시 등록

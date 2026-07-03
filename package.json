@@ -2,7 +2,7 @@
   "name": "itall-mentoring",
   "version": "0.0.1",
   "private": true,
-  "description": "잇올 1:1 멘토링 플랫폼 — 모노레포 루트",
+  "description": "1:1 멘토링 플랫폼 — 모노레포 루트",
   "workspaces": [
     "apps/*",
     "packages/*"

@@ -12,7 +12,7 @@ describe('LocalDiskStorageProvider (§10)', () => {
   });
 
   it('put → get 라운드트립(바이트 동일)', async () => {
-    const data = Buffer.from('잇올 멘토링 첨부 테스트 🎓', 'utf8');
+    const data = Buffer.from('멘토링 플랫폼 첨부 테스트 🎓', 'utf8');
     await sut.put({ key: 'uploads/abc.txt', data, contentType: 'text/plain' });
     const read = await sut.get('uploads/abc.txt');
     expect(read.equals(data)).toBe(true);
