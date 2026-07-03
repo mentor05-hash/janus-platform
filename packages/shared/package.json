@@ -1,5 +1,5 @@
 {
-  "name": "@itall/shared",
+  "name": "@mentoring/shared",
   "version": "0.0.1",
   "private": true,
   "description": "공유 타입(OpenAPI 생성) · 디자인 토큰",

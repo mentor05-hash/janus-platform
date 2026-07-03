@@ -1,6 +1,6 @@
 // 다크 모드 — data-theme 속성 + localStorage 지속. 브랜드 teal은 유지, 표면/텍스트/라인만 반전.
 export type Theme = 'light' | 'dark';
-const KEY = 'itall_theme';
+const KEY = 'mp_theme';
 
 export function getTheme(): Theme {
   const saved = localStorage.getItem(KEY);

@@ -5,7 +5,7 @@ import { Counter, Histogram, Registry, collectDefaultMetrics } from 'prom-client
  * 모듈 싱글턴 레지스트리(전역 register 미사용 → 테스트 격리). 필터/인터셉터가 갱신.
  */
 export const metricsRegistry = new Registry();
-metricsRegistry.setDefaultLabels({ app: 'itall-api' });
+metricsRegistry.setDefaultLabels({ app: 'mentoring-api' });
 collectDefaultMetrics({ register: metricsRegistry }); // CPU·메모리·GC·이벤트루프 등
 
 export const httpRequestsTotal = new Counter({

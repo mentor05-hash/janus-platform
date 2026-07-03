@@ -35,7 +35,7 @@ export class LegalController {
   async exportData(@CurrentUser() user: AuthUser, @Res({ passthrough: true }) res: Response) {
     const data = await this.legal.exportData(user);
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="itall-mydata-${user.loginId}.json"`);
+    res.setHeader('Content-Disposition', `attachment; filename="mydata-${user.loginId}.json"`);
     return data;
   }
 

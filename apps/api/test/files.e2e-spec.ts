@@ -4,7 +4,7 @@ import * as path from 'path';
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
-const STORAGE_DIR = path.join(os.tmpdir(), `itall-files-e2e-${process.pid}`);
+const STORAGE_DIR = path.join(os.tmpdir(), `files-e2e-${process.pid}`);
 process.env.STORAGE_PROVIDER = 'local';
 process.env.STORAGE_LOCAL_DIR = STORAGE_DIR;
 

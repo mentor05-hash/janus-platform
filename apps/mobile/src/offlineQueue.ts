@@ -5,7 +5,7 @@ import { api } from './api';
  * 온라인 복귀 시 자동 동기화. expo-web 대상(localStorage). 네이티브는 SecureStore 후결합.
  */
 type Queued = { bookingId: string; payload: Record<string, unknown>; at: number };
-const KEY = 'itall_note_queue';
+const KEY = 'mp_note_queue';
 const hasLS = () => typeof localStorage !== 'undefined';
 
 function read(): Queued[] { if (!hasLS()) return []; try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { return []; } }

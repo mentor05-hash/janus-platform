@@ -4,7 +4,7 @@ import * as path from 'path';
 import { LocalDiskStorageProvider } from './local-disk-storage.provider';
 
 describe('LocalDiskStorageProvider (§10)', () => {
-  const base = path.join(os.tmpdir(), `itall-storage-test-${process.pid}`);
+  const base = path.join(os.tmpdir(), `storage-test-${process.pid}`);
   const sut = new LocalDiskStorageProvider(base);
 
   afterAll(async () => {

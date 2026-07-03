@@ -14,7 +14,7 @@ describe('MockZoomProvider (§9·§10)', () => {
       startAt: null,
       endAt: null,
     });
-    expect(a.joinUrl).toBe('https://meet.local/itall/bk-1');
+    expect(a.joinUrl).toBe('https://meet.local/session/bk-1');
     expect(a.meetingId).toBe('bk-1');
     expect(a.joinUrl).toBe(b.joinUrl); // 결정적
   });

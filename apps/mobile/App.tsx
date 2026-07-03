@@ -42,7 +42,7 @@ function AppInner() {
   // 화면이 깊어질 때마다 실제 히스토리 엔트리를 쌓는다 — 브라우저/제스처 back 과 1:1 로 맞춰
   // 모바일에서 서비스 이탈을 막는다(단일 센티넬 재장전 방식은 스와이프 back 에서 취약).
   const pushGuard = () => {
-    if (typeof window !== 'undefined' && window.history?.pushState) window.history.pushState({ itall: true }, '');
+    if (typeof window !== 'undefined' && window.history?.pushState) window.history.pushState({ mp: true }, '');
   };
   // 탭 이동 이력 — 뒤로가기가 홈이 아니라 '직전 탭'으로 복귀하도록(App back 검증).
   const tabHist = useRef<string[]>([]);
@@ -106,12 +106,12 @@ function AppInner() {
   };
   useEffect(() => {
     if (typeof window === 'undefined' || !window.history?.pushState) return;
-    window.history.pushState({ itall: true }, ''); // 홈 기준 센티넬 1개
+    window.history.pushState({ mp: true }, ''); // 홈 기준 센티넬 1개
     const onPop = () => {
       // 깊은 화면은 forward 시 이미 엔트리를 쌓았으므로 back 이 그걸 소비 → 재장전 불필요.
       // 홈 최상위(처리할 게 없음)일 때만 센티넬을 다시 쌓아 서비스 이탈을 막는다.
       const handled = appBackRef.current();
-      if (!handled) window.history.pushState({ itall: true }, '');
+      if (!handled) window.history.pushState({ mp: true }, '');
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);

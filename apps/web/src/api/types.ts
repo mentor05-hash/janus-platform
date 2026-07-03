@@ -1,4 +1,4 @@
-// API 응답 뷰 타입(백엔드 DTO와 일치). 전체 계약 타입은 @itall/shared(api-types) 에 생성됨.
+// API 응답 뷰 타입(백엔드 DTO와 일치). 전체 계약 타입은 @mentoring/shared(api-types) 에 생성됨.
 export type BookingStatus = 'new' | 'confirmed' | 'done' | 'cancelled' | 'rejected' | 'noshow';
 
 export interface Me {

@@ -12,7 +12,7 @@ const sizeStr = (n: number | null) => (n == null ? '' : n < 1048576 ? `${Math.ro
 
 /** 미리보기: 웹에서 파일을 받아 텍스트/이미지 인라인 표시. */
 async function fetchPreview(path: string): Promise<{ kind: 'text' | 'image' | 'none'; text?: string; url?: string }> {
-  const tok = (typeof localStorage !== 'undefined' && localStorage.getItem('itall_access')) || '';
+  const tok = (typeof localStorage !== 'undefined' && localStorage.getItem('mp_access')) || '';
   const res = await fetch('/api/v1' + path, { headers: tok ? { Authorization: `Bearer ${tok}` } : {} });
   const ct = res.headers.get('Content-Type') ?? '';
   const blob = await res.blob();

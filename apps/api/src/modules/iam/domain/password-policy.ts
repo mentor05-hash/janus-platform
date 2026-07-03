@@ -13,7 +13,7 @@ const COMMON_WEAK = new Set([
   '123456789',
   'qwerty123',
   '11111111',
-  'itall123',
+  'mentoring123',
 ]);
 
 export function validatePassword(pw: string, loginId?: string): PasswordCheck {

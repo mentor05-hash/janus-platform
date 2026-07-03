@@ -24,7 +24,7 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
   const peerTypingOffRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem('itall_access') ?? '';
+    const token = localStorage.getItem('mp_access') ?? '';
     const s = io(window.location.origin, { path: '/api/v1/socket.io', auth: { token }, transports: ['websocket'] });
     sockRef.current = s;
     s.on('connect', () => {

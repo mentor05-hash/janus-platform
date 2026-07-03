@@ -1,7 +1,7 @@
 // API 클라이언트: JWT(access/refresh) 저장·자동 첨부·401 시 1회 갱신, {data}/{error} 언래핑.
 const BASE = '/api/v1';
-const ACCESS = 'itall_access';
-const REFRESH = 'itall_refresh';
+const ACCESS = 'mp_access';
+const REFRESH = 'mp_refresh';
 
 export const tokens = {
   get access() {

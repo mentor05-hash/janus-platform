@@ -82,6 +82,6 @@ describe('a2 zoom 입장 URL(§9·§10)', () => {
     await booking.accept(created.id, teacherUser); // teacher 수락 → confirmed
 
     const row = await prisma.booking.findUnique({ where: { id: created.id } });
-    expect(row?.meeting_url).toBe(`https://meet.local/itall/${created.id}`);
+    expect(row?.meeting_url).toBe(`https://meet.local/session/${created.id}`);
   });
 });

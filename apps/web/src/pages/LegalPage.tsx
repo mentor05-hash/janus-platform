@@ -46,7 +46,7 @@ export function LegalPage() {
   useEffect(() => {
     (async () => {
       try {
-        const KEY = 'itall_push_token';
+        const KEY = 'mp_push_token';
         let token = localStorage.getItem(KEY);
         if (!token) { token = `ExponentPushToken[web-${Math.random().toString(36).slice(2, 10)}]`; localStorage.setItem(KEY, token); }
         await api.post('/me/push-token', { token, platform: 'web' });

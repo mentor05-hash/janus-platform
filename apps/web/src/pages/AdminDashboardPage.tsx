@@ -11,7 +11,7 @@ export function AdminDashboardPage() {
 
   useEffect(() => {
     // 대시보드는 {data, meta} 모두 필요 → raw fetch 로 메타까지 수신
-    fetch('/api/v1/admin/dashboard', { headers: { Authorization: `Bearer ${localStorage.getItem('itall_access')}` } })
+    fetch('/api/v1/admin/dashboard', { headers: { Authorization: `Bearer ${localStorage.getItem('mp_access')}` } })
       .then((r) => r.json())
       .then((j) => {
         if (j.error) throw new ApiError(j.error.code, j.error.message, 0);

@@ -13,7 +13,7 @@ import { api } from './api';
 export async function registerPushToken(): Promise<{ token: string; platform: string } | null> {
   try {
     if (Platform.OS === 'web') {
-      const KEY = 'itall_push_token';
+      const KEY = 'mp_push_token';
       let token = typeof localStorage !== 'undefined' ? localStorage.getItem(KEY) : null;
       if (!token) {
         token = `ExponentPushToken[web-${Math.random().toString(36).slice(2, 10)}]`;

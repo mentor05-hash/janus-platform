@@ -80,7 +80,7 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
   }
 
   useEffect(() => {
-    const token = localStorage.getItem('itall_access') ?? '';
+    const token = localStorage.getItem('mp_access') ?? '';
     const s = io(window.location.origin, { path: '/api/v1/socket.io', auth: { token }, transports: ['websocket'] });
     sockRef.current = s;
     s.on('connect', () => {

@@ -131,7 +131,7 @@ export class HrController {
         continue;
       }
       try {
-        const pw = row.password?.trim() || `itall-${loginId}`;
+        const pw = row.password?.trim() || `mp-${loginId}`;
         const acc = await this.prisma.account.create({
           data: {
             role: AccountRole.STUDENT,
@@ -183,7 +183,7 @@ export class HrController {
       const name = this.cell(norm, '이름', '성명', 'name');
       if (!loginId || !name) { errors.push({ loginId: loginId || `${i + 2}행`, reason: '아이디·이름 필수' }); continue; }
       try {
-        const pw = this.cell(norm, '비밀번호', 'password') || `itall-${loginId}`;
+        const pw = this.cell(norm, '비밀번호', 'password') || `mp-${loginId}`;
         const acc = await this.prisma.account.create({
           data: { role: AccountRole.STUDENT, login_id: loginId, pw_hash: await bcrypt.hash(pw, 10), name, center_id: user.centerId ?? null, status: AccountStatus.APPROVED },
         });
@@ -209,7 +209,7 @@ export class HrController {
       const grade = (['S', 'A', 'B'].includes(gradeRaw) ? gradeRaw : 'B') as $Enums.teacher_grade_t;
       const subjects = this.cell(norm, '과목', 'subjects').split(/[,·\/]/).map((s) => s.trim()).filter(Boolean);
       try {
-        const pw = this.cell(norm, '비밀번호', 'password') || `itall-${loginId}`;
+        const pw = this.cell(norm, '비밀번호', 'password') || `mp-${loginId}`;
         const acc = await this.prisma.account.create({
           data: { role: AccountRole.TEACHER, login_id: loginId, pw_hash: await bcrypt.hash(pw, 10), name, center_id: user.centerId ?? null, status: AccountStatus.APPROVED },
         });
@@ -290,7 +290,7 @@ export class HrController {
             data: {
               role: AccountRole.STUDENT,
               login_id: loginId,
-              pw_hash: await bcrypt.hash(`itall-${loginId}`, 10),
+              pw_hash: await bcrypt.hash(`mp-${loginId}`, 10),
               name: rec.name.trim(),
               center_id: user.centerId ?? null,
               status: AccountStatus.APPROVED,
@@ -322,7 +322,7 @@ export class HrController {
     if (!loginId || !dto.name.trim())
       throw new BadRequestException('아이디·이름은 필수입니다.');
     try {
-      const pw = dto.password?.trim() || `itall-${loginId}`;
+      const pw = dto.password?.trim() || `mp-${loginId}`;
       const acc = await this.prisma.account.create({
         data: {
           role: AccountRole.TEACHER,

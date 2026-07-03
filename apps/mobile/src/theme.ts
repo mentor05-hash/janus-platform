@@ -81,7 +81,7 @@ export function makeUI(C: Palette) {
 }
 
 // ── 테마 컨텍스트 ──────────────────────────────────────────
-const readInitialDark = () => (typeof localStorage !== 'undefined' && localStorage.getItem('itall_theme') === 'dark');
+const readInitialDark = () => (typeof localStorage !== 'undefined' && localStorage.getItem('mp_theme') === 'dark');
 
 type ThemeValue = { C: Palette; dark: boolean; toggle: () => void };
 const ThemeCtx = createContext<ThemeValue>({ C: LIGHT, dark: false, toggle: () => {} });
@@ -93,7 +93,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     dark,
     toggle: () => setDark((d) => {
       const next = !d;
-      if (typeof localStorage !== 'undefined') localStorage.setItem('itall_theme', next ? 'dark' : 'light');
+      if (typeof localStorage !== 'undefined') localStorage.setItem('mp_theme', next ? 'dark' : 'light');
       return next;
     }),
   }), [dark]);

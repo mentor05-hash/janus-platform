@@ -1,5 +1,5 @@
 {
-  "name": "@itall/api",
+  "name": "@mentoring/api",
   "version": "0.0.1",
   "description": "멘토링 플랫폼 — NestJS 백엔드 API",
   "author": "",

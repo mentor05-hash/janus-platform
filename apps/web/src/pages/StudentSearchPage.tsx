@@ -367,8 +367,8 @@ export function StudentSearchPage() {
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
-  const openDetail = (t: Teacher) => { setPicked(t); setPhase('detail'); window.history.pushState({ itall: 'detail' }, ''); };
-  const openBook = () => { setPhase('book'); window.history.pushState({ itall: 'book' }, ''); };
+  const openDetail = (t: Teacher) => { setPicked(t); setPhase('detail'); window.history.pushState({ mp: 'detail' }, ''); };
+  const openBook = () => { setPhase('book'); window.history.pushState({ mp: 'book' }, ''); };
 
   useEffect(() => {
     api.get<CreditAccount>('/credits/account').then(setCredit).catch(() => {});

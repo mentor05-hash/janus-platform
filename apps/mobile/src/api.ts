@@ -29,20 +29,20 @@ let accessToken: string | null = null;
 let refreshToken: string | null = null;
 
 export async function loadTokens() {
-  accessToken = await store.get('itall_access');
-  refreshToken = await store.get('itall_refresh');
+  accessToken = await store.get('mp_access');
+  refreshToken = await store.get('mp_refresh');
 }
 async function setTokens(a: string, r: string) {
   accessToken = a;
   refreshToken = r;
-  await store.set('itall_access', a);
-  await store.set('itall_refresh', r);
+  await store.set('mp_access', a);
+  await store.set('mp_refresh', r);
 }
 export async function clearTokens() {
   accessToken = null;
   refreshToken = null;
-  await store.del('itall_access');
-  await store.del('itall_refresh');
+  await store.del('mp_access');
+  await store.del('mp_refresh');
 }
 export const hasSession = () => !!accessToken;
 /** 현재 액세스 토큰(네이티브 WebView 세션 주입용). */

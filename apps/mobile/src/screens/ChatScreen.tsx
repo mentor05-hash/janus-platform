@@ -37,7 +37,7 @@ export function ChatScreen({ bookingId, myId, title, onClose, embedded }: { book
   useWebBack(!embedded, onClose); // 임베드(통합 화면)면 back은 호스트가 처리
 
   useEffect(() => {
-    const token = (typeof localStorage !== 'undefined' ? localStorage.getItem('itall_access') : '') ?? '';
+    const token = (typeof localStorage !== 'undefined' ? localStorage.getItem('mp_access') : '') ?? '';
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     const s = io(origin, { path: '/api/v1/socket.io', auth: { token }, transports: ['websocket'] });
     sockRef.current = s;

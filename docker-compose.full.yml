@@ -48,7 +48,7 @@ services:
       #   pool_timeout: 풀 대기 상한(초). 초과분은 서비스에서 우아한 409 로 안내. (postgres max=100)
       DATABASE_URL: postgresql://itall:itall_local_pw@postgres:5432/itall?connection_limit=30&pool_timeout=20
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: itall-jwt-secret-please-change
+      JWT_SECRET: dev-jwt-secret-please-change
       JWT_REFRESH_SECRET: itall-refresh-secret-please-change
       JWT_ACCESS_TTL: "900"
       JWT_REFRESH_TTL: "1209600"

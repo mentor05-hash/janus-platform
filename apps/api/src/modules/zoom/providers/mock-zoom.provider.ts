@@ -11,7 +11,7 @@ export class MockZoomProvider implements ZoomProvider {
 
   async issueJoinUrl(input: IssueJoinInput): Promise<JoinInfo> {
     const meetingId = input.bookingId;
-    const joinUrl = `https://meet.local/itall/${input.bookingId}`;
+    const joinUrl = `https://meet.local/session/${input.bookingId}`;
     this.logger.log(
       `[stub] 입장 URL 발급 booking=${input.bookingId} → ${joinUrl}`,
     );
