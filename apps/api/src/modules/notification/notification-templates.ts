@@ -27,6 +27,7 @@ const pick = (p: NotifPayload, ...keys: string[]): string => {
 const TEMPLATES: Record<string, Tmpl> = {
   // ── 예약 ──
   booking_requested: { title: '새 상담 신청', body: '새로운 상담 신청이 도착했어요. 예약 관리에서 확인하세요.' },
+  booking_assigned: { title: '상담 자동 배정', body: '근무시간에 상담이 자동 배정됐어요. 오늘/예약에서 확인하세요.' },
   booking_confirmed: { title: '예약 확정', body: '신청하신 상담이 확정되었어요. 예약 현황에서 확인하세요.' },
   booking_rejected: { title: '예약 거절', body: '신청하신 상담이 거절되었어요. 다른 시간·선생님으로 다시 신청해 주세요.' },
   booking_cancelled: { title: '예약 취소', body: '예약이 취소되었어요. 크레딧은 환원됩니다.' },

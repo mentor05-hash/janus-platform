@@ -30,7 +30,7 @@ import {
 } from '../../config/prisma-enums';
 import { permAtLeast } from '../../config/perm';
 import { resolveStudentType, type StudentType } from '../../common/student-type';
-import { DEFAULT_CONSULT_DURATION, CONSULT_TYPES } from '../../common/consult-assignment';
+import { DEFAULT_CONSULT_DURATION, CONSULT_TYPES, isFullTime } from '../../common/consult-assignment';
 import { AvailabilityService } from '../availability/availability.service';
 import { CreditService } from '../billing/credit.service';
 import { evaluatePenalty } from '../pricing-policy/domain/penalty';
@@ -344,6 +344,7 @@ export class BookingService {
     const credits = q.credits;
     const startAt = utcFromKst(dto.date, startMin);
     const endAt = utcFromKst(dto.date, endMin);
+    const autoConfirm = isFullTime(teacher.employment_type); // 전임 강제 배정(자동 확정)
 
     try {
       const booking = await this.bookingTx(async (tx) => {
@@ -393,10 +394,11 @@ export class BookingService {
             direction: 'student',
             start_at: startAt,
             end_at: endAt,
-            status: BookingStatus.NEW,
+            // 전임(풀타임)은 근무시간 강제 배정 — 수락단계 생략하고 학생이 고른 시간에 자동 확정
+            status: autoConfirm ? BookingStatus.CONFIRMED : BookingStatus.NEW,
             room_id: roomId,
             charged_credits: credits,
-            origin: '직접',
+            origin: autoConfirm ? '전임자동' : '직접',
             content: dto.content ?? null,
             attachments: (dto.attachments ?? []) as unknown as Prisma.InputJsonValue,
           },
@@ -427,12 +429,19 @@ export class BookingService {
         });
         return b;
       });
-      // 상담 신청 들어옴 → 선생님 알림
-      await this.notify.notify(dto.teacherId, 'booking_requested', {
-        bookingId: booking.id,
-        studentId,
-        date: dto.date,
-      });
+      if (autoConfirm) {
+        // 전임 자동 확정: 줌 입장 URL 발급 + 학생·선생님 알림(수락 절차 없음)
+        await this.issueMeetingUrlIfZoom(booking.id);
+        await this.notify.notify(studentId, 'booking_confirmed', { bookingId: booking.id });
+        await this.notify.notify(dto.teacherId, 'booking_assigned', {
+          bookingId: booking.id, studentId, date: dto.date,
+        });
+      } else {
+        // 상담 신청 들어옴 → 선생님 알림
+        await this.notify.notify(dto.teacherId, 'booking_requested', {
+          bookingId: booking.id, studentId, date: dto.date,
+        });
+      }
       return this.toBookingDto(booking);
     } catch (e) {
       if (e instanceof ShortfallError) {
