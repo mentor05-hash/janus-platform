@@ -7,6 +7,13 @@ import { I18nProvider } from './i18n';
 import './styles/tokens.css';
 import './styles/components.css';
 import { initTheme } from './theme';
+import { COLORS } from './branding.generated'; // 화이트라벨 브랜드 컬러(설정 주입)
+
+// 브랜드 컬러를 CSS 변수로 주입(tokens.css 기본값 오버라이드 — 기본값=현재값이면 무변화)
+const rootStyle = document.documentElement.style;
+rootStyle.setProperty('--teal', COLORS.primary);
+rootStyle.setProperty('--teal-900', COLORS.primaryDark);
+rootStyle.setProperty('--teal-500', COLORS.primary500);
 
 initTheme();
 

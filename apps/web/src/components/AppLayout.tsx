@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom';
+import { APP_NAME, LOGO_MARK } from '../branding.generated';
 import { useAuth } from '../auth/AuthContext';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -26,9 +27,9 @@ export function AppLayout() {
     <div className="shell">
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <span className="mark">멘</span>
+          <span className="mark">{LOGO_MARK}</span>
           <div>
-            <div className="title">멘토링 플랫폼</div>
+            <div className="title">{APP_NAME}</div>
             <div className="center">선생님 콘솔</div>
           </div>
         </div>

@@ -4,6 +4,7 @@
  */
 import { createContext, createElement, useContext, useMemo, useState, type ReactNode } from 'react';
 import { StyleSheet } from 'react-native';
+import { COLORS as BRAND } from './branding.generated'; // 화이트라벨 브랜드 컬러(설정 주입)
 
 export type Palette = {
   teal: string; teal900: string; teal500: string; teal100: string; teal50: string;
@@ -19,7 +20,7 @@ export type Palette = {
 };
 
 export const LIGHT: Palette = {
-  teal: '#0E5C7C', teal900: '#0A4A64', teal500: '#1A7FA8', teal100: '#DCECF3', teal50: '#F0F7FA',
+  teal: BRAND.primary, teal900: BRAND.primaryDark, teal500: BRAND.primary500, teal100: '#DCECF3', teal50: '#F0F7FA',
   ink: '#16242B', body: '#374151', muted: '#52656D', caption: '#94A3AB',
   line: '#E7ECEF', lineSoft: '#EEF2F4', inputBorder: '#CBD5DA',
   bg: '#F2F4F6', fill: '#F6F8FA', white: '#FFFFFF',

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { APP_NAME, LOGO_MARK } from '../branding.generated';
 import { NavLink, Outlet } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
@@ -30,9 +31,9 @@ export function StudentLayout() {
     <div className="shell">
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <span className="mark">멘</span>
+          <span className="mark">{LOGO_MARK}</span>
           <div>
-            <div className="title">멘토링 플랫폼</div>
+            <div className="title">{APP_NAME}</div>
             <div className="center">학생</div>
           </div>
         </div>
