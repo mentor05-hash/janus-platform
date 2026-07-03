@@ -25,6 +25,8 @@ export function AdminInfraPage() {
   const isHq = user?.role === 'admin' && !user?.center_id;
   const [rt, setRt] = useState<RtFeatures | null>(null);
   const [rev, setRev] = useState<{ offlineOnly: boolean; free: boolean } | null>(null);
+  const [ext, setExt] = useState<{ onlineOnly: boolean; surchargePct: number; weeklyGrant: boolean; boardOnly: boolean } | null>(null);
+  const [surIn, setSurIn] = useState('');
   const [dash, setDash] = useState<DashPolicy | null>(null);
   const [dashCenters, setDashCenters] = useState<{ id: string; name: string }[]>([]);
   const [zoom, setZoom] = useState<number>(6);
@@ -42,6 +44,7 @@ export function AdminInfraPage() {
     // 줌/상담실 조회 실패와 무관하게 정책 카드를 볼 수 있어야 함.
     api.get<RtFeatures>('/admin/realtime/policy').then(setRt).catch(() => {});
     api.get<{ offlineOnly: boolean; free: boolean }>('/bookings/reverse/policy').then(setRev).catch(() => {});
+    api.get<{ onlineOnly: boolean; surchargePct: number; weeklyGrant: boolean; boardOnly: boolean }>('/bookings/external/policy').then((e) => { setExt(e); setSurIn(String(e.surchargePct)); }).catch(() => {});
     api.get<DashPolicy>('/admin/dashboard/policy').then(setDash).catch(() => {});
     if (isHq) api.get<{ id: string; name: string }[]>('/centers').then(setDashCenters).catch(() => {});
     // 센터 스코프 자원(줌·상담실·차단) — 본사 마스터는 센터가 없어 실패할 수 있음(무시).
@@ -144,6 +147,54 @@ export function AdminInfraPage() {
                 </div>
               </div>
             ))}
+          </div>
+        </Card>
+      )}
+
+      {ext && (
+        <Card title="외부학생 정책" style={{ marginBottom: 16 }}>
+          <p style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 0 }}>
+            학원생(재원)과 구분되는 외부학생의 전사 규칙입니다. 접근(온라인 한정·상담 제한)은 본사, 요금·크레딧은 마스터관리자가 설정합니다.
+            {!isHq && <span style={{ color: 'var(--chip-rejected,#c0392b)' }}> · 변경은 본사 마스터관리자만 가능합니다.</span>}
+          </p>
+          <div style={{ display: 'grid', gap: 10, maxWidth: 620 }}>
+            {([
+              { key: 'onlineOnly' as const, label: '온라인 상담만 허용', desc: '외부학생은 오프라인 대면·상담실 배정 불가 · 본사 관리자' },
+              { key: 'boardOnly' as const, label: '상담 예약 제한(게시판만)', desc: '외부학생은 상담 예약 불가, 게시판 질문만 이용 · 본사 관리자' },
+              { key: 'weeklyGrant' as const, label: '주간 크레딧 부여', desc: '외부학생에게도 주간 크레딧 부여(기본 제외) · 마스터관리자' },
+            ]).map((it) => (
+              <div key={it.key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>{it.label}</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>{it.desc}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {([true, false] as const).map((v) => {
+                    const active = ext[it.key] === v;
+                    return (
+                      <button key={String(v)} disabled={!isHq}
+                        onClick={() => run(async () => { const next = await api.patch<typeof ext>(`/bookings/external/policy`, { [it.key]: v }); setExt(next!); setSurIn(String(next!.surchargePct)); }, `${it.label} 정책 저장됨`)}
+                        style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: isHq ? 'pointer' : 'not-allowed', opacity: isHq ? 1 : 0.6,
+                          border: active ? '1px solid var(--teal)' : '1px solid var(--line)', background: active ? 'var(--teal)' : 'var(--surface)', color: active ? '#fff' : 'var(--muted)' }}>
+                        {v ? '켬' : '끔'}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            {/* 요금 할증률 — 마스터관리자 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>요금 할증률 (%)</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)' }}>외부학생 상담료에 붙는 할증 · 마스터관리자 (0~300)</div>
+              </div>
+              <input type="number" min={0} max={300} value={surIn} disabled={!isHq} onChange={(e) => setSurIn(e.target.value)}
+                style={{ width: 80, padding: '6px 8px', borderRadius: 8, border: '1px solid var(--line)', textAlign: 'right' }} />
+              <button disabled={!isHq}
+                onClick={() => run(async () => { const next = await api.patch<typeof ext>(`/bookings/external/policy`, { surchargePct: Number(surIn) }); setExt(next!); setSurIn(String(next!.surchargePct)); }, '할증률 저장됨')}
+                style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: isHq ? 'pointer' : 'not-allowed', opacity: isHq ? 1 : 0.6, border: '1px solid var(--teal)', background: 'var(--teal)', color: '#fff' }}>저장</button>
+            </div>
           </div>
         </Card>
       )}

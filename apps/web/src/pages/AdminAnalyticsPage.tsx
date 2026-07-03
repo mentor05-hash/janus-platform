@@ -53,6 +53,7 @@ export function AdminAnalyticsPage() {
   const [view, setView] = useState('center');
   const [pivot, setPivot] = useState<Record<string, unknown>[]>([]);
   const [consult, setConsult] = useState<ConsultStat[]>([]);
+  const [byType, setByType] = useState<{ studentType: string; label: string; done: number; notes: number; final: number; recordRate: number }[]>([]);
   const [error, setError] = useState('');
   const [blocked, setBlocked] = useState(false); // 본사 노출 정책상 이 센터 대시보드 비활성
 
@@ -81,7 +82,10 @@ export function AdminAnalyticsPage() {
 
   const loadConsult = useCallback(async () => {
     try {
-      setConsult(await api.get<ConsultStat[]>(`/ops/consultation-stats?period=${period}`));
+      // unwrap=false 로 봉투 전체 수신 → data(유형별 rows) + byStudentType(재원/외부)
+      const env = await api.getPage<ConsultStat>(`/ops/consultation-stats?period=${period}`) as unknown as { data: ConsultStat[]; byStudentType?: typeof byType };
+      setConsult(env.data ?? []);
+      setByType(env.byStudentType ?? []);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : '조회 실패');
     }
@@ -182,6 +186,22 @@ export function AdminAnalyticsPage() {
               </tr>
             </tbody>
           </table>
+        )}
+        {byType.length > 0 && (
+          <div style={{ marginTop: 16, borderTop: '1px solid var(--line)', paddingTop: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 8 }}>학생 유형별 (재원 / 외부)</div>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              {byType.map((t) => (
+                <div key={t.studentType} style={{ flex: '1 1 200px', minWidth: 180, border: '1px solid var(--line)', borderRadius: 10, padding: '10px 12px', background: 'var(--surface)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 999, color: '#fff', background: t.studentType === 'enrolled' ? 'var(--teal)' : '#B4690E' }}>{t.label}</span>
+                  </div>
+                  <div style={{ fontSize: 20, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{t.done.toLocaleString()}<span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600 }}> 완료</span></div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' }}>기록 {t.notes.toLocaleString()} · 최종 {t.final.toLocaleString()} · 작성률 {t.recordRate}%</div>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </SectionCard>
 
