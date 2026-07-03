@@ -45,6 +45,8 @@ export async function clearTokens() {
   await store.del('itall_refresh');
 }
 export const hasSession = () => !!accessToken;
+/** 현재 액세스 토큰(네이티브 WebView 세션 주입용). */
+export const getAccessToken = () => accessToken;
 
 export class ApiError extends Error {
   constructor(public code: string, message: string, public status: number) {

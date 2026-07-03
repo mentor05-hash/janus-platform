@@ -3,8 +3,11 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensio
 import { api } from '../api';
 import { R, useTheme, type Palette } from '../theme';
 import { useWebBack } from '../webBack';
+import { Platform } from 'react-native';
 import { ChatScreen } from './ChatScreen';
 import { WhiteboardScreen } from './WhiteboardScreen';
+import { SessionWebView } from './SessionWebView';
+import { getAccessToken } from '../api';
 
 /** 열린 상담 세션(§선생님 모바일 ③다중 상담 동시 진행). */
 export type OpenSession = { id: string; title: string; sub?: string };
@@ -102,8 +105,17 @@ export function SessionHost({ host, myId, onClosed }: { host: Host; myId: string
         </View>
       </View>
 
-      {/* 본문 — 통합 분할 또는 단일 */}
-      {showBoth ? (
+      {/* 본문 — 네이티브: WebView 임베드(/embed/session) · 웹: DOM 세션(SessionHost) */}
+      {Platform.OS !== 'web' ? (
+        <SessionWebView
+          key={`nv-${active.id}-${panel}`}
+          bookingId={active.id}
+          token={getAccessToken()}
+          kind={panel === 'wb' ? 'whiteboard' : panel === 'both' ? 'both' : 'chat'}
+          title={active.title}
+          onClose={() => closeOne(active.id)}
+        />
+      ) : showBoth ? (
         <View style={s.split}>
           <View style={s.half}><ChatScreen key={`c-${active.id}`} bookingId={active.id} myId={myId} title={active.title} onClose={() => closeOne(active.id)} embedded /></View>
           <View style={s.divider} />
