@@ -1,26 +1,44 @@
 {
   "expo": {
-    "name": "멘토링 플랫폼",
+    "name": "잇올 멘토링",
     "slug": "itall-mentoring",
-    "version": "0.0.1",
+    "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "scheme": "itall",
-    "splash": { "backgroundColor": "#0E5C7C" },
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0E5C7C"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.itall.mentoring",
       "buildNumber": "1",
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": ["remote-notification"],
+        "NSCameraUsageDescription": "상담 중 사진 촬영과 화이트보드 배경 촬영에 카메라를 사용합니다.",
+        "NSMicrophoneUsageDescription": "상담 중 음성통화에 마이크를 사용합니다.",
+        "NSPhotoLibraryUsageDescription": "상담 채팅·화이트보드에 사진을 첨부할 때 사진 라이브러리에 접근합니다.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "package": "com.itall.mentoring",
       "versionCode": 1,
-      "permissions": ["POST_NOTIFICATIONS"]
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0E5C7C"
+      },
+      "permissions": [
+        "POST_NOTIFICATIONS",
+        "CAMERA",
+        "RECORD_AUDIO"
+      ]
     },
     "notification": {
+      "icon": "./assets/notification-icon.png",
       "color": "#0E5C7C",
       "iosDisplayInForeground": true
     },
@@ -31,6 +49,7 @@
         "projectId": "00000000-0000-0000-0000-000000000000"
       }
     },
-    "runtimeVersion": { "policy": "sdkVersion" }
+    "runtimeVersion": { "policy": "sdkVersion" },
+    "owner": "itall"
   }
 }
