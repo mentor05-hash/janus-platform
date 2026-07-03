@@ -50,4 +50,11 @@ export class AssignmentController {
   runFill() {
     return this.svc.runFill();
   }
+
+  /** POST /assignment/run-reverse-scan — 관리자: 최초상담(역상담) 스캔 즉시 실행. */
+  @Post('run-reverse-scan')
+  @Roles('admin')
+  runReverse() {
+    return this.svc.runReverseScan();
+  }
 }
