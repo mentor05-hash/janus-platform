@@ -6,7 +6,7 @@ import { useTheme, type Palette } from '../theme';
 import { useWebBack } from '../webBack';
 import { useVoiceCall } from '../voiceCall';
 
-type Pt = { x: number; y: number };
+type Pt = { x: number; y: number; p?: number };
 type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean };
 const COLORS = ['#16242B', '#0E5C7C', '#E5484D', '#2F9E44', '#F08C00'];
 const W = 720, H = 900;
@@ -51,11 +51,20 @@ export function WhiteboardScreen({ bookingId, title, onClose }: { bookingId: str
     for (const s of [...strokesRef.current, ...(drawingRef.current ? [drawingRef.current] : [])]) {
       if (s.points.length < 1) continue;
       ctx.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over';
-      ctx.strokeStyle = s.color; ctx.lineWidth = s.width;
-      ctx.beginPath(); ctx.moveTo(s.points[0].x, s.points[0].y);
-      for (const p of s.points.slice(1)) ctx.lineTo(p.x, p.y);
-      if (s.points.length === 1) ctx.lineTo(s.points[0].x + 0.1, s.points[0].y + 0.1);
-      ctx.stroke();
+      ctx.strokeStyle = s.color;
+      if (s.erase || s.points.length === 1 || s.points.every((q) => q.p == null)) {
+        ctx.lineWidth = s.width;
+        ctx.beginPath(); ctx.moveTo(s.points[0].x, s.points[0].y);
+        for (const p of s.points.slice(1)) ctx.lineTo(p.x, p.y);
+        if (s.points.length === 1) ctx.lineTo(s.points[0].x + 0.1, s.points[0].y + 0.1);
+        ctx.stroke();
+      } else {
+        for (let i = 1; i < s.points.length; i++) {
+          const a = s.points[i - 1], b = s.points[i];
+          ctx.lineWidth = s.width * (0.35 + (b.p ?? 0.5) * 1.3);
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        }
+      }
     }
     ctx.globalCompositeOperation = 'source-over';
   }
@@ -78,15 +87,17 @@ export function WhiteboardScreen({ bookingId, title, onClose }: { bookingId: str
     cv.width = W; cv.height = H;
     cv.style.cssText = 'width:100%;height:100%;background:#fff;touch-action:none;display:block;border-radius:8px;';
     host.appendChild(cv); canvasRef.current = cv;
-    const toLogical = (e: PointerEvent) => { const r = cv.getBoundingClientRect(); return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H }; };
+    let penSeen = false;
+    const rejected = (e: PointerEvent) => { if (e.pointerType === 'pen') penSeen = true; return penSeen && e.pointerType === 'touch'; };
+    const pt = (e: PointerEvent): Pt => { const r = cv.getBoundingClientRect(); const p = e.pointerType === 'pen' ? (e.pressure || 0.5) : e.pressure > 0 ? e.pressure : 0.5; return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H, p }; };
     const down = (e: PointerEvent) => {
-      if (status !== 'ready') return; cv.setPointerCapture?.(e.pointerId);
+      if (status !== 'ready' || rejected(e)) return; cv.setPointerCapture?.(e.pointerId);
       drawingRef.current = toolRef.current === 'eraser'
-        ? { points: [toLogical(e)], color: '#000', width: Math.max(16, widthRef.current * 4), erase: true }
-        : { points: [toLogical(e)], color: colorRef.current, width: widthRef.current };
+        ? { points: [pt(e)], color: '#000', width: Math.max(16, widthRef.current * 4), erase: true }
+        : { points: [pt(e)], color: colorRef.current, width: widthRef.current };
       redraw();
     };
-    const move = (e: PointerEvent) => { if (!drawingRef.current) return; drawingRef.current.points.push(toLogical(e)); redraw(); };
+    const move = (e: PointerEvent) => { if (!drawingRef.current || rejected(e)) return; drawingRef.current.points.push(pt(e)); redraw(); };
     const up = () => { const st = drawingRef.current; drawingRef.current = null; if (!st || !st.points.length) return; strokesRef.current.push(st); redraw(); sockRef.current?.emit('wb:stroke', { bookingId, stroke: st }); scheduleAutosave(); };
     cv.addEventListener('pointerdown', down); cv.addEventListener('pointermove', move);
     cv.addEventListener('pointerup', up); cv.addEventListener('pointerleave', up);

@@ -3,7 +3,7 @@ import { io, type Socket } from 'socket.io-client';
 import { api } from '../api/client';
 import { useVoiceCall } from '../utils/voiceCall';
 
-type Pt = { x: number; y: number };
+type Pt = { x: number; y: number; p?: number }; // p=필압(0~1)
 type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean };
 const COLORS = ['#16242B', '#0E5C7C', '#E5484D', '#2F9E44', '#F08C00'];
 const W = 900, H = 620; // 논리 좌표(비율 유지 스케일링)
@@ -23,6 +23,7 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved'>('idle');
   const [camOn, setCamOn] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const penSeenRef = useRef(false); // 펜(스타일러스) 입력을 본 적 있으면 손가락(터치)은 무시(팜리젝션)
   const fileRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const camStreamRef = useRef<MediaStream | null>(null);
@@ -42,11 +43,22 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     for (const s of [...strokesRef.current, ...(drawingRef.current ? [drawingRef.current] : [])]) {
       if (s.points.length < 1) continue;
       ctx.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over';
-      ctx.strokeStyle = s.color; ctx.lineWidth = s.width;
-      ctx.beginPath(); ctx.moveTo(s.points[0].x, s.points[0].y);
-      for (const p of s.points.slice(1)) ctx.lineTo(p.x, p.y);
-      if (s.points.length === 1) ctx.lineTo(s.points[0].x + 0.1, s.points[0].y + 0.1);
-      ctx.stroke();
+      ctx.strokeStyle = s.color;
+      if (s.erase || s.points.length === 1 || s.points.every((q) => q.p == null)) {
+        // 지우개·단일점·필압 없는 스트로크: 고정 굵기(기존 동작)
+        ctx.lineWidth = s.width;
+        ctx.beginPath(); ctx.moveTo(s.points[0].x, s.points[0].y);
+        for (const p of s.points.slice(1)) ctx.lineTo(p.x, p.y);
+        if (s.points.length === 1) ctx.lineTo(s.points[0].x + 0.1, s.points[0].y + 0.1);
+        ctx.stroke();
+      } else {
+        // 펜 필압: 구간별 굵기 = base × (0.35 + p×1.3)
+        for (let i = 1; i < s.points.length; i++) {
+          const a = s.points[i - 1], b = s.points[i];
+          ctx.lineWidth = s.width * (0.35 + ((b.p ?? 0.5)) * 1.3);
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        }
+      }
     }
     ctx.globalCompositeOperation = 'source-over';
   }
@@ -86,19 +98,25 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingId]);
 
-  function toLogical(e: React.PointerEvent) {
+  function pt(e: React.PointerEvent): Pt {
     const cv = canvasRef.current!; const r = cv.getBoundingClientRect();
-    return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H };
+    const p = e.pointerType === 'pen' ? (e.pressure || 0.5) : e.pressure > 0 ? e.pressure : 0.5;
+    return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H, p };
+  }
+  /** 팜리젝션: 펜 입력을 한 번이라도 봤으면 손가락(터치)은 그리기에서 무시. */
+  function rejected(e: React.PointerEvent) {
+    if (e.pointerType === 'pen') penSeenRef.current = true;
+    return penSeenRef.current && e.pointerType === 'touch';
   }
   function down(e: React.PointerEvent) {
-    if (status !== 'ready') return;
+    if (status !== 'ready' || rejected(e)) return;
     (e.target as Element).setPointerCapture?.(e.pointerId);
     drawingRef.current = tool === 'eraser'
-      ? { points: [toLogical(e)], color: '#000', width: Math.max(16, width * 4), erase: true }
-      : { points: [toLogical(e)], color, width };
+      ? { points: [pt(e)], color: '#000', width: Math.max(16, width * 4), erase: true }
+      : { points: [pt(e)], color, width };
     redraw();
   }
-  function move(e: React.PointerEvent) { if (!drawingRef.current) return; drawingRef.current.points.push(toLogical(e)); redraw(); }
+  function move(e: React.PointerEvent) { if (!drawingRef.current || rejected(e)) return; drawingRef.current.points.push(pt(e)); redraw(); }
   function up() {
     const st = drawingRef.current; drawingRef.current = null;
     if (!st || st.points.length === 0) return;

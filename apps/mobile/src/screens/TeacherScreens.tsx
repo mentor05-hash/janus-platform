@@ -4,6 +4,7 @@ import { api, ApiError, Booking } from '../api';
 import { useTheme, type Palette } from '../theme';
 import { ChatScreen } from './ChatScreen';
 import { WhiteboardScreen } from './WhiteboardScreen';
+import { queueNote, flushNotes, queuedCount, onlineFlush } from '../offlineQueue';
 
 // ── 공통 ──
 const KST = (iso?: string | null) => (iso ? new Date(iso).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '');
@@ -204,14 +205,19 @@ export function TeacherRecords() {
   const [students, setStudents] = useState<TStudent[] | null>(null);
   const [detail, setDetail] = useState<Detail>(null);
 
+  const [queued, setQueued] = useState(0);
   const load = useCallback(() => {
     api.get<{ data?: Booking[] } | Booking[]>('/bookings?role=teacher').then((r) => setBookings(unwrap(r))).catch(() => setBookings([]));
     api.get<{ data?: TStudent[] } | TStudent[]>('/me/students').then((r) => setStudents(unwrap(r))).catch(() => setStudents([]));
   }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    flushNotes().then((n) => { if (n) load(); setQueued(queuedCount()); }); // 진입 시 대기분 동기화
+    return onlineFlush(() => { load(); setQueued(queuedCount()); }); // 온라인 복귀 시 자동
+  }, [load]);
 
   const detailNode = detail?.kind === 'edit'
-    ? <NoteEditor booking={detail.booking} embedded={wide} onClose={() => { setDetail(null); load(); }} />
+    ? <NoteEditor booking={detail.booking} embedded={wide} onClose={() => { setDetail(null); load(); setQueued(queuedCount()); }} />
     : detail?.kind === 'student'
       ? <StudentNotes student={detail.student} embedded={wide} onClose={() => setDetail(null)} onOpen={(b) => setDetail({ kind: 'edit', booking: b })} />
       : null;
@@ -224,6 +230,7 @@ export function TeacherRecords() {
   const List = (
     <ScrollView style={s.wrap} contentContainerStyle={{ padding: 16, gap: 10 }}>
       <Text style={s.h1}>상담기록</Text>
+      {queued > 0 && <Text style={s.msg}>📡 동기화 대기 {queued}건 — 연결되면 자동 반영돼요.</Text>}
       <View style={s.seg}>
         {(['booking', 'student'] as const).map((m) => (
           <TouchableOpacity key={m} style={[s.segItem, mode === m && s.segOn]} onPress={() => { setMode(m); setDetail(null); }}><Text style={[s.segT, mode === m && s.segTOn]}>{m === 'booking' ? '예약별' : '학생별'}</Text></TouchableOpacity>
@@ -298,14 +305,21 @@ function NoteEditor({ booking, onClose, embedded }: { booking: Booking; onClose:
 
   async function save(saveState: 'draft' | 'final') {
     setBusy(true); setMsg('');
+    const payload = { ...f, guardianVisible, saveState };
+    const offline = typeof navigator !== 'undefined' && 'onLine' in navigator && !navigator.onLine;
+    if (offline) { queueNote(booking.id, payload, 0); setMsg('오프라인 — 저장을 예약했어요. 연결되면 자동 동기화됩니다.'); setBusy(false); return; }
     try {
-      await api.put(`/bookings/${booking.id}/note`, { ...f, guardianVisible, saveState });
+      await api.put(`/bookings/${booking.id}/note`, payload);
       if (saveState === 'final' && booking.status === 'confirmed') {
         await api.patch(`/bookings/${booking.id}/complete`, {}).catch(() => {});
       }
       setMsg(saveState === 'final' ? '최종 저장했어요. 상담이 완료 처리됩니다.' : '임시저장했어요.');
       if (saveState === 'final') setTimeout(onClose, 700);
-    } catch (e) { setMsg(e instanceof ApiError ? e.message : '저장 실패'); }
+    } catch (e) {
+      // 네트워크성 실패(비검증)면 큐에 예약
+      if (!(e instanceof ApiError)) { queueNote(booking.id, payload, 0); setMsg('저장 실패 — 오프라인 큐에 예약했어요. 연결되면 동기화됩니다.'); }
+      else setMsg(e.message);
+    }
     finally { setBusy(false); }
   }
 
