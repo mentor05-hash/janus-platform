@@ -68,8 +68,9 @@ export class OpsService {
         select: { start_at: true },
       }),
     ]);
+    // 미래 start_at(데모/예약 완료 선반영)은 음수 경과 → 인덱스 음수 방지 위해 [0, WEEKS-1] 클램프
     const bucket = (d: Date) =>
-      Math.min(WEEKS - 1, Math.floor((now.getTime() - d.getTime()) / weekMs));
+      Math.max(0, Math.min(WEEKS - 1, Math.floor((now.getTime() - d.getTime()) / weekMs)));
     const trend = Array.from({ length: WEEKS }, (_, i) => ({
       weeksAgo: WEEKS - 1 - i,
       applied: 0,
