@@ -1,4 +1,4 @@
-# 잇올 멘토링 — 전체 스택 설치형(api + web + db + redis) · 기능 연동 검증/배포용.
+# 멘토링 플랫폼 — 전체 스택 설치형(api + web + db + redis) · 기능 연동 검증/배포용.
 #
 # 실행(개발 인프라와 같은 5432/6379 사용 → 먼저 dev 인프라를 내려야 함):
 #   docker compose down                              # 기존 dev postgres/redis 중지(볼륨 보존)
@@ -49,7 +49,7 @@ services:
       DATABASE_URL: postgresql://itall:itall_local_pw@postgres:5432/itall?connection_limit=30&pool_timeout=20
       REDIS_URL: redis://redis:6379
       JWT_SECRET: dev-jwt-secret-please-change
-      JWT_REFRESH_SECRET: itall-refresh-secret-please-change
+      JWT_REFRESH_SECRET: dev-refresh-secret-please-change
       JWT_ACCESS_TTL: "900"
       JWT_REFRESH_TTL: "1209600"
       PG_PROVIDER: mock

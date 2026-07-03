@@ -1,4 +1,4 @@
-# 잇올 멘토링 — 로컬 개발 인프라 (Phase 0)
+# 멘토링 플랫폼 — 로컬 개발 인프라 (Phase 0)
 # 클라우드 이식 시: 이 compose 대신 관리형 PostgreSQL/Redis로 교체(코드 변경 없음).
 services:
   postgres:
