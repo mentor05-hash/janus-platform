@@ -27,6 +27,8 @@ export function AdminInfraPage() {
   const [rev, setRev] = useState<{ offlineOnly: boolean; free: boolean } | null>(null);
   const [ext, setExt] = useState<{ offlineDiscovery: boolean; onlineOnly: boolean; surchargePct: number; weeklyGrant: boolean; boardOnly: boolean } | null>(null);
   const [surIn, setSurIn] = useState('');
+  const [dur, setDur] = useState<Record<string, number> | null>(null);
+  const [durIn, setDurIn] = useState<Record<string, string>>({});
   const [dash, setDash] = useState<DashPolicy | null>(null);
   const [dashCenters, setDashCenters] = useState<{ id: string; name: string }[]>([]);
   const [zoom, setZoom] = useState<number>(6);
@@ -45,6 +47,7 @@ export function AdminInfraPage() {
     api.get<RtFeatures>('/admin/realtime/policy').then(setRt).catch(() => {});
     api.get<{ offlineOnly: boolean; free: boolean }>('/bookings/reverse/policy').then(setRev).catch(() => {});
     api.get<{ offlineDiscovery: boolean; onlineOnly: boolean; surchargePct: number; weeklyGrant: boolean; boardOnly: boolean }>('/bookings/external/policy').then((e) => { setExt(e); setSurIn(String(e.surchargePct)); }).catch(() => {});
+    api.get<Record<string, number>>('/bookings/duration/policy').then((d) => { setDur(d); setDurIn(Object.fromEntries(Object.entries(d).map(([k, v]) => [k, String(v)]))); }).catch(() => {});
     api.get<DashPolicy>('/admin/dashboard/policy').then(setDash).catch(() => {});
     if (isHq) api.get<{ id: string; name: string }[]>('/centers').then(setDashCenters).catch(() => {});
     // 센터 스코프 자원(줌·상담실·차단) — 본사 마스터는 센터가 없어 실패할 수 있음(무시).
@@ -147,6 +150,29 @@ export function AdminInfraPage() {
                 </div>
               </div>
             ))}
+          </div>
+        </Card>
+      )}
+
+      {dur && (
+        <Card title="상담 종류별 기본시간" style={{ marginBottom: 16 }}>
+          <p style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 0 }}>
+            종류별 기본 상담시간(분)입니다. 자동매칭·전임 강제배정의 슬롯 길이 기준이 됩니다. 10~240분, 10분 단위.
+            {!isHq && <span style={{ color: 'var(--chip-rejected,#c0392b)' }}> · 변경은 본사 관리자만 가능합니다.</span>}
+          </p>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {['담임', '교과', '입시', '심리'].map((k) => (
+              <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid var(--line)', borderRadius: 10, padding: '8px 12px' }}>
+                <span style={{ fontSize: 13, fontWeight: 700, minWidth: 32 }}>{k}</span>
+                <input type="number" min={10} max={240} step={10} value={durIn[k] ?? ''} disabled={!isHq}
+                  onChange={(e) => setDurIn((p) => ({ ...p, [k]: e.target.value }))}
+                  style={{ width: 66, padding: '6px 8px', borderRadius: 8, border: '1px solid var(--line)', textAlign: 'right' }} />
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>분</span>
+              </div>
+            ))}
+            <button disabled={!isHq}
+              onClick={() => run(async () => { const body = Object.fromEntries(['담임', '교과', '입시', '심리'].map((k) => [k, Number(durIn[k])])); const next = await api.patch<Record<string, number>>('/bookings/duration/policy', body); setDur(next); setDurIn(Object.fromEntries(Object.entries(next).map(([k, v]) => [k, String(v)]))); }, '기본시간 저장됨')}
+              style={{ padding: '6px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: isHq ? 'pointer' : 'not-allowed', opacity: isHq ? 1 : 0.6, border: '1px solid var(--teal)', background: 'var(--teal)', color: '#fff' }}>저장</button>
           </div>
         </Card>
       )}
