@@ -5,6 +5,7 @@ import { CACHE_PROVIDER } from '../../common/cache/cache.types';
 import type { CacheProvider } from '../../common/cache/cache.types';
 import { withCronLock } from '../../common/cache/cron-lock';
 import { CreditTxnType } from '../../config/enums';
+import { resolveStudentType } from '../../common/student-type';
 
 /**
  * 주간 크레딧 부여/소멸 스케줄러 (CLAUDE.md §5-3).
@@ -46,6 +47,9 @@ export class WeeklyGrantService {
    */
   async runGrant(now = new Date(), onlyStudentId?: string): Promise<number> {
     const expireAt = endOfWeekKst(now);
+    // 외부학생 주간 크레딧 부여 정책(마스터 설정) — 기본 제외
+    const extRow = await this.prisma.system_setting.findUnique({ where: { key: 'external_student_policy' } });
+    const extWeeklyGrant = ((extRow?.value as { weeklyGrant?: boolean } | null)?.weeklyGrant) ?? false;
     const students = await this.prisma.student_profile.findMany({
       where: {
         membership_grade_id: { not: null },
@@ -55,6 +59,8 @@ export class WeeklyGrantService {
     });
     let count = 0;
     for (const s of students) {
+      // 외부학생은 정책상 주간 크레딧 부여 제외(정책 on 이면 부여)
+      if (!extWeeklyGrant && resolveStudentType(s) === 'external') continue;
       const weekly = s.membership_grade?.weekly_credits ?? 0;
       if (weekly <= 0) continue;
       const acct = await this.prisma.credit_account.findUnique({

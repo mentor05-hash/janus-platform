@@ -254,11 +254,12 @@ export class AdminPolicyService {
     return saved;
   }
 
-  /** 특정 대상의 기능 활성 여부(전사 우선). */
+  /** 특정 대상의 기능 활성 여부(전사 우선, 외부생 유형 강제 반영). */
   async resolveFeature(
     centerId: string | null,
     targetType: string,
     targetValue: string,
+    studentType?: 'enrolled' | 'external',
   ) {
     const rows = await this.prisma.feature_availability.findMany({
       where: { target_type: targetType, target_value: targetValue },
@@ -277,6 +278,7 @@ export class AdminPolicyService {
         centerId,
         targetType,
         targetValue,
+        studentType,
       }),
     };
   }

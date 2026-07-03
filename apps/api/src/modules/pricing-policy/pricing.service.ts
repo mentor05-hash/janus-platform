@@ -23,6 +23,8 @@ export interface SessionQuote {
   surchargePct: number;
   occupancyFee: number;
   paidConsultingFee: number;
+  externalSurchargePct: number;
+  externalSurcharge: number;
   credits: number;
 }
 
@@ -50,6 +52,7 @@ export class PricingService {
     grade: TeacherGrade,
     centerId?: string | null,
     consultType?: ConsultType,
+    externalSurchargePct = 0, // 외부학생 요금 할증(%) — 정책값(마스터 설정), 재원생은 0
   ): Promise<SessionQuote> {
     if (minutes <= 0)
       throw new BadRequestException('상담 시간이 올바르지 않습니다.');
@@ -65,6 +68,10 @@ export class PricingService {
         ? (policy.paid_consulting_fee ?? 0)
         : 0;
     credits += occupancyFee + paidConsultingFee;
+    // 외부학생 할증(§외부생 정책) — 유형·점유·컨설팅 가산 후 최종 할증
+    const externalSurcharge =
+      externalSurchargePct > 0 ? Math.round(credits * (externalSurchargePct / 100)) : 0;
+    credits += externalSurcharge;
     return {
       mode,
       minutes,
@@ -72,6 +79,8 @@ export class PricingService {
       surchargePct,
       occupancyFee,
       paidConsultingFee,
+      externalSurchargePct,
+      externalSurcharge,
       credits,
     };
   }

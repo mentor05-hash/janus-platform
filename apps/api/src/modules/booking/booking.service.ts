@@ -29,6 +29,7 @@ import {
   sessionModeToPrisma,
 } from '../../config/prisma-enums';
 import { permAtLeast } from '../../config/perm';
+import { resolveStudentType, type StudentType } from '../../common/student-type';
 import { AvailabilityService } from '../availability/availability.service';
 import { CreditService } from '../billing/credit.service';
 import { evaluatePenalty } from '../pricing-policy/domain/penalty';
@@ -104,6 +105,43 @@ export class BookingService {
     return next;
   }
 
+  // ── 외부학생 정책(전사) — 본사(isHq): 온라인 한정(onlineOnly)·상담 제한(boardOnly);
+  //    마스터(L1): 요금 할증(surchargePct)·주간 크레딧 부여(weeklyGrant). 벤치마크: 회원 유형 차등. ──
+  private static readonly EXTERNAL_KEY = 'external_student_policy';
+  private static readonly EXTERNAL_DEFAULT = {
+    onlineOnly: true, // 외부생은 오프라인 대면/상담실 불가(온라인만)
+    surchargePct: 20, // 외부생 요금 할증 %
+    weeklyGrant: false, // 외부생은 주간 크레딧 부여 제외
+    boardOnly: false, // true 면 외부생은 상담 예약 불가·게시판 질문만
+  };
+
+  async getExternalPolicy(): Promise<{ onlineOnly: boolean; surchargePct: number; weeklyGrant: boolean; boardOnly: boolean }> {
+    const row = await this.prisma.system_setting.findUnique({ where: { key: BookingService.EXTERNAL_KEY } });
+    return { ...BookingService.EXTERNAL_DEFAULT, ...((row?.value as object) ?? {}) };
+  }
+
+  /** 정책 변경: onlineOnly·boardOnly=본사(isHq), surchargePct·weeklyGrant=마스터(L1). */
+  async setExternalPolicy(actor: AuthUser, dto: { onlineOnly?: boolean; surchargePct?: number; weeklyGrant?: boolean; boardOnly?: boolean }) {
+    const isHq = actor.role === AccountRole.ADMIN && !actor.centerId;
+    const isMaster = isHq && permAtLeast(actor.permLevel, 'L1');
+    if ((dto.onlineOnly !== undefined || dto.boardOnly !== undefined) && !isHq) {
+      throw new ForbiddenException('외부학생 접근 정책(온라인 한정·상담 제한)은 본사 관리자만 변경할 수 있습니다.');
+    }
+    if ((dto.surchargePct !== undefined || dto.weeklyGrant !== undefined) && !isMaster) {
+      throw new ForbiddenException('외부학생 요금·크레딧 정책은 본사 마스터관리자(L1)만 변경할 수 있습니다.');
+    }
+    if (dto.surchargePct !== undefined && (dto.surchargePct < 0 || dto.surchargePct > 300)) {
+      throw new BadRequestException('할증률은 0~300% 범위여야 합니다.');
+    }
+    const next = { ...(await this.getExternalPolicy()), ...dto };
+    await this.prisma.system_setting.upsert({
+      where: { key: BookingService.EXTERNAL_KEY },
+      create: { key: BookingService.EXTERNAL_KEY, value: next, updated_by: actor.id },
+      update: { value: next, updated_by: actor.id, updated_at: new Date() },
+    });
+    return next;
+  }
+
   /**
    * §5-8 기능 열기/닫기(FeatureAvailability) + 카테고리×방식(CategoryModePolicy) 게이트.
    * 닫힌 방식/카테고리이거나 허용되지 않은 방식이면 예약 차단.
@@ -112,11 +150,13 @@ export class BookingService {
     centerId: string | null,
     consultType: ConsultType,
     mode: ConsultMode,
+    studentType?: StudentType,
   ) {
     const modeFeature = await this.adminPolicy.resolveFeature(
       centerId,
       'mode',
       mode,
+      studentType,
     );
     if (!modeFeature.enabled)
       throw new ForbiddenException(`현재 ${mode} 방식은 닫혀 있습니다.`);
@@ -124,6 +164,7 @@ export class BookingService {
       centerId,
       'category',
       consultType,
+      studentType,
     );
     if (!catFeature.enabled)
       throw new ForbiddenException(`현재 ${consultType} 상담은 닫혀 있습니다.`);
@@ -150,7 +191,11 @@ export class BookingService {
       throw new BadRequestException('slotEnd 는 slotStart 보다 커야 합니다.');
     const teacher = await this.requireTeacher(dto.teacherId);
     const studentId = user.role === AccountRole.STUDENT ? user.id : undefined;
-    if (studentId) await this.requireStudent(studentId); // 미등록 승인계정 견적 시 500 방지
+    const studentProfile = studentId ? await this.requireStudent(studentId) : null; // 미등록 승인계정 견적 시 500 방지
+    const studentType: StudentType = studentProfile ? resolveStudentType(studentProfile) : 'enrolled';
+    const extPol = await this.getExternalPolicy();
+    const extBlocked = studentType === 'external' && extPol.boardOnly;
+    const extOfflineBlocked = studentType === 'external' && extPol.onlineOnly && dto.mode === ConsultMode.OFFLINE;
 
     const slotReason = await this.availability.bookableReason(
       dto.teacherId,
@@ -161,9 +206,9 @@ export class BookingService {
     );
     const slotOk = slotReason === null;
     // 방식·상담유형 열림 여부까지 견적에서 미리 확인(제출 후 403 대신 사전 안내).
-    const modeFeature = await this.adminPolicy.resolveFeature(teacher.center_id, 'mode', dto.mode);
+    const modeFeature = await this.adminPolicy.resolveFeature(teacher.center_id, 'mode', dto.mode, studentType);
     const catFeature = dto.consultType
-      ? await this.adminPolicy.resolveFeature(teacher.center_id, 'category', dto.consultType)
+      ? await this.adminPolicy.resolveFeature(teacher.center_id, 'category', dto.consultType, studentType)
       : { enabled: true };
     const q = await this.pricing.quoteSession(
       dto.mode,
@@ -171,19 +216,24 @@ export class BookingService {
       teacher.grade,
       teacher.center_id,
       dto.consultType,
+      studentType === 'external' ? extPol.surchargePct : 0,
     );
     const working = !teacher.work_status || teacher.work_status === 'on';
-    const valid = slotOk && modeFeature.enabled && catFeature.enabled && working;
-    const message = !working
-      ? (teacher.work_status === 'rest' ? '선생님이 휴게 중이에요. 잠시 후 다시 시도해 주세요.' : '선생님이 오늘 상담을 마감했어요.')
-      : !slotOk
-        ? slotReasonMessage(slotReason)
-        : !modeFeature.enabled
-          ? `현재 ${dto.mode} 방식은 닫혀 있어요. 다른 방식을 선택하세요.`
-          : !catFeature.enabled
-            ? `현재 ${dto.consultType} 상담은 닫혀 있어요.`
-            : '예약 가능';
-    return { minutes, credits: q.credits, valid, message };
+    const valid = slotOk && modeFeature.enabled && catFeature.enabled && working && !extBlocked && !extOfflineBlocked;
+    const message = extBlocked
+      ? '외부학생은 상담 예약이 제한되어 있어요. 게시판 질문을 이용해 주세요.'
+      : extOfflineBlocked
+        ? '외부학생은 온라인 상담만 가능해요(오프라인 대면 불가).'
+        : !working
+          ? (teacher.work_status === 'rest' ? '선생님이 휴게 중이에요. 잠시 후 다시 시도해 주세요.' : '선생님이 오늘 상담을 마감했어요.')
+          : !slotOk
+            ? slotReasonMessage(slotReason)
+            : !modeFeature.enabled
+              ? `현재 ${dto.mode} 방식은 닫혀 있어요. 다른 방식을 선택하세요.`
+              : !catFeature.enabled
+                ? `현재 ${dto.consultType} 상담은 닫혀 있어요.`
+                : '예약 가능';
+    return { minutes, credits: q.credits, valid, message, studentType, externalSurcharge: q.externalSurcharge };
   }
 
   /** POST /bookings — 예약 생성. 트랜잭션 + 슬롯 UNIQUE 로 동시성 보호, 크레딧 차감(§5-3). */
@@ -196,7 +246,18 @@ export class BookingService {
     if (minutes <= 0)
       throw new BadRequestException('slotEnd 는 slotStart 보다 커야 합니다.');
 
-    await this.requireStudent(studentId); // 회원등록(프로필) 선행 — 미등록 승인계정 500 방지
+    const student = await this.requireStudent(studentId); // 회원등록(프로필) 선행 — 미등록 승인계정 500 방지
+    const studentType: StudentType = resolveStudentType(student);
+    // 외부학생 접근 게이팅(§외부생 정책, 본사/마스터 설정)
+    if (studentType === 'external') {
+      const extPol = await this.getExternalPolicy();
+      if (extPol.boardOnly) {
+        throw new ForbiddenException('외부학생은 상담 예약이 제한되어 있어요. 게시판 질문을 이용해 주세요.');
+      }
+      if (extPol.onlineOnly && dto.mode === ConsultMode.OFFLINE) {
+        throw new ForbiddenException('외부학생은 온라인 상담만 가능해요(오프라인 대면 불가).');
+      }
+    }
     await this.assertNotPenaltyRestricted(studentId); // §5-7 가중 제한
     const blocked = await this.blocks.blockedTeacherIds(studentId);
     if (blocked.includes(dto.teacherId)) {
@@ -211,7 +272,8 @@ export class BookingService {
       teacher.center_id,
       dto.consultType,
       dto.mode,
-    ); // §5-8 게이트
+      studentType,
+    ); // §5-8 게이트 + 외부생 유형 강제
     const startMin = dto.slotStart * SLOT_GRANULARITY_MINUTES;
     const endMin = dto.slotEnd * SLOT_GRANULARITY_MINUTES;
 
@@ -232,6 +294,7 @@ export class BookingService {
       teacher.grade,
       teacher.center_id,
       dto.consultType,
+      studentType === 'external' ? (await this.getExternalPolicy()).surchargePct : 0,
     );
     const credits = q.credits;
     const startAt = utcFromKst(dto.date, startMin);

@@ -76,6 +76,23 @@ export class BookingController {
     return this.booking.setReversePolicy(user, dto);
   }
 
+  /** GET /bookings/external/policy — 외부학생 전사 정책(온라인 한정·할증·주간크레딧·상담제한) 조회. */
+  @Get('external/policy')
+  @Roles('admin', 'hr')
+  getExternalPolicy() {
+    return this.booking.getExternalPolicy();
+  }
+
+  /** PATCH /bookings/external/policy — 접근(onlineOnly·boardOnly)=본사, 요금·크레딧(surchargePct·weeklyGrant)=마스터. */
+  @Patch('external/policy')
+  @Roles('admin')
+  setExternalPolicy(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: { onlineOnly?: boolean; surchargePct?: number; weeklyGrant?: boolean; boardOnly?: boolean },
+  ) {
+    return this.booking.setExternalPolicy(user, dto);
+  }
+
   /** GET /bookings/reverse/admin-students — 관리자: 센터 학생 + 역상담 지정/신청 플래그. */
   @Get('reverse/admin-students')
   @Roles('admin', 'hr')

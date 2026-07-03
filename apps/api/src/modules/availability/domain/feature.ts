@@ -14,6 +14,7 @@ export interface FeatureQuery {
   centerId: string | null;
   targetType: string;
   targetValue: string;
+  studentType?: 'enrolled' | 'external'; // 지정 시 '외부생' scope 규칙 해석
 }
 
 export function resolveFeatureEnabled(
@@ -24,9 +25,14 @@ export function resolveFeatureEnabled(
   const matching = rules.filter(
     (r) => r.targetType === q.targetType && r.targetValue === q.targetValue,
   );
-  // 전사(force) 우선
+  // 전사(force) 최우선
   const company = matching.find((r) => r.scope === '전사');
   if (company) return company.enabled;
+  // 외부생 유형 강제(외부학생 대상 전사 규칙) — 센터 자율보다 우선
+  if (q.studentType === 'external') {
+    const external = matching.find((r) => r.scope === '외부생');
+    if (external) return external.enabled;
+  }
   // 센터 자율
   const center = matching.find(
     (r) => r.scope === '센터' && r.centerId === q.centerId,

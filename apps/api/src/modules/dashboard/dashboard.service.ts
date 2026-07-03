@@ -619,6 +619,33 @@ export class DashboardService {
       GROUP BY b.consult_type
       ORDER BY b.consult_type`);
 
+    // 학생유형(재원/외부) 분리 집계 — type_code 미지정은 center_id 유무로 추정(resolveStudentType 동일 규칙)
+    const byTypeRows = await this.prisma.$queryRaw<Array<{ student_type: string; done: number; notes: number; final: number }>>(Prisma.sql`
+      SELECT CASE
+          WHEN lower(coalesce(sp.type_code,'')) IN ('external','외부','외부학생') THEN 'external'
+          WHEN lower(coalesce(sp.type_code,'')) IN ('enrolled','재원','학원생') THEN 'enrolled'
+          WHEN sp.center_id IS NOT NULL THEN 'enrolled'
+          ELSE 'external' END AS student_type,
+        count(*)::int AS done,
+        count(n.id)::int AS notes,
+        count(n.id) FILTER (WHERE n.save_state = 'final')::int AS final
+      FROM booking b
+      JOIN student_profile sp ON sp.account_id = b.student_id
+      LEFT JOIN consultation_note n ON n.booking_id = b.id
+      WHERE ${whereSql}
+      GROUP BY student_type`);
+    const byStudentType = ['enrolled', 'external'].map((t) => {
+      const r = byTypeRows.find((x) => x.student_type === t);
+      return {
+        studentType: t,
+        label: t === 'enrolled' ? '학원생' : '외부학생',
+        done: r?.done ?? 0,
+        notes: r?.notes ?? 0,
+        final: r?.final ?? 0,
+        recordRate: pct(r?.notes ?? 0, r?.done ?? 0),
+      };
+    });
+
     const rows = agg.map((r) => ({
       type: r.type,
       done: r.done, // 완료 상담 수
@@ -634,6 +661,7 @@ export class DashboardService {
     const totalDone = sum('done');
     return {
       data: rows,
+      byStudentType, // 재원/외부 분리 집계
       meta: {
         scope: centerFilter ?? 'global',
         totals: {
