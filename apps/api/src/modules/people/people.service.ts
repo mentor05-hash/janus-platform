@@ -22,25 +22,27 @@ export class PeopleService {
    * 이때 검색·매칭은 온라인 방식 보유 선생님만 노출(오프라인 전용 선생님 숨김).
    * 나중에 본사에서 onlineOnly 를 끄면 외부학생에게도 오프라인 선생님이 노출된다(추가 노출 옵션).
    */
-  private async externalOnlineOnly(viewer?: AuthUser): Promise<boolean> {
+  private async externalHideOffline(viewer?: AuthUser): Promise<boolean> {
     if (!viewer || viewer.role !== 'student') return false;
-    return this.externalOnlineOnlyForStudent(viewer.id);
+    return this.externalHideOfflineForStudent(viewer.id);
   }
 
-  private async externalOnlineOnlyForStudent(studentId: string): Promise<boolean> {
+  /** 외부학생 검색·매칭에서 오프라인 선생님을 숨길지 — 외부학생 && 노출정책(offlineDiscovery) off. */
+  private async externalHideOfflineForStudent(studentId: string): Promise<boolean> {
     const sp = await this.prisma.student_profile.findUnique({
       where: { account_id: studentId },
       select: { type_code: true, center_id: true },
     });
     if (!sp || resolveStudentType(sp) !== 'external') return false;
     const row = await this.prisma.system_setting.findUnique({ where: { key: 'external_student_policy' } });
-    return ((row?.value as { onlineOnly?: boolean } | null)?.onlineOnly) ?? true;
+    const offlineDiscovery = ((row?.value as { offlineDiscovery?: boolean } | null)?.offlineDiscovery) ?? false;
+    return !offlineDiscovery; // 노출 off → 숨김
   }
 
   async listTeachers(q: TeacherQueryDto, viewer?: AuthUser) {
-    const onlineOnly = await this.externalOnlineOnly(viewer);
-    // 방식 필터: 외부학생(온라인 한정)이면 온라인 방식 보유로 한정(요청 mode 가 온라인이면 그 방식만).
-    const modeFilter = onlineOnly
+    const hideOffline = await this.externalHideOffline(viewer);
+    // 방식 필터: 외부학생 노출 off 면 온라인 방식 보유로 한정(요청 mode 가 온라인이면 그 방식만).
+    const modeFilter = hideOffline
       ? { modes: { hasSome: q.mode && ONLINE_MODES.includes(q.mode) ? [q.mode] : ONLINE_MODES } }
       : q.mode
         ? { modes: { has: q.mode } }
@@ -222,12 +224,12 @@ export class PeopleService {
         select: { teacher_id: true },
       })
     ).map((b) => b.teacher_id);
-    const onlineOnly = await this.externalOnlineOnlyForStudent(studentId); // 외부학생: 온라인 선생님만 추천
+    const hideOffline = await this.externalHideOfflineForStudent(studentId); // 외부학생 노출 off → 온라인 선생님만 추천
     const teachers = await this.prisma.teacher_profile.findMany({
       where: {
         ...(centerId ? { center_id: centerId } : {}),
         ...(blocked.length ? { account_id: { notIn: blocked } } : {}),
-        ...(onlineOnly ? { modes: { hasSome: ONLINE_MODES } } : {}),
+        ...(hideOffline ? { modes: { hasSome: ONLINE_MODES } } : {}),
       },
       include: { account: { select: { name: true, center_id: true } } },
       take: 300,

@@ -109,23 +109,30 @@ export class BookingService {
   //    마스터(L1): 요금 할증(surchargePct)·주간 크레딧 부여(weeklyGrant). 벤치마크: 회원 유형 차등. ──
   private static readonly EXTERNAL_KEY = 'external_student_policy';
   private static readonly EXTERNAL_DEFAULT = {
-    onlineOnly: true, // 외부생은 오프라인 대면/상담실 불가(온라인만)
+    // 오프라인 개방은 2단계: 노출(offlineDiscovery) → 예약(onlineOnly=false).
+    offlineDiscovery: false, // 검색·추천·매칭에 오프라인 선생님 노출 여부(false=숨김)
+    onlineOnly: true, // 외부생 오프라인 예약 차단(상담실 배정 불가). false 면 오프라인 예약 허용
     surchargePct: 20, // 외부생 요금 할증 %
     weeklyGrant: false, // 외부생은 주간 크레딧 부여 제외
     boardOnly: false, // true 면 외부생은 상담 예약 불가·게시판 질문만
   };
 
-  async getExternalPolicy(): Promise<{ onlineOnly: boolean; surchargePct: number; weeklyGrant: boolean; boardOnly: boolean }> {
+  async getExternalPolicy(): Promise<{ offlineDiscovery: boolean; onlineOnly: boolean; surchargePct: number; weeklyGrant: boolean; boardOnly: boolean }> {
     const row = await this.prisma.system_setting.findUnique({ where: { key: BookingService.EXTERNAL_KEY } });
     return { ...BookingService.EXTERNAL_DEFAULT, ...((row?.value as object) ?? {}) };
   }
 
-  /** 정책 변경: onlineOnly·boardOnly=본사(isHq), surchargePct·weeklyGrant=마스터(L1). */
-  async setExternalPolicy(actor: AuthUser, dto: { onlineOnly?: boolean; surchargePct?: number; weeklyGrant?: boolean; boardOnly?: boolean }) {
+  /**
+   * 정책 변경: 접근(offlineDiscovery·onlineOnly·boardOnly)=본사(isHq),
+   * 요금·크레딧(surchargePct·weeklyGrant)=마스터(L1).
+   * 2단계 불변식: 오프라인 예약을 열면(onlineOnly=false) 노출도 켜지고(offlineDiscovery=true),
+   * 노출을 끄면(offlineDiscovery=false) 예약도 잠긴다(onlineOnly=true). → 3개 유효 상태만 존재.
+   */
+  async setExternalPolicy(actor: AuthUser, dto: { offlineDiscovery?: boolean; onlineOnly?: boolean; surchargePct?: number; weeklyGrant?: boolean; boardOnly?: boolean }) {
     const isHq = actor.role === AccountRole.ADMIN && !actor.centerId;
     const isMaster = isHq && permAtLeast(actor.permLevel, 'L1');
-    if ((dto.onlineOnly !== undefined || dto.boardOnly !== undefined) && !isHq) {
-      throw new ForbiddenException('외부학생 접근 정책(온라인 한정·상담 제한)은 본사 관리자만 변경할 수 있습니다.');
+    if ((dto.offlineDiscovery !== undefined || dto.onlineOnly !== undefined || dto.boardOnly !== undefined) && !isHq) {
+      throw new ForbiddenException('외부학생 접근 정책(노출·온라인 한정·상담 제한)은 본사 관리자만 변경할 수 있습니다.');
     }
     if ((dto.surchargePct !== undefined || dto.weeklyGrant !== undefined) && !isMaster) {
       throw new ForbiddenException('외부학생 요금·크레딧 정책은 본사 마스터관리자(L1)만 변경할 수 있습니다.');
@@ -134,6 +141,10 @@ export class BookingService {
       throw new BadRequestException('할증률은 0~300% 범위여야 합니다.');
     }
     const next = { ...(await this.getExternalPolicy()), ...dto };
+    // 2단계 불변식 강제(노출↔예약 정합성) — dto 가 명시한 필드를 우선 반영
+    if (dto.offlineDiscovery === false) next.onlineOnly = true; // 노출 끄면 예약 잠금(노출이 상위 단계)
+    if (dto.onlineOnly === false) next.offlineDiscovery = true; // 예약 열면 노출도 켬
+    if (!next.offlineDiscovery) next.onlineOnly = true; // 방어: 노출 off 상태에서 예약만 열린 모순 차단
     await this.prisma.system_setting.upsert({
       where: { key: BookingService.EXTERNAL_KEY },
       create: { key: BookingService.EXTERNAL_KEY, value: next, updated_by: actor.id },

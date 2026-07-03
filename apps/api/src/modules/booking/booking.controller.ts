@@ -88,7 +88,7 @@ export class BookingController {
   @Roles('admin')
   setExternalPolicy(
     @CurrentUser() user: AuthUser,
-    @Body() dto: { onlineOnly?: boolean; surchargePct?: number; weeklyGrant?: boolean; boardOnly?: boolean },
+    @Body() dto: { offlineDiscovery?: boolean; onlineOnly?: boolean; surchargePct?: number; weeklyGrant?: boolean; boardOnly?: boolean },
   ) {
     return this.booking.setExternalPolicy(user, dto);
   }

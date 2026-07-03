@@ -25,7 +25,7 @@ export function AdminInfraPage() {
   const isHq = user?.role === 'admin' && !user?.center_id;
   const [rt, setRt] = useState<RtFeatures | null>(null);
   const [rev, setRev] = useState<{ offlineOnly: boolean; free: boolean } | null>(null);
-  const [ext, setExt] = useState<{ onlineOnly: boolean; surchargePct: number; weeklyGrant: boolean; boardOnly: boolean } | null>(null);
+  const [ext, setExt] = useState<{ offlineDiscovery: boolean; onlineOnly: boolean; surchargePct: number; weeklyGrant: boolean; boardOnly: boolean } | null>(null);
   const [surIn, setSurIn] = useState('');
   const [dash, setDash] = useState<DashPolicy | null>(null);
   const [dashCenters, setDashCenters] = useState<{ id: string; name: string }[]>([]);
@@ -44,7 +44,7 @@ export function AdminInfraPage() {
     // 줌/상담실 조회 실패와 무관하게 정책 카드를 볼 수 있어야 함.
     api.get<RtFeatures>('/admin/realtime/policy').then(setRt).catch(() => {});
     api.get<{ offlineOnly: boolean; free: boolean }>('/bookings/reverse/policy').then(setRev).catch(() => {});
-    api.get<{ onlineOnly: boolean; surchargePct: number; weeklyGrant: boolean; boardOnly: boolean }>('/bookings/external/policy').then((e) => { setExt(e); setSurIn(String(e.surchargePct)); }).catch(() => {});
+    api.get<{ offlineDiscovery: boolean; onlineOnly: boolean; surchargePct: number; weeklyGrant: boolean; boardOnly: boolean }>('/bookings/external/policy').then((e) => { setExt(e); setSurIn(String(e.surchargePct)); }).catch(() => {});
     api.get<DashPolicy>('/admin/dashboard/policy').then(setDash).catch(() => {});
     if (isHq) api.get<{ id: string; name: string }[]>('/centers').then(setDashCenters).catch(() => {});
     // 센터 스코프 자원(줌·상담실·차단) — 본사 마스터는 센터가 없어 실패할 수 있음(무시).
@@ -158,8 +158,36 @@ export function AdminInfraPage() {
             {!isHq && <span style={{ color: 'var(--chip-rejected,#c0392b)' }}> · 변경은 본사 마스터관리자만 가능합니다.</span>}
           </p>
           <div style={{ display: 'grid', gap: 10, maxWidth: 620 }}>
+            {/* 오프라인 개방 2단계 스테이지 — 노출 → 예약 · 본사 관리자 */}
+            {(() => {
+              const stage = !ext.offlineDiscovery ? 0 : ext.onlineOnly ? 1 : 2;
+              const STAGES = [
+                { i: 0, label: '온라인만', desc: '검색·매칭에 온라인 선생님만 노출 + 오프라인 예약 차단', patch: { offlineDiscovery: false } },
+                { i: 1, label: '오프라인 노출', desc: '검색·매칭에 오프라인 선생님도 노출(예약은 여전히 온라인만)', patch: { offlineDiscovery: true, onlineOnly: true } },
+                { i: 2, label: '노출+예약', desc: '오프라인 노출 + 오프라인 예약·상담실 배정까지 허용', patch: { offlineDiscovery: true, onlineOnly: false } },
+              ];
+              return (
+                <div style={{ padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>오프라인 개방 단계</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>외부학생에게 오프라인을 단계적으로 개방합니다(노출 → 예약) · 본사 관리자</div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {STAGES.map((s) => {
+                      const active = stage === s.i;
+                      return (
+                        <button key={s.i} disabled={!isHq} title={s.desc}
+                          onClick={() => run(async () => { const next = await api.patch<typeof ext>(`/bookings/external/policy`, s.patch); setExt(next!); setSurIn(String(next!.surchargePct)); }, `외부학생 오프라인 개방: ${s.label}`)}
+                          style={{ flex: '1 1 150px', padding: '8px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, textAlign: 'left', cursor: isHq ? 'pointer' : 'not-allowed', opacity: isHq ? 1 : 0.6,
+                            border: active ? '2px solid var(--teal)' : '1px solid var(--line)', background: active ? 'var(--teal)' : 'var(--surface)', color: active ? '#fff' : 'var(--muted)' }}>
+                          <div style={{ fontSize: 13, fontWeight: 800 }}>{s.i + 1}. {s.label}</div>
+                          <div style={{ fontSize: 11, fontWeight: 500, marginTop: 2, color: active ? 'rgba(255,255,255,.85)' : 'var(--muted)' }}>{s.desc}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
             {([
-              { key: 'onlineOnly' as const, label: '온라인 상담만 허용', desc: '외부학생은 오프라인 대면·상담실 배정 불가 + 검색·자동매칭에 온라인 선생님만 노출. 끄면 오프라인까지 노출·예약 허용 · 본사 관리자' },
               { key: 'boardOnly' as const, label: '상담 예약 제한(게시판만)', desc: '외부학생은 상담 예약 불가, 게시판 질문만 이용 · 본사 관리자' },
               { key: 'weeklyGrant' as const, label: '주간 크레딧 부여', desc: '외부학생에게도 주간 크레딧 부여(기본 제외) · 마스터관리자' },
             ]).map((it) => (
