@@ -159,7 +159,7 @@ export function AdminInfraPage() {
           </p>
           <div style={{ display: 'grid', gap: 10, maxWidth: 620 }}>
             {([
-              { key: 'onlineOnly' as const, label: '온라인 상담만 허용', desc: '외부학생은 오프라인 대면·상담실 배정 불가 · 본사 관리자' },
+              { key: 'onlineOnly' as const, label: '온라인 상담만 허용', desc: '외부학생은 오프라인 대면·상담실 배정 불가 + 검색·자동매칭에 온라인 선생님만 노출. 끄면 오프라인까지 노출·예약 허용 · 본사 관리자' },
               { key: 'boardOnly' as const, label: '상담 예약 제한(게시판만)', desc: '외부학생은 상담 예약 불가, 게시판 질문만 이용 · 본사 관리자' },
               { key: 'weeklyGrant' as const, label: '주간 크레딧 부여', desc: '외부학생에게도 주간 크레딧 부여(기본 제외) · 마스터관리자' },
             ]).map((it) => (

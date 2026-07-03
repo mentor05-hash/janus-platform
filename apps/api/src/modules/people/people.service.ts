@@ -3,8 +3,11 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { buildPageMeta } from '../../common/dto/pagination.dto';
 import { RANK_CANCEL_WEIGHT } from '../../config/constants';
 import { TeacherQueryDto } from './dto/teacher-query.dto';
+import type { AuthUser } from '../../common/decorators/current-user.decorator';
+import { resolveStudentType } from '../../common/student-type';
 
 const GRADE_ORDER: Record<string, number> = { S: 0, A: 1, B: 2 };
+const ONLINE_MODES = ['zoom', 'chat', 'hand'];
 
 /**
  * People 컨텍스트 — 학생·선생님 프로필 조회 (CLAUDE.md §3).
@@ -14,13 +17,40 @@ const GRADE_ORDER: Record<string, number> = { S: 0, A: 1, B: 2 };
 export class PeopleService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async listTeachers(q: TeacherQueryDto) {
+  /**
+   * 외부학생 온라인 노출 한정 여부 — viewer 가 외부학생이고 정책(onlineOnly)이 켜져 있으면 true.
+   * 이때 검색·매칭은 온라인 방식 보유 선생님만 노출(오프라인 전용 선생님 숨김).
+   * 나중에 본사에서 onlineOnly 를 끄면 외부학생에게도 오프라인 선생님이 노출된다(추가 노출 옵션).
+   */
+  private async externalOnlineOnly(viewer?: AuthUser): Promise<boolean> {
+    if (!viewer || viewer.role !== 'student') return false;
+    return this.externalOnlineOnlyForStudent(viewer.id);
+  }
+
+  private async externalOnlineOnlyForStudent(studentId: string): Promise<boolean> {
+    const sp = await this.prisma.student_profile.findUnique({
+      where: { account_id: studentId },
+      select: { type_code: true, center_id: true },
+    });
+    if (!sp || resolveStudentType(sp) !== 'external') return false;
+    const row = await this.prisma.system_setting.findUnique({ where: { key: 'external_student_policy' } });
+    return ((row?.value as { onlineOnly?: boolean } | null)?.onlineOnly) ?? true;
+  }
+
+  async listTeachers(q: TeacherQueryDto, viewer?: AuthUser) {
+    const onlineOnly = await this.externalOnlineOnly(viewer);
+    // 방식 필터: 외부학생(온라인 한정)이면 온라인 방식 보유로 한정(요청 mode 가 온라인이면 그 방식만).
+    const modeFilter = onlineOnly
+      ? { modes: { hasSome: q.mode && ONLINE_MODES.includes(q.mode) ? [q.mode] : ONLINE_MODES } }
+      : q.mode
+        ? { modes: { has: q.mode } }
+        : {};
     const where = {
       ...(q.grade ? { grade: q.grade } : {}),
       ...(q.category ? { teacher_category: q.category } : {}),
       ...(q.subject ? { subjects: { has: q.subject } } : {}),
       ...(q.consultType ? { consult_types: { has: q.consultType } } : {}),
-      ...(q.mode ? { modes: { has: q.mode } } : {}),
+      ...modeFilter,
     };
     // 랭킹 가중치(§5-7): 등급 우선, 동급은 유효평점(평점 − 취소누적×가중치) 내림차순.
     // 계산 정렬이라 전체 후보를 가져와 JS 정렬 후 페이지네이션(센터 규모상 소량).
@@ -192,10 +222,12 @@ export class PeopleService {
         select: { teacher_id: true },
       })
     ).map((b) => b.teacher_id);
+    const onlineOnly = await this.externalOnlineOnlyForStudent(studentId); // 외부학생: 온라인 선생님만 추천
     const teachers = await this.prisma.teacher_profile.findMany({
       where: {
         ...(centerId ? { center_id: centerId } : {}),
         ...(blocked.length ? { account_id: { notIn: blocked } } : {}),
+        ...(onlineOnly ? { modes: { hasSome: ONLINE_MODES } } : {}),
       },
       include: { account: { select: { name: true, center_id: true } } },
       take: 300,

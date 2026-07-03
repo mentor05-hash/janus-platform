@@ -23,10 +23,10 @@ import {
 export class TeachersController {
   constructor(private readonly people: PeopleService) {}
 
-  /** GET /teachers — 검색 목록(필터·페이지네이션). 인증된 사용자 누구나. */
+  /** GET /teachers — 검색 목록(필터·페이지네이션). 인증된 사용자 누구나. 외부학생은 온라인 선생님만 노출(정책). */
   @Get()
-  list(@Query() q: TeacherQueryDto) {
-    return this.people.listTeachers(q);
+  list(@Query() q: TeacherQueryDto, @CurrentUser() user: AuthUser) {
+    return this.people.listTeachers(q, user);
   }
 
   /** GET /teachers/leaderboard — 이달의 우수 선생님 랭킹(센터 스코프). */
