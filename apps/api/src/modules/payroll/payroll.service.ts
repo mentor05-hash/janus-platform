@@ -75,6 +75,40 @@ export class PayrollService {
     return next;
   }
 
+  // ── 급여 모델(본사): share=순수배분 · floor=기본급 보장+배분 · base_incentive=기본급+인센티브 ──
+  private static readonly MODEL_KEY = 'payroll_model_policy';
+  private static readonly MODEL_DEFAULT = { mode: 'share', base: 2_000_000, incentivePct: 30 };
+
+  async getModelPolicy(): Promise<{ mode: string; base: number; incentivePct: number }> {
+    const row = await this.prisma.system_setting.findUnique({ where: { key: PayrollService.MODEL_KEY } });
+    return { ...PayrollService.MODEL_DEFAULT, ...((row?.value as object) ?? {}) };
+  }
+
+  async setModelPolicy(actor: AuthUser, dto: { mode?: string; base?: number; incentivePct?: number }) {
+    const isHq = actor.role === AccountRole.ADMIN && !actor.centerId;
+    if (!isHq) throw new ForbiddenException('급여 모델은 본사 관리자만 변경할 수 있습니다.');
+    if (dto.mode !== undefined && !['share', 'floor', 'base_incentive'].includes(dto.mode)) {
+      throw new BadRequestException('mode 는 share | floor | base_incentive 여야 합니다.');
+    }
+    if (dto.base !== undefined && (dto.base < 0 || dto.base > 20_000_000)) throw new BadRequestException('기본급 범위 오류.');
+    if (dto.incentivePct !== undefined && (dto.incentivePct < 0 || dto.incentivePct > 100)) throw new BadRequestException('인센티브율 범위 오류.');
+    const next = { ...(await this.getModelPolicy()), ...dto };
+    await this.prisma.system_setting.upsert({
+      where: { key: PayrollService.MODEL_KEY },
+      create: { key: PayrollService.MODEL_KEY, value: next, updated_by: actor.id },
+      update: { value: next, updated_by: actor.id, updated_at: new Date() },
+    });
+    return next;
+  }
+
+  /** 급여 모델에 따른 세전 급여 산정. */
+  private grossByModel(revenue: number, sharePct: number, model: { mode: string; base: number; incentivePct: number }): number {
+    const share = Math.round((revenue * sharePct) / 100);
+    if (model.mode === 'floor') return Math.max(model.base, share);                       // 기본급 보장 + 배분
+    if (model.mode === 'base_incentive') return model.base + Math.round((revenue * model.incentivePct) / 100); // 기본급 + 인센티브
+    return share;                                                                          // 순수 배분
+  }
+
   /** 한 선생님의 기간 매출배분 급여 명세(완료·확정 세션 매출 × 배분율, 4대보험 반영). */
   async revenueSharePayslip(teacherId: string, actor: AuthUser, period?: string) {
     const isSelf = actor.role === AccountRole.TEACHER && actor.id === teacherId;
@@ -87,13 +121,14 @@ export class PayrollService {
     });
     if (!tp) throw new NotFoundException('선생님을 찾을 수 없습니다.');
     const { sharePct } = await this.getSharePolicy();
+    const model = await this.getModelPolicy();
     const agg = await this.prisma.booking.aggregate({
       where: { teacher_id: teacherId, status: { in: [BookingStatus.CONFIRMED, BookingStatus.DONE] }, start_at: { gte: start, lte: end } },
       _sum: { charged_credits: true }, _count: { _all: true },
     });
     const revenue = agg._sum.charged_credits ?? 0;
     const sessions = agg._count._all;
-    const gross = Math.round((revenue * sharePct) / 100);
+    const gross = this.grossByModel(revenue, sharePct, model);
     const deductions = computeDeductions(gross);
     const employer = computeEmployerContribution(gross);
     const severance = severanceAccrual(gross);          // 퇴직금 적립(전임만)
@@ -110,7 +145,8 @@ export class PayrollService {
       sessions,
       revenue,              // 크레딧 매출(원)
       sharePct,
-      gross,                // 세전 급여
+      model,                // 급여 모델(share/floor/base_incentive)
+      gross,                // 세전 급여(모델 반영)
       deductions,           // 근로자 4대보험 + 소득세/지방세 + net
       net: deductions.net,  // 전임 실수령
       employer,             // 사업주 4대보험
@@ -136,19 +172,25 @@ export class PayrollService {
       where: { employment_type: '전임', ...(centerId ? { center_id: centerId } : {}) },
       select: { account_id: true },
     });
-    const rows: Array<{ teacherId: string; name: string; center: string; sessions: number; revenue: number; gross: number; net: number; totalCost: number }> = [];
+    const rows: Array<{ teacherId: string; name: string; center: string; sessions: number; revenue: number; gross: number; net: number; totalCost: number; freelancerCost: number; premium: number }> = [];
     for (const t of teachers) {
       const p = await this.revenueSharePayslip(t.account_id, actor, period);
-      rows.push({ teacherId: p.teacherId, name: p.teacherName, center: p.center, sessions: p.sessions, revenue: p.revenue, gross: p.gross, net: p.net, totalCost: p.totalCost });
+      rows.push({
+        teacherId: p.teacherId, name: p.teacherName, center: p.center, sessions: p.sessions,
+        revenue: p.revenue, gross: p.gross, net: p.net, totalCost: p.totalCost,
+        freelancerCost: p.freelancer.companyCost, premium: p.freelancer.savingVsFullTime,
+      });
     }
     rows.sort((a, b) => b.gross - a.gross);
-    const sum = (k: 'revenue' | 'gross' | 'net' | 'totalCost') => rows.reduce((a, r) => a + r[k], 0);
+    const sum = (k: 'revenue' | 'gross' | 'net' | 'totalCost' | 'freelancerCost' | 'premium') => rows.reduce((a, r) => a + r[k], 0);
     const { sharePct } = await this.getSharePolicy();
+    const model = await this.getModelPolicy();
     return {
       period: this.periodBounds(period).label,
       sharePct,
+      model,
       count: rows.length,
-      totals: { revenue: sum('revenue'), gross: sum('gross'), net: sum('net'), totalCost: sum('totalCost') },
+      totals: { revenue: sum('revenue'), gross: sum('gross'), net: sum('net'), totalCost: sum('totalCost'), freelancerCost: sum('freelancerCost'), premium: sum('premium') },
       rows,
     };
   }

@@ -90,4 +90,18 @@ export class PayrollAdminController {
   setSharePolicy(@CurrentUser() user: AuthUser, @Body() dto: { sharePct?: number }) {
     return this.payroll.setSharePolicy(user, dto);
   }
+
+  /** GET /admin/payroll/model — 급여 모델(배분/기본급보장/기본급+인센티브). */
+  @Get('model')
+  @Roles('admin', 'hr')
+  getModel() {
+    return this.payroll.getModelPolicy();
+  }
+
+  /** PATCH /admin/payroll/model — 급여 모델 변경(본사 관리자). */
+  @Patch('model')
+  @Roles('admin')
+  setModel(@CurrentUser() user: AuthUser, @Body() dto: { mode?: string; base?: number; incentivePct?: number }) {
+    return this.payroll.setModelPolicy(user, dto);
+  }
 }
