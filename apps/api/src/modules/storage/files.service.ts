@@ -1,4 +1,9 @@
 import { randomUUID } from 'crypto';
+import { execFile } from 'child_process';
+import { mkdtemp, readFile, rm, writeFile } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { promisify } from 'util';
 import {
   BadRequestException,
   ForbiddenException,
@@ -68,6 +73,40 @@ export class FilesService {
       size: row.size,
       url: `/files/${row.id}`,
     };
+  }
+
+  /**
+   * PDF 첫 페이지를 서버에서 PNG 로 렌더(poppler pdftoppm)해 배경으로 저장.
+   * 클라이언트 번들러(웹 Vite / 모바일 metro)에 pdfjs 를 넣지 않고 PDF 배경 지원.
+   * 반환 형태는 upload 과 동일 → 기존 배경 로드/공유 경로 그대로 사용.
+   */
+  async rasterizePdfFirstPage(ownerId: string, file: UploadedFileLike) {
+    if (!file?.buffer?.length) throw new BadRequestException('업로드할 파일이 없습니다.');
+    const isPdf = file.mimetype === 'application/pdf' || /\.pdf$/i.test(file.originalname ?? '');
+    if (!isPdf) throw new BadRequestException('PDF 파일이 아닙니다.');
+    if (file.buffer.length > 40 * 1024 * 1024) throw new BadRequestException('PDF 가 너무 큽니다(40MB 초과).');
+
+    const dir = await mkdtemp(join(tmpdir(), 'wbpdf-'));
+    const pdfPath = join(dir, 'in.pdf');
+    const outBase = join(dir, 'out'); // pdftoppm -singlefile → out.png
+    try {
+      await writeFile(pdfPath, file.buffer);
+      // 첫 페이지만, 150dpi, 단일 파일(out.png). PNG.
+      await promisify(execFile)('pdftoppm', ['-png', '-r', '150', '-f', '1', '-l', '1', '-singlefile', pdfPath, outBase], { timeout: 20000 });
+      const png = await readFile(`${outBase}.png`);
+      const key = `uploads/${randomUUID()}`;
+      await this.storage.put({ key, data: png, contentType: 'image/png' });
+      const name = (file.originalname ?? 'document').replace(/\.pdf$/i, '') + '.png';
+      const row = await this.prisma.stored_file.create({
+        data: { owner_id: ownerId, storage_key: key, filename: name, content_type: 'image/png', size: png.length },
+        select: { id: true, filename: true, content_type: true, size: true },
+      });
+      return { id: row.id, filename: row.filename, contentType: row.content_type, size: row.size, url: `/files/${row.id}` };
+    } catch (e) {
+      throw new BadRequestException(`PDF 변환 실패: ${(e as Error).message}`);
+    } finally {
+      await rm(dir, { recursive: true, force: true }).catch(() => {});
+    }
   }
 
   /** 다운로드용 메타+바이트. 소유자 또는 관리자만 접근. */

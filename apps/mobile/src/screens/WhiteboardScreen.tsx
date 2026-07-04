@@ -201,9 +201,17 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
   }
   function attachImage() {
     if (typeof document === 'undefined') return;
-    // PDF 업로드는 웹(선생님)에서. 모바일은 이미지 업로드 + 공유된 PDF 배경 보기·확대 지원.
-    const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*';
-    input.onchange = async () => { const f = input.files?.[0]; if (f && f.type.startsWith('image/')) await useAsBackground(f, f.name); };
+    const input = document.createElement('input'); input.type = 'file'; input.accept = 'application/pdf,image/*';
+    input.onchange = async () => {
+      const f = input.files?.[0]; if (!f) return;
+      try {
+        if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) {
+          // PDF → 서버에서 첫 페이지 PNG 로 렌더(공유 배경은 항상 PNG)
+          const r = await api.uploadWeb(f, f.name, '/files/pdf-page');
+          loadBg(r.id); sockRef.current?.emit('wb:image', { bookingId, fileId: r.id }); scheduleAutosave();
+        } else if (f.type.startsWith('image/')) { await useAsBackground(f, f.name); }
+      } catch { /* 실패 시 무시 */ }
+    };
     input.click();
   }
   async function openCamera() {

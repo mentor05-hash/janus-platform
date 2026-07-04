@@ -1,25 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import * as pdfjsLib from 'pdfjs-dist';
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { api } from '../api/client';
 import { useVoiceCall } from '../utils/voiceCall';
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
-
-/** PDF 파일 → 첫 페이지를 고해상 PNG blob 으로 렌더(배경으로 공유). */
-async function pdfFirstPageToPng(file: File): Promise<Blob> {
-  const data = new Uint8Array(await file.arrayBuffer());
-  const pdf = await pdfjsLib.getDocument({ data }).promise;
-  const page = await pdf.getPage(1);
-  const base = page.getViewport({ scale: 1 });
-  const scale = Math.min(3, 1600 / base.width); // 가로 ~1600px 기준(선명도)
-  const vp = page.getViewport({ scale });
-  const c = document.createElement('canvas');
-  c.width = Math.ceil(vp.width); c.height = Math.ceil(vp.height);
-  await page.render({ canvasContext: c.getContext('2d')!, viewport: vp }).promise;
-  return await new Promise<Blob>((res) => c.toBlob((b) => res(b!), 'image/png'));
-}
 
 type Pt = { x: number; y: number; p?: number }; // p=필압(0~1)
 type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean; highlight?: boolean };
@@ -282,8 +264,10 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     if (!f) return;
     try {
       if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) {
-        const png = await pdfFirstPageToPng(f); // PDF 첫 페이지 → PNG(공유·필기 호환)
-        await useAsBackground(png, f.name.replace(/\.pdf$/i, '') + '.png');
+        // PDF → 서버에서 첫 페이지 PNG 로 렌더(공유 배경은 항상 PNG → 웹·모바일 호환)
+        const form = new FormData(); form.append('file', f, f.name);
+        const r = await api.upload<{ id: string }>('/files/pdf-page', form);
+        loadBg(r.id); sockRef.current?.emit('wb:image', { bookingId, fileId: r.id }); scheduleAutosave();
       } else if (f.type.startsWith('image/')) {
         await useAsBackground(f, f.name);
       }

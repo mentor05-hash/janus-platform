@@ -32,6 +32,16 @@ export class FilesController {
     return this.files.upload(user.id, file);
   }
 
+  /** POST /files/pdf-page — PDF 업로드 → 첫 페이지 PNG 로 렌더·저장(화이트보드 배경용). */
+  @Post('pdf-page')
+  @UseInterceptors(FileInterceptor('file'))
+  pdfPage(
+    @UploadedFile() file: UploadedFileLike,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.files.rasterizePdfFirstPage(user.id, file);
+  }
+
   @Get(':id')
   async download(
     @Param('id', ParseUUIDPipe) id: string,

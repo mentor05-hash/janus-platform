@@ -124,12 +124,12 @@ export const api = {
     return URL.createObjectURL(await res.blob());
   },
   /** 웹(expo-web) 파일 업로드 → stored_file. 첨부 id 를 예약에 연결. */
-  uploadWeb: async (file: Blob, name: string) => {
+  uploadWeb: async (file: Blob, name: string, path = '/files') => {
     const form = new FormData();
     form.append('file', file, name);
     const headers: Record<string, string> = {};
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-    const res = await fetch(BASE + '/files', { method: 'POST', headers, body: form });
+    const res = await fetch(BASE + path, { method: 'POST', headers, body: form });
     const text = await res.text();
     const j = text ? JSON.parse(text) : {};
     if (!res.ok) throw new ApiError(j?.error?.code ?? 'ERROR', j?.error?.message ?? '업로드 실패', res.status);

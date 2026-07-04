@@ -25,7 +25,9 @@ ENV NODE_ENV=prod
 WORKDIR /app
 
 # dumb-init: PID1 시그널 처리(graceful shutdown — §10 enableShutdownHooks)
-RUN apk add --no-cache dumb-init
+# poppler-utils: PDF 배경 서버 렌더(pdftoppm) — 클라이언트 번들러 비의존
+# fontconfig+폰트: 폰트 미임베드 PDF 의 텍스트 대체 렌더(base-14 + Noto)
+RUN apk add --no-cache dumb-init poppler-utils fontconfig ttf-freefont font-noto
 
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
