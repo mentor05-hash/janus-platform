@@ -7,7 +7,7 @@ import { useWebBack } from '../webBack';
 import { useVoiceCall } from '../voiceCall';
 
 type Pt = { x: number; y: number; p?: number };
-type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean };
+type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean; highlight?: boolean };
 const COLORS = ['#16242B', '#0E5C7C', '#E5484D', '#2F9E44', '#F08C00'];
 const W = 720, H = 900;
 
@@ -23,7 +23,7 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const colorRef = useRef(COLORS[0]);
   const widthRef = useRef(4);
-  const toolRef = useRef<'pen' | 'eraser'>('pen');
+  const toolRef = useRef<'pen' | 'eraser' | 'highlighter'>('pen');
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bgImgRef = useRef<HTMLImageElement | null>(null);
   const bgFileIdRef = useRef<string | null>(null);
@@ -32,7 +32,7 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
   const call = useVoiceCall(() => sockRef.current, bookingId);
   const [color, setColor] = useState(COLORS[0]);
   const [width, setWidth] = useState(4);
-  const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
+  const [tool, setTool] = useState<'pen' | 'eraser' | 'highlighter'>('pen');
   const [status, setStatus] = useState<'connecting' | 'ready' | 'off'>(isWeb ? 'connecting' : 'off');
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved'>('idle');
   useWebBack(!embedded, onClose); // 임베드(통합 화면)면 back은 호스트가 처리
@@ -51,8 +51,9 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
     for (const s of [...strokesRef.current, ...(drawingRef.current ? [drawingRef.current] : [])]) {
       if (s.points.length < 1) continue;
       ctx.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over';
+      ctx.globalAlpha = s.highlight ? 0.32 : 1; // 형광펜: 반투명(겹치면 진해짐)
       ctx.strokeStyle = s.color;
-      if (s.erase || s.points.length === 1 || s.points.every((q) => q.p == null)) {
+      if (s.erase || s.highlight || s.points.length === 1 || s.points.every((q) => q.p == null)) {
         ctx.lineWidth = s.width;
         ctx.beginPath(); ctx.moveTo(s.points[0].x, s.points[0].y);
         for (const p of s.points.slice(1)) ctx.lineTo(p.x, p.y);
@@ -67,6 +68,7 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
       }
     }
     ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
   }
   function scheduleAutosave() {
     setSaveState('dirty');
@@ -94,7 +96,9 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
       if (status !== 'ready' || rejected(e)) return; cv.setPointerCapture?.(e.pointerId);
       drawingRef.current = toolRef.current === 'eraser'
         ? { points: [pt(e)], color: '#000', width: Math.max(16, widthRef.current * 4), erase: true }
-        : { points: [pt(e)], color: colorRef.current, width: widthRef.current };
+        : toolRef.current === 'highlighter'
+          ? { points: [pt(e)], color: colorRef.current, width: Math.max(14, widthRef.current * 4), highlight: true }
+          : { points: [pt(e)], color: colorRef.current, width: widthRef.current };
       redraw();
     };
     const move = (e: PointerEvent) => { if (!drawingRef.current || rejected(e)) return; drawingRef.current.points.push(pt(e)); redraw(); };
@@ -119,9 +123,9 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
 
   useEffect(() => { redraw(); }, [status]);
   useEffect(() => () => closeCamera(), []);
-  function pick(c: string) { setColor(c); colorRef.current = c; setTool('pen'); toolRef.current = 'pen'; }
+  function pick(c: string) { setColor(c); colorRef.current = c; if (toolRef.current === 'eraser') { setTool('pen'); toolRef.current = 'pen'; } }
   function pickW(w: number) { setWidth(w); widthRef.current = w; }
-  function pickTool(t: 'pen' | 'eraser') { setTool(t); toolRef.current = t; }
+  function pickTool(t: 'pen' | 'eraser' | 'highlighter') { setTool(t); toolRef.current = t; }
   function clear() { strokesRef.current = []; loadBg(null); redraw(); sockRef.current?.emit('wb:clear', { bookingId }); sockRef.current?.emit('wb:image', { bookingId, fileId: null }); scheduleAutosave(); }
   function save() {
     if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
@@ -191,6 +195,7 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
               ))}
               <View style={{ width: 6 }} />
               <TouchableOpacity onPress={() => pickTool('pen')} style={[styles.wbtn, { width: 40 }, tool === 'pen' && { borderColor: C.teal, borderWidth: 2 }]}><Text style={styles.wtxt}>✏️</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => pickTool('highlighter')} style={[styles.wbtn, { width: 40 }, tool === 'highlighter' && { borderColor: C.teal, borderWidth: 2 }]}><Text style={styles.wtxt}>🖍</Text></TouchableOpacity>
               <TouchableOpacity onPress={() => pickTool('eraser')} style={[styles.wbtn, { width: 40 }, tool === 'eraser' && { borderColor: C.teal, borderWidth: 2 }]}><Text style={styles.wtxt}>🧽</Text></TouchableOpacity>
               <TouchableOpacity onPress={attachImage} style={[styles.wbtn, { width: 40 }]}><Text style={styles.wtxt}>🖼</Text></TouchableOpacity>
               <TouchableOpacity onPress={openCamera} style={[styles.wbtn, { width: 40 }]}><Text style={styles.wtxt}>📷</Text></TouchableOpacity>

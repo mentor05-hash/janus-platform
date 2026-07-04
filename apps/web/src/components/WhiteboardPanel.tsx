@@ -4,7 +4,7 @@ import { api } from '../api/client';
 import { useVoiceCall } from '../utils/voiceCall';
 
 type Pt = { x: number; y: number; p?: number }; // p=필압(0~1)
-type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean };
+type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean; highlight?: boolean };
 const COLORS = ['#16242B', '#0E5C7C', '#E5484D', '#2F9E44', '#F08C00'];
 const W = 900, H = 620; // 논리 좌표(비율 유지 스케일링)
 
@@ -18,7 +18,7 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
   const bgFileIdRef = useRef<string | null>(null);
   const [color, setColor] = useState(COLORS[0]);
   const [width, setWidth] = useState(3);
-  const [tool, setTool] = useState<'pen' | 'eraser'>('pen');
+  const [tool, setTool] = useState<'pen' | 'eraser' | 'highlighter'>('pen');
   const [status, setStatus] = useState<'connecting' | 'ready' | 'off'>('connecting');
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved'>('idle');
   const [camOn, setCamOn] = useState(false);
@@ -43,9 +43,11 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     for (const s of [...strokesRef.current, ...(drawingRef.current ? [drawingRef.current] : [])]) {
       if (s.points.length < 1) continue;
       ctx.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over';
+      // 형광펜: 반투명(겹치면 진해짐). 단일 패스로 그려 접합부 얼룩 방지.
+      ctx.globalAlpha = s.highlight ? 0.32 : 1;
       ctx.strokeStyle = s.color;
-      if (s.erase || s.points.length === 1 || s.points.every((q) => q.p == null)) {
-        // 지우개·단일점·필압 없는 스트로크: 고정 굵기(기존 동작)
+      if (s.erase || s.highlight || s.points.length === 1 || s.points.every((q) => q.p == null)) {
+        // 지우개·형광펜·단일점·필압 없는 스트로크: 고정 굵기(단일 패스)
         ctx.lineWidth = s.width;
         ctx.beginPath(); ctx.moveTo(s.points[0].x, s.points[0].y);
         for (const p of s.points.slice(1)) ctx.lineTo(p.x, p.y);
@@ -61,6 +63,7 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
       }
     }
     ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
   }
 
   function loadBg(fileId: string | null) {
@@ -113,7 +116,9 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     (e.target as Element).setPointerCapture?.(e.pointerId);
     drawingRef.current = tool === 'eraser'
       ? { points: [pt(e)], color: '#000', width: Math.max(16, width * 4), erase: true }
-      : { points: [pt(e)], color, width };
+      : tool === 'highlighter'
+        ? { points: [pt(e)], color, width: Math.max(14, width * 4), highlight: true }
+        : { points: [pt(e)], color, width };
     redraw();
   }
   function move(e: React.PointerEvent) { if (!drawingRef.current || rejected(e)) return; drawingRef.current.points.push(pt(e)); redraw(); }
@@ -184,15 +189,16 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
           <>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '10px 14px', flexWrap: 'wrap', borderBottom: '1px solid var(--line)' }}>
               {COLORS.map((c) => (
-                <button key={c} onClick={() => { setColor(c); setTool('pen'); }} title={c} aria-label={`색상 ${c}`} aria-pressed={color === c && tool === 'pen'}
-                  style={{ width: 24, height: 24, borderRadius: '50%', background: c, cursor: 'pointer', border: color === c && tool === 'pen' ? '3px solid var(--teal)' : '2px solid var(--line)' }} />
+                <button key={c} onClick={() => { setColor(c); setTool((t) => (t === 'eraser' ? 'pen' : t)); }} title={c} aria-label={`색상 ${c}`} aria-pressed={color === c && tool !== 'eraser'}
+                  style={{ width: 24, height: 24, borderRadius: '50%', background: c, cursor: 'pointer', border: color === c && tool !== 'eraser' ? '3px solid var(--teal)' : '2px solid var(--line)' }} />
               ))}
               {[2, 3, 6, 10].map((w) => (
                 <button key={w} onClick={() => setWidth(w)}
                   style={{ width: 28, height: 26, borderRadius: 6, cursor: 'pointer', border: width === w ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontWeight: 700, fontSize: 12 }}>{w}</button>
               ))}
-              <button onClick={() => setTool('pen')} aria-pressed={tool === 'pen'} style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'pen' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>✏️</button>
-              <button onClick={() => setTool('eraser')} aria-pressed={tool === 'eraser'} style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'eraser' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>🧽</button>
+              <button onClick={() => setTool('pen')} aria-pressed={tool === 'pen'} title="펜" style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'pen' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>✏️</button>
+              <button onClick={() => setTool('highlighter')} aria-pressed={tool === 'highlighter'} title="형광펜" style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'highlighter' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>🖍</button>
+              <button onClick={() => setTool('eraser')} aria-pressed={tool === 'eraser'} title="지우개" style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'eraser' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>🧽</button>
               <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
               <input ref={fileRef} type="file" accept="image/*" hidden onChange={onAttach} />
               <button className="btn ghost sm" onClick={() => fileRef.current?.click()}>🖼 이미지</button>
