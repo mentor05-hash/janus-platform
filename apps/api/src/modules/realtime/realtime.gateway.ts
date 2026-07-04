@@ -71,7 +71,7 @@ export class RealtimeGateway implements OnGatewayConnection {
   }
 
   @SubscribeMessage('chat:send')
-  async chatSend(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, body, imageFileId, fileId, fileName }: { bookingId: string; body?: string; imageFileId?: string; fileId?: string; fileName?: string }) {
+  async chatSend(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, body, imageFileId, fileId, fileName, replyToId }: { bookingId: string; body?: string; imageFileId?: string; fileId?: string; fileName?: string; replyToId?: string }) {
     const user = this.user(client);
     await this.svc.assertRoomAccess(user, bookingId);
     const access = await this.svc.featureAccess(user);
@@ -80,7 +80,7 @@ export class RealtimeGateway implements OnGatewayConnection {
     // 파일(PDF·문서 등)은 kind='file' + image_file_id 재사용, body 에 파일명 저장(표시용)
     const kind = imageFileId ? 'image' : fileId ? 'file' : 'text';
     const savedBody = fileId ? (fileName ?? '첨부파일') : (body?.trim() || null);
-    const msg = await this.svc.saveMessage(user.id, bookingId, kind, savedBody, imageFileId ?? fileId ?? null);
+    const msg = await this.svc.saveMessage(user.id, bookingId, kind, savedBody, imageFileId ?? fileId ?? null, replyToId ?? null);
     // 수신자별로 mine 을 서버에서 계산해 개별 전송(클라이언트 myId 오류와 무관하게 좌/우 정렬 보장).
     const sockets = await this.server.in(`booking:${bookingId}`).fetchSockets();
     for (const sock of sockets) {
@@ -88,6 +88,18 @@ export class RealtimeGateway implements OnGatewayConnection {
       sock.emit('chat:message', { ...msg, mine: msg.senderId === viewerId });
     }
     return { ok: true, id: msg.id };
+  }
+
+  /** 메시지 이모지 반응 토글 — 방 전체(발신자 포함)에 갱신 브로드캐스트. */
+  @SubscribeMessage('chat:react')
+  async chatReact(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, messageId, emoji }: { bookingId: string; messageId: string; emoji: string }) {
+    const user = this.user(client);
+    await this.svc.assertRoomAccess(user, bookingId);
+    if (!emoji || emoji.length > 8 || !messageId) return { ok: false };
+    const reactions = await this.svc.toggleReaction(user.id, bookingId, messageId, emoji);
+    if (reactions === null) return { ok: false };
+    this.server.to(`booking:${bookingId}`).emit('chat:reaction', { messageId, reactions });
+    return { ok: true, reactions };
   }
 
   // ── 화이트보드 ──

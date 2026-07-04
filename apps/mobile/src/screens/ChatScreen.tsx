@@ -1,15 +1,31 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Image, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { io, type Socket } from 'socket.io-client';
 import { api } from '../api';
 import { R, useTheme, type Palette } from '../theme';
 import { useWebBack } from '../webBack';
 import { useVoiceCall } from '../voiceCall';
 
-type Msg = { id: string; senderId: string | null; mine?: boolean; kind: string; body: string | null; imageFileId: string | null; createdAt: string; readAt?: string | null };
+type Reactions = Record<string, string[]>;
+type ReplyPreview = { id: string; senderId: string | null; kind: string; body: string | null } | null;
+type Msg = {
+  id: string; senderId: string | null; mine?: boolean; kind: string; body: string | null;
+  imageFileId: string | null; createdAt: string; readAt?: string | null;
+  reactions?: Reactions; replyToId?: string | null; replyTo?: ReplyPreview;
+  pending?: boolean; failed?: boolean;
+};
+const REACTIONS = ['👍', '❤️', '😂', '😮', '✅', '🙏'];
 const KST = (iso: string) => new Date(iso).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-// 서버가 계산한 mine 을 신뢰(수신자별). 없을 때만 클라이언트 myId 로 폴백.
+const WD = ['일', '월', '화', '수', '목', '금', '토'];
 const mineOf = (m: Msg, myId: string) => (typeof m.mine === 'boolean' ? m.mine : m.senderId === myId);
+function dayKey(iso: string) { const d = new Date(iso); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; }
+function dayLabel(iso: string) {
+  const d = new Date(iso); const t = new Date(); const y = new Date(t.getFullYear(), t.getMonth(), t.getDate() - 1);
+  if (dayKey(iso) === dayKey(t.toISOString())) return '오늘';
+  if (dayKey(iso) === dayKey(y.toISOString())) return '어제';
+  return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}. (${WD[d.getDay()]})`;
+}
+const snippet = (m: ReplyPreview) => (m?.kind === 'image' ? '📷 사진' : m?.kind === 'file' ? '📎 파일' : (m?.body ?? ''));
 
 /** 인증 이미지 렌더(채팅 버블용). */
 function ChatImage({ fileId }: { fileId: string }) {
@@ -20,7 +36,20 @@ function ChatImage({ fileId }: { fileId: string }) {
   return <Image source={{ uri }} style={{ width: 150, height: 110, borderRadius: 8, resizeMode: 'cover' }} />;
 }
 
-/** 예약 기반 실시간 채팅(모바일). myId 로 좌/우 정렬. */
+/** 본문 텍스트를 URL 링크와 함께 렌더. */
+function BodyText({ body, mine, C }: { body: string; mine: boolean; C: Palette }) {
+  const parts = body.split(/(https?:\/\/[^\s]+)/g);
+  return (
+    <Text style={[styles0.bubbleT, mine && { color: '#fff' }]}>
+      {parts.map((p, i) => /^https?:\/\//.test(p)
+        ? <Text key={i} onPress={() => Linking.openURL(p).catch(() => {})} style={{ textDecorationLine: 'underline', color: mine ? '#CDEAFD' : C.teal }}>{p}</Text>
+        : <Text key={i}>{p}</Text>)}
+    </Text>
+  );
+}
+const styles0 = StyleSheet.create({ bubbleT: { fontSize: 14, lineHeight: 20 } });
+
+/** 예약 기반 실시간 채팅(모바일). 답장·이모지 반응·낙관적 전송·날짜 구분·링크·읽음·타이핑. */
 export function ChatScreen({ bookingId, myId, title, onClose, embedded }: { bookingId: string; myId: string; title: string; onClose: () => void; embedded?: boolean }) {
   const { C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -28,13 +57,18 @@ export function ChatScreen({ bookingId, myId, title, onClose, embedded }: { book
   const [text, setText] = useState('');
   const [status, setStatus] = useState<'connecting' | 'ready' | 'off'>('connecting');
   const [peerTyping, setPeerTyping] = useState(false);
+  const [reply, setReply] = useState<Msg | null>(null);
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [unseen, setUnseen] = useState(0);
   const sockRef = useRef<Socket | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const typingOffRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const peerTypingOffRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const camStreamRef = useRef<MediaStream | null>(null);
+  const atBottomRef = useRef(true);
+  const tmpN = useRef(0);
   const call = useVoiceCall(() => sockRef.current, bookingId);
-  useWebBack(!embedded, onClose); // 임베드(통합 화면)면 back은 호스트가 처리
+  useWebBack(!embedded, onClose);
 
   useEffect(() => {
     const token = (typeof localStorage !== 'undefined' ? localStorage.getItem('mp_access') : '') ?? '';
@@ -49,11 +83,22 @@ export function ChatScreen({ bookingId, myId, title, onClose, embedded }: { book
       });
     });
     s.on('chat:message', (m: Msg) => {
-      setMsgs((p) => [...p, { ...m, mine: mineOf(m, myId) }]);
-      if (!mineOf(m, myId)) s.emit('chat:read', { bookingId });
+      setMsgs((p) => {
+        if (p.some((x) => x.id === m.id)) return p;
+        let base = p;
+        if (mineOf(m, myId)) {
+          const i = base.findIndex((x) => x.pending && x.id.startsWith('tmp-') && x.body === m.body && x.kind === m.kind);
+          if (i >= 0) base = base.filter((_, k) => k !== i);
+        }
+        return [...base, { ...m, mine: mineOf(m, myId) }];
+      });
+      if (!mineOf(m, myId)) { s.emit('chat:read', { bookingId }); if (!atBottomRef.current) setUnseen((u) => u + 1); }
     });
     s.on('chat:read', ({ readerId, at }: { readerId: string; at: string }) => {
-      setMsgs((p) => p.map((m) => (m.senderId !== readerId && !m.readAt ? { ...m, readAt: at } : m)));
+      setMsgs((p) => p.map((mm) => (mm.senderId !== readerId && !mm.readAt ? { ...mm, readAt: at } : mm)));
+    });
+    s.on('chat:reaction', ({ messageId, reactions }: { messageId: string; reactions: Reactions }) => {
+      setMsgs((p) => p.map((mm) => (mm.id === messageId ? { ...mm, reactions } : mm)));
     });
     s.on('chat:typing', ({ userId, typing }: { userId: string; typing: boolean }) => {
       if (userId === myId) return;
@@ -64,7 +109,13 @@ export function ChatScreen({ bookingId, myId, title, onClose, embedded }: { book
     return () => { s.disconnect(); };
   }, [bookingId, myId]);
 
-  useEffect(() => { setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50); }, [msgs, peerTyping]);
+  useEffect(() => { if (atBottomRef.current) { setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50); setUnseen(0); } }, [msgs, peerTyping]);
+  function onScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
+    const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+    const near = contentSize.height - contentOffset.y - layoutMeasurement.height < 60;
+    atBottomRef.current = near; if (near) setUnseen(0);
+  }
+  function jumpBottom() { atBottomRef.current = true; setUnseen(0); scrollRef.current?.scrollToEnd({ animated: true }); }
 
   function onType(v: string) {
     setText(v);
@@ -72,34 +123,39 @@ export function ChatScreen({ bookingId, myId, title, onClose, embedded }: { book
     if (typingOffRef.current) clearTimeout(typingOffRef.current);
     typingOffRef.current = setTimeout(() => sockRef.current?.emit('chat:typing', { bookingId, typing: false }), 1500);
   }
-  function send() {
-    const body = text.trim();
-    if (!body) return;
-    sockRef.current?.emit('chat:send', { bookingId, body });
+  function sendBody(body: string, replyToId: string | null, replyTo: ReplyPreview) {
+    const id = 'tmp-' + (++tmpN.current);
+    const tmp: Msg = { id, senderId: myId, mine: true, kind: 'text', body, imageFileId: null, createdAt: new Date().toISOString(), reactions: {}, replyToId, replyTo, pending: true };
+    atBottomRef.current = true;
+    setMsgs((p) => [...p, tmp]);
+    sockRef.current?.emit('chat:send', { bookingId, body, replyToId: replyToId ?? undefined }, (r: { ok: boolean }) => {
+      if (!r?.ok) setMsgs((p) => p.map((m) => (m.id === id ? { ...m, pending: false, failed: true } : m)));
+    });
     sockRef.current?.emit('chat:typing', { bookingId, typing: false });
-    setText('');
   }
+  function send() {
+    const body = text.trim(); if (!body) return;
+    sendBody(body, reply?.id ?? null, reply ? { id: reply.id, senderId: reply.senderId, kind: reply.kind, body: (reply.body ?? '').slice(0, 80) } : null);
+    setText(''); setReply(null);
+  }
+  function retry(m: Msg) { setMsgs((p) => p.filter((x) => x.id !== m.id)); sendBody(m.body ?? '', m.replyToId ?? null, m.replyTo ?? null); }
+  function react(messageId: string, emoji: string) { sockRef.current?.emit('chat:react', { bookingId, messageId, emoji }); setMenuFor(null); }
+
   async function sendImage(blob: Blob, name: string) {
     try { const r = await api.uploadWeb(blob as unknown as File, name); sockRef.current?.emit('chat:send', { bookingId, imageFileId: r.id }); } catch { /* noop */ }
   }
   function pickImage() {
     if (typeof document === 'undefined') return;
-    const input = document.createElement('input');
-    input.type = 'file'; input.accept = 'image/*';
+    const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*';
     input.onchange = async () => { const f = input.files?.[0]; if (f && f.type.startsWith('image/')) await sendImage(f, f.name); };
     input.click();
   }
   function pickDoc() {
     if (typeof document === 'undefined') return;
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.onchange = async () => {
-      const f = input.files?.[0]; if (!f) return;
-      try { const r = await api.uploadWeb(f as unknown as File, f.name); sockRef.current?.emit('chat:send', { bookingId, fileId: r.id, fileName: f.name }); } catch { /* noop */ }
-    };
+    const input = document.createElement('input'); input.type = 'file';
+    input.onchange = async () => { const f = input.files?.[0]; if (!f) return; try { const r = await api.uploadWeb(f as unknown as File, f.name); sockRef.current?.emit('chat:send', { bookingId, fileId: r.id, fileName: f.name }); } catch { /* noop */ } };
     input.click();
   }
-  /** 무소음 카메라 촬영 — getUserMedia 로 body 레벨 DOM 오버레이(네이티브 셔터음 없음). */
   async function openCamera() {
     if (typeof navigator === 'undefined' || !navigator.mediaDevices || typeof document === 'undefined') return;
     try {
@@ -134,32 +190,77 @@ export function ChatScreen({ bookingId, myId, title, onClose, embedded }: { book
             {!embedded && <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Text style={styles.close}>✕</Text></TouchableOpacity>}
           </View>
         </View>
-        <ScrollView ref={scrollRef} style={styles.body} contentContainerStyle={{ padding: 14, gap: 8 }}>
-          {status === 'off' ? <Text style={styles.hint}>채팅이 비활성화되어 있어요.</Text>
-            : status === 'connecting' ? <ActivityIndicator color={C.teal} style={{ marginTop: 16 }} />
-            : msgs.length === 0 ? <Text style={styles.hint}>첫 메시지를 보내보세요.</Text>
-            : msgs.map((m) => (
-              <View key={m.id} style={{ alignSelf: m.mine ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
-                <View style={[styles.bubble, m.mine ? styles.mine : styles.theirs, m.kind === 'image' && { padding: 5 }]}>
-                  {m.kind === 'image' && m.imageFileId ? <ChatImage fileId={m.imageFileId} />
-                    : m.kind === 'file' && m.imageFileId ? (
-                      <TouchableOpacity onPress={() => api.downloadWeb(m.imageFileId!, m.body ?? '첨부파일')} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={{ fontSize: 18 }}>📎</Text>
-                        <Text style={[styles.bubbleT, m.mine && { color: '#fff' }, { textDecorationLine: 'underline' }]}>{m.body ?? '첨부파일'}</Text>
+        <View style={{ flex: 1 }}>
+          <ScrollView ref={scrollRef} style={styles.body} contentContainerStyle={{ padding: 14, gap: 4 }} onScroll={onScroll} scrollEventThrottle={80}>
+            {status === 'off' ? <Text style={styles.hint}>채팅이 비활성화되어 있어요.</Text>
+              : status === 'connecting' ? <ActivityIndicator color={C.teal} style={{ marginTop: 16 }} />
+              : msgs.length === 0 ? <Text style={styles.hint}>첫 메시지를 보내보세요.</Text>
+              : msgs.map((m, idx) => {
+                const showDay = idx === 0 || dayKey(m.createdAt) !== dayKey(msgs[idx - 1].createdAt);
+                const rx = m.reactions ?? {};
+                const rxKeys = Object.keys(rx).filter((k) => (rx[k] ?? []).length > 0);
+                return (
+                  <View key={m.id}>
+                    {showDay && <View style={styles.dayWrap}><Text style={styles.dayT}>{dayLabel(m.createdAt)}</Text></View>}
+                    <View style={{ alignSelf: m.mine ? 'flex-end' : 'flex-start', maxWidth: '82%', marginTop: 4 }}>
+                      {m.replyTo && (
+                        <View style={styles.quote}><Text numberOfLines={1} style={styles.quoteT}>↩ {m.replyTo.senderId === myId ? '나' : '상대'}: {snippet(m.replyTo)}</Text></View>
+                      )}
+                      <TouchableOpacity activeOpacity={0.85} onLongPress={() => !m.pending && !m.failed && setMenuFor((f) => (f === m.id ? null : m.id))} delayLongPress={280}>
+                        <View style={[styles.bubble, m.mine ? styles.mine : styles.theirs, m.kind === 'image' && { padding: 5 }, m.pending && { opacity: 0.6 }]}>
+                          {m.kind === 'image' && m.imageFileId ? <ChatImage fileId={m.imageFileId} />
+                            : m.kind === 'file' && m.imageFileId ? (
+                              <TouchableOpacity onPress={() => api.downloadWeb(m.imageFileId!, m.body ?? '첨부파일')} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                <Text style={{ fontSize: 18 }}>📎</Text>
+                                <Text style={[styles.bubbleT, m.mine && { color: '#fff' }, { textDecorationLine: 'underline' }]}>{m.body ?? '첨부파일'}</Text>
+                              </TouchableOpacity>
+                            ) : <BodyText body={m.body ?? ''} mine={!!m.mine} C={C} />}
+                        </View>
                       </TouchableOpacity>
-                    ) : <Text style={[styles.bubbleT, m.mine && { color: '#fff' }]}>{m.body}</Text>}
-                </View>
-                <Text style={[styles.time, { textAlign: m.mine ? 'right' : 'left' }]}>{m.mine && m.readAt ? '읽음 · ' : ''}{KST(m.createdAt)}</Text>
-              </View>
-            ))}
-          {peerTyping && <Text style={[styles.hint, { textAlign: 'left', marginTop: 2, fontStyle: 'italic' }]}>입력 중…</Text>}
-        </ScrollView>
+                      {rxKeys.length > 0 && (
+                        <View style={[styles.rxRow, { justifyContent: m.mine ? 'flex-end' : 'flex-start' }]}>
+                          {rxKeys.map((e) => { const mineR = (rx[e] ?? []).includes(myId); return (
+                            <TouchableOpacity key={e} onPress={() => react(m.id, e)} style={[styles.rxChip, mineR && { borderColor: C.teal, backgroundColor: C.lineSoft }]}>
+                              <Text style={{ fontSize: 11, color: C.ink }}>{e} {(rx[e] ?? []).length}</Text>
+                            </TouchableOpacity>
+                          ); })}
+                        </View>
+                      )}
+                      {menuFor === m.id && (
+                        <View style={styles.menu}>
+                          <TouchableOpacity onPress={() => { setReply(m); setMenuFor(null); }} style={styles.menuBtn}><Text style={{ fontSize: 13, color: C.ink }}>↩ 답장</Text></TouchableOpacity>
+                          {REACTIONS.map((e) => <TouchableOpacity key={e} onPress={() => react(m.id, e)} style={styles.menuEmoji}><Text style={{ fontSize: 17 }}>{e}</Text></TouchableOpacity>)}
+                        </View>
+                      )}
+                      <Text style={[styles.time, { textAlign: m.mine ? 'right' : 'left' }]}>
+                        {m.failed
+                          ? <Text onPress={() => retry(m)} style={{ color: '#E5484D' }}>⚠ 전송 실패 · 재시도</Text>
+                          : m.pending ? '전송 중…'
+                          : `${m.mine && m.readAt ? '읽음 · ' : ''}${KST(m.createdAt)}`}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+            {peerTyping && <Text style={[styles.hint, { textAlign: 'left', marginTop: 2, fontStyle: 'italic' }]}>입력 중…</Text>}
+          </ScrollView>
+          {unseen > 0 && (
+            <TouchableOpacity onPress={jumpBottom} style={styles.pill}><Text style={styles.pillT}>새 메시지 {unseen} ↓</Text></TouchableOpacity>
+          )}
+        </View>
+        {reply && (
+          <View style={styles.replyBar}>
+            <Text style={{ color: C.teal, fontWeight: '800', fontSize: 12 }}>↩ 답장</Text>
+            <Text numberOfLines={1} style={{ flex: 1, color: C.muted, fontSize: 12 }}>{reply.senderId === myId ? '나' : '상대'}: {snippet({ id: reply.id, senderId: reply.senderId, kind: reply.kind, body: reply.body })}</Text>
+            <TouchableOpacity onPress={() => setReply(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Text style={{ color: C.muted, fontSize: 14 }}>✕</Text></TouchableOpacity>
+          </View>
+        )}
         {status !== 'off' && (
           <View style={styles.inputRow}>
             <TouchableOpacity onPress={pickImage} style={styles.imgBtn}><Text style={{ fontSize: 20 }}>🖼</Text></TouchableOpacity>
             <TouchableOpacity onPress={openCamera} style={styles.imgBtn}><Text style={{ fontSize: 20 }}>📷</Text></TouchableOpacity>
             <TouchableOpacity onPress={pickDoc} style={styles.imgBtn}><Text style={{ fontSize: 20 }}>📎</Text></TouchableOpacity>
-            <TextInput style={styles.input} value={text} onChangeText={onType} placeholder="메시지 입력…" placeholderTextColor={C.caption} onSubmitEditing={send} returnKeyType="send" />
+            <TextInput style={styles.input} value={text} onChangeText={onType} placeholder={reply ? '답장 입력…' : '메시지 입력…'} placeholderTextColor={C.caption} onSubmitEditing={send} returnKeyType="send" />
             <TouchableOpacity onPress={send} disabled={!text.trim()} style={[styles.sendBtn, !text.trim() && { opacity: 0.5 }]}><Text style={styles.sendT}>전송</Text></TouchableOpacity>
           </View>
         )}
@@ -178,11 +279,23 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   close: { fontSize: 18, color: C.muted },
   body: { flex: 1, backgroundColor: C.lineSoft },
   hint: { color: C.caption, fontSize: 13, textAlign: 'center', marginTop: 20 },
+  dayWrap: { alignItems: 'center', marginVertical: 6 },
+  dayT: { fontSize: 11, color: C.muted, backgroundColor: C.line, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3, overflow: 'hidden' },
+  quote: { borderLeftWidth: 3, borderLeftColor: C.teal, backgroundColor: C.line, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, marginBottom: 3, maxWidth: 240 },
+  quoteT: { fontSize: 11, color: C.muted },
   bubble: { borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
   mine: { backgroundColor: C.teal },
   theirs: { backgroundColor: C.white, borderWidth: 1, borderColor: C.line },
   bubbleT: { fontSize: 14, color: C.ink, lineHeight: 20 },
+  rxRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 3 },
+  rxChip: { borderWidth: 1, borderColor: C.line, backgroundColor: C.white, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 1 },
+  menu: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4, backgroundColor: C.white, borderWidth: 1, borderColor: C.line, borderRadius: 999, paddingHorizontal: 6, paddingVertical: 3, alignSelf: 'flex-start' },
+  menuBtn: { paddingHorizontal: 6, paddingVertical: 2, borderRightWidth: 1, borderRightColor: C.line },
+  menuEmoji: { paddingHorizontal: 3, paddingVertical: 1 },
   time: { fontSize: 10, color: C.caption, marginTop: 2 },
+  pill: { position: 'absolute', bottom: 10, alignSelf: 'center', backgroundColor: C.teal, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 },
+  pillT: { color: '#fff', fontWeight: '800', fontSize: 12 },
+  replyBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 7, borderTopWidth: 1, borderTopColor: C.line, backgroundColor: C.lineSoft },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 10, borderTopWidth: 1, borderTopColor: C.line },
   imgBtn: { padding: 4 },
   input: { flex: 1, backgroundColor: C.lineSoft, borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: C.ink },

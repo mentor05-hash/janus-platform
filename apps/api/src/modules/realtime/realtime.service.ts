@@ -88,18 +88,47 @@ export class RealtimeService {
     const rows = await this.prisma.chat_message.findMany({
       where: { booking_id: bookingId }, orderBy: { created_at: 'asc' }, take: 500,
     });
-    return { bookingId, studentId: b.student_id, teacherId: b.teacher_id, messages: rows.map((m) => this.shape(m, user.id)) };
+    // 답장 인용 프리뷰(같은 창 안의 원본 메시지에서 발췌)
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    return {
+      bookingId, studentId: b.student_id, teacherId: b.teacher_id,
+      messages: rows.map((m) => this.shape(m, user.id, m.reply_to_id ? byId.get(m.reply_to_id) : null)),
+    };
   }
 
-  async saveMessage(senderId: string, bookingId: string, kind: string, body: string | null, imageFileId: string | null) {
+  async saveMessage(senderId: string, bookingId: string, kind: string, body: string | null, imageFileId: string | null, replyToId?: string | null) {
     const m = await this.prisma.chat_message.create({
-      data: { booking_id: bookingId, sender_id: senderId, kind, body, image_file_id: imageFileId },
+      data: { booking_id: bookingId, sender_id: senderId, kind, body, image_file_id: imageFileId, reply_to_id: replyToId ?? null },
     });
-    return this.shape(m, senderId);
+    // 답장 원본 프리뷰 첨부(같은 예약의 메시지만)
+    const orig = replyToId ? await this.prisma.chat_message.findFirst({ where: { id: replyToId, booking_id: bookingId } }) : null;
+    return this.shape(m, senderId, orig);
   }
 
-  private shape(m: { id: string; sender_id: string | null; kind: string; body: string | null; image_file_id: string | null; created_at: Date; read_at?: Date | null }, viewerId: string) {
-    return { id: m.id, senderId: m.sender_id, mine: m.sender_id === viewerId, kind: m.kind, body: m.body, imageFileId: m.image_file_id, createdAt: m.created_at, readAt: m.read_at ?? null };
+  /** 이모지 반응 토글(같은 예약의 메시지만). 반환: 갱신된 reactions. */
+  async toggleReaction(userId: string, bookingId: string, messageId: string, emoji: string) {
+    const m = await this.prisma.chat_message.findFirst({ where: { id: messageId, booking_id: bookingId } });
+    if (!m) return null;
+    const reactions: Record<string, string[]> = { ...((m.reactions as Record<string, string[]>) ?? {}) };
+    const arr = new Set(reactions[emoji] ?? []);
+    if (arr.has(userId)) arr.delete(userId); else arr.add(userId);
+    if (arr.size) reactions[emoji] = [...arr]; else delete reactions[emoji];
+    await this.prisma.chat_message.update({ where: { id: messageId }, data: { reactions } });
+    return reactions;
+  }
+
+  private shape(
+    m: { id: string; sender_id: string | null; kind: string; body: string | null; image_file_id: string | null; reply_to_id?: string | null; reactions?: unknown; created_at: Date; read_at?: Date | null },
+    viewerId: string,
+    orig?: { id: string; sender_id: string | null; kind: string; body: string | null } | null,
+  ) {
+    return {
+      id: m.id, senderId: m.sender_id, mine: m.sender_id === viewerId, kind: m.kind, body: m.body,
+      imageFileId: m.image_file_id, createdAt: m.created_at, readAt: m.read_at ?? null,
+      reactions: (m.reactions as Record<string, string[]>) ?? {},
+      replyToId: m.reply_to_id ?? null,
+      replyTo: orig ? { id: orig.id, senderId: orig.sender_id, kind: orig.kind, body: orig.body ? orig.body.slice(0, 80) : null } : null,
+    };
   }
 
   /** 이 사용자가 방을 열람 → 상대가 보낸 미확인 메시지를 읽음 처리. 반환: 처리 건수 + 시각. */
