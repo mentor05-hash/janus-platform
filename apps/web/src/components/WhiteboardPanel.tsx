@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { api } from '../api/client';
 import { useVoiceCall } from '../utils/voiceCall';
+import { useSessionPhase, canInteract, sessionNotice, type SessionInfo } from '../utils/session';
 
 type Pt = { x: number; y: number; p?: number }; // p=필압(0~1)
 type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean; highlight?: boolean };
@@ -32,6 +33,7 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
   const [width, setWidth] = useState(3);
   const [tool, setTool] = useState<'pen' | 'eraser' | 'highlighter'>('pen');
   const [status, setStatus] = useState<'connecting' | 'ready' | 'off'>('connecting');
+  const [session, setSession] = useState<SessionInfo | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved'>('idle');
   const [camOn, setCamOn] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -40,6 +42,9 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
   const videoRef = useRef<HTMLVideoElement>(null);
   const camStreamRef = useRef<MediaStream | null>(null);
   const call = useVoiceCall(() => sockRef.current, bookingId);
+  const phase = useSessionPhase(session);
+  const rw = canInteract(phase); // 지금 필기(쓰기) 가능 여부 — 라이브 세션은 예약 시간대에만
+  const notice = sessionNotice(phase, session);
 
   function redraw() {
     const cv = canvasRef.current; if (!cv) return;
@@ -104,9 +109,10 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     const s = io(window.location.origin, { path: '/api/v1/socket.io', auth: { token }, transports: ['websocket'] });
     sockRef.current = s;
     s.on('connect', () => {
-      s.emit('wb:join', { bookingId }, (r: { ok: boolean; strokes?: Stroke[]; backgroundFileId?: string | null }) => {
+      s.emit('wb:join', { bookingId }, (r: { ok: boolean; strokes?: Stroke[]; backgroundFileId?: string | null; session?: SessionInfo }) => {
         if (!r?.ok) { setStatus('off'); return; }
         strokesRef.current = Array.isArray(r.strokes) ? r.strokes : [];
+        setSession(r.session ?? null);
         setStatus('ready'); redraw();
         if (r.backgroundFileId) loadBg(r.backgroundFileId);
       });
@@ -142,6 +148,12 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     return () => cv.removeEventListener('wheel', onWheel);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
+
+  // 세션 강제 종료(폐장) 시 진행 중 획을 확정·저장하고 이후엔 열람 전용.
+  useEffect(() => {
+    if (phase === 'closed' && status === 'ready') { finalizeStroke(); save(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
 
   /** 클라이언트 좌표 → 캔버스(장치) 좌표. */
   function canvasSpace(e: { clientX: number; clientY: number }): { cx: number; cy: number } {
@@ -208,7 +220,8 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     if (status !== 'ready') return;
     (e.target as Element).setPointerCapture?.(e.pointerId);
     pointersRef.current.set(e.pointerId, canvasSpace(e));
-    if (pointersRef.current.size >= 2) { finalizeStroke(); beginPinch(); return; } // 두 손가락 → 줌/팬
+    if (pointersRef.current.size >= 2) { finalizeStroke(); beginPinch(); return; } // 두 손가락 → 줌/팬(열람 중에도 허용)
+    if (!rw) return; // 세션 시간창 밖 → 필기 불가(보기 전용)
     if (rejected(e)) return; // 팜리젝션(펜 사용 중 손가락 무시)
     const p0 = pt(e);
     drawingRef.current = tool === 'eraser'
@@ -332,6 +345,11 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
           <p style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center', padding: 40 }}>화이트보드는 프리미엄 상품에서 제공됩니다.</p>
         ) : (
           <>
+            {!rw && (
+              <div style={{ padding: '8px 14px', background: phase === 'closed' ? 'var(--line-soft,#eef2f4)' : 'var(--teal-50,#EAF3F7)', color: 'var(--muted)', fontSize: 12.5, textAlign: 'center', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <span>{phase === 'closed' ? '🔒' : '⏳'}</span><span>{notice} 필기는 예약 시간대에만 가능하고, 지금은 열람만 됩니다.</span>
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '10px 14px', flexWrap: 'wrap', borderBottom: '1px solid var(--line)' }}>
               {COLORS.map((c) => (
                 <button key={c} onClick={() => { setColor(c); setTool((t) => (t === 'eraser' ? 'pen' : t)); }} title={c} aria-label={`색상 ${c}`} aria-pressed={color === c && tool !== 'eraser'}
@@ -346,8 +364,8 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
               <button onClick={() => setTool('eraser')} aria-pressed={tool === 'eraser'} title="지우개" style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'eraser' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>🧽</button>
               <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
               <input ref={fileRef} type="file" accept="application/pdf,image/*" hidden onChange={onAttach} />
-              <button className="btn ghost sm" onClick={() => fileRef.current?.click()}>🖼 이미지·PDF</button>
-              <button className="btn ghost sm" onClick={openCamera}>📷 촬영</button>
+              <button className="btn ghost sm" disabled={!rw} onClick={() => fileRef.current?.click()}>🖼 이미지·PDF</button>
+              <button className="btn ghost sm" disabled={!rw} onClick={openCamera}>📷 촬영</button>
               <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
               {/* 줌: 배경+필기 함께 확대/축소 (두 손가락 핀치·Ctrl+휠도 가능) */}
               <button className="btn ghost sm" title="축소" onClick={() => zoomAt(W / 2, H / 2, 1 / 1.25)}>🔍−</button>
@@ -363,8 +381,8 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
               )}
               <div style={{ flex: 1 }} />
               <span style={{ fontSize: 11, color: 'var(--muted)' }}>{saveState === 'saving' ? '저장 중…' : saveState === 'saved' ? '자동 저장됨 ✓' : saveState === 'dirty' ? '변경됨' : ''}</span>
-              <button className="btn ghost sm" onClick={clear}>전체 지우기</button>
-              <button className="btn sm" onClick={save}>저장</button>
+              <button className="btn ghost sm" disabled={!rw} onClick={clear}>전체 지우기</button>
+              <button className="btn sm" disabled={!rw} onClick={save}>저장</button>
             </div>
             <div style={{ position: 'relative' }}>
               <canvas ref={canvasRef} width={W} height={H} role="img" aria-label="공유 필기 캔버스"

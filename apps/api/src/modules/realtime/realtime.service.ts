@@ -70,11 +70,41 @@ export class RealtimeService {
     return /premium|프리미엄/i.test(sp.membership_grade?.name ?? '');
   }
 
+  // 라이브 세션(줌·오프라인·필기·보드)은 예약 시간대에만 실시간 상호작용 허용.
+  // 채팅형 상담(mode='chat')은 무제한 유지. 창 = [시작−5분, 종료+5분].
+  private static readonly PRE_MS = 5 * 60 * 1000;
+  private static readonly POST_MS = 5 * 60 * 1000;
+
+  /** 세션 시간창 계산. restricted=false 면 상시 개방(채팅형·시간미정). */
+  sessionWindow(b: { mode: string | null; start_at: Date | null; end_at: Date | null }): {
+    restricted: boolean; state: 'before' | 'open' | 'closed'; opensAt: Date | null; closesAt: Date | null;
+  } {
+    const restricted = b.mode !== 'chat' && !!b.start_at && !!b.end_at;
+    if (!restricted) return { restricted: false, state: 'open', opensAt: null, closesAt: null };
+    const opensAt = new Date(b.start_at!.getTime() - RealtimeService.PRE_MS);
+    const closesAt = new Date(b.end_at!.getTime() + RealtimeService.POST_MS);
+    const now = Date.now();
+    const state = now < opensAt.getTime() ? 'before' : now > closesAt.getTime() ? 'closed' : 'open';
+    return { restricted: true, state, opensAt, closesAt };
+  }
+
+  /** 지금 실시간 쓰기(메시지·반응·필기)가 허용되는지. */
+  sessionOpen(b: { mode: string | null; start_at: Date | null; end_at: Date | null }): boolean {
+    const w = this.sessionWindow(b);
+    return !w.restricted || w.state === 'open';
+  }
+
+  /** 클라이언트 전달용(ISO). */
+  sessionInfo(b: { mode: string | null; start_at: Date | null; end_at: Date | null }) {
+    const w = this.sessionWindow(b);
+    return { restricted: w.restricted, state: w.state, opensAt: w.opensAt?.toISOString() ?? null, closesAt: w.closesAt?.toISOString() ?? null };
+  }
+
   /** 예약 참여자(학생/담당 선생님)만 방 접근. 반환: 예약 + 상대 정보. */
   async assertRoomAccess(user: AuthUser, bookingId: string) {
     const b = await this.prisma.booking.findUnique({
       where: { id: bookingId },
-      select: { id: true, student_id: true, teacher_id: true, mode: true, status: true },
+      select: { id: true, student_id: true, teacher_id: true, mode: true, status: true, start_at: true, end_at: true },
     });
     if (!b) throw new NotFoundException('예약을 찾을 수 없습니다.');
     const isParticipant = b.student_id === user.id || b.teacher_id === user.id ||

@@ -5,6 +5,7 @@ import { api } from '../api';
 import { useTheme, type Palette } from '../theme';
 import { useWebBack } from '../webBack';
 import { useVoiceCall } from '../voiceCall';
+import { useSessionPhase, canInteract, sessionNotice, type SessionInfo } from '../session';
 
 type Pt = { x: number; y: number; p?: number };
 type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean; highlight?: boolean };
@@ -46,6 +47,8 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
   const [pdf, setPdf] = useState<{ pdfId?: string; page: number; pageCount: number } | null>(null); // PDF 페이지 넘김
   const [status, setStatus] = useState<'connecting' | 'ready' | 'off'>(isWeb ? 'connecting' : 'off');
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved'>('idle');
+  const [session, setSession] = useState<SessionInfo | null>(null);
+  const okRef = useRef(true); // 세션 시간창 열림 여부(이펙트 클로저 안 그리기 핸들러가 참조)
   useWebBack(!embedded, onClose); // 임베드(통합 화면)면 back은 호스트가 처리
 
   function redraw() {
@@ -134,7 +137,8 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
     const down = (e: PointerEvent) => {
       if (status !== 'ready') return; cv.setPointerCapture?.(e.pointerId);
       pointersRef.current.set(e.pointerId, cs(e));
-      if (pointersRef.current.size >= 2) { finalize(); beginPinch(); return; } // 두 손가락 → 줌/팬
+      if (pointersRef.current.size >= 2) { finalize(); beginPinch(); return; } // 두 손가락 → 줌/팬(열람 중에도 허용)
+      if (!okRef.current) return; // 세션 시간창 밖 → 필기 불가(보기 전용)
       if (rejected(e)) return;
       const p0 = pt(e);
       drawingRef.current = toolRef.current === 'eraser'
@@ -169,9 +173,9 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
     const token = (typeof localStorage !== 'undefined' ? localStorage.getItem('mp_access') : '') ?? '';
     const s = io(window.location.origin, { path: '/api/v1/socket.io', auth: { token }, transports: ['websocket'] });
     sockRef.current = s;
-    s.on('connect', () => s.emit('wb:join', { bookingId }, (r: { ok: boolean; strokes?: Stroke[]; backgroundFileId?: string | null }) => {
+    s.on('connect', () => s.emit('wb:join', { bookingId }, (r: { ok: boolean; strokes?: Stroke[]; backgroundFileId?: string | null; session?: SessionInfo }) => {
       if (!r?.ok) { setStatus('off'); return; }
-      strokesRef.current = Array.isArray(r.strokes) ? r.strokes : []; setStatus('ready'); redraw();
+      strokesRef.current = Array.isArray(r.strokes) ? r.strokes : []; setSession(r.session ?? null); setStatus('ready'); redraw();
       if (r.backgroundFileId) loadBg(r.backgroundFileId);
     }));
     s.on('wb:stroke:partial', ({ sid, meta, points }: { sid: string; meta: Partial<Stroke>; points: Pt[] }) => {
@@ -191,6 +195,12 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
 
   useEffect(() => { redraw(); }, [status]);
   useEffect(() => () => closeCamera(), []);
+  const phase = useSessionPhase(session);
+  const rw = canInteract(phase); // 지금 필기(쓰기) 가능 여부 — 라이브 세션은 예약 시간대에만
+  const notice = sessionNotice(phase, session);
+  useEffect(() => { okRef.current = rw; }, [rw]);
+  // 세션 강제 종료(폐장) 시 마지막 상태 저장 후 열람 전용.
+  useEffect(() => { if (phase === 'closed' && status === 'ready') save(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, [phase]);
   function pick(c: string) { setColor(c); colorRef.current = c; if (toolRef.current === 'eraser') { setTool('pen'); toolRef.current = 'pen'; } }
   function pickW(w: number) { setWidth(w); widthRef.current = w; }
   function pickTool(t: 'pen' | 'eraser' | 'highlighter') { setTool(t); toolRef.current = t; }
@@ -277,6 +287,11 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
           <Text style={styles.hint}>{isWeb ? '화이트보드는 프리미엄 상품에서 제공됩니다.' : '화이트보드는 웹에서 지원됩니다.'}</Text>
         ) : (
           <>
+            {!rw && (
+              <View style={[styles.notice, phase === 'closed' && { backgroundColor: C.lineSoft }]}>
+                <Text style={styles.noticeT}>{phase === 'closed' ? '🔒 ' : '⏳ '}{notice} 필기는 예약 시간대에만 가능하고 지금은 열람만 됩니다.</Text>
+              </View>
+            )}
             <View style={styles.tools}>
               {COLORS.map((c) => (
                 <TouchableOpacity key={c} onPress={() => pick(c)} style={[styles.swatch, { backgroundColor: c, borderColor: color === c ? C.teal : C.line, borderWidth: color === c ? 3 : 1 }]} />
@@ -289,8 +304,8 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
               <TouchableOpacity onPress={() => pickTool('pen')} style={[styles.wbtn, { width: 40 }, tool === 'pen' && { borderColor: C.teal, borderWidth: 2 }]}><Text style={styles.wtxt}>✏️</Text></TouchableOpacity>
               <TouchableOpacity onPress={() => pickTool('highlighter')} style={[styles.wbtn, { width: 40 }, tool === 'highlighter' && { borderColor: C.teal, borderWidth: 2 }]}><Text style={styles.wtxt}>🖍</Text></TouchableOpacity>
               <TouchableOpacity onPress={() => pickTool('eraser')} style={[styles.wbtn, { width: 40 }, tool === 'eraser' && { borderColor: C.teal, borderWidth: 2 }]}><Text style={styles.wtxt}>🧽</Text></TouchableOpacity>
-              <TouchableOpacity onPress={attachImage} style={[styles.wbtn, { width: 40 }]}><Text style={styles.wtxt}>🖼</Text></TouchableOpacity>
-              <TouchableOpacity onPress={openCamera} style={[styles.wbtn, { width: 40 }]}><Text style={styles.wtxt}>📷</Text></TouchableOpacity>
+              <TouchableOpacity disabled={!rw} onPress={attachImage} style={[styles.wbtn, { width: 40, opacity: rw ? 1 : 0.4 }]}><Text style={styles.wtxt}>🖼</Text></TouchableOpacity>
+              <TouchableOpacity disabled={!rw} onPress={openCamera} style={[styles.wbtn, { width: 40, opacity: rw ? 1 : 0.4 }]}><Text style={styles.wtxt}>📷</Text></TouchableOpacity>
               {/* 줌: 배경+필기 함께 확대/축소 (두 손가락 핀치도 가능) */}
               <TouchableOpacity onPress={() => zoomAt(W / 2, H / 2, 1 / 1.25)} style={[styles.wbtn, { width: 34 }]}><Text style={styles.wtxt}>−</Text></TouchableOpacity>
               <TouchableOpacity onPress={resetZoom} style={[styles.wbtn, { width: 48 }]}><Text style={styles.wtxt}>{zoomPct}%</Text></TouchableOpacity>
@@ -302,8 +317,8 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
               </>)}
               <View style={{ flex: 1 }} />
               <Text style={{ fontSize: 10, color: C.muted, marginRight: 4 }}>{saveState === 'saving' ? '저장 중…' : saveState === 'saved' ? '자동저장 ✓' : saveState === 'dirty' ? '변경됨' : ''}</Text>
-              <TouchableOpacity onPress={clear} style={styles.act}><Text style={styles.actT}>전체 지우기</Text></TouchableOpacity>
-              <TouchableOpacity onPress={save} style={[styles.act, styles.actP]}><Text style={[styles.actT, { color: '#fff' }]}>저장</Text></TouchableOpacity>
+              <TouchableOpacity disabled={!rw} onPress={clear} style={[styles.act, !rw && { opacity: 0.4 }]}><Text style={styles.actT}>전체 지우기</Text></TouchableOpacity>
+              <TouchableOpacity disabled={!rw} onPress={save} style={[styles.act, styles.actP, !rw && { opacity: 0.4 }]}><Text style={[styles.actT, { color: '#fff' }]}>저장</Text></TouchableOpacity>
             </View>
             <View ref={hostRef} style={styles.canvasHost} />
           </>
@@ -322,6 +337,8 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   headT: { fontSize: 15, fontWeight: '800', color: C.ink },
   close: { fontSize: 18, color: C.muted },
   hint: { color: C.muted, fontSize: 13, textAlign: 'center', padding: 40 },
+  notice: { paddingHorizontal: 14, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: C.line, backgroundColor: C.lineSoft, alignItems: 'center' },
+  noticeT: { fontSize: 12, color: C.muted, textAlign: 'center' },
   tools: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 10, borderBottomWidth: 1, borderBottomColor: C.line, flexWrap: 'wrap' },
   swatch: { width: 24, height: 24, borderRadius: 12 },
   wbtn: { width: 30, height: 26, borderRadius: 6, borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center', backgroundColor: C.white },

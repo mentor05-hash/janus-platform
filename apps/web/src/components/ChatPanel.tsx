@@ -3,6 +3,7 @@ import { io, type Socket } from 'socket.io-client';
 import { api } from '../api/client';
 import { AuthImage } from './AuthImage';
 import { mineOf } from '../utils/chat';
+import { useSessionPhase, canInteract, sessionNotice, phaseOf, type SessionInfo } from '../utils/session';
 
 type Reactions = Record<string, string[]>;
 type ReplyPreview = { id: string; senderId: string | null; kind: string; body: string | null } | null;
@@ -35,6 +36,7 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState('');
   const [status, setStatus] = useState<'connecting' | 'ready' | 'off'>('connecting');
+  const [session, setSession] = useState<SessionInfo | null>(null);
   const [peerTyping, setPeerTyping] = useState(false);
   const [reply, setReply] = useState<Msg | null>(null);
   const [reactFor, setReactFor] = useState<string | null>(null);
@@ -58,9 +60,10 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
     const s = io(window.location.origin, { path: '/api/v1/socket.io', auth: { token }, transports: ['websocket'] });
     sockRef.current = s;
     s.on('connect', () => {
-      s.emit('chat:join', { bookingId }, (r: { ok: boolean; access?: { chat: boolean }; messages?: Msg[] }) => {
+      s.emit('chat:join', { bookingId }, (r: { ok: boolean; access?: { chat: boolean }; messages?: Msg[]; session?: SessionInfo }) => {
         if (!r?.access?.chat) { setStatus('off'); return; }
         setMsgs((r.messages ?? []).map((m) => ({ ...m, mine: mineOf(m, myId) })));
+        setSession(r.session ?? null);
         setStatus('ready');
       });
     });
@@ -122,12 +125,12 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
     sockRef.current?.emit('chat:typing', { bookingId, typing: false });
   }
   function send() {
-    const body = text.trim(); if (!body) return;
+    const body = text.trim(); if (!body || !canInteract(phaseOf(session))) return;
     sendBody(body, reply?.id ?? null, reply ? { id: reply.id, senderId: reply.senderId, kind: reply.kind, body: (reply.body ?? '').slice(0, 80) } : null);
     setText(''); setReply(null);
   }
   function retry(m: Msg) { setMsgs((p) => p.filter((x) => x.id !== m.id)); sendBody(m.body ?? '', m.replyToId ?? null, m.replyTo ?? null); }
-  function react(messageId: string, emoji: string) { sockRef.current?.emit('chat:react', { bookingId, messageId, emoji }); setReactFor(null); }
+  function react(messageId: string, emoji: string) { if (!canInteract(phaseOf(session))) return; sockRef.current?.emit('chat:react', { bookingId, messageId, emoji }); setReactFor(null); }
 
   async function sendImage(blob: Blob, name: string) {
     const form = new FormData(); form.append('file', blob, name);
@@ -155,6 +158,9 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
   useEffect(() => () => closeCamera(), []);
 
   const snippet = (m: ReplyPreview) => m?.kind === 'image' ? '📷 사진' : m?.kind === 'file' ? '📎 파일' : (m?.body ?? '');
+  const phase = useSessionPhase(session);
+  const rw = canInteract(phase); // 지금 쓰기(메시지·반응·답장) 가능 여부
+  const notice = sessionNotice(phase, session);
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 950, background: 'rgba(8,16,20,0.5)', display: 'grid', placeItems: 'center', padding: 16 }}>
@@ -200,7 +206,7 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
                         : <>{m.mine && m.readAt && <span style={{ color: 'var(--teal)', marginRight: 4 }}>읽음</span>}{KST(m.createdAt)}</>}
                     </div>
                     {/* 호버 액션(답장·반응) */}
-                    {hover === m.id && !m.pending && !m.failed && (
+                    {hover === m.id && !m.pending && !m.failed && rw && (
                       <div style={{ position: 'absolute', top: -12, [m.mine ? 'left' : 'right']: -6, display: 'flex', gap: 2, background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 999, padding: 2, boxShadow: '0 2px 8px rgba(0,0,0,.08)' } as React.CSSProperties}>
                         <button title="답장" onClick={() => { setReply(m); setReactFor(null); }} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, padding: '2px 5px' }}>↩</button>
                         <button title="반응" onClick={() => setReactFor((f) => (f === m.id ? null : m.id))} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, padding: '2px 5px' }}>😊</button>
@@ -220,14 +226,19 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
           <div ref={endRef} />
           {unseen > 0 && <button onClick={jumpBottom} style={{ position: 'sticky', bottom: 6, alignSelf: 'center', fontSize: 12, fontWeight: 700, color: '#fff', background: 'var(--teal)', border: 'none', borderRadius: 999, padding: '5px 12px', cursor: 'pointer', boxShadow: '0 3px 10px rgba(0,0,0,.18)' }}>새 메시지 {unseen} ↓</button>}
         </div>
-        {reply && (
+        {reply && rw && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderTop: '1px solid var(--line)', background: 'var(--line-soft,#eef2f4)', fontSize: 12 }}>
             <span style={{ color: 'var(--teal)', fontWeight: 700 }}>↩ 답장</span>
             <span style={{ flex: 1, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{reply.senderId === myId ? '나' : '상대'}: {snippet({ id: reply.id, senderId: reply.senderId, kind: reply.kind, body: reply.body })}</span>
             <button onClick={() => setReply(null)} aria-label="답장 취소" style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>✕</button>
           </div>
         )}
-        {status !== 'off' && (
+        {status !== 'off' && !rw && (
+          <div style={{ padding: '11px 14px', borderTop: '1px solid var(--line)', background: phase === 'closed' ? 'var(--line-soft,#eef2f4)' : 'var(--teal-50,#EAF3F7)', color: 'var(--muted)', fontSize: 12.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <span>{phase === 'closed' ? '🔒' : '⏳'}</span><span>{notice}</span>
+          </div>
+        )}
+        {status !== 'off' && rw && (
           <div style={{ display: 'flex', gap: 6, padding: 10, borderTop: '1px solid var(--line)', alignItems: 'center' }}>
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
             <button onClick={() => fileRef.current?.click()} title="이미지 첨부" aria-label="이미지 첨부" style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer' }}>🖼</button>

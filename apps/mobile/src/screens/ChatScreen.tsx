@@ -5,6 +5,7 @@ import { api } from '../api';
 import { R, useTheme, type Palette } from '../theme';
 import { useWebBack } from '../webBack';
 import { useVoiceCall } from '../voiceCall';
+import { useSessionPhase, canInteract, sessionNotice, phaseOf, type SessionInfo } from '../session';
 
 type Reactions = Record<string, string[]>;
 type ReplyPreview = { id: string; senderId: string | null; kind: string; body: string | null } | null;
@@ -56,6 +57,7 @@ export function ChatScreen({ bookingId, myId, title, onClose, embedded }: { book
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState('');
   const [status, setStatus] = useState<'connecting' | 'ready' | 'off'>('connecting');
+  const [session, setSession] = useState<SessionInfo | null>(null);
   const [peerTyping, setPeerTyping] = useState(false);
   const [reply, setReply] = useState<Msg | null>(null);
   const [menuFor, setMenuFor] = useState<string | null>(null);
@@ -76,9 +78,10 @@ export function ChatScreen({ bookingId, myId, title, onClose, embedded }: { book
     const s = io(origin, { path: '/api/v1/socket.io', auth: { token }, transports: ['websocket'] });
     sockRef.current = s;
     s.on('connect', () => {
-      s.emit('chat:join', { bookingId }, (r: { ok: boolean; access?: { chat: boolean }; messages?: Msg[] }) => {
+      s.emit('chat:join', { bookingId }, (r: { ok: boolean; access?: { chat: boolean }; messages?: Msg[]; session?: SessionInfo }) => {
         if (!r?.access?.chat) { setStatus('off'); return; }
         setMsgs((r.messages ?? []).map((m) => ({ ...m, mine: mineOf(m, myId) })));
+        setSession(r.session ?? null);
         setStatus('ready');
       });
     });
@@ -134,12 +137,12 @@ export function ChatScreen({ bookingId, myId, title, onClose, embedded }: { book
     sockRef.current?.emit('chat:typing', { bookingId, typing: false });
   }
   function send() {
-    const body = text.trim(); if (!body) return;
+    const body = text.trim(); if (!body || !canInteract(phaseOf(session))) return;
     sendBody(body, reply?.id ?? null, reply ? { id: reply.id, senderId: reply.senderId, kind: reply.kind, body: (reply.body ?? '').slice(0, 80) } : null);
     setText(''); setReply(null);
   }
   function retry(m: Msg) { setMsgs((p) => p.filter((x) => x.id !== m.id)); sendBody(m.body ?? '', m.replyToId ?? null, m.replyTo ?? null); }
-  function react(messageId: string, emoji: string) { sockRef.current?.emit('chat:react', { bookingId, messageId, emoji }); setMenuFor(null); }
+  function react(messageId: string, emoji: string) { if (!canInteract(phaseOf(session))) return; sockRef.current?.emit('chat:react', { bookingId, messageId, emoji }); setMenuFor(null); }
 
   async function sendImage(blob: Blob, name: string) {
     try { const r = await api.uploadWeb(blob as unknown as File, name); sockRef.current?.emit('chat:send', { bookingId, imageFileId: r.id }); } catch { /* noop */ }
@@ -174,6 +177,9 @@ export function ChatScreen({ bookingId, myId, title, onClose, embedded }: { book
   }
   function closeCamera() { camStreamRef.current?.getTracks().forEach((t) => t.stop()); camStreamRef.current = null; if (typeof document !== 'undefined') document.getElementById('chat-cam-ov')?.remove(); }
   useEffect(() => () => closeCamera(), []);
+  const phase = useSessionPhase(session);
+  const rw = canInteract(phase); // 지금 쓰기(메시지·반응·답장) 가능 여부
+  const notice = sessionNotice(phase, session);
 
   return (
     <View style={embedded ? styles.embWrap : styles.overlay}>
@@ -206,7 +212,7 @@ export function ChatScreen({ bookingId, myId, title, onClose, embedded }: { book
                       {m.replyTo && (
                         <View style={styles.quote}><Text numberOfLines={1} style={styles.quoteT}>↩ {m.replyTo.senderId === myId ? '나' : '상대'}: {snippet(m.replyTo)}</Text></View>
                       )}
-                      <TouchableOpacity activeOpacity={0.85} onLongPress={() => !m.pending && !m.failed && setMenuFor((f) => (f === m.id ? null : m.id))} delayLongPress={280}>
+                      <TouchableOpacity activeOpacity={0.85} onLongPress={() => rw && !m.pending && !m.failed && setMenuFor((f) => (f === m.id ? null : m.id))} delayLongPress={280}>
                         <View style={[styles.bubble, m.mine ? styles.mine : styles.theirs, m.kind === 'image' && { padding: 5 }, m.pending && { opacity: 0.6 }]}>
                           {m.kind === 'image' && m.imageFileId ? <ChatImage fileId={m.imageFileId} />
                             : m.kind === 'file' && m.imageFileId ? (
@@ -248,14 +254,19 @@ export function ChatScreen({ bookingId, myId, title, onClose, embedded }: { book
             <TouchableOpacity onPress={jumpBottom} style={styles.pill}><Text style={styles.pillT}>새 메시지 {unseen} ↓</Text></TouchableOpacity>
           )}
         </View>
-        {reply && (
+        {reply && rw && (
           <View style={styles.replyBar}>
             <Text style={{ color: C.teal, fontWeight: '800', fontSize: 12 }}>↩ 답장</Text>
             <Text numberOfLines={1} style={{ flex: 1, color: C.muted, fontSize: 12 }}>{reply.senderId === myId ? '나' : '상대'}: {snippet({ id: reply.id, senderId: reply.senderId, kind: reply.kind, body: reply.body })}</Text>
             <TouchableOpacity onPress={() => setReply(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Text style={{ color: C.muted, fontSize: 14 }}>✕</Text></TouchableOpacity>
           </View>
         )}
-        {status !== 'off' && (
+        {status !== 'off' && !rw && (
+          <View style={[styles.notice, phase === 'closed' && { backgroundColor: C.lineSoft }]}>
+            <Text style={styles.noticeT}>{phase === 'closed' ? '🔒 ' : '⏳ '}{notice}</Text>
+          </View>
+        )}
+        {status !== 'off' && rw && (
           <View style={styles.inputRow}>
             <TouchableOpacity onPress={pickImage} style={styles.imgBtn}><Text style={{ fontSize: 20 }}>🖼</Text></TouchableOpacity>
             <TouchableOpacity onPress={openCamera} style={styles.imgBtn}><Text style={{ fontSize: 20 }}>📷</Text></TouchableOpacity>
@@ -296,6 +307,8 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   pill: { position: 'absolute', bottom: 10, alignSelf: 'center', backgroundColor: C.teal, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 },
   pillT: { color: '#fff', fontWeight: '800', fontSize: 12 },
   replyBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 7, borderTopWidth: 1, borderTopColor: C.line, backgroundColor: C.lineSoft },
+  notice: { paddingHorizontal: 14, paddingVertical: 11, borderTopWidth: 1, borderTopColor: C.line, backgroundColor: C.lineSoft, alignItems: 'center' },
+  noticeT: { fontSize: 12.5, color: C.muted, textAlign: 'center' },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 10, borderTopWidth: 1, borderTopColor: C.line },
   imgBtn: { padding: 4 },
   input: { flex: 1, backgroundColor: C.lineSoft, borderRadius: R.md, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14, color: C.ink },

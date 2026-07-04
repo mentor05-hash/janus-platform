@@ -19,8 +19,22 @@ type SockUser = { id: string; role: string; centerId: string | null; loginId: st
 export class RealtimeGateway implements OnGatewayConnection {
   private readonly logger = new Logger('Realtime');
   @WebSocketServer() server!: Server;
+  // 예약별 세션 시간창 캐시(고빈도 wb:stroke 경로의 DB 조회 회피). 창은 예약당 불변 → 캐시 안전.
+  private readonly windows = new Map<string, { restricted: boolean; opensMs: number; closesMs: number }>();
 
   constructor(private readonly jwt: JwtService, private readonly svc: RealtimeService) {}
+
+  private rememberWindow(bookingId: string, b: { mode: string | null; start_at: Date | null; end_at: Date | null }) {
+    const w = this.svc.sessionWindow(b);
+    this.windows.set(bookingId, { restricted: w.restricted, opensMs: w.opensAt?.getTime() ?? 0, closesMs: w.closesAt?.getTime() ?? 0 });
+  }
+  /** 캐시된 창 기준으로 지금 필기 가능한지(캐시 없으면 관대하게 허용 — join 이 항상 선행). */
+  private openNow(bookingId: string): boolean {
+    const w = this.windows.get(bookingId);
+    if (!w || !w.restricted) return true;
+    const now = Date.now();
+    return now >= w.opensMs && now <= w.closesMs;
+  }
 
   /** 접속 시 JWT 검증 → 유저룸 조인. 실패하면 연결 종료. */
   handleConnection(client: Socket) {
@@ -46,11 +60,12 @@ export class RealtimeGateway implements OnGatewayConnection {
     const b = await this.svc.assertRoomAccess(user, bookingId);
     const access = await this.svc.featureAccess(user, b.student_id ?? undefined);
     client.join(`booking:${bookingId}`);
+    this.rememberWindow(bookingId, b);
     const hist = await this.svc.history(user, bookingId);
     // 입장 = 열람: 상대가 보낸 미확인 메시지를 읽음 처리 후 방에 읽음 통지(상대 '읽음' 표시).
     const read = await this.svc.markRead(user, bookingId);
     if (read.count > 0) client.to(`booking:${bookingId}`).emit('chat:read', { bookingId, readerId: read.readerId, at: read.at });
-    return { ok: true, access, messages: hist.messages };
+    return { ok: true, access, messages: hist.messages, session: this.svc.sessionInfo(b) };
   }
 
   /** 입력 중 표시 — 방의 상대에게만 전달(영속 없음). */
@@ -73,9 +88,10 @@ export class RealtimeGateway implements OnGatewayConnection {
   @SubscribeMessage('chat:send')
   async chatSend(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, body, imageFileId, fileId, fileName, replyToId }: { bookingId: string; body?: string; imageFileId?: string; fileId?: string; fileName?: string; replyToId?: string }) {
     const user = this.user(client);
-    await this.svc.assertRoomAccess(user, bookingId);
+    const b = await this.svc.assertRoomAccess(user, bookingId);
     const access = await this.svc.featureAccess(user);
     if (!access.chat) return { ok: false, error: '채팅이 비활성화되어 있습니다.' };
+    if (!this.svc.sessionOpen(b)) return { ok: false, closed: true, error: '상담 세션 시간이 아닙니다. 예약 시간대에만 메시지를 보낼 수 있어요.' };
     if (!body?.trim() && !imageFileId && !fileId) return { ok: false };
     // 파일(PDF·문서 등)은 kind='file' + image_file_id 재사용, body 에 파일명 저장(표시용)
     const kind = imageFileId ? 'image' : fileId ? 'file' : 'text';
@@ -94,7 +110,8 @@ export class RealtimeGateway implements OnGatewayConnection {
   @SubscribeMessage('chat:react')
   async chatReact(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, messageId, emoji }: { bookingId: string; messageId: string; emoji: string }) {
     const user = this.user(client);
-    await this.svc.assertRoomAccess(user, bookingId);
+    const b = await this.svc.assertRoomAccess(user, bookingId);
+    if (!this.svc.sessionOpen(b)) return { ok: false, closed: true };
     if (!emoji || emoji.length > 8 || !messageId) return { ok: false };
     const reactions = await this.svc.toggleReaction(user.id, bookingId, messageId, emoji);
     if (reactions === null) return { ok: false };
@@ -110,8 +127,9 @@ export class RealtimeGateway implements OnGatewayConnection {
     const access = await this.svc.featureAccess(user, b.student_id ?? undefined);
     if (!access.whiteboard) return { ok: false, error: '화이트보드는 상위 상품에서 제공됩니다.' };
     client.join(`booking:${bookingId}`);
+    this.rememberWindow(bookingId, b);
     const snap = await this.svc.latestSnapshot(bookingId);
-    return { ok: true, strokes: snap?.strokes ?? [], backgroundFileId: snap?.background_file_id ?? null };
+    return { ok: true, strokes: snap?.strokes ?? [], backgroundFileId: snap?.background_file_id ?? null, session: this.svc.sessionInfo(b) };
   }
 
   /** 배경 이미지(첨부/촬영/PDF 페이지) 설정 — 상대에게 브로드캐스트. page/pageCount 는 PDF 페이지 표시용. */
@@ -120,12 +138,14 @@ export class RealtimeGateway implements OnGatewayConnection {
     @ConnectedSocket() client: Socket,
     @MessageBody() { bookingId, fileId, page, pageCount }: { bookingId: string; fileId: string | null; page?: number; pageCount?: number },
   ) {
+    if (!this.openNow(bookingId)) return { ok: false, closed: true };
     client.to(`booking:${bookingId}`).emit('wb:image', { fileId, page, pageCount });
     return { ok: true };
   }
 
   @SubscribeMessage('wb:stroke')
   wbStroke(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, stroke, sid }: { bookingId: string; stroke: unknown; sid?: string }) {
+    if (!this.openNow(bookingId)) return { ok: false, closed: true };
     client.to(`booking:${bookingId}`).emit('wb:stroke', { stroke, sid }); // 발신자 제외 브로드캐스트(최종 획)
     return { ok: true };
   }
@@ -136,11 +156,13 @@ export class RealtimeGateway implements OnGatewayConnection {
     @ConnectedSocket() client: Socket,
     @MessageBody() { bookingId, sid, meta, points }: { bookingId: string; sid: string; meta: unknown; points: unknown },
   ) {
+    if (!this.openNow(bookingId)) return;
     client.to(`booking:${bookingId}`).emit('wb:stroke:partial', { sid, meta, points });
   }
 
   @SubscribeMessage('wb:clear')
   wbClear(@ConnectedSocket() client: Socket, @MessageBody() { bookingId }: { bookingId: string }) {
+    if (!this.openNow(bookingId)) return { ok: false, closed: true };
     client.to(`booking:${bookingId}`).emit('wb:clear', {});
     return { ok: true };
   }
@@ -148,7 +170,8 @@ export class RealtimeGateway implements OnGatewayConnection {
   @SubscribeMessage('wb:save')
   async wbSave(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, strokes, backgroundFileId }: { bookingId: string; strokes: unknown; backgroundFileId?: string | null }) {
     const user = this.user(client);
-    await this.svc.assertRoomAccess(user, bookingId);
+    const b = await this.svc.assertRoomAccess(user, bookingId);
+    if (!this.svc.sessionOpen(b)) return { ok: false, closed: true };
     await this.svc.saveSnapshot(user.id, bookingId, strokes, backgroundFileId);
     return { ok: true };
   }
