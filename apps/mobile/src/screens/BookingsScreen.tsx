@@ -5,7 +5,7 @@ import { R, SP, useTheme, useUI, type Palette } from '../theme';
 import { useWebBack } from '../webBack';
 import { RescheduleScreen } from './RescheduleScreen';
 import { SessionChatScreen } from './SessionChatScreen';
-import { WhiteboardScreen } from './WhiteboardScreen';
+import { SessionWhiteboardScreen } from './SessionWhiteboardScreen';
 
 const slotLen = (b: Booking) => (b.start && b.end ? Math.max(1, Math.round((new Date(b.end).getTime() - new Date(b.start).getTime()) / 600000)) : 3);
 
@@ -268,7 +268,7 @@ export function BookingsScreen({ myId }: { myId?: string }) {
         })
       )}
       {chatId && myId && <SessionChatScreen bookingId={chatId} myId={myId} title="상담 채팅" onClose={() => { setChatId(null); loadUnread(); }} />}
-      {wbId && <WhiteboardScreen bookingId={wbId} title="공유 화이트보드" onClose={() => setWbId(null)} />}
+      {wbId && <SessionWhiteboardScreen bookingId={wbId} title="공유 화이트보드" onClose={() => setWbId(null)} />}
     </ScrollView>
   );
 }
