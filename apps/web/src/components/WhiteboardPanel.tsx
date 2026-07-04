@@ -24,6 +24,8 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
   const pointersRef = useRef(new Map<number, { cx: number; cy: number }>()); // 활성 포인터(캔버스 좌표)
   const pinchRef = useRef<{ dist: number; midCx: number; midCy: number; view: { scale: number; tx: number; ty: number } } | null>(null);
   const [zoomPct, setZoomPct] = useState(100);
+  // PDF 배경 페이지 넘김 컨텍스트. pdfId 가 있으면 이 클라이언트가 업로더(넘김 가능), 없으면 상대(표시만).
+  const [pdf, setPdf] = useState<{ pdfId?: string; page: number; pageCount: number } | null>(null);
   const bgImgRef = useRef<HTMLImageElement | null>(null);
   const bgFileIdRef = useRef<string | null>(null);
   const [color, setColor] = useState(COLORS[0]);
@@ -117,7 +119,10 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     });
     s.on('wb:stroke', ({ stroke, sid }: { stroke: Stroke; sid?: string }) => { if (sid) liveRef.current.delete(sid); strokesRef.current.push(stroke); redraw(); });
     s.on('wb:clear', () => { strokesRef.current = []; liveRef.current.clear(); redraw(); });
-    s.on('wb:image', ({ fileId }: { fileId: string | null }) => loadBg(fileId));
+    s.on('wb:image', ({ fileId, page, pageCount }: { fileId: string | null; page?: number; pageCount?: number }) => {
+      loadBg(fileId);
+      if (fileId && pageCount) setPdf({ page: page ?? 1, pageCount }); else if (!fileId) setPdf(null);
+    });
     return () => { s.disconnect(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingId]);
@@ -245,14 +250,26 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     if (pointersRef.current.size < 2) pinchRef.current = null;
     finalizeStroke(); // 진행 중 획이 있으면 확정(핀치 진입 시엔 이미 null → 무동작)
   }
-  function clear() { strokesRef.current = []; loadBg(null); redraw(); sockRef.current?.emit('wb:clear', { bookingId }); sockRef.current?.emit('wb:image', { bookingId, fileId: null }); scheduleAutosave(); }
+  function clear() { strokesRef.current = []; setPdf(null); loadBg(null); redraw(); sockRef.current?.emit('wb:clear', { bookingId }); sockRef.current?.emit('wb:image', { bookingId, fileId: null }); scheduleAutosave(); }
   function save() {
     if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
     setSaveState('saving');
     sockRef.current?.emit('wb:save', { bookingId, strokes: strokesRef.current, backgroundFileId: bgFileIdRef.current }, () => setSaveState('saved'));
   }
 
+  /** PDF 페이지 넘김(업로더만) — 저장된 pdfId 의 새 페이지를 렌더·공유. */
+  async function gotoPage(np: number) {
+    if (!pdf?.pdfId || np < 1 || np > pdf.pageCount) return;
+    try {
+      const r = await api.post<{ id: string; page: number; pageCount: number }>('/files/pdf-render', { pdfId: pdf.pdfId, page: np });
+      setPdf({ pdfId: pdf.pdfId, page: r.page, pageCount: r.pageCount });
+      loadBg(r.id); resetZoom();
+      sockRef.current?.emit('wb:image', { bookingId, fileId: r.id, page: r.page, pageCount: r.pageCount });
+      scheduleAutosave();
+    } catch { /* noop */ }
+  }
   async function useAsBackground(blob: Blob, name: string) {
+    setPdf(null);
     const form = new FormData(); form.append('file', blob, name);
     const r = await api.upload<{ id: string }>('/files', form);
     loadBg(r.id);
@@ -266,8 +283,11 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
       if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) {
         // PDF → 서버에서 첫 페이지 PNG 로 렌더(공유 배경은 항상 PNG → 웹·모바일 호환)
         const form = new FormData(); form.append('file', f, f.name);
-        const r = await api.upload<{ id: string }>('/files/pdf-page', form);
-        loadBg(r.id); sockRef.current?.emit('wb:image', { bookingId, fileId: r.id }); scheduleAutosave();
+        const r = await api.upload<{ id: string; pdfId: string; page: number; pageCount: number }>('/files/pdf-page', form);
+        setPdf({ pdfId: r.pdfId, page: r.page, pageCount: r.pageCount });
+        loadBg(r.id); resetZoom();
+        sockRef.current?.emit('wb:image', { bookingId, fileId: r.id, page: r.page, pageCount: r.pageCount });
+        scheduleAutosave();
       } else if (f.type.startsWith('image/')) {
         await useAsBackground(f, f.name);
       }
@@ -333,6 +353,14 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
               <button className="btn ghost sm" title="축소" onClick={() => zoomAt(W / 2, H / 2, 1 / 1.25)}>🔍−</button>
               <button className="btn ghost sm" title="원본 크기" onClick={resetZoom} style={{ minWidth: 52, fontVariantNumeric: 'tabular-nums' }}>{zoomPct}%</button>
               <button className="btn ghost sm" title="확대" onClick={() => zoomAt(W / 2, H / 2, 1.25)}>🔍＋</button>
+              {pdf && pdf.pageCount > 1 && (
+                <>
+                  <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
+                  <button className="btn ghost sm" title="이전 페이지" disabled={!pdf.pdfId || pdf.page <= 1} onClick={() => gotoPage(pdf.page - 1)}>◀</button>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', minWidth: 42, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{pdf.page}/{pdf.pageCount}</span>
+                  <button className="btn ghost sm" title="다음 페이지" disabled={!pdf.pdfId || pdf.page >= pdf.pageCount} onClick={() => gotoPage(pdf.page + 1)}>▶</button>
+                </>
+              )}
               <div style={{ flex: 1 }} />
               <span style={{ fontSize: 11, color: 'var(--muted)' }}>{saveState === 'saving' ? '저장 중…' : saveState === 'saved' ? '자동 저장됨 ✓' : saveState === 'dirty' ? '변경됨' : ''}</span>
               <button className="btn ghost sm" onClick={clear}>전체 지우기</button>

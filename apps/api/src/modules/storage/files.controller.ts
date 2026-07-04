@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
@@ -32,14 +33,23 @@ export class FilesController {
     return this.files.upload(user.id, file);
   }
 
-  /** POST /files/pdf-page — PDF 업로드 → 첫 페이지 PNG 로 렌더·저장(화이트보드 배경용). */
+  /** POST /files/pdf-page — PDF 업로드 → 원본 저장 + 첫 페이지 PNG. 반환: {id,pdfId,page,pageCount}. */
   @Post('pdf-page')
   @UseInterceptors(FileInterceptor('file'))
   pdfPage(
     @UploadedFile() file: UploadedFileLike,
     @CurrentUser() user: AuthUser,
   ) {
-    return this.files.rasterizePdfFirstPage(user.id, file);
+    return this.files.rasterizePdf(user.id, file);
+  }
+
+  /** POST /files/pdf-render — 저장된 PDF 의 특정 페이지 렌더(페이지 넘김). body: {pdfId, page}. */
+  @Post('pdf-render')
+  pdfRender(
+    @Body() dto: { pdfId: string; page: number },
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.files.renderPdfPage(user.id, dto.pdfId, Number(dto.page) || 1);
   }
 
   @Get(':id')

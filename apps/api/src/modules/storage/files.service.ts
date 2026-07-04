@@ -75,28 +75,30 @@ export class FilesService {
     };
   }
 
-  /**
-   * PDF 첫 페이지를 서버에서 PNG 로 렌더(poppler pdftoppm)해 배경으로 저장.
-   * 클라이언트 번들러(웹 Vite / 모바일 metro)에 pdfjs 를 넣지 않고 PDF 배경 지원.
-   * 반환 형태는 upload 과 동일 → 기존 배경 로드/공유 경로 그대로 사용.
-   */
-  async rasterizePdfFirstPage(ownerId: string, file: UploadedFileLike) {
-    if (!file?.buffer?.length) throw new BadRequestException('업로드할 파일이 없습니다.');
-    const isPdf = file.mimetype === 'application/pdf' || /\.pdf$/i.test(file.originalname ?? '');
-    if (!isPdf) throw new BadRequestException('PDF 파일이 아닙니다.');
-    if (file.buffer.length > 40 * 1024 * 1024) throw new BadRequestException('PDF 가 너무 큽니다(40MB 초과).');
+  /** PDF 바이트의 총 페이지 수(poppler pdfinfo). */
+  private async pdfPageCount(pdfBuffer: Buffer): Promise<number> {
+    const dir = await mkdtemp(join(tmpdir(), 'wbinfo-'));
+    const p = join(dir, 'in.pdf');
+    try {
+      await writeFile(p, pdfBuffer);
+      const { stdout } = await promisify(execFile)('pdfinfo', [p], { timeout: 15000 });
+      const m = /Pages:\s+(\d+)/.exec(stdout);
+      return m ? Math.max(1, parseInt(m[1], 10)) : 1;
+    } catch { return 1; } finally { await rm(dir, { recursive: true, force: true }).catch(() => {}); }
+  }
 
+  /** PDF 특정 페이지 → PNG 저장 후 stored_file 반환(150dpi). */
+  private async renderPageToPng(ownerId: string, pdfBuffer: Buffer, page: number, baseName: string) {
     const dir = await mkdtemp(join(tmpdir(), 'wbpdf-'));
     const pdfPath = join(dir, 'in.pdf');
     const outBase = join(dir, 'out'); // pdftoppm -singlefile → out.png
     try {
-      await writeFile(pdfPath, file.buffer);
-      // 첫 페이지만, 150dpi, 단일 파일(out.png). PNG.
-      await promisify(execFile)('pdftoppm', ['-png', '-r', '150', '-f', '1', '-l', '1', '-singlefile', pdfPath, outBase], { timeout: 20000 });
+      await writeFile(pdfPath, pdfBuffer);
+      await promisify(execFile)('pdftoppm', ['-png', '-r', '150', '-f', String(page), '-l', String(page), '-singlefile', pdfPath, outBase], { timeout: 20000 });
       const png = await readFile(`${outBase}.png`);
       const key = `uploads/${randomUUID()}`;
       await this.storage.put({ key, data: png, contentType: 'image/png' });
-      const name = (file.originalname ?? 'document').replace(/\.pdf$/i, '') + '.png';
+      const name = `${baseName.replace(/\.pdf$/i, '')}-p${page}.png`;
       const row = await this.prisma.stored_file.create({
         data: { owner_id: ownerId, storage_key: key, filename: name, content_type: 'image/png', size: png.length },
         select: { id: true, filename: true, content_type: true, size: true },
@@ -104,9 +106,42 @@ export class FilesService {
       return { id: row.id, filename: row.filename, contentType: row.content_type, size: row.size, url: `/files/${row.id}` };
     } catch (e) {
       throw new BadRequestException(`PDF 변환 실패: ${(e as Error).message}`);
-    } finally {
-      await rm(dir, { recursive: true, force: true }).catch(() => {});
-    }
+    } finally { await rm(dir, { recursive: true, force: true }).catch(() => {}); }
+  }
+
+  /**
+   * PDF 업로드 → 원본 PDF 저장 + 첫 페이지 PNG 렌더(배경). 페이지 넘김을 위해 pdfId·pageCount 반환.
+   * 클라이언트 번들러에 pdfjs 미포함(poppler 서버 렌더). 공유 배경은 항상 PNG(웹·모바일 호환).
+   */
+  async rasterizePdf(ownerId: string, file: UploadedFileLike) {
+    if (!file?.buffer?.length) throw new BadRequestException('업로드할 파일이 없습니다.');
+    const isPdf = file.mimetype === 'application/pdf' || /\.pdf$/i.test(file.originalname ?? '');
+    if (!isPdf) throw new BadRequestException('PDF 파일이 아닙니다.');
+    if (file.buffer.length > 40 * 1024 * 1024) throw new BadRequestException('PDF 가 너무 큽니다(40MB 초과).');
+
+    // 원본 PDF 저장(페이지 넘김 시 재렌더용)
+    const pdfKey = `uploads/${randomUUID()}`;
+    await this.storage.put({ key: pdfKey, data: file.buffer, contentType: 'application/pdf' });
+    const pdfRow = await this.prisma.stored_file.create({
+      data: { owner_id: ownerId, storage_key: pdfKey, filename: file.originalname ?? 'document.pdf', content_type: 'application/pdf', size: file.buffer.length },
+      select: { id: true },
+    });
+    const pageCount = await this.pdfPageCount(file.buffer);
+    const png = await this.renderPageToPng(ownerId, file.buffer, 1, file.originalname ?? 'document');
+    return { ...png, pdfId: pdfRow.id, page: 1, pageCount };
+  }
+
+  /** 저장된 PDF(pdfId)의 특정 페이지를 렌더(페이지 넘김). 업로더(소유자)만. */
+  async renderPdfPage(ownerId: string, pdfId: string, page: number) {
+    const row = await this.prisma.stored_file.findUnique({ where: { id: pdfId }, select: { owner_id: true, storage_key: true, filename: true, content_type: true } });
+    if (!row) throw new NotFoundException('PDF 를 찾을 수 없습니다.');
+    if (row.owner_id !== ownerId) throw new ForbiddenException('이 PDF 에 접근할 권한이 없습니다.');
+    if (row.content_type !== 'application/pdf') throw new BadRequestException('PDF 가 아닙니다.');
+    const pdfBuffer = Buffer.from(await this.storage.get(row.storage_key));
+    const pageCount = await this.pdfPageCount(pdfBuffer);
+    const p = Math.min(Math.max(1, Math.floor(page)), pageCount);
+    const png = await this.renderPageToPng(ownerId, pdfBuffer, p, row.filename ?? 'document');
+    return { ...png, pdfId, page: p, pageCount };
   }
 
   /** 다운로드용 메타+바이트. 소유자 또는 관리자만 접근. */

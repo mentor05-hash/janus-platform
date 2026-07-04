@@ -43,6 +43,7 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
   const [width, setWidth] = useState(4);
   const [tool, setTool] = useState<'pen' | 'eraser' | 'highlighter'>('pen');
   const [zoomPct, setZoomPct] = useState(100);
+  const [pdf, setPdf] = useState<{ pdfId?: string; page: number; pageCount: number } | null>(null); // PDF 페이지 넘김
   const [status, setStatus] = useState<'connecting' | 'ready' | 'off'>(isWeb ? 'connecting' : 'off');
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved'>('idle');
   useWebBack(!embedded, onClose); // 임베드(통합 화면)면 back은 호스트가 처리
@@ -180,7 +181,10 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
     });
     s.on('wb:stroke', ({ stroke, sid }: { stroke: Stroke; sid?: string }) => { if (sid) liveRef.current.delete(sid); strokesRef.current.push(stroke); redraw(); });
     s.on('wb:clear', () => { strokesRef.current = []; liveRef.current.clear(); redraw(); });
-    s.on('wb:image', ({ fileId }: { fileId: string | null }) => loadBg(fileId));
+    s.on('wb:image', ({ fileId, page, pageCount }: { fileId: string | null; page?: number; pageCount?: number }) => {
+      loadBg(fileId);
+      if (fileId && pageCount) setPdf({ page: page ?? 1, pageCount }); else if (!fileId) setPdf(null);
+    });
     return () => { s.disconnect(); cv.remove(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingId]);
@@ -190,13 +194,25 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
   function pick(c: string) { setColor(c); colorRef.current = c; if (toolRef.current === 'eraser') { setTool('pen'); toolRef.current = 'pen'; } }
   function pickW(w: number) { setWidth(w); widthRef.current = w; }
   function pickTool(t: 'pen' | 'eraser' | 'highlighter') { setTool(t); toolRef.current = t; }
-  function clear() { strokesRef.current = []; loadBg(null); redraw(); sockRef.current?.emit('wb:clear', { bookingId }); sockRef.current?.emit('wb:image', { bookingId, fileId: null }); scheduleAutosave(); }
+  function clear() { strokesRef.current = []; setPdf(null); loadBg(null); redraw(); sockRef.current?.emit('wb:clear', { bookingId }); sockRef.current?.emit('wb:image', { bookingId, fileId: null }); scheduleAutosave(); }
+  /** PDF 페이지 넘김(업로더만). */
+  async function gotoPage(np: number) {
+    if (!pdf?.pdfId || np < 1 || np > pdf.pageCount) return;
+    try {
+      const r = await api.post<{ id: string; page: number; pageCount: number }>('/files/pdf-render', { pdfId: pdf.pdfId, page: np });
+      setPdf({ pdfId: pdf.pdfId, page: r.page, pageCount: r.pageCount });
+      loadBg(r.id); resetZoom();
+      sockRef.current?.emit('wb:image', { bookingId, fileId: r.id, page: r.page, pageCount: r.pageCount });
+      scheduleAutosave();
+    } catch { /* noop */ }
+  }
   function save() {
     if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
     setSaveState('saving');
     sockRef.current?.emit('wb:save', { bookingId, strokes: strokesRef.current, backgroundFileId: bgFileIdRef.current }, () => setSaveState('saved'));
   }
   async function useAsBackground(blob: Blob, name: string) {
+    setPdf(null);
     try { const r = await api.uploadWeb(blob as unknown as File, name); loadBg(r.id); sockRef.current?.emit('wb:image', { bookingId, fileId: r.id }); scheduleAutosave(); } catch { /* noop */ }
   }
   function attachImage() {
@@ -207,8 +223,11 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
       try {
         if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) {
           // PDF → 서버에서 첫 페이지 PNG 로 렌더(공유 배경은 항상 PNG)
-          const r = await api.uploadWeb(f, f.name, '/files/pdf-page');
-          loadBg(r.id); sockRef.current?.emit('wb:image', { bookingId, fileId: r.id }); scheduleAutosave();
+          const r = (await api.uploadWeb(f, f.name, '/files/pdf-page')) as unknown as { id: string; pdfId: string; page: number; pageCount: number };
+          setPdf({ pdfId: r.pdfId, page: r.page, pageCount: r.pageCount });
+          loadBg(r.id); resetZoom();
+          sockRef.current?.emit('wb:image', { bookingId, fileId: r.id, page: r.page, pageCount: r.pageCount });
+          scheduleAutosave();
         } else if (f.type.startsWith('image/')) { await useAsBackground(f, f.name); }
       } catch { /* 실패 시 무시 */ }
     };
@@ -276,6 +295,11 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
               <TouchableOpacity onPress={() => zoomAt(W / 2, H / 2, 1 / 1.25)} style={[styles.wbtn, { width: 34 }]}><Text style={styles.wtxt}>−</Text></TouchableOpacity>
               <TouchableOpacity onPress={resetZoom} style={[styles.wbtn, { width: 48 }]}><Text style={styles.wtxt}>{zoomPct}%</Text></TouchableOpacity>
               <TouchableOpacity onPress={() => zoomAt(W / 2, H / 2, 1.25)} style={[styles.wbtn, { width: 34 }]}><Text style={styles.wtxt}>＋</Text></TouchableOpacity>
+              {pdf && pdf.pageCount > 1 && (<>
+                <TouchableOpacity disabled={!pdf.pdfId || pdf.page <= 1} onPress={() => gotoPage(pdf.page - 1)} style={[styles.wbtn, { width: 30, opacity: !pdf.pdfId || pdf.page <= 1 ? 0.4 : 1 }]}><Text style={styles.wtxt}>◀</Text></TouchableOpacity>
+                <View style={[styles.wbtn, { width: 44 }]}><Text style={styles.wtxt}>{pdf.page}/{pdf.pageCount}</Text></View>
+                <TouchableOpacity disabled={!pdf.pdfId || pdf.page >= pdf.pageCount} onPress={() => gotoPage(pdf.page + 1)} style={[styles.wbtn, { width: 30, opacity: !pdf.pdfId || pdf.page >= pdf.pageCount ? 0.4 : 1 }]}><Text style={styles.wtxt}>▶</Text></TouchableOpacity>
+              </>)}
               <View style={{ flex: 1 }} />
               <Text style={{ fontSize: 10, color: C.muted, marginRight: 4 }}>{saveState === 'saving' ? '저장 중…' : saveState === 'saved' ? '자동저장 ✓' : saveState === 'dirty' ? '변경됨' : ''}</Text>
               <TouchableOpacity onPress={clear} style={styles.act}><Text style={styles.actT}>전체 지우기</Text></TouchableOpacity>

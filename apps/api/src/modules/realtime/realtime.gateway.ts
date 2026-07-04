@@ -102,10 +102,13 @@ export class RealtimeGateway implements OnGatewayConnection {
     return { ok: true, strokes: snap?.strokes ?? [], backgroundFileId: snap?.background_file_id ?? null };
   }
 
-  /** 배경 이미지(첨부/촬영) 설정 — 상대에게 브로드캐스트(필기는 이 위에 그려짐). */
+  /** 배경 이미지(첨부/촬영/PDF 페이지) 설정 — 상대에게 브로드캐스트. page/pageCount 는 PDF 페이지 표시용. */
   @SubscribeMessage('wb:image')
-  wbImage(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, fileId }: { bookingId: string; fileId: string | null }) {
-    client.to(`booking:${bookingId}`).emit('wb:image', { fileId });
+  wbImage(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() { bookingId, fileId, page, pageCount }: { bookingId: string; fileId: string | null; page?: number; pageCount?: number },
+  ) {
+    client.to(`booking:${bookingId}`).emit('wb:image', { fileId, page, pageCount });
     return { ok: true };
   }
 
