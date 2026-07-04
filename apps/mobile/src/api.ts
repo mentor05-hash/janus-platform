@@ -156,6 +156,7 @@ export interface Booking {
   chargedCredits: number;
   content?: string | null;
   attachments?: Attachment[];
+  meetingUrl?: string | null; // zoom 입장 URL(확정 시 발급)
 }
 export interface Me {
   id: string;

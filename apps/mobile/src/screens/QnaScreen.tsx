@@ -42,10 +42,21 @@ export function QnaScreen() {
   const [open, setOpen] = useState(false);
   const [subject, setSubject] = useState('수학');
   const [scope, setScope] = useState('open');
+  const [difficulty, setDifficulty] = useState('중'); // 난이도 → 답변블록 시간 차등
   const [body, setBody] = useState('');
   const [atts, setAtts] = useState<Attachment[]>([]);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
+  // 난이도별 답변블록 시간(정책) + 질문 요금(정책). 본사 관리자가 조정.
+  const [durPol, setDurPol] = useState<Record<string, number> | null>(null);
+  const [fee, setFee] = useState<{ itemFee: number; generalFee: number } | null>(null);
+  useEffect(() => {
+    api.get<Record<string, number>>('/bookings/question-duration/policy').then(setDurPol).catch(() => { /* 정책 없으면 기본 */ });
+    api.get<{ itemFee: number; generalFee: number }>('/qna/pricing').then(setFee).catch(() => { /* 요금 조회 실패 */ });
+  }, []);
+  // 난이도(하/중/상) → 티어(기초/중급/심화) → 분
+  const tierOf = (d: string) => (d === '하' ? '기초' : d === '상' ? '심화' : '중급');
+  const blockMin = durPol?.[tierOf(difficulty)] ?? { 하: 10, 중: 20, 상: 30 }[difficulty] ?? 20;
 
   // expo-web 파일 선택 → /files 업로드(최대 3장)
   function pickImages() {
@@ -79,7 +90,7 @@ export function QnaScreen() {
     setError(''); setMsg('');
     if (!body.trim()) { setError('질문 내용을 입력하세요.'); return; }
     try {
-      await api.post('/qna/posts', { subject, qType: 'general', scope, difficulty: '중', body, attachments: atts });
+      await api.post('/qna/posts', { subject, qType: 'general', scope, difficulty, body, attachments: atts });
       setMsg('질문이 등록되었습니다(건당 크레딧 차감).'); setBody(''); setAtts([]); setOpen(false); load();
     } catch (e) { setError(e instanceof ApiError ? (e.status === 402 ? '크레딧이 부족합니다.' : e.message) : '등록 실패'); }
   }
@@ -106,6 +117,16 @@ export function QnaScreen() {
             {[['open', '공개'], ['assigned', '지정']].map(([v, l]) => (
               <TouchableOpacity key={v} style={[styles.pill, scope === v && styles.pillOn]} onPress={() => setScope(v)}><Text style={[styles.pillT, scope === v && { color: C.white }]}>{l}</Text></TouchableOpacity>
             ))}
+          </View>
+          <Text style={styles.lbl}>난이도</Text>
+          <View style={styles.pills}>
+            {['하', '중', '상'].map((d) => (
+              <TouchableOpacity key={d} style={[styles.pill, difficulty === d && styles.pillOn]} onPress={() => setDifficulty(d)}><Text style={[styles.pillT, difficulty === d && { color: C.white }]}>{d}</Text></TouchableOpacity>
+            ))}
+          </View>
+          <View style={styles.qInfo}>
+            <Text style={styles.qInfoT}>답변블록 약 {blockMin}분{fee ? ` · 건당 ${fee.generalFee.toLocaleString()} 크레딧` : ''}</Text>
+            <Text style={styles.qInfoSub}>난이도가 높을수록 답변블록 시간이 길어져요(요금은 문항 유형별 정책).</Text>
           </View>
           <TextInput style={[ui.input, { height: 90, textAlignVertical: 'top', marginTop: 8 }]} multiline value={body} onChangeText={setBody} placeholder="예: 합성함수 미분에서 왜 이렇게 전개되나요?" placeholderTextColor={C.caption} />
 
@@ -166,6 +187,9 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   newT: { color: C.white, fontWeight: '800', fontSize: 14 },
   ok: { color: C.done, fontSize: 13, marginTop: 8, fontWeight: '600' },
   lbl: { fontSize: 12, fontWeight: '700', color: C.muted, marginTop: 8, marginBottom: 6 },
+  qInfo: { backgroundColor: C.teal50, borderRadius: 8, padding: 10, marginTop: 8 },
+  qInfoT: { fontSize: 13, fontWeight: '800', color: C.teal },
+  qInfoSub: { fontSize: 11, color: C.muted, marginTop: 3, lineHeight: 16 },
   pills: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   pill: { borderWidth: 1, borderColor: C.line, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14 },
   pillOn: { backgroundColor: C.teal, borderColor: C.teal },

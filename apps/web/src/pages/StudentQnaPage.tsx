@@ -31,6 +31,15 @@ export function StudentQnaPage() {
   const [atts, setAtts] = useState<Attachment[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
+  // 난이도별 답변블록 시간(정책) + 질문 요금(정책)
+  const [durPol, setDurPol] = useState<Record<string, number> | null>(null);
+  const [fee, setFee] = useState<{ itemFee: number; generalFee: number } | null>(null);
+  useEffect(() => {
+    api.get<Record<string, number>>('/bookings/question-duration/policy').then(setDurPol).catch(() => { /* 기본값 */ });
+    api.get<{ itemFee: number; generalFee: number }>('/qna/pricing').then(setFee).catch(() => { /* 요금 조회 실패 */ });
+  }, []);
+  const tierOf = (d: string) => (d === '하' ? '기초' : d === '상' ? '심화' : '중급');
+  const blockMin = durPol?.[tierOf(f.difficulty)] ?? ({ 하: 10, 중: 20, 상: 30 } as Record<string, number>)[f.difficulty] ?? 20;
 
   async function onFiles(e: React.ChangeEvent<HTMLInputElement>) {
     setError('');
@@ -88,6 +97,13 @@ export function StudentQnaPage() {
             <div style={{ minWidth: 120 }}><SelectField label="유형" value={f.qType} onChange={(e) => set('qType', e.target.value)} options={[{ value: 'general', label: '일반' }, { value: 'item', label: '문항(고난도)' }]} /></div>
             <div style={{ minWidth: 120 }}><SelectField label="공개범위" value={f.scope} onChange={(e) => set('scope', e.target.value)} options={[{ value: 'open', label: '공개' }, { value: 'assigned', label: '지정' }]} /></div>
             <div style={{ minWidth: 100 }}><SelectField label="난이도" value={f.difficulty} onChange={(e) => set('difficulty', e.target.value)} options={['하', '중', '상'].map((d) => ({ value: d, label: d }))} /></div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--teal-50,#F0F7FA)', borderRadius: 8, padding: '8px 12px', marginTop: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--teal)' }}>답변블록 약 {blockMin}분</span>
+            <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
+              · 건당 {(f.qType === 'item' ? fee?.itemFee : fee?.generalFee)?.toLocaleString() ?? '—'} 크레딧
+              {' · '}난이도가 높을수록 답변블록이 길어져요.
+            </span>
           </div>
           <TextareaField label="질문 내용" rows={4} value={f.body} onChange={(e) => set('body', e.target.value)} placeholder="예: 미적분 30번, 합성함수 미분에서 왜 이렇게 전개되나요?" />
 

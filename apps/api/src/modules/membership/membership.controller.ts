@@ -11,7 +11,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { MembershipService } from './membership.service';
-import { SubscribeDto } from './dto/subscribe.dto';
+import { SubscribeDto, SubscribeForChildDto } from './dto/subscribe.dto';
 import { UpdateGradeDto } from '../people/dto/hr.dto';
 
 @Controller()
@@ -41,6 +41,19 @@ export class MembershipController {
     return this.membership.updateGrade(id, dto);
   }
 
+  /** GET /subscription/promo — 학부모 업셀 홍보 문구(인증). */
+  @Get('subscription/promo')
+  promo() {
+    return this.membership.getPromo();
+  }
+
+  /** PATCH /subscription/promo — 홍보 문구 변경(본사 관리자). */
+  @Patch('subscription/promo')
+  @Roles('admin')
+  setPromo(@CurrentUser() user: AuthUser, @Body() dto: { headline?: string; subcopy?: string; highlightPlanId?: string | null }) {
+    return this.membership.setPromo(user, dto);
+  }
+
   /** GET /subscription/me — 내 활성 구독(학생). */
   @Get('subscription/me')
   @Roles('student')
@@ -53,5 +66,12 @@ export class MembershipController {
   @Roles('student')
   subscribe(@CurrentUser() user: AuthUser, @Body() dto: SubscribeDto) {
     return this.membership.subscribe(user, dto.planId);
+  }
+
+  /** POST /subscription/subscribe-for-child — 학부모가 자녀 대신 구독(승인 연결 자녀만). */
+  @Post('subscription/subscribe-for-child')
+  @Roles('guardian')
+  subscribeForChild(@CurrentUser() user: AuthUser, @Body() dto: SubscribeForChildDto) {
+    return this.membership.subscribeForChild(user, dto.studentId, dto.planId);
   }
 }

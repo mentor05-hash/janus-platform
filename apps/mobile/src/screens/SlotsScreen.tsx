@@ -27,10 +27,20 @@ const MODES = [
   { mode: 'offline', label: '오프라인', sub: '센터 대면', price: '점유료 가산' },
 ];
 
-export function SlotsScreen({ teacher, onBack, initialMode }: { teacher: Teacher; onBack: () => void; initialMode?: string }) {
+export function SlotsScreen({ teacher, onBack, initialMode, consultType, initialSubType }: { teacher: Teacher; onBack: () => void; initialMode?: string; consultType?: string; initialSubType?: string }) {
   const { C } = useTheme();
   const ui = useUI();
   const styles = useMemo(() => makeStyles(C), [C]);
+  // 검색에서 고른 상담 종류(없으면 교과). 이 종류가 예약·견적·기본시간에 실제로 반영된다.
+  const ctype = consultType || '교과';
+  // 종류별 기본 상담시간(분) → 슬롯 칸 수. 정책(GET /bookings/duration/policy) 로드 전 기본 30분.
+  const [defaultSlots, setDefaultSlots] = useState(DURATION);
+  useEffect(() => {
+    api
+      .get<Record<string, number>>('/bookings/duration/policy')
+      .then((pol) => { const min = pol?.[ctype]; if (min && min > 0) setDefaultSlots(Math.max(MIN_LEN, Math.round(min / 10))); })
+      .catch(() => { /* 정책 없으면 기본 30분 */ });
+  }, [ctype]);
   // 선생님이 제공하는 방식만 노출(방식 먼저 선택 흐름). 비어 있으면 전체.
   const modeList = teacher.modes?.length ? MODES.filter((m) => teacher.modes!.includes(m.mode)) : MODES;
   const modeVals = modeList.map((m) => m.mode);
@@ -40,7 +50,7 @@ export function SlotsScreen({ teacher, onBack, initialMode }: { teacher: Teacher
   const [selStart, setSelStart] = useState<number | null>(null);
   const [selEnd, setSelEnd] = useState<number | null>(null);
   const [notice, setNotice] = useState(''); // 강제 시작 안내
-  const [subject, setSubject] = useState('수학');
+  const [subject, setSubject] = useState(initialSubType && SUBJECTS.includes(initialSubType) ? initialSubType : '수학');
   const [content, setContent] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -73,10 +83,10 @@ export function SlotsScreen({ teacher, onBack, initialMode }: { teacher: Teacher
     if (selStart === null || selEnd === null) return;
     setError('');
     api
-      .post<Quote>('/bookings/quote', { teacherId: teacher.id, date, mode, slotStart: selStart, slotEnd: selEnd + 1 })
+      .post<Quote>('/bookings/quote', { teacherId: teacher.id, date, mode, consultType: ctype, slotStart: selStart, slotEnd: selEnd + 1 })
       .then(setQuote)
       .catch((e) => { setQuote(null); setError(e instanceof ApiError ? e.message : '견적 실패'); });
-  }, [selStart, selEnd, mode, teacher.id, date]);
+  }, [selStart, selEnd, mode, teacher.id, date, ctype]);
 
   // 문제 파일 첨부(웹: 브라우저 파일창 → /files 업로드 → id 연결)
   function pickFiles() {
@@ -109,7 +119,7 @@ export function SlotsScreen({ teacher, onBack, initialMode }: { teacher: Teacher
   async function book() {
     if (selStart === null || selEnd === null) return;
     try {
-      await api.post('/bookings', { teacherId: teacher.id, date, consultType: '교과', subType: subject, mode, slotStart: selStart, slotEnd: selEnd + 1, content, attachments });
+      await api.post('/bookings', { teacherId: teacher.id, date, consultType: ctype, subType: subject, mode, slotStart: selStart, slotEnd: selEnd + 1, content, attachments });
       Alert.alert('예약 완료', '상담이 신청되었습니다.');
       onBack();
     } catch (e) {
@@ -177,7 +187,7 @@ export function SlotsScreen({ teacher, onBack, initialMode }: { teacher: Teacher
     if (!availSet.has(idx)) return;
     const fs = forcedStartFor(idx);
     let end = fs;
-    while (end - fs + 1 < DURATION && availSet.has(end + 1)) end += 1;
+    while (end - fs + 1 < defaultSlots && availSet.has(end + 1)) end += 1;
     setSelStart(fs);
     setSelEnd(end);
     setNotice(fs !== idx ? `이전 상담 직후라 이 시간대는 ${minToTime(fs)} 시작만 가능해요(휴게 10분).` : afterBooking(fs) ? `이전 상담 직후 시간대 — ${minToTime(fs)} 시작 고정(휴게 10분).` : '');
@@ -202,7 +212,7 @@ export function SlotsScreen({ teacher, onBack, initialMode }: { teacher: Teacher
       <TouchableOpacity onPress={onBack}><Text style={styles.back}>‹ 선생님 목록</Text></TouchableOpacity>
       <View style={styles.head}>
         <Text style={ui.h}>상담 신청</Text>
-        <Text style={ui.sub}>{teacher.name}{selectedTime ? ` · ${selectedTime}` : ''}</Text>
+        <Text style={ui.sub}>{teacher.name} · {ctype}{selectedTime ? ` · ${selectedTime}` : ''}</Text>
       </View>
 
       {/* 선생님 액션: 찜·차단·신고 */}
@@ -282,7 +292,7 @@ export function SlotsScreen({ teacher, onBack, initialMode }: { teacher: Teacher
       </ScrollView>
 
       {/* 시간 — 시간대별 컴팩트 표(선생님 근무·체류 반영) */}
-      <Text style={styles.sec}>시간 (가능 시간만 · 기본 30분)</Text>
+      <Text style={styles.sec}>시간 (가능 시간만 · {ctype} 기본 {defaultSlots * 10}분)</Text>
       {slots.length === 0 ? (
         <Text style={ui.sub}>이 날짜에는 선생님 근무 시간이 없어요. 다른 날짜를 선택해 주세요.</Text>
       ) : (
@@ -356,7 +366,7 @@ export function SlotsScreen({ teacher, onBack, initialMode }: { teacher: Teacher
               <Text style={styles.selHint}>시간을 늘리거나 줄이면 크레딧도 함께 바뀝니다(끝 칸 탭으로도 조정).</Text>
             </View>
           ) : (
-            <Text style={[ui.sub, { marginTop: 8 }]}>가능(초록) 시간을 누르면 30분이 선택돼요.</Text>
+            <Text style={[ui.sub, { marginTop: 8 }]}>가능(초록) 시간을 누르면 {ctype} 기본 {defaultSlots * 10}분이 선택돼요.</Text>
           )}
           {avail.length === 0 && <Text style={[ui.sub, { marginTop: 6 }]}>이 날은 신청 가능한 빈 시간이 없어요.</Text>}
         </>

@@ -95,6 +95,7 @@ export function TeacherBookingsPage() {
             </>
           )}
           {b.status === 'done' && <Link className="btn ghost sm" to={`/app/bookings/${b.id}/note`}>기록</Link>}
+          {b.mode === 'zoom' && b.meetingUrl && b.status !== 'new' && <Button size="sm" onClick={() => window.open(b.meetingUrl!, '_blank', 'noopener')}>🎥 줌</Button>}
           {chatOn && b.status !== 'new' && <Button size="sm" variant="ghost" onClick={() => setChatId(b.id)}>💬</Button>}
           {wbOn && b.status !== 'new' && <Button size="sm" variant="ghost" onClick={() => setWbId(b.id)}>🖊</Button>}
         </span>

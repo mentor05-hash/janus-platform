@@ -40,6 +40,15 @@ export class QnaService {
     @Inject(LLM_PROVIDER) private readonly llm: LlmProvider,
   ) {}
 
+  /** 질문 요금 안내(학생) — 문항형/일반형 건당 크레딧. 센터별 정책 반영. */
+  async pricingInfo(centerId: string | null) {
+    const [item, general] = await Promise.all([
+      this.pricing.quoteBoard('item', centerId),
+      this.pricing.quoteBoard('general', centerId),
+    ]);
+    return { itemFee: item.credits, generalFee: general.credits };
+  }
+
   /** 질문 등록(학생) — 게시판 건당 과금. 부족 시 결제요청+402. */
   async createQuestion(student: AuthUser, dto: CreateQuestionDto) {
     if (student.role !== AccountRole.STUDENT) {

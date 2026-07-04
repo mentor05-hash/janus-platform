@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, Booking, Note, Teacher } from '../api';
 import { R, SP, useTheme, useUI, type Palette } from '../theme';
 import { useWebBack } from '../webBack';
@@ -232,6 +232,11 @@ export function BookingsScreen({ myId }: { myId?: string }) {
                 <Text style={styles.more}>{open === b.id ? '접기 ▲' : '상담 상세 ▼'}</Text>
               </TouchableOpacity>
               {open === b.id && <Detail id={b.id} status={b.status} />}
+              {b.mode === 'zoom' && b.meetingUrl && b.status !== 'new' && (
+                <TouchableOpacity style={styles.zoomBtn} onPress={() => Linking.openURL(b.meetingUrl!)}>
+                  <Text style={styles.zoomT}>🎥 줌 상담 입장</Text>
+                </TouchableOpacity>
+              )}
               {chatOn && myId && b.status !== 'new' && (
                 <TouchableOpacity style={styles.chatBtn} onPress={() => setChatId(b.id)}>
                   <Text style={styles.chatT}>💬 상담 채팅</Text>
@@ -305,6 +310,8 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   reportT: { color: C.danger, fontWeight: '700', fontSize: 13 },
   chatBtn: { marginTop: 10, borderWidth: 1, borderColor: C.teal, borderRadius: 9, paddingVertical: 10, alignItems: 'center' },
   chatT: { color: C.teal, fontWeight: '800', fontSize: 13 },
+  zoomBtn: { marginTop: 10, backgroundColor: C.teal, borderRadius: 9, paddingVertical: 11, alignItems: 'center' },
+  zoomT: { color: '#fff', fontWeight: '800', fontSize: 13 },
   badge: { position: 'absolute', top: 4, right: 10, minWidth: 20, height: 20, borderRadius: 10, backgroundColor: '#E5484D', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
   badgeT: { color: '#fff', fontSize: 11, fontWeight: '800' },
 });

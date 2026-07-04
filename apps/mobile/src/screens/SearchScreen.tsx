@@ -20,7 +20,7 @@ const MODE_META: Record<string, { label: string; icon: string }> = {
 const MODE_KEYS = ['zoom', 'chat', 'hand', 'offline'];
 type Rec = Teacher & { matchedNeeds?: string[] };
 
-export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher, mode?: string) => void; onGoQna?: () => void }) {
+export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher, mode?: string, consultType?: string, subType?: string) => void; onGoQna?: () => void }) {
   const { C } = useTheme();
   const ui = useUI();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -34,6 +34,9 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher, mode?: 
   const [sort, setSort] = useState('grade');
   const [q, setQ] = useState('');
   const [needs, setNeeds] = useState<string[]>([]);
+  // 외부학생(비재원) 안내 — 온라인 전용·요금 할증·주간크레딧 여부. 학원생이면 external=null(배너 없음).
+  const [extCtx, setExtCtx] = useState<{ label: string; external: { onlineOnly: boolean; surchargePct: number; weeklyGrant: boolean; boardOnly: boolean } | null } | null>(null);
+  useEffect(() => { api.get<{ label: string; external: { onlineOnly: boolean; surchargePct: number; weeklyGrant: boolean; boardOnly: boolean } | null }>('/bookings/external/me').then(setExtCtx).catch(() => { /* 조회 실패시 배너 생략 */ }); }, []);
   const [recs, setRecs] = useState<Rec[] | null>(null);
   const [recOpen, setRecOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(true); // 필터(상담방식~우수선생님) 접기/열기 — 목록 공간 확보
@@ -92,6 +95,19 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher, mode?: 
           <TouchableOpacity key={m} style={[styles.segItem, mode === m && styles.segOn]} onPress={() => setMode(m)}><Text style={[styles.segT, mode === m && styles.segTOn]}>{m}</Text></TouchableOpacity>
         ))}
       </View>
+
+      {/* 외부학생 안내 배너 */}
+      {extCtx?.external && (
+        <View style={styles.extBanner}>
+          <Text style={styles.extBadge}>{extCtx.label}</Text>
+          <Text style={styles.extBannerT}>
+            {extCtx.external.onlineOnly ? '온라인 상담 전용' : '온·오프라인 이용 가능'}
+            {extCtx.external.surchargePct > 0 ? ` · 요금 +${extCtx.external.surchargePct}%` : ''}
+            {extCtx.external.weeklyGrant ? ' · 주간 크레딧 지급' : ' · 주간 크레딧 미지급'}
+            {extCtx.external.boardOnly ? ' · 게시판 질문만' : ''}
+          </Text>
+        </View>
+      )}
 
       {mode === '질문' ? (
         <View style={[ui.card, { marginTop: 12 }]}>
@@ -161,7 +177,7 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher, mode?: 
               <Text style={styles.boardTitle}>🏆 이달의 우수 선생님</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 2 }}>
                 {board.slice(0, 5).map((t) => (
-                  <TouchableOpacity key={t.id} style={[styles.boardCard, t.rank <= 3 && { backgroundColor: C.teal50, borderColor: C.teal100 }]} onPress={() => onPick(t)}>
+                  <TouchableOpacity key={t.id} style={[styles.boardCard, t.rank <= 3 && { backgroundColor: C.teal50, borderColor: C.teal100 }]} onPress={() => onPick(t, undefined, consultType ?? undefined, subType ?? undefined)}>
                     <Text style={styles.boardRank}>{t.rank === 1 ? '🥇' : t.rank === 2 ? '🥈' : t.rank === 3 ? '🥉' : `#${t.rank}`}</Text>
                     <Text style={styles.boardName}>{t.name}</Text>
                     <Text style={styles.boardMeta}>{t.subjects.join(',')} · ⭐{t.rating ?? 0}</Text>
@@ -193,7 +209,7 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher, mode?: 
               </View>
               <TouchableOpacity style={[ui.btn, { marginTop: 8 }]} onPress={recommend}><Text style={ui.btnText}>맞춤 추천 받기</Text></TouchableOpacity>
               {recs && (recs.length === 0 ? <Text style={ui.sub}>조건에 맞는 선생님이 없어요.</Text> : recs.slice(0, 5).map((t) => (
-                <TouchableOpacity key={t.id} style={styles.recCard} onPress={() => onPick(t)}>
+                <TouchableOpacity key={t.id} style={styles.recCard} onPress={() => onPick(t, undefined, consultType ?? undefined, subType ?? undefined)}>
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       <Text style={styles.name}>{t.name}</Text>
@@ -215,7 +231,7 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher, mode?: 
         data={rows}
         keyExtractor={(t) => t.id}
         renderItem={({ item }) => (
-          <TouchableOpacity style={[ui.card, styles.card]} onPress={() => onPick(item, modeFilter ?? undefined)} activeOpacity={0.7}>
+          <TouchableOpacity style={[ui.card, styles.card]} onPress={() => onPick(item, modeFilter ?? undefined, consultType ?? undefined, subType ?? undefined)} activeOpacity={0.7}>
             <View style={styles.row}>
               <View style={styles.avatar}><Text style={styles.avatarText}>{(item.name ?? '?').slice(0, 1)}</Text></View>
               <View style={{ flex: 1 }}>
@@ -271,6 +287,9 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   sortPill: { alignSelf: 'flex-start', borderWidth: 1, borderColor: C.lineSoft, borderRadius: R.pill, paddingVertical: 4, paddingHorizontal: 12, backgroundColor: C.white },
   sortOn: { borderColor: C.teal, backgroundColor: C.teal50 },
   sortT: { color: C.caption, fontWeight: '700', fontSize: 12, lineHeight: 16 },
+  extBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FEF6E7', borderColor: '#F0DCAE', borderWidth: 1, borderRadius: 10, padding: 10, marginTop: 10 },
+  extBadge: { fontSize: 11, fontWeight: '800', color: '#92600a', backgroundColor: '#F7E4BC', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, overflow: 'hidden' },
+  extBannerT: { flex: 1, fontSize: 12, color: '#92600a', fontWeight: '600', lineHeight: 17 },
   seg: { flexDirection: 'row', backgroundColor: C.lineSoft, borderRadius: 10, padding: 3 },
   segItem: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8 },
   segOn: { backgroundColor: C.white },

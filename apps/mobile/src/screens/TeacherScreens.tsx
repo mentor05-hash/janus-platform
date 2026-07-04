@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, useWindowDimensions, View } from 'react-native';
 import { api, ApiError, Booking } from '../api';
 import { useTheme, type Palette } from '../theme';
 import { useSessionHost, SessionHost } from './SessionHost';
@@ -144,6 +144,9 @@ export function TeacherSessions({ myId }: { myId: string }) {
   const sess = (b: Booking) => ({ id: b.id, title: `${b.consultType ?? '상담'} · ${modeLabel(b.mode)}`, sub: KST(b.start) });
   const launch = (b: Booking) => (
     <View style={s.acts}>
+      {b.mode === 'zoom' && b.meetingUrl && (
+        <TouchableOpacity style={[s.btn, s.btnP]} onPress={() => Linking.openURL(b.meetingUrl!)}><Text style={s.btnPT}>🎥 줌 입장</Text></TouchableOpacity>
+      )}
       <TouchableOpacity style={[s.btn, s.btnP]} onPress={() => host.openSession(sess(b), 'chat')}><Text style={s.btnPT}>💬 채팅{(unread[b.id] ?? 0) > 0 ? ` · ${unread[b.id]}` : ''}</Text></TouchableOpacity>
       <TouchableOpacity style={[s.btn, s.btnG]} onPress={() => host.openSession(sess(b), 'wb')}><Text style={s.btnGT}>🖊 화이트보드</Text></TouchableOpacity>
     </View>

@@ -269,6 +269,7 @@ export function StudentBookingsPage() {
                 {UPCOMING.has(b.status) && <Button variant="ghost" size="sm" disabled={busy === b.id} onClick={() => setRescheduling(rescheduling === b.id ? null : b.id)}>시간 변경</Button>}
                 {UPCOMING.has(b.status) && <Button variant="ghost" size="sm" disabled={busy === b.id} onClick={() => cancel(b.id)} style={{ color: 'var(--danger)' }}>예약 취소</Button>}
                 {b.status === 'done' && <Button variant="ghost" size="sm" disabled={busy === b.id} onClick={() => reportNoshow(b.id)} style={{ color: 'var(--danger)' }}>미진행 신고</Button>}
+                {b.mode === 'zoom' && b.meetingUrl && b.status !== 'new' && <Button size="sm" onClick={() => window.open(b.meetingUrl!, '_blank', 'noopener')}>🎥 줌 입장</Button>}
                 {chatOn && <Button variant="ghost" size="sm" onClick={() => setChatId(b.id)}>💬 채팅</Button>}
                 {wbOn && b.status !== 'new' && <Button variant="ghost" size="sm" onClick={() => setWbId(b.id)}>🖊 화이트보드</Button>}
                 <Button variant="ghost" size="sm" onClick={() => setOpen(open === b.id ? null : b.id)}>{open === b.id ? '접기' : '상세'}</Button>

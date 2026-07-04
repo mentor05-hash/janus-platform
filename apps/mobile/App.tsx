@@ -13,9 +13,10 @@ import { QnaScreen } from './src/screens/QnaScreen';
 import { MaterialsScreen } from './src/screens/MaterialsScreen';
 import { CommunityScreen } from './src/screens/CommunityScreen';
 import { MyScreen } from './src/screens/MyScreen';
-import { GuardianHome, GuardianConsult, GuardianPay, GuardianCharge } from './src/screens/GuardianScreens';
+import { GuardianHome, GuardianConsult, GuardianPay, GuardianCharge, GuardianMembership } from './src/screens/GuardianScreens';
 import { TeacherInbox, TeacherToday, TeacherSessions, TeacherRecords, TeacherMy } from './src/screens/TeacherScreens';
 import { ThemeProvider, useTheme, type Palette, SP } from './src/theme';
+import { APP_NAME } from './src/branding.generated';
 
 export default function App() {
   return (
@@ -34,6 +35,8 @@ function AppInner() {
   const [teacher, setTeacher] = useState<Teacher | null>(null);
   const [booking, setBooking] = useState(false);
   const [bookMode, setBookMode] = useState<string | undefined>(undefined);
+  const [bookType, setBookType] = useState<string | undefined>(undefined); // 검색에서 고른 상담 종류(담임/교과/입시/심리)
+  const [bookSub, setBookSub] = useState<string | undefined>(undefined); // 세부 유형(과목 등)
   const [children, setChildren] = useState<Child[]>([]);
   const [activeChild, setActiveChild] = useState<string | null>(null);
   const [exitHint, setExitHint] = useState(false); // 홈에서 '한 번 더 누르면 종료' 토스트
@@ -52,7 +55,7 @@ function AppInner() {
     setTeacher(null);
     setBooking(false);
   };
-  const openTeacher = (t: Teacher, m?: string) => { setTeacher(t); setBooking(false); setBookMode(m); pushGuard(); };
+  const openTeacher = (t: Teacher, m?: string, ct?: string, sub?: string) => { setTeacher(t); setBooking(false); setBookMode(m); setBookType(ct); setBookSub(sub); pushGuard(); };
   const openBooking = () => { setBooking(true); pushGuard(); };
 
   useEffect(() => {
@@ -138,8 +141,8 @@ function AppInner() {
   const isGuardian = me.role === 'guardian';
   const isStudent = me.role === 'student';
   const isTeacher = me.role === 'teacher';
-  const tabs = isGuardian ? ['a', 'b', 'c', 'd'] : isTeacher ? ['ti', 'to', 'ts', 'tr', 'tm'] : ['a', 'b', 'e', 'c', 'f', 'd'];
-  const guardianLabel: Record<string, string> = { a: '홈', b: '상담', c: '결제', d: '충전' };
+  const tabs = isGuardian ? ['a', 'b', 'g', 'c', 'd'] : isTeacher ? ['ti', 'to', 'ts', 'tr', 'tm'] : ['a', 'b', 'e', 'c', 'f', 'd'];
+  const guardianLabel: Record<string, string> = { a: '홈', b: '상담', g: '멤버십', c: '결제', d: '충전' };
   const studentLabel: Record<string, string> = { a: '선생님', b: '내 예약', e: '자료실', c: 'Q&A', f: '커뮤니티', d: '마이' };
   const teacherLabel: Record<string, string> = { ti: '인박스', to: '오늘', ts: '상담', tr: '기록', tm: '마이' };
   const tabLabel = (t: string) => (isGuardian ? guardianLabel[t] ?? '' : isTeacher ? teacherLabel[t] ?? '' : studentLabel[t] ?? '');
@@ -150,7 +153,7 @@ function AppInner() {
     <SafeAreaView style={styles.app}>
       <StatusBar style="light" />
       <View style={styles.header}>
-        <Text style={styles.brand}>멘토링 플랫폼 · {isGuardian ? '학부모' : isTeacher ? '선생님' : '학생'}</Text>
+        <Text style={styles.brand}>{APP_NAME} · {isGuardian ? '학부모' : isTeacher ? '선생님' : '학생'}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
           <TouchableOpacity onPress={toggle}>
             <Text style={styles.logout}>{dark ? '☀️ 라이트' : '🌙 다크'}</Text>
@@ -175,12 +178,12 @@ function AppInner() {
           (tab === 'a' ? (
             teacher ? (
               booking ? (
-                <SlotsScreen teacher={teacher} initialMode={bookMode} onBack={() => setBooking(false)} />
+                <SlotsScreen teacher={teacher} initialMode={bookMode} consultType={bookType} initialSubType={bookSub} onBack={() => setBooking(false)} />
               ) : (
                 <TeacherDetailScreen teacher={teacher} onBack={() => setTeacher(null)} onBook={openBooking} />
               )
             ) : (
-              <SearchScreen onPick={(t, m) => openTeacher(t, m)} onGoQna={() => goTab('c')} />
+              <SearchScreen onPick={(t, m, ct, sub) => openTeacher(t, m, ct, sub)} onGoQna={() => goTab('c')} />
             )
           ) : tab === 'b' ? (
             <BookingsScreen myId={me.id} />
@@ -203,6 +206,8 @@ function AppInner() {
             <GuardianConsult children={children} activeId={activeChild} setActiveId={setActiveChild} />
           ) : tab === 'c' ? (
             <GuardianPay children={children} activeId={activeChild} setActiveId={setActiveChild} goTab={goTab} />
+          ) : tab === 'g' ? (
+            <GuardianMembership children={children} activeId={activeChild} setActiveId={setActiveChild} goTab={goTab} />
           ) : (
             <GuardianCharge children={children} activeId={activeChild} setActiveId={setActiveChild} />
           )

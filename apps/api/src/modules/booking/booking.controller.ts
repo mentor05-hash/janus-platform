@@ -76,9 +76,9 @@ export class BookingController {
     return this.booking.setReversePolicy(user, dto);
   }
 
-  /** GET /bookings/duration/policy — 상담 종류별 기본 상담시간(분) 조회. */
+  /** GET /bookings/duration/policy — 상담 종류별 기본 상담시간(분) 조회. 학생 예약 화면에서 기본시간 반영에 사용. */
   @Get('duration/policy')
-  @Roles('admin', 'hr', 'teacher')
+  @Roles('admin', 'hr', 'teacher', 'student')
   getDurationPolicy() {
     return this.booking.getDurationPolicy();
   }
@@ -90,9 +90,9 @@ export class BookingController {
     return this.booking.setDurationPolicy(user, dto);
   }
 
-  /** GET /bookings/question-duration/policy — 질문 답변블록 난이도별 길이(분) 조회. */
+  /** GET /bookings/question-duration/policy — 질문 답변블록 난이도별 길이(분) 조회. 학생 Q&A 화면에서 난이도별 시간/요금 안내에 사용. */
   @Get('question-duration/policy')
-  @Roles('admin', 'hr', 'teacher')
+  @Roles('admin', 'hr', 'teacher', 'student')
   getQuestionDurationPolicy() {
     return this.booking.getQuestionDurationPolicy();
   }
@@ -119,6 +119,13 @@ export class BookingController {
     @Body() dto: { offlineDiscovery?: boolean; onlineOnly?: boolean; surchargePct?: number; weeklyGrant?: boolean; boardOnly?: boolean },
   ) {
     return this.booking.setExternalPolicy(user, dto);
+  }
+
+  /** GET /bookings/external/me — 학생 본인 유형(학원생/외부) + 외부학생일 때 적용 정책(온라인전용·할증·주간크레딧) 안내. */
+  @Get('external/me')
+  @Roles('student')
+  myStudentContext(@CurrentUser() user: AuthUser) {
+    return this.booking.getStudentContext(user);
   }
 
   /** GET /bookings/reverse/admin-students — 관리자: 센터 학생 + 역상담 지정/신청 플래그. */

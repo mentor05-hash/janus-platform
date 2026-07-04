@@ -26,13 +26,21 @@ const MODE_META: Record<string, { label: string; icon: string }> = {
 type Attachment = { id: string; name: string; type?: string };
 const actBtn: React.CSSProperties = { flex: 1, background: 'none', border: '1px solid var(--line)', borderRadius: 8, padding: '6px 0', fontSize: 12, color: 'var(--muted)', cursor: 'pointer' };
 
-function BookingForm({ teacher, onDone, onBack, initialMode }: { teacher: Teacher; onDone: () => void; onBack: () => void; initialMode?: string }) {
+function BookingForm({ teacher, onDone, onBack, initialMode, consultType, initialSubType }: { teacher: Teacher; onDone: () => void; onBack: () => void; initialMode?: string; consultType?: string; initialSubType?: string }) {
+  // 검색에서 고른 상담 종류(없으면 교과). 예약·견적·기본시간에 실제 반영.
+  const ctype = consultType || '교과';
+  const [defaultSlots, setDefaultSlots] = useState(DURATION); // 종류별 기본 상담시간(분)/10칸
+  useEffect(() => {
+    api.get<Record<string, number>>('/bookings/duration/policy')
+      .then((pol) => { const min = pol?.[ctype]; if (min && min > 0) setDefaultSlots(Math.max(MIN_LEN, Math.round(min / 10))); })
+      .catch(() => { /* 정책 없으면 기본 30분 */ });
+  }, [ctype]);
   const [date, setDate] = useState(todayStr());
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [selStart, setSelStart] = useState<number | null>(null);
   const [selEnd, setSelEnd] = useState<number | null>(null);
   const [notice, setNotice] = useState('');
-  const [subject, setSubject] = useState('수학');
+  const [subject, setSubject] = useState(initialSubType || '수학');
   const [content, setContent] = useState('');
   const supportedModes = teacher.modes?.length ? MODES.filter((m) => teacher.modes!.includes(m.value)) : MODES;
   const supportedVals = supportedModes.map((m) => m.value);
@@ -57,9 +65,9 @@ function BookingForm({ teacher, onDone, onBack, initialMode }: { teacher: Teache
 
   useEffect(() => {
     if (selStart === null || selEnd === null) return;
-    api.post<Quote>('/bookings/quote', { teacherId: teacher.id, date, mode, slotStart: selStart, slotEnd: selEnd + 1 })
+    api.post<Quote>('/bookings/quote', { teacherId: teacher.id, date, mode, consultType: ctype, slotStart: selStart, slotEnd: selEnd + 1 })
       .then(setQuote).catch(() => setQuote(null));
-  }, [selStart, selEnd, mode, teacher.id, date]);
+  }, [selStart, selEnd, mode, teacher.id, date, ctype]);
 
   const dateOptions = useMemo(() => {
     const base = new Date();
@@ -84,7 +92,7 @@ function BookingForm({ teacher, onDone, onBack, initialMode }: { teacher: Teache
   function selectNew(idx: number) {
     if (!availSet.has(idx)) return;
     const fs = forcedStartFor(idx); let end = fs;
-    while (end - fs + 1 < DURATION && availSet.has(end + 1)) end += 1;
+    while (end - fs + 1 < defaultSlots && availSet.has(end + 1)) end += 1;
     setSelStart(fs); setSelEnd(end);
     setNotice(fs !== idx ? `이전 상담 직후라 이 시간대는 ${minToTime(fs)} 시작만 가능해요(휴게 10분).` : afterBooking(fs) ? `이전 상담 직후 — ${minToTime(fs)} 시작 고정.` : '');
   }
@@ -112,7 +120,7 @@ function BookingForm({ teacher, onDone, onBack, initialMode }: { teacher: Teache
     if (selStart === null || selEnd === null) return;
     setError(''); setMsg('');
     try {
-      await api.post('/bookings', { teacherId: teacher.id, date, consultType: '교과', subType: subject, mode, slotStart: selStart, slotEnd: selEnd + 1, content: content || undefined, attachments });
+      await api.post('/bookings', { teacherId: teacher.id, date, consultType: ctype, subType: subject, mode, slotStart: selStart, slotEnd: selEnd + 1, content: content || undefined, attachments });
       setMsg('상담이 신청되었습니다.'); setTimeout(onDone, 900);
     } catch (e) {
       if (e instanceof ApiError && e.status === 409 && /줌.*초과/.test(e.message)) {
@@ -154,7 +162,7 @@ function BookingForm({ teacher, onDone, onBack, initialMode }: { teacher: Teache
             })}
           </div>
           {/* 시간 표 */}
-          <label className="label" style={{ marginTop: 12 }}>시간 (가능 시간만 · 기본 30분)</label>
+          <label className="label" style={{ marginTop: 12 }}>시간 (가능 시간만 · {ctype} 기본 {defaultSlots * 10}분)</label>
           {slots === null ? <Spinner /> : slots.length === 0 ? <EmptyState>이 날짜엔 선생님 근무 시간이 없어요.</EmptyState> : (
             <>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -333,6 +341,9 @@ export function StudentSearchPage() {
   const [recs, setRecs] = useState<(Teacher & { matchedNeeds?: string[]; strengths?: string[] })[] | null>(null);
   const [board, setBoard] = useState<(Teacher & { rank: number; score: number })[]>([]);
   const [error, setError] = useState('');
+  // 외부학생(비재원) 안내 — 온라인 전용·요금 할증·주간크레딧. 학원생이면 external=null.
+  const [extCtx, setExtCtx] = useState<{ label: string; external: { onlineOnly: boolean; surchargePct: number; weeklyGrant: boolean; boardOnly: boolean } | null } | null>(null);
+  useEffect(() => { api.get<{ label: string; external: { onlineOnly: boolean; surchargePct: number; weeklyGrant: boolean; boardOnly: boolean } | null }>('/bookings/external/me').then(setExtCtx).catch(() => { /* 실패시 배너 생략 */ }); }, []);
 
   const subjectFilter = consultType === '교과' && subType ? SUBJECT_MAP[subType] ?? subType : null;
 
@@ -395,7 +406,7 @@ export function StudentSearchPage() {
     catch (e) { setNote(e instanceof ApiError ? e.message : '실패'); }
   }
 
-  if (picked && phase === 'book') return <BookingForm teacher={picked} initialMode={modeFilter ?? undefined} onBack={() => window.history.back()} onDone={() => { setPicked(null); setPhase('detail'); }} />;
+  if (picked && phase === 'book') return <BookingForm teacher={picked} initialMode={modeFilter ?? undefined} consultType={consultType ?? undefined} initialSubType={subType ?? undefined} onBack={() => window.history.back()} onDone={() => { setPicked(null); setPhase('detail'); }} />;
   if (picked) return <TeacherDetailView teacher={picked} onBook={openBook} onBack={() => window.history.back()} />;
 
   const rows = (teachers ?? []).filter((t) => !q.trim() || t.name.toLowerCase().includes(q.toLowerCase()) || t.subjects.join(',').includes(q));
@@ -403,6 +414,19 @@ export function StudentSearchPage() {
     <div>
       <PageHeader title="선생님 찾기" sub={credit ? `보유 크레딧 ${credit.total.toLocaleString()}` : '선생님을 고르고 상담을 신청하세요.'} />
       {error && <ErrorText>{error}</ErrorText>}
+
+      {/* 외부학생 안내 배너 */}
+      {extCtx?.external && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--chip-confirmed-bg,#FEF6E7)', border: '1px solid #F0DCAE', borderRadius: 10, padding: '9px 12px', marginBottom: 12 }}>
+          <span style={{ fontSize: 11, fontWeight: 800, color: '#92600a', background: '#F7E4BC', borderRadius: 6, padding: '3px 7px' }}>{extCtx.label}</span>
+          <span style={{ fontSize: 12.5, color: '#92600a', fontWeight: 600 }}>
+            {extCtx.external.onlineOnly ? '온라인 상담 전용' : '온·오프라인 이용 가능'}
+            {extCtx.external.surchargePct > 0 ? ` · 요금 +${extCtx.external.surchargePct}%` : ''}
+            {extCtx.external.weeklyGrant ? ' · 주간 크레딧 지급' : ' · 주간 크레딧 미지급'}
+            {extCtx.external.boardOnly ? ' · 게시판 질문만' : ''}
+          </span>
+        </div>
+      )}
 
       {/* 상담 / 질문 토글 */}
       <div style={{ display: 'inline-flex', background: 'var(--fill,#eef2f4)', borderRadius: 10, padding: 3, marginBottom: 12 }}>

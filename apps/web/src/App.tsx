@@ -44,6 +44,7 @@ import { StudentBookingsPage } from './pages/StudentBookingsPage';
 import { StudentSearchPage } from './pages/StudentSearchPage';
 import { StudentCreditsPage } from './pages/StudentCreditsPage';
 import { StudentReversePage } from './pages/StudentReversePage';
+import { StudentAutoAssignPage } from './pages/StudentAutoAssignPage';
 import { StudentQnaPage } from './pages/StudentQnaPage';
 import { StudentCommunityPage } from './pages/StudentCommunityPage';
 import { StudentScoresPage } from './pages/StudentScoresPage';
@@ -160,6 +161,7 @@ export function App() {
         <Route path="credits" element={<StudentCreditsPage />} />
         <Route path="notifications" element={<StudentNotificationsPage />} />
         <Route path="reverse" element={<StudentReversePage />} />
+        <Route path="auto-assign" element={<StudentAutoAssignPage />} />
         <Route path="legal" element={<LegalPage />} />
       </Route>
 

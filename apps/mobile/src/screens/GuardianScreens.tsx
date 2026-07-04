@@ -63,6 +63,15 @@ export function GuardianHome({ children, activeId, setActiveId, goTab }: Props) 
         </TouchableOpacity>
       )}
 
+      {/* 멤버십 업셀 배너 */}
+      <TouchableOpacity style={s.upsell} onPress={() => goTab?.('g')}>
+        <View style={{ flex: 1 }}>
+          <Text style={s.upsellT}>✨ 자녀 학습, 한 단계 더</Text>
+          <Text style={s.upsellS}>상위 멤버십으로 매주 더 많은 상담 크레딧을 받아보세요.</Text>
+        </View>
+        <Text style={s.upsellGo}>보기 →</Text>
+      </TouchableOpacity>
+
       <Text style={s.sec}>자녀</Text>
       {children.map((c) => (
         <TouchableOpacity key={c.studentId} style={[ui.card, { marginBottom: 8 }]} onPress={() => { setActiveId(c.studentId); goTab?.('b'); }}>
@@ -256,7 +265,111 @@ export function GuardianCharge({ children, activeId, setActiveId }: Props) {
   );
 }
 
+type Plan = { id: string; name: string; price: number; billing_cycle: string; payer: string; grade_id: string | null; membership_grade?: { name: string; weekly_credits: number; tier: string } | null };
+type Promo = { headline: string; subcopy: string; highlightPlanId: string | null };
+
+/** 학부모 상품/멤버십(업셀) — 자녀 현재 등급 대비 상위 플랜 제안 + 대신 구독·충전 CTA. */
+export function GuardianMembership({ children, activeId, setActiveId, goTab }: Props) {
+  const { C } = useTheme();
+  const ui = useUI();
+  const s = useMemo(() => makeStyles(C), [C]);
+  const [plans, setPlans] = useState<Plan[] | null>(null);
+  const [promo, setPromo] = useState<Promo | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api.get<Plan[]>('/subscription/plans').then((p) => setPlans(Array.isArray(p) ? p : [])).catch(() => setPlans([]));
+    api.get<Promo>('/subscription/promo').then(setPromo).catch(() => { /* 기본 문구 */ });
+  }, []);
+
+  const childId = activeId ?? children[0]?.studentId ?? null;
+  const child = children.find((c) => c.studentId === childId) ?? children[0] ?? null;
+  const curCredits = child?.weeklyCredits ?? 0;
+  const sorted = useMemo(() => [...(plans ?? [])].sort((a, b) => (a.membership_grade?.weekly_credits ?? 0) - (b.membership_grade?.weekly_credits ?? 0)), [plans]);
+  // 상위 제안: 현재 자녀 주간크레딧보다 많은 플랜(가장 근접한 것부터). 없으면 최상위.
+  const recommended = promo?.highlightPlanId
+    ? sorted.find((p) => p.id === promo.highlightPlanId)
+    : sorted.find((p) => (p.membership_grade?.weekly_credits ?? 0) > curCredits) ?? sorted[sorted.length - 1];
+
+  async function subscribe(plan: Plan) {
+    if (!childId) { setError('연결된 자녀가 없어요.'); return; }
+    setBusy(plan.id); setMsg(''); setError('');
+    try {
+      await api.post('/subscription/subscribe-for-child', { studentId: childId, planId: plan.id });
+      setMsg(`${child?.name ?? '자녀'} · ${plan.name} 구독을 시작했어요. 다음 주부터 상위 혜택이 적용됩니다.`);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : '구독 실패');
+    } finally { setBusy(null); }
+  }
+
+  return (
+    <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
+      <Text style={ui.h}>멤버십 · 상품</Text>
+      <Text style={[ui.sub, { marginBottom: SP.md }]}>자녀에게 맞는 멤버십을 선택해 매주 상담 크레딧을 받아보세요.</Text>
+
+      <KidSwitcher children={children} activeId={activeId} setActiveId={setActiveId} />
+
+      {/* 홍보 배너(본사 편집 가능) */}
+      <View style={s.promo}>
+        <Text style={s.promoH}>{promo?.headline ?? '자녀 학습, 한 단계 더'}</Text>
+        <Text style={s.promoS}>{promo?.subcopy ?? '상위 멤버십으로 매주 더 많은 상담 크레딧과 우선 배정을 받아보세요.'}</Text>
+        {child && <Text style={s.promoNow}>현재 {child.name} · {child.membershipGrade ?? '기본'} · 주간 {curCredits} 크레딧</Text>}
+      </View>
+
+      {msg ? <Text style={s.okMsg}>{msg}</Text> : null}
+      {error ? <Text style={ui.error}>{error}</Text> : null}
+
+      {plans === null ? <ActivityIndicator color={C.teal} style={{ marginTop: 16 }} />
+        : sorted.length === 0 ? <Text style={[ui.sub, { marginTop: 12 }]}>현재 판매 중인 멤버십이 없어요.</Text>
+        : sorted.map((p) => {
+          const wc = p.membership_grade?.weekly_credits ?? 0;
+          const isRec = recommended?.id === p.id;
+          const isUpgrade = wc > curCredits;
+          return (
+            <View key={p.id} style={[s.planCard, isRec && s.planRec]}>
+              {isRec && <View style={s.recBadge}><Text style={s.recBadgeT}>추천</Text></View>}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <Text style={s.planName}>{p.name}{p.membership_grade?.tier ? ` · ${p.membership_grade.tier}등급` : ''}</Text>
+                <Text style={s.planPrice}>{won(p.price)}<Text style={s.planCycle}>/{p.billing_cycle === 'monthly' ? '월' : p.billing_cycle}</Text></Text>
+              </View>
+              <Text style={s.planBenefit}>매주 {wc.toLocaleString()} 크레딧{isUpgrade ? ` · 현재보다 +${(wc - curCredits).toLocaleString()}` : ''}</Text>
+              <TouchableOpacity style={[ui.btn, { marginTop: 10 }, busy === p.id && { opacity: 0.6 }]} disabled={!!busy} onPress={() => subscribe(p)}>
+                <Text style={ui.btnText}>{busy === p.id ? '처리 중…' : isUpgrade ? '이 멤버십으로 업그레이드' : '이 멤버십 구독'}</Text>
+              </TouchableOpacity>
+            </View>
+          );
+        })}
+
+      <TouchableOpacity style={s.chargeLink} onPress={() => goTab?.('d')}>
+        <Text style={s.chargeLinkT}>크레딧이 더 필요하세요? 충전하기 →</Text>
+      </TouchableOpacity>
+      <Text style={s.note}>정기결제는 학부모 계좌로 청구돼요(플랜 정책 기준). 실제 결제는 PG 연동 예정(현재 모의).</Text>
+    </ScrollView>
+  );
+}
+
 const makeStyles = (C: Palette) => StyleSheet.create({
+  promo: { backgroundColor: C.teal, borderRadius: R.card, padding: 16, marginTop: 4 },
+  promoH: { fontSize: 17, fontWeight: '800', color: '#fff' },
+  promoS: { fontSize: 13, color: '#EAF4F8', marginTop: 6, lineHeight: 19 },
+  promoNow: { fontSize: 12, color: '#CDE7F0', marginTop: 10, fontWeight: '600' },
+  okMsg: { fontSize: 13, color: C.done, fontWeight: '700', marginTop: 12 },
+  planCard: { borderWidth: 1, borderColor: C.line, borderRadius: R.card, padding: 16, marginTop: 12, backgroundColor: C.white },
+  planRec: { borderColor: C.teal, borderWidth: 2 },
+  recBadge: { position: 'absolute', top: -10, left: 14, backgroundColor: C.teal, borderRadius: R.pill, paddingHorizontal: 10, paddingVertical: 3 },
+  recBadgeT: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  planName: { fontSize: 15, fontWeight: '800', color: C.ink },
+  planPrice: { fontSize: 17, fontWeight: '800', color: C.teal, fontVariant: ['tabular-nums'] },
+  planCycle: { fontSize: 12, fontWeight: '600', color: C.muted },
+  planBenefit: { fontSize: 13, color: C.muted, marginTop: 6, fontWeight: '600' },
+  chargeLink: { marginTop: 18, alignItems: 'center', paddingVertical: 12, borderRadius: R.md, borderWidth: 1, borderColor: C.teal },
+  chargeLinkT: { color: C.teal, fontWeight: '800', fontSize: 13 },
+  upsell: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.teal50, borderColor: C.teal100, borderWidth: 1, borderRadius: R.card, padding: 14, marginBottom: 4 },
+  upsellT: { fontSize: 14, fontWeight: '800', color: C.teal },
+  upsellS: { fontSize: 12, color: C.muted, marginTop: 3, lineHeight: 16 },
+  upsellGo: { fontSize: 13, fontWeight: '800', color: C.teal },
   kid: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: R.pill, borderWidth: 1, borderColor: C.line, backgroundColor: C.white },
   kidOn: { backgroundColor: C.ink, borderColor: C.ink },
   kidT: { fontSize: 13, fontWeight: '700', color: C.muted },

@@ -25,6 +25,13 @@ export class QnaController {
   }
 
   /** GET /qna/posts — 역할별 목록. */
+  /** GET /qna/pricing — 질문 건당 요금(문항/일반) 안내(학생). 난이도별 답변블록 시간은 /bookings/question-duration/policy. */
+  @Get('pricing')
+  @Roles('student')
+  pricing(@CurrentUser() user: AuthUser) {
+    return this.qna.pricingInfo(user.centerId ?? null);
+  }
+
   @Get('posts')
   list(@CurrentUser() user: AuthUser) {
     return this.qna.listPosts(user);

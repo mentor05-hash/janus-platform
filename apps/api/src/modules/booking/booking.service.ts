@@ -29,7 +29,7 @@ import {
   sessionModeToPrisma,
 } from '../../config/prisma-enums';
 import { permAtLeast } from '../../config/perm';
-import { resolveStudentType, type StudentType } from '../../common/student-type';
+import { resolveStudentType, STUDENT_TYPE_LABEL, type StudentType } from '../../common/student-type';
 import { DEFAULT_CONSULT_DURATION, CONSULT_TYPES, isFullTime, DEFAULT_QUESTION_DURATION, QUESTION_TIERS, difficultyTier } from '../../common/consult-assignment';
 import { AvailabilityService } from '../availability/availability.service';
 import { CreditService } from '../billing/credit.service';
@@ -121,6 +121,27 @@ export class BookingService {
   async getExternalPolicy(): Promise<{ offlineDiscovery: boolean; onlineOnly: boolean; surchargePct: number; weeklyGrant: boolean; boardOnly: boolean }> {
     const row = await this.prisma.system_setting.findUnique({ where: { key: BookingService.EXTERNAL_KEY } });
     return { ...BookingService.EXTERNAL_DEFAULT, ...((row?.value as object) ?? {}) };
+  }
+
+  /**
+   * 학생 본인 컨텍스트 — 유형(학원생/외부)과 외부학생일 때 적용되는 정책을 학생 화면에 안내.
+   * 외부학생이면 온라인 전용·요금 할증·주간 크레딧 부여 여부를 배너로 노출(enrolled 는 external=null).
+   */
+  async getStudentContext(user: AuthUser) {
+    const sp = await this.prisma.student_profile.findUnique({
+      where: { account_id: user.id },
+      select: { type_code: true, center_id: true },
+    });
+    const type: StudentType = sp ? resolveStudentType(sp) : 'enrolled';
+    const pol = await this.getExternalPolicy();
+    return {
+      type,
+      label: STUDENT_TYPE_LABEL[type],
+      external:
+        type === 'external'
+          ? { onlineOnly: pol.onlineOnly, surchargePct: pol.surchargePct, weeklyGrant: pol.weeklyGrant, boardOnly: pol.boardOnly }
+          : null,
+    };
   }
 
   /**
