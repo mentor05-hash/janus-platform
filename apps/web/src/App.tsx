@@ -7,6 +7,7 @@ import { AdminLayout } from './components/AdminLayout';
 import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
 import { TeacherBookingsPage } from './pages/TeacherBookingsPage';
+import { TeacherInboxPage } from './pages/TeacherInboxPage';
 import { NotePage } from './pages/NotePage';
 import { SchedulePage } from './pages/SchedulePage';
 import { TeacherEvalPage } from './pages/TeacherEvalPage';
@@ -93,6 +94,7 @@ export function App() {
       >
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<TeacherDashboardPage />} />
+        <Route path="inbox" element={<TeacherInboxPage />} />
         <Route path="bookings" element={<TeacherBookingsPage />} />
         <Route path="bookings/:id/note" element={<NotePage />} />
         <Route path="schedule" element={<SchedulePage />} />

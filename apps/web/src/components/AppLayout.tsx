@@ -7,6 +7,7 @@ const navCls = ({ isActive }: { isActive: boolean }) => (isActive ? 'nav-item ac
 
 const NAV = [
   { to: '/app/dashboard', label: '대시보드' },
+  { to: '/app/inbox', label: '인박스' },
   { to: '/app/profile', label: '내 프로필' },
   { to: '/app/bookings', label: '예약' },
   { to: '/app/schedule', label: '근무·슬롯' },
