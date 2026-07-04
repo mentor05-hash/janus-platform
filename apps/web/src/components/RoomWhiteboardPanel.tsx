@@ -170,7 +170,7 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs }: { bookingId
   }
   async function onAttach(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]; e.target.value = ''; if (!f) return;
-    if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) { alert('PDF 배경은 준비 중입니다. 지금은 이미지 배경을 사용할 수 있어요.'); return; } // 이음새: 사업확장 후 룸 PDF 렌더로 활성화
+    if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) { alert('PDF 배경은 준비 중입니다. 지금은 이미지 배경을 사용할 수 있어요.'); return; } // 이음새(N22): 사업확장 후 룸 서비스 PDF 렌더 추가하면 이 분기만 활성화. 결정사항 Decision-Register C-7 참조.
     if (f.type.startsWith('image/')) { try { await useAsBackground(f, f.name); } catch { alert('배경 불러오기에 실패했어요.'); } }
   }
   async function openCamera() { try { const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false }); camStreamRef.current = stream; setCamOn(true); setTimeout(() => { if (videoRef.current) { videoRef.current.srcObject = stream; void videoRef.current.play(); } }, 30); } catch { alert('카메라를 사용할 수 없어요.'); } }

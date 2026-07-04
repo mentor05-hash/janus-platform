@@ -154,6 +154,7 @@ export function RoomWhiteboardScreen({ title, onClose, embedded, session: rs }: 
   }
   function attachImage() {
     if (typeof document === 'undefined') return;
+    // 이음새(N22): 현재 이미지 배경만. 사업확장 후 룸 서비스 PDF 렌더 추가 시 PDF 분기 활성화. 결정사항 Decision-Register C-7 참조.
     const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*';
     input.onchange = async () => { const f = input.files?.[0]; if (!f) return; if (f.type.startsWith('image/')) { try { await useAsBackground(f, f.name); } catch { /* noop */ } } };
     input.click();
