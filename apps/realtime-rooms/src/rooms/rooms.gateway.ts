@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { MetricsService } from './metrics.service';
 import { RoomsService, type RoomRow, type Feature } from './rooms.service';
 import { TokenService } from './token.service';
 
@@ -22,20 +23,28 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   // 서버발 강제 종료 예약(룸당 1회). 다중 인스턴스에선 인스턴스별 예약 → 클라 멱등 처리로 중복 무해.
   private readonly closeTimers = new Map<string, NodeJS.Timeout>();
 
-  constructor(private readonly svc: RoomsService, private readonly tokens: TokenService) {}
+  constructor(private readonly svc: RoomsService, private readonly tokens: TokenService, private readonly metrics: MetricsService) {}
 
-  handleConnection(client: Socket) {
-    const token = (client.handshake.auth?.token as string) || (client.handshake.query?.token as string);
-    const payload = this.tokens.verify(token);
-    if (!payload) { client.emit('error', { message: '인증 실패' }); client.disconnect(true); return; }
-    const ctx: Ctx = { roomId: payload.roomId, participantId: payload.participantId, name: payload.name };
-    client.data.ctx = ctx;
-    client.join(`room:${ctx.roomId}`); // 토큰이 룸을 고정 → 접속 즉시 방 참여(presence·중계 대상)
-    this.addPresence(ctx.roomId, ctx.participantId);
+  async handleConnection(client: Socket) {
+    try {
+      const token = (client.handshake.auth?.token as string) || (client.handshake.query?.token as string);
+      const payload = this.tokens.verify(token);
+      if (!payload) { client.emit('error', { message: '인증 실패' }); client.disconnect(true); return; }
+      // ctx 는 await 이전에 동기 설정 — 그래야 곧바로 도착하는 메시지 핸들러가 ctx 를 본다(경쟁 방지).
+      const ctx: Ctx = { roomId: payload.roomId, participantId: payload.participantId, name: payload.name };
+      client.data.ctx = ctx;
+      client.join(`room:${ctx.roomId}`);
+      this.addPresence(ctx.roomId, ctx.participantId);
+      this.metrics.wsConnections.inc();
+      // epoch 폐기 검증(비동기) — 실패 시 강제 해제(handleDisconnect 가 presence·게이지 정리).
+      const room = await this.svc.getRoom(payload.roomId);
+      if (!room || room.token_epoch !== payload.epoch) { client.emit('error', { message: '폐기되었거나 없는 룸' }); client.disconnect(true); return; }
+      this.remember(room);
+    } catch { client.disconnect(true); }
   }
   handleDisconnect(client: Socket) {
     const ctx = client.data.ctx as Ctx | undefined;
-    if (ctx) this.removePresence(ctx.roomId, ctx.participantId);
+    if (ctx) { this.removePresence(ctx.roomId, ctx.participantId); this.metrics.wsConnections.dec(); }
   }
   private ctx(client: Socket): Ctx { return client.data.ctx as Ctx; }
 
@@ -60,6 +69,16 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const w = this.svc.sessionWindow(room);
     this.windows.set(room.id, { restricted: w.restricted, opensMs: w.opensAt?.getTime() ?? 0, closesMs: w.closesAt?.getTime() ?? 0, features: room.features });
     this.scheduleClose(room.id);
+  }
+
+  /** 토큰 폐기 시 호출 — 방에 통지 후 현재 접속 강제 해제, 캐시 정리. */
+  async revokeRoom(roomId: string) {
+    const room = `room:${roomId}`;
+    this.server.to(room).emit('session:revoked', { roomId });
+    for (const s of await this.server.in(room).fetchSockets()) s.disconnect(true);
+    this.windows.delete(roomId);
+    this.presence.delete(roomId);
+    const t = this.closeTimers.get(roomId); if (t) { clearTimeout(t); this.closeTimers.delete(roomId); }
   }
   /** 폐장 시각에 방 전체로 session:closed 브로드캐스트(유휴 상대도 열람 전용 전환). */
   private scheduleClose(roomId: string) {
@@ -93,11 +112,20 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (!room) return { ok: false, error: 'room not found' };
     this.remember(room);
     client.join(this.room(client));
-    const messages = this.svc.featureOn(room, 'chat') ? await this.svc.history(c.roomId, c.participantId) : [];
+    const hist = this.svc.featureOn(room, 'chat') ? await this.svc.history(c.roomId, c.participantId) : { messages: [], nextCursor: null, hasMore: false };
     const read = await this.svc.markRead(c.roomId, c.participantId);
     if (read.count > 0) client.to(this.room(client)).emit('chat:read', { readerId: read.readerId, at: read.at });
     const online = [...(this.presence.get(c.roomId)?.keys() ?? [])];
-    return { ok: true, participantId: c.participantId, features: room.features, session: this.svc.sessionInfo(room), messages, online };
+    return { ok: true, participantId: c.participantId, features: room.features, session: this.svc.sessionInfo(room), messages: hist.messages, nextCursor: hist.nextCursor, hasMore: hist.hasMore, online };
+  }
+
+  /** 이전(오래된) 메시지 페이지 로드 — 무한 스크롤. { before?, limit? } → { messages, nextCursor, hasMore }. */
+  @SubscribeMessage('chat:history')
+  async chatHistory(@ConnectedSocket() client: Socket, @MessageBody() { before, limit }: { before?: string; limit?: number }) {
+    const c = this.ctx(client);
+    if (!this.featureOn(c.roomId, 'chat')) return { ok: false };
+    const hist = await this.svc.history(c.roomId, c.participantId, { before, limit });
+    return { ok: true, ...hist };
   }
 
   // ── 채팅 ──

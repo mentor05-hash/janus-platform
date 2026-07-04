@@ -48,9 +48,13 @@ s.emit('join', {}, (r) => { /* r.features, r.session, r.messages */ });
 | `chat:send` | C→S(ack) | `{ body?, fileUrl?, kind?, replyToId? }` → 방에 `chat:message` |
 | `chat:react` | C→S(ack) | `{ messageId, emoji }` → 방에 `chat:reaction` |
 | `chat:typing` / `chat:read` | C↔S | 입력중 / 읽음 |
+| `chat:history` | C→S(ack) | `{ before?, limit? }` → `{ messages, nextCursor, hasMore }` (무한 스크롤) |
 | `wb:join` | C→S(ack) | `{ strokes, backgroundUrl, session }` |
 | `wb:stroke` / `wb:stroke:partial` / `wb:image` / `wb:clear` / `wb:save` | C↔S | 필기 중계·스냅샷 저장 |
 | `call:join` / `call:signal` / `call:leave` | C↔S | WebRTC offer/answer/ICE 중계 |
+| `presence` | S→C | `{ online: participantId[] }` — 접속자 변동 시 |
+| `session:closed` | S→C | 폐장 시각 도달 — 이후 열람 전용 |
+| `session:revoked` | S→C | 토큰 폐기 — 즉시 강제 해제 |
 
 ## 게이팅(서버 강제)
 - **시간창**: `opensAt`~`closesAt` 밖의 쓰기(chat/wb/call)는 `{ ok:false, closed:true }`로 거부. `join`은 허용 → **종료 후 기록 열람 가능**. (`opensAt`/`closesAt` 미지정 = 무제한)
@@ -59,10 +63,14 @@ s.emit('join', {}, (r) => { /* r.features, r.session, r.messages */ });
 ## REST
 | 메서드 | 경로 | 인증 | 용도 |
 |---|---|---|---|
-| GET | `/api/rt/v1/health` | 공개 | 헬스체크 |
+| GET | `/api/rt/v1/health` | 공개 | 헬스체크(DB 포함) |
+| GET | `/api/rt/v1/metrics` | 공개 | Prometheus 지표 |
 | POST | `/api/rt/v1/rooms` | API 키 | 룸 생성 + 토큰 발급 |
-| GET | `/api/rt/v1/rooms/:id?viewer=<pid>` | API 키 | 룸 메타 + 기록(종료 후 열람) |
-| POST | `/api/rt/v1/rooms/:id/tokens` | API 키 | 참가자 토큰 재발급 |
+| GET | `/api/rt/v1/rooms/:id?viewer=&before=&limit=` | API 키 | 룸 메타 + 기록(커서 페이지네이션) |
+| POST | `/api/rt/v1/rooms/:id/tokens` | API 키 | 참가자 토큰 재발급(현재 epoch) |
+| POST | `/api/rt/v1/rooms/:id/revoke` | API 키 | 토큰 일괄 폐기 + 현재 접속 강제 해제 |
+| POST | `/api/rt/v1/files` | 룸 토큰 | 첨부 업로드(multipart, ≤20MB) → `{ fileUrl }` |
+| GET | `/api/rt/v1/files/:id?token=` | 룸 토큰 | 첨부 다운로드(발급 룸 한정) |
 
 ## 환경변수
 | 키 | 기본 | 설명 |
@@ -71,6 +79,8 @@ s.emit('join', {}, (r) => { /* r.features, r.session, r.messages */ });
 | `ROOMS_DATABASE_URL` | — | PostgreSQL(전용 DB 권장). 로컬은 `rooms` 스키마 격리 |
 | `ROOMS_JWT_SECRET` | dev값 | 룸 토큰 서명 시크릿 |
 | `ROOMS_API_KEY` | dev값 | 프로비저닝 API 키(서버-투-서버) |
+| `ROOMS_STORAGE_DIR` | ./var/storage | 첨부 로컬 저장 경로 |
+| `ROOMS_CORS_ORIGINS` | (전체) | 허용 오리진 콤마목록 |
 | `REDIS_URL` / `WS_REDIS_ADAPTER` | — / 0 | 다중 인스턴스 확장 시 |
 
 ## 로컬 실행
@@ -83,5 +93,5 @@ ROOMS_DATABASE_URL=... ROOMS_JWT_SECRET=... ROOMS_API_KEY=... PORT=3100 node dis
 ## 아직 안 된 것(다음 단계)
 - **임베드 클라이언트 SDK/위젯**: 웹의 `ChatPanel`/`WhiteboardPanel` 로직을 `roomUrl + token` 파라미터로 패키징(현재 멘토링 앱에 인라인).
 - **호스트 어댑터**: 멘토링 API의 `realtime` 모듈을 이 서비스 호출로 대체(현재는 공존).
-- **첨부 스토리지**: 현재 `fileUrl`은 호스트 제공 URL. 자체 업로드/스토리지는 미포함.
+- **첨부 스토리지 백엔드**: 로컬 디스크는 구현됨. S3/GCS 어댑터(`StorageService` 교체)는 미포함.
 - **관리/과금**: 테넌트·요금·사용량 집계.

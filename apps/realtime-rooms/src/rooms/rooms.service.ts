@@ -1,18 +1,26 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Pool } from 'pg';
 import { PG } from '../db';
+import { MetricsService } from './metrics.service';
 import { TokenService } from './token.service';
 
 export type Features = { chat: boolean; whiteboard: boolean; voice: boolean };
-export type RoomRow = { id: string; external_ref: string | null; features: Features; opens_at: Date | null; closes_at: Date | null };
+export type RoomRow = { id: string; external_ref: string | null; features: Features; opens_at: Date | null; closes_at: Date | null; token_epoch: number };
 export type Feature = keyof Features;
+export type FileRow = { id: string; room_id: string; filename: string; mime: string | null; size: number | null; storage_path: string };
+
+/** keyset 커서 = base64("<createdAtISO>|<id>"). 안정적 정렬(생성시각+id). */
+const encodeCursor = (createdAt: Date, id: string) => Buffer.from(`${createdAt.toISOString()}|${id}`).toString('base64url');
+const decodeCursor = (c: string): { ts: string; id: string } | null => {
+  try { const [ts, id] = Buffer.from(c, 'base64url').toString().split('|'); return ts && id ? { ts, id } : null; } catch { return null; }
+};
 
 type MsgRow = { id: string; sender_id: string | null; kind: string; body: string | null; file_url: string | null; reply_to_id: string | null; reactions: Record<string, string[]>; read_at: Date | null; created_at: Date };
 
 /** 룸 데이터 + 시간창/기능 정책. 호스트 도메인 무관(범용). */
 @Injectable()
 export class RoomsService {
-  constructor(@Inject(PG) private readonly pool: Pool, private readonly tokens: TokenService) {}
+  constructor(@Inject(PG) private readonly pool: Pool, private readonly tokens: TokenService, private readonly metrics: MetricsService) {}
 
   async createRoom(dto: {
     externalRef?: string; features?: Partial<Features>; opensAt?: string | null; closesAt?: string | null;
@@ -37,9 +45,10 @@ export class RoomsService {
           [roomId, p.extUserId ?? null, p.displayName ?? null, p.role ?? null],
         );
         const pid = pr.rows[0].id;
-        participants.push({ participantId: pid, extUserId: p.extUserId ?? null, displayName: p.displayName ?? null, token: this.tokens.issue(roomId, pid, ttl, p.displayName) });
+        participants.push({ participantId: pid, extUserId: p.extUserId ?? null, displayName: p.displayName ?? null, token: this.tokens.issue(roomId, pid, ttl, 0, p.displayName) });
       }
       await client.query('COMMIT');
+      this.metrics.roomsCreated.inc();
       return { roomId, features, opensAt: dto.opensAt ?? null, closesAt: dto.closesAt ?? null, participants };
     } catch (e) {
       await client.query('ROLLBACK'); throw e;
@@ -49,12 +58,18 @@ export class RoomsService {
   }
 
   async getRoom(roomId: string): Promise<RoomRow | null> {
-    const r = await this.pool.query<RoomRow>(`SELECT id, external_ref, features, opens_at, closes_at FROM room WHERE id = $1`, [roomId]);
+    const r = await this.pool.query<RoomRow>(`SELECT id, external_ref, features, opens_at, closes_at, token_epoch FROM room WHERE id = $1`, [roomId]);
     return r.rows[0] ?? null;
   }
   async participantInRoom(roomId: string, participantId: string): Promise<boolean> {
     const r = await this.pool.query(`SELECT 1 FROM room_participant WHERE id = $1 AND room_id = $2`, [participantId, roomId]);
     return (r.rowCount ?? 0) > 0;
+  }
+
+  /** 토큰 폐기 — epoch 증가로 기존 토큰 일괄 무효화. 반환: 새 epoch. */
+  async revoke(roomId: string): Promise<number | null> {
+    const r = await this.pool.query<{ token_epoch: number }>(`UPDATE room SET token_epoch = token_epoch + 1 WHERE id = $1 RETURNING token_epoch`, [roomId]);
+    return r.rows[0]?.token_epoch ?? null;
   }
 
   // ── 시간창(호스트가 opens/closes 를 지정; 둘 다 있으면 제한, 강제 종료) ──
@@ -70,18 +85,56 @@ export class RoomsService {
   featureOn(room: RoomRow, f: Feature): boolean { return room.features?.[f] !== false; }
 
   // ── 채팅 ──
-  async history(roomId: string, viewerId: string) {
-    const r = await this.pool.query<MsgRow>(`SELECT * FROM room_message WHERE room_id = $1 ORDER BY created_at ASC LIMIT 500`, [roomId]);
-    const byId = new Map(r.rows.map((m) => [m.id, m]));
-    return r.rows.map((m) => this.shape(m, viewerId, m.reply_to_id ? byId.get(m.reply_to_id) ?? null : null));
+  /** 최신 한 페이지(기본) 또는 커서(before) 이전 페이지. 반환: 오름차순 messages + nextCursor(더 오래된 것). */
+  async history(roomId: string, viewerId: string, opts?: { before?: string; limit?: number }) {
+    const limit = Math.min(200, Math.max(1, opts?.limit ?? 50));
+    const cur = opts?.before ? decodeCursor(opts.before) : null;
+    const params: unknown[] = [roomId];
+    let where = 'room_id = $1';
+    if (cur) { params.push(cur.ts, cur.id); where += ` AND (created_at, id) < ($2::timestamptz, $3::uuid)`; }
+    const rows = (await this.pool.query<MsgRow>(
+      `SELECT * FROM room_message WHERE ${where} ORDER BY created_at DESC, id DESC LIMIT ${limit + 1}`, params,
+    )).rows;
+    const hasMore = rows.length > limit;
+    const page = rows.slice(0, limit);                       // 최신→과거
+    const oldest = page[page.length - 1];
+    const asc = page.slice().reverse();                      // 과거→최신(표시 순서)
+    const replyMap = await this.replyMap(roomId, asc.map((m) => m.reply_to_id).filter((x): x is string => !!x));
+    return {
+      messages: asc.map((m) => this.shape(m, viewerId, m.reply_to_id ? replyMap.get(m.reply_to_id) ?? null : null)),
+      nextCursor: hasMore && oldest ? encodeCursor(oldest.created_at, oldest.id) : null,
+      hasMore,
+    };
+  }
+  private async replyMap(roomId: string, ids: string[]): Promise<Map<string, MsgRow>> {
+    if (!ids.length) return new Map();
+    const r = await this.pool.query<MsgRow>(`SELECT * FROM room_message WHERE room_id = $1 AND id = ANY($2::uuid[])`, [roomId, [...new Set(ids)]]);
+    return new Map(r.rows.map((m) => [m.id, m]));
   }
   async saveMessage(roomId: string, senderId: string, kind: string, body: string | null, fileUrl: string | null, replyToId?: string | null) {
     const r = await this.pool.query<MsgRow>(
       `INSERT INTO room_message (room_id, sender_id, kind, body, file_url, reply_to_id) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
       [roomId, senderId, kind, body, fileUrl, replyToId ?? null],
     );
+    this.metrics.messages.inc();
     const orig = replyToId ? (await this.pool.query<MsgRow>(`SELECT * FROM room_message WHERE id = $1 AND room_id = $2`, [replyToId, roomId])).rows[0] ?? null : null;
     return this.shape(r.rows[0], senderId, orig);
+  }
+
+  // ── 첨부 파일 ──
+  async createFile(roomId: string, uploaderId: string, filename: string, mime: string | null, size: number | null, storagePath: string) {
+    const r = await this.pool.query<{ id: string }>(
+      `INSERT INTO room_file (room_id, uploader_id, filename, mime, size, storage_path) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+      [roomId, uploaderId, filename, mime, size, storagePath],
+    );
+    return r.rows[0].id;
+  }
+  async setFilePath(fileId: string, storagePath: string) {
+    await this.pool.query(`UPDATE room_file SET storage_path = $1 WHERE id = $2`, [storagePath, fileId]);
+  }
+  async getFile(fileId: string): Promise<FileRow | null> {
+    const r = await this.pool.query<FileRow>(`SELECT id, room_id, filename, mime, size, storage_path FROM room_file WHERE id = $1`, [fileId]);
+    return r.rows[0] ?? null;
   }
   async toggleReaction(roomId: string, messageId: string, participantId: string, emoji: string) {
     const cur = await this.pool.query<MsgRow>(`SELECT * FROM room_message WHERE id = $1 AND room_id = $2`, [messageId, roomId]);

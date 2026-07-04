@@ -84,6 +84,7 @@ services:
       WS_REDIS_ADAPTER: "1"
       ROOMS_JWT_SECRET: dev-rooms-secret-change    # 실서비스에선 시크릿으로 교체
       ROOMS_API_KEY: dev-rooms-api-key             # 호스트 백엔드↔룸서비스 서버-투-서버 키
+      ROOMS_STORAGE_DIR: /data/rooms-storage
     depends_on:
       postgres:
         condition: service_healthy
@@ -91,6 +92,8 @@ services:
         condition: service_healthy
     ports:
       - "3100:3100"
+    volumes:
+      - rooms_storage:/data/rooms-storage         # 첨부 영속화
 
   web:
     build:
@@ -118,3 +121,4 @@ services:
 volumes:
   pgdata:   # = itall-mentoring_pgdata (dev compose 와 공유)
   storage:  # 업로드 파일 영속 저장(자료실·문제 첨부)
+  rooms_storage:  # 실시간 룸 서비스 첨부 영속화

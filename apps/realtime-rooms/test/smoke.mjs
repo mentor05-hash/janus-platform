@@ -102,6 +102,56 @@ const mk = (opts) => req('POST', '/api/rt/v1/rooms', { participants: parts(), ..
   ok('위조 토큰 거부', bad.disconnected); bad.disconnect();
 }
 
+// 7) 히스토리 커서 페이지네이션
+{
+  const room = await mk({}); const [A] = room.participants; const s = conn(A.token); await new Promise((r) => s.on('connect', r)); await emit(s, 'join');
+  for (let i = 1; i <= 5; i++) await emit(s, 'chat:send', { body: `msg${i}` });
+  const p1 = await emit(s, 'chat:history', { limit: 2 });
+  const p2 = p1.nextCursor ? await emit(s, 'chat:history', { before: p1.nextCursor, limit: 2 }) : { messages: [] };
+  const ids1 = new Set(p1.messages?.map((m) => m.id)), overlap = (p2.messages ?? []).some((m) => ids1.has(m.id));
+  ok('페이지네이션: limit·hasMore·nextCursor', p1.ok && p1.messages.length === 2 && p1.hasMore === true && !!p1.nextCursor);
+  ok('페이지네이션: 다음 페이지 비중복', p2.messages?.length === 2 && !overlap, `p2=${p2.messages?.map((m)=>m.body).join(',')}`);
+  ok('페이지네이션: 오름차순 정렬', p1.messages[0].body === 'msg4' && p1.messages[1].body === 'msg5');
+  s.disconnect();
+}
+
+// 8) Prometheus 메트릭
+{
+  const m = await fetch(BASE + '/api/rt/v1/metrics'); const txt = await m.text();
+  ok('metrics: 커스텀 지표 노출', m.status === 200 && /rooms_created_total/.test(txt) && /rooms_messages_total/.test(txt) && /rooms_ws_connections/.test(txt));
+}
+
+// 9) 첨부 업/다운로드 (룸 토큰)
+{
+  const room = await mk({}); const A = room.participants[0];
+  const other = await mk({}); const O = other.participants[0];
+  const fd = new FormData(); fd.append('file', new Blob(['hello rooms'], { type: 'text/plain' }), 'note.txt');
+  const up = await fetch(BASE + '/api/rt/v1/files', { method: 'POST', headers: { authorization: `Bearer ${A.token}` }, body: fd });
+  const uj = await up.json();
+  ok('파일 업로드: fileUrl 반환', up.status === 201 && !!uj.id && uj.fileUrl === `/api/rt/v1/files/${uj.id}`, JSON.stringify(uj));
+  const dl = await fetch(`${BASE}${uj.fileUrl}?token=${encodeURIComponent(A.token)}`);
+  ok('파일 다운로드: 내용 일치', dl.status === 200 && (await dl.text()) === 'hello rooms');
+  const cross = await fetch(`${BASE}${uj.fileUrl}?token=${encodeURIComponent(O.token)}`);
+  ok('파일: 다른 룸 토큰 접근 거부', cross.status === 404 || cross.status === 401, `status=${cross.status}`);
+  const noAuth = await fetch(`${BASE}${uj.fileUrl}`);
+  ok('파일: 토큰 없으면 거부', noAuth.status === 401);
+}
+
+// 10) 토큰 폐기(revocation)
+{
+  const room = await mk({}); const [A] = room.participants; const s = conn(A.token); await new Promise((r) => s.on('connect', r)); await emit(s, 'join');
+  let revoked = false; s.on('session:revoked', () => { revoked = true; });
+  const rv = await req('POST', `/api/rt/v1/rooms/${room.roomId}/revoke`);
+  await wait(300);
+  ok('폐기: session:revoked 통지 + epoch 증가', rv.body?.ok === true && rv.body?.tokenEpoch === 1 && revoked);
+  ok('폐기: 기존 소켓 강제 해제', s.disconnected);
+  const re = conn(A.token); await wait(400);
+  ok('폐기: 기존 토큰 재접속 거부', re.disconnected, `disc=${re.disconnected}`); re.disconnect();
+  const nt = await req('POST', `/api/rt/v1/rooms/${room.roomId}/tokens`, { participantId: A.participantId });
+  const s2 = conn(nt.body.token); await new Promise((r) => s2.on('connect', r)); const j2 = await emit(s2, 'join');
+  ok('폐기: 재발급 토큰으로 재접속 가능', j2.ok === true); s2.disconnect();
+}
+
 const pass = R.filter(Boolean).length;
 console.log(`\n==== realtime-rooms 스모크 ${pass}/${R.length} PASS ====`);
 process.exit(pass === R.length ? 0 : 1);
