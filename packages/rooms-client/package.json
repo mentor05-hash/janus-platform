@@ -1,0 +1,18 @@
+{
+  "name": "@mentoring/rooms-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "실시간 룸 서비스 클라이언트 SDK — 채팅·화이트보드·음성(프레임워크 무관).",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test:e2e": "tsc -p tsconfig.json && node test/smoke.mjs"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.8.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}
