@@ -1,0 +1,42 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+
+type CreateResult = { roomId: string; participants: Array<{ participantId: string; extUserId: string | null }> };
+
+/** 실시간 룸 서비스(apps/realtime-rooms)로의 서버-투-서버 클라이언트. */
+@Injectable()
+export class RoomsProvider {
+  private readonly logger = new Logger('RoomsProvider');
+  constructor(private readonly config: ConfigService) {}
+
+  private get apiUrl() { return (this.config.get<string>('ROOMS_API_URL') || '').replace(/\/$/, ''); }
+  private get apiKey() { return this.config.get<string>('ROOMS_API_KEY') || ''; }
+
+  /** 룸 서비스 사용 가능 여부(플래그 + URL 설정). */
+  get enabled(): boolean {
+    return this.config.get<string>('REALTIME_ROOMS_ENABLED') === 'true' && !!this.apiUrl;
+  }
+
+  private async post<T>(path: string, body: unknown): Promise<T> {
+    const r = await fetch(`${this.apiUrl}${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': this.apiKey },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error(`rooms ${path} → ${r.status}`);
+    return r.json() as Promise<T>;
+  }
+
+  createRoom(payload: {
+    externalRef: string; features: { chat: boolean; whiteboard: boolean; voice: boolean };
+    opensAt: string | null; closesAt: string | null;
+    participants: Array<{ extUserId: string; displayName?: string; role?: string }>;
+  }): Promise<CreateResult> {
+    return this.post<CreateResult>('/api/rt/v1/rooms', payload);
+  }
+
+  async mintToken(roomId: string, participantId: string, ttlSec?: number): Promise<string> {
+    const r = await this.post<{ token: string }>(`/api/rt/v1/rooms/${roomId}/tokens`, { participantId, ttlSec });
+    return r.token;
+  }
+}

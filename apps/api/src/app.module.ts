@@ -37,6 +37,7 @@ import { AuditModule } from './modules/audit/audit.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
 import { ScoresModule } from './modules/scores/scores.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
+import { RoomsBridgeModule } from './modules/rooms-bridge/rooms-bridge.module';
 import { InboxModule } from './modules/inbox/inbox.module';
 import { AssignmentModule } from './modules/assignment/assignment.module';
 
@@ -77,6 +78,7 @@ import { AssignmentModule } from './modules/assignment/assignment.module';
     MetricsModule,
     ScoresModule,
     RealtimeModule,
+    RoomsBridgeModule,
     InboxModule,
     AssignmentModule,
   ],
