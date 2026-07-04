@@ -6,6 +6,7 @@ import type { Booking, MyEvaluations, Notification, Payroll } from '../api/types
 import { PageHeader, Card, Spinner, Badge, GradeBadge, EmptyState } from '../components/ui';
 import { StatCard, StatGrid, BarList } from '../components/dashboard/widgets';
 import { TeacherPerformance } from '../components/dashboard/TeacherPerformance';
+import { WorkStatusBar } from '../components/WorkStatusBar';
 
 const won = (n: number) => `${n.toLocaleString()}원`;
 const todayKst = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
@@ -42,6 +43,7 @@ export function TeacherDashboardPage() {
   return (
     <div>
       <PageHeader title={`${user?.name ?? '선생님'} 대시보드`} sub="오늘 일정과 주요 지표를 한눈에 확인합니다." />
+      <WorkStatusBar />
 
       <StatGrid>
         <StatCard label="오늘 예약" value={bookings === null ? '…' : `${todays.length}건`} tone="teal" />
