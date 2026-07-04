@@ -1,7 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
+import * as pdfjsLib from 'pdfjs-dist';
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { api } from '../api/client';
 import { useVoiceCall } from '../utils/voiceCall';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+
+/** PDF 파일 → 첫 페이지를 고해상 PNG blob 으로 렌더(배경으로 공유). */
+async function pdfFirstPageToPng(file: File): Promise<Blob> {
+  const data = new Uint8Array(await file.arrayBuffer());
+  const pdf = await pdfjsLib.getDocument({ data }).promise;
+  const page = await pdf.getPage(1);
+  const base = page.getViewport({ scale: 1 });
+  const scale = Math.min(3, 1600 / base.width); // 가로 ~1600px 기준(선명도)
+  const vp = page.getViewport({ scale });
+  const c = document.createElement('canvas');
+  c.width = Math.ceil(vp.width); c.height = Math.ceil(vp.height);
+  await page.render({ canvasContext: c.getContext('2d')!, viewport: vp }).promise;
+  return await new Promise<Blob>((res) => c.toBlob((b) => res(b!), 'image/png'));
+}
 
 type Pt = { x: number; y: number; p?: number }; // p=필압(0~1)
 type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean; highlight?: boolean };
@@ -19,6 +37,11 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
   const sidRef = useRef('');
   const pendingRef = useRef<Pt[]>([]); // 아직 전송 안 한 포인트
   const lastFlushRef = useRef(0);
+  // 뷰포트(줌/팬) — 배경+필기를 함께 확대/축소. 필기 데이터는 논리좌표 유지(공유·저장 불변).
+  const viewRef = useRef({ scale: 1, tx: 0, ty: 0 });
+  const pointersRef = useRef(new Map<number, { cx: number; cy: number }>()); // 활성 포인터(캔버스 좌표)
+  const pinchRef = useRef<{ dist: number; midCx: number; midCy: number; view: { scale: number; tx: number; ty: number } } | null>(null);
+  const [zoomPct, setZoomPct] = useState(100);
   const bgImgRef = useRef<HTMLImageElement | null>(null);
   const bgFileIdRef = useRef<string | null>(null);
   const [color, setColor] = useState(COLORS[0]);
@@ -37,7 +60,11 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
   function redraw() {
     const cv = canvasRef.current; if (!cv) return;
     const ctx = cv.getContext('2d'); if (!ctx) return;
-    ctx.clearRect(0, 0, W, H);
+    // 장치 좌표에서 클리어 후 뷰포트(줌/팬) 적용 → 배경·필기가 함께 변환됨
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    const v = viewRef.current;
+    ctx.setTransform(v.scale, 0, 0, v.scale, v.tx, v.ty);
     if (bgImgRef.current) { // 배경(첨부/촬영 이미지) — 비율 유지 contain
       const img = bgImgRef.current; const ir = img.width / img.height, cr = W / H;
       let dw = W, dh = H, dx = 0, dy = 0;
@@ -69,6 +96,7 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     }
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
+    ctx.setTransform(1, 0, 0, 1, 0, 0); // 뷰포트 원복
   }
 
   function loadBg(fileId: string | null) {
@@ -112,10 +140,60 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingId]);
 
-  function pt(e: React.PointerEvent): Pt {
+  // 데스크톱: Ctrl/⌘+휠 = 커서 기준 확대/축소, 휠/트랙패드 = 팬(트랙패드 핀치는 ctrlKey 로 들어옴).
+  useEffect(() => {
+    const cv = canvasRef.current; if (!cv) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const r = cv.getBoundingClientRect();
+      const cx = ((e.clientX - r.left) / r.width) * W;
+      const cy = ((e.clientY - r.top) / r.height) * H;
+      if (e.ctrlKey || e.metaKey) { zoomAt(cx, cy, e.deltaY < 0 ? 1.1 : 1 / 1.1); }
+      else { const v = viewRef.current; v.tx -= e.deltaX; v.ty -= e.deltaY; clampView(); redraw(); }
+    };
+    cv.addEventListener('wheel', onWheel, { passive: false });
+    return () => cv.removeEventListener('wheel', onWheel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
+  /** 클라이언트 좌표 → 캔버스(장치) 좌표. */
+  function canvasSpace(e: { clientX: number; clientY: number }): { cx: number; cy: number } {
     const cv = canvasRef.current!; const r = cv.getBoundingClientRect();
+    return { cx: ((e.clientX - r.left) / r.width) * W, cy: ((e.clientY - r.top) / r.height) * H };
+  }
+  /** 포인터 → 논리(월드) 좌표. 줌/팬 역변환 적용 → 확대 상태에서도 필기 위치 정확. */
+  function pt(e: React.PointerEvent): Pt {
+    const { cx, cy } = canvasSpace(e);
+    const v = viewRef.current;
     const p = e.pointerType === 'pen' ? (e.pressure || 0.5) : e.pressure > 0 ? e.pressure : 0.5;
-    return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H, p };
+    return { x: (cx - v.tx) / v.scale, y: (cy - v.ty) / v.scale, p };
+  }
+  /** 뷰포트 범위 제한 — scale 1~8, 축소 시 여백 없이 보드가 화면을 채우도록 팬 클램프. */
+  function clampView() {
+    const v = viewRef.current;
+    v.scale = Math.min(8, Math.max(1, v.scale));
+    v.tx = Math.min(0, Math.max(W - W * v.scale, v.tx));
+    v.ty = Math.min(0, Math.max(H - H * v.scale, v.ty));
+  }
+  /** (cx,cy) 캔버스 좌표를 중심으로 factor 배 확대/축소. */
+  function zoomAt(cx: number, cy: number, factor: number) {
+    const v = viewRef.current;
+    const ns = Math.min(8, Math.max(1, v.scale * factor));
+    const k = ns / v.scale;
+    v.tx = cx - (cx - v.tx) * k;
+    v.ty = cy - (cy - v.ty) * k;
+    v.scale = ns;
+    clampView(); setZoomPct(Math.round(v.scale * 100)); redraw();
+  }
+  function resetZoom() { viewRef.current = { scale: 1, tx: 0, ty: 0 }; setZoomPct(100); redraw(); }
+  /** 현재 획을 확정(최종 전송·저장). 진행 중이 아니면 무동작. */
+  function finalizeStroke() {
+    const st = drawingRef.current; drawingRef.current = null;
+    if (!st || st.points.length === 0) { pendingRef.current = []; return; }
+    strokesRef.current.push(st); redraw();
+    sockRef.current?.emit('wb:stroke', { bookingId, stroke: st, sid: sidRef.current });
+    pendingRef.current = [];
+    scheduleAutosave();
   }
   /** 팜리젝션: 펜 입력을 한 번이라도 봤으면 손가락(터치)은 그리기에서 무시. */
   function rejected(e: React.PointerEvent) {
@@ -133,9 +211,18 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     });
     pendingRef.current = [];
   }
+  /** 두 손가락 핀치 시작 스냅샷(거리·중점·현재 뷰). */
+  function beginPinch() {
+    const p = [...pointersRef.current.values()]; if (p.length < 2) return;
+    const [a, b] = p;
+    pinchRef.current = { dist: Math.hypot(a.cx - b.cx, a.cy - b.cy) || 1, midCx: (a.cx + b.cx) / 2, midCy: (a.cy + b.cy) / 2, view: { ...viewRef.current } };
+  }
   function down(e: React.PointerEvent) {
-    if (status !== 'ready' || rejected(e)) return;
+    if (status !== 'ready') return;
     (e.target as Element).setPointerCapture?.(e.pointerId);
+    pointersRef.current.set(e.pointerId, canvasSpace(e));
+    if (pointersRef.current.size >= 2) { finalizeStroke(); beginPinch(); return; } // 두 손가락 → 줌/팬
+    if (rejected(e)) return; // 팜리젝션(펜 사용 중 손가락 무시)
     const p0 = pt(e);
     drawingRef.current = tool === 'eraser'
       ? { points: [p0], color: '#000', width: Math.max(16, width * 4), erase: true }
@@ -148,6 +235,21 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     redraw();
   }
   function move(e: React.PointerEvent) {
+    if (pointersRef.current.has(e.pointerId)) pointersRef.current.set(e.pointerId, canvasSpace(e));
+    // 핀치(줌+팬): 두 포인터 거리비로 확대, 중점 이동으로 팬
+    if (pinchRef.current && pointersRef.current.size >= 2) {
+      const [a, b] = [...pointersRef.current.values()];
+      const dist = Math.hypot(a.cx - b.cx, a.cy - b.cy) || 1;
+      const midCx = (a.cx + b.cx) / 2, midCy = (a.cy + b.cy) / 2;
+      const pin = pinchRef.current;
+      const v = viewRef.current;
+      const k = Math.min(8, Math.max(1, (pin.view.scale * dist) / pin.dist)) / pin.view.scale;
+      v.scale = pin.view.scale * k;
+      v.tx = midCx - (pin.midCx - pin.view.tx) * k;
+      v.ty = midCy - (pin.midCy - pin.view.ty) * k;
+      clampView(); setZoomPct(Math.round(v.scale * 100)); redraw();
+      return;
+    }
     if (!drawingRef.current || rejected(e)) return;
     const p = pt(e);
     drawingRef.current.points.push(p);
@@ -156,14 +258,10 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     const now = Date.now();
     if (now - lastFlushRef.current >= 50) { lastFlushRef.current = now; flushPartial(); } // ~20fps 스트리밍
   }
-  function up() {
-    const st = drawingRef.current; drawingRef.current = null;
-    if (!st || st.points.length === 0) { pendingRef.current = []; return; }
-    strokesRef.current.push(st); redraw();
-    // 최종 획(전체) 전송 + sid 로 상대의 라이브 버퍼 확정·정리
-    sockRef.current?.emit('wb:stroke', { bookingId, stroke: st, sid: sidRef.current });
-    pendingRef.current = [];
-    scheduleAutosave();
+  function up(e: React.PointerEvent) {
+    pointersRef.current.delete(e.pointerId);
+    if (pointersRef.current.size < 2) pinchRef.current = null;
+    finalizeStroke(); // 진행 중 획이 있으면 확정(핀치 진입 시엔 이미 null → 무동작)
   }
   function clear() { strokesRef.current = []; loadBg(null); redraw(); sockRef.current?.emit('wb:clear', { bookingId }); sockRef.current?.emit('wb:image', { bookingId, fileId: null }); scheduleAutosave(); }
   function save() {
@@ -181,8 +279,15 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
   }
   async function onAttach(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]; e.target.value = '';
-    if (!f || !f.type.startsWith('image/')) return;
-    await useAsBackground(f, f.name);
+    if (!f) return;
+    try {
+      if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) {
+        const png = await pdfFirstPageToPng(f); // PDF 첫 페이지 → PNG(공유·필기 호환)
+        await useAsBackground(png, f.name.replace(/\.pdf$/i, '') + '.png');
+      } else if (f.type.startsWith('image/')) {
+        await useAsBackground(f, f.name);
+      }
+    } catch { alert('배경 불러오기에 실패했어요. 다른 파일을 시도해 주세요.'); }
   }
   async function openCamera() {
     try {
@@ -236,9 +341,14 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
               <button onClick={() => setTool('highlighter')} aria-pressed={tool === 'highlighter'} title="형광펜" style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'highlighter' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>🖍</button>
               <button onClick={() => setTool('eraser')} aria-pressed={tool === 'eraser'} title="지우개" style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'eraser' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>🧽</button>
               <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
-              <input ref={fileRef} type="file" accept="image/*" hidden onChange={onAttach} />
-              <button className="btn ghost sm" onClick={() => fileRef.current?.click()}>🖼 이미지</button>
+              <input ref={fileRef} type="file" accept="application/pdf,image/*" hidden onChange={onAttach} />
+              <button className="btn ghost sm" onClick={() => fileRef.current?.click()}>🖼 이미지·PDF</button>
               <button className="btn ghost sm" onClick={openCamera}>📷 촬영</button>
+              <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
+              {/* 줌: 배경+필기 함께 확대/축소 (두 손가락 핀치·Ctrl+휠도 가능) */}
+              <button className="btn ghost sm" title="축소" onClick={() => zoomAt(W / 2, H / 2, 1 / 1.25)}>🔍−</button>
+              <button className="btn ghost sm" title="원본 크기" onClick={resetZoom} style={{ minWidth: 52, fontVariantNumeric: 'tabular-nums' }}>{zoomPct}%</button>
+              <button className="btn ghost sm" title="확대" onClick={() => zoomAt(W / 2, H / 2, 1.25)}>🔍＋</button>
               <div style={{ flex: 1 }} />
               <span style={{ fontSize: 11, color: 'var(--muted)' }}>{saveState === 'saving' ? '저장 중…' : saveState === 'saved' ? '자동 저장됨 ✓' : saveState === 'dirty' ? '변경됨' : ''}</span>
               <button className="btn ghost sm" onClick={clear}>전체 지우기</button>

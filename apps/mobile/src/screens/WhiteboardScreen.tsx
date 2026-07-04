@@ -25,6 +25,10 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
   const sidRef = useRef('');
   const pendingRef = useRef<Pt[]>([]);
   const lastFlushRef = useRef(0);
+  // 뷰포트(줌/팬) — 배경+필기 함께 확대/축소. 필기 데이터는 논리좌표 유지(공유·저장 불변).
+  const viewRef = useRef({ scale: 1, tx: 0, ty: 0 });
+  const pointersRef = useRef(new Map<number, { cx: number; cy: number }>());
+  const pinchRef = useRef<{ dist: number; midCx: number; midCy: number; view: { scale: number; tx: number; ty: number } } | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const colorRef = useRef(COLORS[0]);
   const widthRef = useRef(4);
@@ -38,6 +42,7 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
   const [color, setColor] = useState(COLORS[0]);
   const [width, setWidth] = useState(4);
   const [tool, setTool] = useState<'pen' | 'eraser' | 'highlighter'>('pen');
+  const [zoomPct, setZoomPct] = useState(100);
   const [status, setStatus] = useState<'connecting' | 'ready' | 'off'>(isWeb ? 'connecting' : 'off');
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved'>('idle');
   useWebBack(!embedded, onClose); // 임베드(통합 화면)면 back은 호스트가 처리
@@ -45,7 +50,10 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
   function redraw() {
     const cv = canvasRef.current; if (!cv) return;
     const ctx = cv.getContext('2d'); if (!ctx) return;
-    ctx.clearRect(0, 0, W, H);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    const v = viewRef.current;
+    ctx.setTransform(v.scale, 0, 0, v.scale, v.tx, v.ty);
     if (bgImgRef.current) {
       const img = bgImgRef.current, ir = img.width / img.height, cr = W / H;
       let dw = W, dh = H, dx = 0, dy = 0;
@@ -74,7 +82,23 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
     }
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
+  /** 뷰포트 범위 제한(scale 1~8, 팬 클램프). */
+  function clampView() {
+    const v = viewRef.current;
+    v.scale = Math.min(8, Math.max(1, v.scale));
+    v.tx = Math.min(0, Math.max(W - W * v.scale, v.tx));
+    v.ty = Math.min(0, Math.max(H - H * v.scale, v.ty));
+  }
+  function zoomAt(cx: number, cy: number, factor: number) {
+    const v = viewRef.current;
+    const ns = Math.min(8, Math.max(1, v.scale * factor));
+    const k = ns / v.scale;
+    v.tx = cx - (cx - v.tx) * k; v.ty = cy - (cy - v.ty) * k; v.scale = ns;
+    clampView(); setZoomPct(Math.round(v.scale * 100)); redraw();
+  }
+  function resetZoom() { viewRef.current = { scale: 1, tx: 0, ty: 0 }; setZoomPct(100); redraw(); }
   function scheduleAutosave() {
     setSaveState('dirty');
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
@@ -96,38 +120,50 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
     host.appendChild(cv); canvasRef.current = cv;
     let penSeen = false;
     const rejected = (e: PointerEvent) => { if (e.pointerType === 'pen') penSeen = true; return penSeen && e.pointerType === 'touch'; };
-    const pt = (e: PointerEvent): Pt => { const r = cv.getBoundingClientRect(); const p = e.pointerType === 'pen' ? (e.pressure || 0.5) : e.pressure > 0 ? e.pressure : 0.5; return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * H, p }; };
-    const down = (e: PointerEvent) => {
-      if (status !== 'ready' || rejected(e)) return; cv.setPointerCapture?.(e.pointerId);
-      drawingRef.current = toolRef.current === 'eraser'
-        ? { points: [pt(e)], color: '#000', width: Math.max(16, widthRef.current * 4), erase: true }
-        : toolRef.current === 'highlighter'
-          ? { points: [pt(e)], color: colorRef.current, width: Math.max(14, widthRef.current * 4), highlight: true }
-          : { points: [pt(e)], color: colorRef.current, width: widthRef.current };
-      sidRef.current = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
-      pendingRef.current = [drawingRef.current.points[0]];
-      lastFlushRef.current = 0;
-      redraw();
-    };
+    const cs = (e: PointerEvent) => { const r = cv.getBoundingClientRect(); return { cx: ((e.clientX - r.left) / r.width) * W, cy: ((e.clientY - r.top) / r.height) * H }; };
+    const pt = (e: PointerEvent): Pt => { const { cx, cy } = cs(e); const v = viewRef.current; const p = e.pointerType === 'pen' ? (e.pressure || 0.5) : e.pressure > 0 ? e.pressure : 0.5; return { x: (cx - v.tx) / v.scale, y: (cy - v.ty) / v.scale, p }; };
     const flush = () => {
       const st = drawingRef.current;
       if (!st || pendingRef.current.length === 0) return;
-      sockRef.current?.emit('wb:stroke:partial', {
-        bookingId, sid: sidRef.current,
-        meta: { color: st.color, width: st.width, erase: st.erase, highlight: st.highlight },
-        points: pendingRef.current,
-      });
+      sockRef.current?.emit('wb:stroke:partial', { bookingId, sid: sidRef.current, meta: { color: st.color, width: st.width, erase: st.erase, highlight: st.highlight }, points: pendingRef.current });
       pendingRef.current = [];
     };
+    const finalize = () => { const st = drawingRef.current; drawingRef.current = null; if (!st || !st.points.length) { pendingRef.current = []; return; } strokesRef.current.push(st); redraw(); sockRef.current?.emit('wb:stroke', { bookingId, stroke: st, sid: sidRef.current }); pendingRef.current = []; scheduleAutosave(); };
+    const beginPinch = () => { const p = [...pointersRef.current.values()]; if (p.length < 2) return; const [a, b] = p; pinchRef.current = { dist: Math.hypot(a.cx - b.cx, a.cy - b.cy) || 1, midCx: (a.cx + b.cx) / 2, midCy: (a.cy + b.cy) / 2, view: { ...viewRef.current } }; };
+    const down = (e: PointerEvent) => {
+      if (status !== 'ready') return; cv.setPointerCapture?.(e.pointerId);
+      pointersRef.current.set(e.pointerId, cs(e));
+      if (pointersRef.current.size >= 2) { finalize(); beginPinch(); return; } // 두 손가락 → 줌/팬
+      if (rejected(e)) return;
+      const p0 = pt(e);
+      drawingRef.current = toolRef.current === 'eraser'
+        ? { points: [p0], color: '#000', width: Math.max(16, widthRef.current * 4), erase: true }
+        : toolRef.current === 'highlighter'
+          ? { points: [p0], color: colorRef.current, width: Math.max(14, widthRef.current * 4), highlight: true }
+          : { points: [p0], color: colorRef.current, width: widthRef.current };
+      sidRef.current = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+      pendingRef.current = [p0]; lastFlushRef.current = 0; redraw();
+    };
     const move = (e: PointerEvent) => {
+      if (pointersRef.current.has(e.pointerId)) pointersRef.current.set(e.pointerId, cs(e));
+      if (pinchRef.current && pointersRef.current.size >= 2) {
+        const [a, b] = [...pointersRef.current.values()];
+        const dist = Math.hypot(a.cx - b.cx, a.cy - b.cy) || 1;
+        const midCx = (a.cx + b.cx) / 2, midCy = (a.cy + b.cy) / 2, pin = pinchRef.current, v = viewRef.current;
+        const k = Math.min(8, Math.max(1, (pin.view.scale * dist) / pin.dist)) / pin.view.scale;
+        v.scale = pin.view.scale * k; v.tx = midCx - (pin.midCx - pin.view.tx) * k; v.ty = midCy - (pin.midCy - pin.view.ty) * k;
+        clampView(); setZoomPct(Math.round(v.scale * 100)); redraw(); return;
+      }
       if (!drawingRef.current || rejected(e)) return;
       const p = pt(e); drawingRef.current.points.push(p); pendingRef.current.push(p); redraw();
       const now = Date.now();
       if (now - lastFlushRef.current >= 50) { lastFlushRef.current = now; flush(); } // ~20fps 스트리밍
     };
-    const up = () => { const st = drawingRef.current; drawingRef.current = null; if (!st || !st.points.length) { pendingRef.current = []; return; } strokesRef.current.push(st); redraw(); sockRef.current?.emit('wb:stroke', { bookingId, stroke: st, sid: sidRef.current }); pendingRef.current = []; scheduleAutosave(); };
+    const up = (e: PointerEvent) => { pointersRef.current.delete(e.pointerId); if (pointersRef.current.size < 2) pinchRef.current = null; finalize(); };
+    const onWheel = (e: WheelEvent) => { e.preventDefault(); const { cx, cy } = cs(e as unknown as PointerEvent); if (e.ctrlKey || e.metaKey) zoomAt(cx, cy, e.deltaY < 0 ? 1.1 : 1 / 1.1); else { const v = viewRef.current; v.tx -= e.deltaX; v.ty -= e.deltaY; clampView(); redraw(); } };
     cv.addEventListener('pointerdown', down); cv.addEventListener('pointermove', move);
     cv.addEventListener('pointerup', up); cv.addEventListener('pointerleave', up);
+    cv.addEventListener('wheel', onWheel, { passive: false });
 
     const token = (typeof localStorage !== 'undefined' ? localStorage.getItem('mp_access') : '') ?? '';
     const s = io(window.location.origin, { path: '/api/v1/socket.io', auth: { token }, transports: ['websocket'] });
@@ -165,6 +201,7 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
   }
   function attachImage() {
     if (typeof document === 'undefined') return;
+    // PDF 업로드는 웹(선생님)에서. 모바일은 이미지 업로드 + 공유된 PDF 배경 보기·확대 지원.
     const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*';
     input.onchange = async () => { const f = input.files?.[0]; if (f && f.type.startsWith('image/')) await useAsBackground(f, f.name); };
     input.click();
@@ -227,6 +264,10 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
               <TouchableOpacity onPress={() => pickTool('eraser')} style={[styles.wbtn, { width: 40 }, tool === 'eraser' && { borderColor: C.teal, borderWidth: 2 }]}><Text style={styles.wtxt}>🧽</Text></TouchableOpacity>
               <TouchableOpacity onPress={attachImage} style={[styles.wbtn, { width: 40 }]}><Text style={styles.wtxt}>🖼</Text></TouchableOpacity>
               <TouchableOpacity onPress={openCamera} style={[styles.wbtn, { width: 40 }]}><Text style={styles.wtxt}>📷</Text></TouchableOpacity>
+              {/* 줌: 배경+필기 함께 확대/축소 (두 손가락 핀치도 가능) */}
+              <TouchableOpacity onPress={() => zoomAt(W / 2, H / 2, 1 / 1.25)} style={[styles.wbtn, { width: 34 }]}><Text style={styles.wtxt}>−</Text></TouchableOpacity>
+              <TouchableOpacity onPress={resetZoom} style={[styles.wbtn, { width: 48 }]}><Text style={styles.wtxt}>{zoomPct}%</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => zoomAt(W / 2, H / 2, 1.25)} style={[styles.wbtn, { width: 34 }]}><Text style={styles.wtxt}>＋</Text></TouchableOpacity>
               <View style={{ flex: 1 }} />
               <Text style={{ fontSize: 10, color: C.muted, marginRight: 4 }}>{saveState === 'saving' ? '저장 중…' : saveState === 'saved' ? '자동저장 ✓' : saveState === 'dirty' ? '변경됨' : ''}</Text>
               <TouchableOpacity onPress={clear} style={styles.act}><Text style={styles.actT}>전체 지우기</Text></TouchableOpacity>
