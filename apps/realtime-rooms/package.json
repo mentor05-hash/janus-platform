@@ -7,7 +7,8 @@
     "build": "nest build",
     "start": "node dist/main.js",
     "start:dev": "nest start --watch",
-    "migrate": "node scripts/apply-migrations.mjs"
+    "migrate": "node scripts/apply-migrations.mjs",
+    "test:e2e": "node test/smoke.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.27",
