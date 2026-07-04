@@ -3,7 +3,7 @@ import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import type { Booking, ConsultationNote, Slot, Teacher } from '../api/types';
 import { PageHeader, Card, Button, Badge, ErrorText, Spinner, EmptyState } from '../components/ui';
-import { ChatPanel } from '../components/ChatPanel';
+import { SessionChatPanel } from '../components/SessionChatPanel';
 import { WhiteboardPanel } from '../components/WhiteboardPanel';
 
 const KST = (iso: string | null) =>
@@ -280,7 +280,7 @@ export function StudentBookingsPage() {
           </Card>
         ))
       )}
-      {chatId && user && <ChatPanel bookingId={chatId} myId={user.id} title="상담 채팅" onClose={() => setChatId(null)} />}
+      {chatId && user && <SessionChatPanel bookingId={chatId} myId={user.id} title="상담 채팅" onClose={() => setChatId(null)} />}
       {wbId && <WhiteboardPanel bookingId={wbId} title="공유 화이트보드" onClose={() => setWbId(null)} />}
     </div>
   );

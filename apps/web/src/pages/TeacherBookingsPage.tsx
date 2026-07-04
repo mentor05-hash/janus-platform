@@ -4,7 +4,7 @@ import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import type { Booking, WorkSchedule } from '../api/types';
 import { PageHeader, Button, Badge, Spinner, ErrorText, Table, Tabs } from '../components/ui';
-import { ChatPanel } from '../components/ChatPanel';
+import { SessionChatPanel } from '../components/SessionChatPanel';
 import { WhiteboardPanel } from '../components/WhiteboardPanel';
 import type { Column } from '../components/ui';
 import { StatCard, StatGrid } from '../components/dashboard/widgets';
@@ -119,7 +119,7 @@ export function TeacherBookingsPage() {
         <Tabs items={TABS} value={tab} onChange={setTab} />
         <Table columns={columns} rows={rows} rowKey={(b) => b.id} empty="해당 기간 예약이 없습니다." />
       </div>
-      {chatId && <ChatPanel bookingId={chatId} myId={teacherId} title="상담 채팅" onClose={() => setChatId(null)} />}
+      {chatId && <SessionChatPanel bookingId={chatId} myId={teacherId} title="상담 채팅" onClose={() => setChatId(null)} />}
       {wbId && <WhiteboardPanel bookingId={wbId} title="공유 화이트보드" onClose={() => setWbId(null)} />}
     </div>
   );
