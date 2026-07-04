@@ -110,9 +110,18 @@ export class RealtimeGateway implements OnGatewayConnection {
   }
 
   @SubscribeMessage('wb:stroke')
-  wbStroke(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, stroke }: { bookingId: string; stroke: unknown }) {
-    client.to(`booking:${bookingId}`).emit('wb:stroke', { stroke }); // 발신자 제외 브로드캐스트
+  wbStroke(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, stroke, sid }: { bookingId: string; stroke: unknown; sid?: string }) {
+    client.to(`booking:${bookingId}`).emit('wb:stroke', { stroke, sid }); // 발신자 제외 브로드캐스트(최종 획)
     return { ok: true };
+  }
+
+  /** 라이브 잉크: 그리는 중 부분 포인트 중계(발신자 제외). 최종 획은 wb:stroke 로 확정. */
+  @SubscribeMessage('wb:stroke:partial')
+  wbStrokePartial(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() { bookingId, sid, meta, points }: { bookingId: string; sid: string; meta: unknown; points: unknown },
+  ) {
+    client.to(`booking:${bookingId}`).emit('wb:stroke:partial', { sid, meta, points });
   }
 
   @SubscribeMessage('wb:clear')

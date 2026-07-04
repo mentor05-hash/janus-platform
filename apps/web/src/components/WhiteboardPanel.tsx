@@ -14,6 +14,11 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
   const sockRef = useRef<Socket | null>(null);
   const strokesRef = useRef<Stroke[]>([]);
   const drawingRef = useRef<Stroke | null>(null);
+  // 라이브 잉크: 상대가 그리는 중인 획(sid별) + 내 획 스트리밍 상태
+  const liveRef = useRef<Map<string, Stroke>>(new Map());
+  const sidRef = useRef('');
+  const pendingRef = useRef<Pt[]>([]); // 아직 전송 안 한 포인트
+  const lastFlushRef = useRef(0);
   const bgImgRef = useRef<HTMLImageElement | null>(null);
   const bgFileIdRef = useRef<string | null>(null);
   const [color, setColor] = useState(COLORS[0]);
@@ -40,7 +45,7 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
       ctx.drawImage(img, dx, dy, dw, dh);
     }
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    for (const s of [...strokesRef.current, ...(drawingRef.current ? [drawingRef.current] : [])]) {
+    for (const s of [...strokesRef.current, ...liveRef.current.values(), ...(drawingRef.current ? [drawingRef.current] : [])]) {
       if (s.points.length < 1) continue;
       ctx.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over';
       // 형광펜: 반투명(겹치면 진해짐). 단일 패스로 그려 접합부 얼룩 방지.
@@ -94,8 +99,14 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
         if (r.backgroundFileId) loadBg(r.backgroundFileId);
       });
     });
-    s.on('wb:stroke', ({ stroke }: { stroke: Stroke }) => { strokesRef.current.push(stroke); redraw(); });
-    s.on('wb:clear', () => { strokesRef.current = []; redraw(); });
+    // 라이브 잉크: 상대가 그리는 중인 부분 획을 실시간 반영
+    s.on('wb:stroke:partial', ({ sid, meta, points }: { sid: string; meta: Partial<Stroke>; points: Pt[] }) => {
+      let st = liveRef.current.get(sid);
+      if (!st) { st = { color: meta.color ?? '#16242B', width: meta.width ?? 3, erase: meta.erase, highlight: meta.highlight, points: [] }; liveRef.current.set(sid, st); }
+      st.points.push(...points); redraw();
+    });
+    s.on('wb:stroke', ({ stroke, sid }: { stroke: Stroke; sid?: string }) => { if (sid) liveRef.current.delete(sid); strokesRef.current.push(stroke); redraw(); });
+    s.on('wb:clear', () => { strokesRef.current = []; liveRef.current.clear(); redraw(); });
     s.on('wb:image', ({ fileId }: { fileId: string | null }) => loadBg(fileId));
     return () => { s.disconnect(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -111,22 +122,47 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     if (e.pointerType === 'pen') penSeenRef.current = true;
     return penSeenRef.current && e.pointerType === 'touch';
   }
+  /** 아직 전송 안 한 포인트를 부분 획으로 전송(라이브 잉크). */
+  function flushPartial() {
+    const st = drawingRef.current;
+    if (!st || pendingRef.current.length === 0) return;
+    sockRef.current?.emit('wb:stroke:partial', {
+      bookingId, sid: sidRef.current,
+      meta: { color: st.color, width: st.width, erase: st.erase, highlight: st.highlight },
+      points: pendingRef.current,
+    });
+    pendingRef.current = [];
+  }
   function down(e: React.PointerEvent) {
     if (status !== 'ready' || rejected(e)) return;
     (e.target as Element).setPointerCapture?.(e.pointerId);
+    const p0 = pt(e);
     drawingRef.current = tool === 'eraser'
-      ? { points: [pt(e)], color: '#000', width: Math.max(16, width * 4), erase: true }
+      ? { points: [p0], color: '#000', width: Math.max(16, width * 4), erase: true }
       : tool === 'highlighter'
-        ? { points: [pt(e)], color, width: Math.max(14, width * 4), highlight: true }
-        : { points: [pt(e)], color, width };
+        ? { points: [p0], color, width: Math.max(14, width * 4), highlight: true }
+        : { points: [p0], color, width };
+    sidRef.current = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+    pendingRef.current = [p0];
+    lastFlushRef.current = 0;
     redraw();
   }
-  function move(e: React.PointerEvent) { if (!drawingRef.current || rejected(e)) return; drawingRef.current.points.push(pt(e)); redraw(); }
+  function move(e: React.PointerEvent) {
+    if (!drawingRef.current || rejected(e)) return;
+    const p = pt(e);
+    drawingRef.current.points.push(p);
+    pendingRef.current.push(p);
+    redraw();
+    const now = Date.now();
+    if (now - lastFlushRef.current >= 50) { lastFlushRef.current = now; flushPartial(); } // ~20fps 스트리밍
+  }
   function up() {
     const st = drawingRef.current; drawingRef.current = null;
-    if (!st || st.points.length === 0) return;
+    if (!st || st.points.length === 0) { pendingRef.current = []; return; }
     strokesRef.current.push(st); redraw();
-    sockRef.current?.emit('wb:stroke', { bookingId, stroke: st });
+    // 최종 획(전체) 전송 + sid 로 상대의 라이브 버퍼 확정·정리
+    sockRef.current?.emit('wb:stroke', { bookingId, stroke: st, sid: sidRef.current });
+    pendingRef.current = [];
     scheduleAutosave();
   }
   function clear() { strokesRef.current = []; loadBg(null); redraw(); sockRef.current?.emit('wb:clear', { bookingId }); sockRef.current?.emit('wb:image', { bookingId, fileId: null }); scheduleAutosave(); }

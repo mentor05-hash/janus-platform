@@ -20,6 +20,11 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
   const sockRef = useRef<Socket | null>(null);
   const strokesRef = useRef<Stroke[]>([]);
   const drawingRef = useRef<Stroke | null>(null);
+  // 라이브 잉크: 상대가 그리는 중인 획(sid별) + 내 획 스트리밍 상태
+  const liveRef = useRef<Map<string, Stroke>>(new Map());
+  const sidRef = useRef('');
+  const pendingRef = useRef<Pt[]>([]);
+  const lastFlushRef = useRef(0);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const colorRef = useRef(COLORS[0]);
   const widthRef = useRef(4);
@@ -48,7 +53,7 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
       ctx.drawImage(img, dx, dy, dw, dh);
     }
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    for (const s of [...strokesRef.current, ...(drawingRef.current ? [drawingRef.current] : [])]) {
+    for (const s of [...strokesRef.current, ...liveRef.current.values(), ...(drawingRef.current ? [drawingRef.current] : [])]) {
       if (s.points.length < 1) continue;
       ctx.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over';
       ctx.globalAlpha = s.highlight ? 0.32 : 1; // 형광펜: 반투명(겹치면 진해짐)
@@ -99,10 +104,28 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
         : toolRef.current === 'highlighter'
           ? { points: [pt(e)], color: colorRef.current, width: Math.max(14, widthRef.current * 4), highlight: true }
           : { points: [pt(e)], color: colorRef.current, width: widthRef.current };
+      sidRef.current = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+      pendingRef.current = [drawingRef.current.points[0]];
+      lastFlushRef.current = 0;
       redraw();
     };
-    const move = (e: PointerEvent) => { if (!drawingRef.current || rejected(e)) return; drawingRef.current.points.push(pt(e)); redraw(); };
-    const up = () => { const st = drawingRef.current; drawingRef.current = null; if (!st || !st.points.length) return; strokesRef.current.push(st); redraw(); sockRef.current?.emit('wb:stroke', { bookingId, stroke: st }); scheduleAutosave(); };
+    const flush = () => {
+      const st = drawingRef.current;
+      if (!st || pendingRef.current.length === 0) return;
+      sockRef.current?.emit('wb:stroke:partial', {
+        bookingId, sid: sidRef.current,
+        meta: { color: st.color, width: st.width, erase: st.erase, highlight: st.highlight },
+        points: pendingRef.current,
+      });
+      pendingRef.current = [];
+    };
+    const move = (e: PointerEvent) => {
+      if (!drawingRef.current || rejected(e)) return;
+      const p = pt(e); drawingRef.current.points.push(p); pendingRef.current.push(p); redraw();
+      const now = Date.now();
+      if (now - lastFlushRef.current >= 50) { lastFlushRef.current = now; flush(); } // ~20fps 스트리밍
+    };
+    const up = () => { const st = drawingRef.current; drawingRef.current = null; if (!st || !st.points.length) { pendingRef.current = []; return; } strokesRef.current.push(st); redraw(); sockRef.current?.emit('wb:stroke', { bookingId, stroke: st, sid: sidRef.current }); pendingRef.current = []; scheduleAutosave(); };
     cv.addEventListener('pointerdown', down); cv.addEventListener('pointermove', move);
     cv.addEventListener('pointerup', up); cv.addEventListener('pointerleave', up);
 
@@ -114,8 +137,13 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
       strokesRef.current = Array.isArray(r.strokes) ? r.strokes : []; setStatus('ready'); redraw();
       if (r.backgroundFileId) loadBg(r.backgroundFileId);
     }));
-    s.on('wb:stroke', ({ stroke }: { stroke: Stroke }) => { strokesRef.current.push(stroke); redraw(); });
-    s.on('wb:clear', () => { strokesRef.current = []; redraw(); });
+    s.on('wb:stroke:partial', ({ sid, meta, points }: { sid: string; meta: Partial<Stroke>; points: Pt[] }) => {
+      let st = liveRef.current.get(sid);
+      if (!st) { st = { color: meta.color ?? '#16242B', width: meta.width ?? 4, erase: meta.erase, highlight: meta.highlight, points: [] }; liveRef.current.set(sid, st); }
+      st.points.push(...points); redraw();
+    });
+    s.on('wb:stroke', ({ stroke, sid }: { stroke: Stroke; sid?: string }) => { if (sid) liveRef.current.delete(sid); strokesRef.current.push(stroke); redraw(); });
+    s.on('wb:clear', () => { strokesRef.current = []; liveRef.current.clear(); redraw(); });
     s.on('wb:image', ({ fileId }: { fileId: string | null }) => loadBg(fileId));
     return () => { s.disconnect(); cv.remove(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
