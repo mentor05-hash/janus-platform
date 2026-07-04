@@ -178,8 +178,10 @@ export function ChatScreen({ bookingId, myId, title, onClose, embedded }: { book
   function closeCamera() { camStreamRef.current?.getTracks().forEach((t) => t.stop()); camStreamRef.current = null; if (typeof document !== 'undefined') document.getElementById('chat-cam-ov')?.remove(); }
   useEffect(() => () => closeCamera(), []);
   const phase = useSessionPhase(session);
-  const rw = canInteract(phase); // 지금 쓰기(메시지·반응·답장) 가능 여부
+  const rw = canInteract(phase); // 지금 쓰기(메시지·반응·답장·음성) 가능 여부
   const notice = sessionNotice(phase, session);
+  // 세션 창이 닫히면(강제 종료) 진행 중 음성통화도 자동 종료.
+  useEffect(() => { if (!rw && call.inCall) call.hangup(); }, [rw, call.inCall]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <View style={embedded ? styles.embWrap : styles.overlay}>
@@ -192,7 +194,7 @@ export function ChatScreen({ bookingId, myId, title, onClose, embedded }: { book
                   <TouchableOpacity onPress={call.toggleMute}><Text style={{ fontSize: 18 }}>{call.muted ? '🔇' : '🎙'}</Text></TouchableOpacity>
                   <TouchableOpacity onPress={call.hangup}><Text style={{ color: '#E5484D', fontWeight: '800', fontSize: 13 }}>종료</Text></TouchableOpacity>
                 </>
-              : <TouchableOpacity onPress={call.start}><Text style={{ fontSize: 18 }}>📞</Text></TouchableOpacity>)}
+              : rw ? <TouchableOpacity onPress={call.start}><Text style={{ fontSize: 18 }}>📞</Text></TouchableOpacity> : null)}
             {!embedded && <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Text style={styles.close}>✕</Text></TouchableOpacity>}
           </View>
         </View>

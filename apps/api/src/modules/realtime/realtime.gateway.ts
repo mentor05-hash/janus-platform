@@ -180,7 +180,9 @@ export class RealtimeGateway implements OnGatewayConnection {
   @SubscribeMessage('call:join')
   async callJoin(@ConnectedSocket() client: Socket, @MessageBody() { bookingId }: { bookingId: string }) {
     const user = this.user(client);
-    await this.svc.assertRoomAccess(user, bookingId);
+    const b = await this.svc.assertRoomAccess(user, bookingId);
+    this.rememberWindow(bookingId, b); // 시그널 중계(call:signal) 게이팅용 창 캐시 — 거부되더라도 먼저 확보
+    if (!this.svc.sessionOpen(b)) return { ok: false, closed: true, error: '상담 세션 시간이 아닙니다.' };
     client.join(`booking:${bookingId}`);
     client.to(`booking:${bookingId}`).emit('call:peer-join', { userId: user.id });
     return { ok: true };
@@ -188,6 +190,7 @@ export class RealtimeGateway implements OnGatewayConnection {
 
   @SubscribeMessage('call:signal')
   callSignal(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, kind, data }: { bookingId: string; kind: 'offer' | 'answer' | 'ice'; data: unknown }) {
+    if (!this.openNow(bookingId)) return { ok: false, closed: true };
     const user = this.user(client);
     client.to(`booking:${bookingId}`).emit('call:signal', { from: user.id, kind, data }); // 발신자 제외 중계
     return { ok: true };

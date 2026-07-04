@@ -199,8 +199,9 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
   const rw = canInteract(phase); // 지금 필기(쓰기) 가능 여부 — 라이브 세션은 예약 시간대에만
   const notice = sessionNotice(phase, session);
   useEffect(() => { okRef.current = rw; }, [rw]);
-  // 세션 강제 종료(폐장) 시 마지막 상태 저장 후 열람 전용.
+  // 세션 강제 종료(폐장) 시 마지막 상태 저장 + 음성통화 자동 종료 후 열람 전용.
   useEffect(() => { if (phase === 'closed' && status === 'ready') save(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, [phase]);
+  useEffect(() => { if (!rw && call.inCall) call.hangup(); }, [rw, call.inCall]); // eslint-disable-line react-hooks/exhaustive-deps
   function pick(c: string) { setColor(c); colorRef.current = c; if (toolRef.current === 'eraser') { setTool('pen'); toolRef.current = 'pen'; } }
   function pickW(w: number) { setWidth(w); widthRef.current = w; }
   function pickTool(t: 'pen' | 'eraser' | 'highlighter') { setTool(t); toolRef.current = t; }
@@ -279,7 +280,7 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
                   <TouchableOpacity onPress={call.toggleMute}><Text style={{ fontSize: 18 }}>{call.muted ? '🔇' : '🎙'}</Text></TouchableOpacity>
                   <TouchableOpacity onPress={call.hangup}><Text style={{ color: '#E5484D', fontWeight: '800', fontSize: 13 }}>종료</Text></TouchableOpacity>
                 </>
-              : <TouchableOpacity onPress={call.start}><Text style={{ fontSize: 18 }}>📞</Text></TouchableOpacity>)}
+              : rw ? <TouchableOpacity onPress={call.start}><Text style={{ fontSize: 18 }}>📞</Text></TouchableOpacity> : null)}
             {!embedded && <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}><Text style={styles.close}>✕</Text></TouchableOpacity>}
           </View>
         </View>

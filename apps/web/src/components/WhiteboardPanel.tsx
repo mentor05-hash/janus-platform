@@ -43,8 +43,10 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
   const camStreamRef = useRef<MediaStream | null>(null);
   const call = useVoiceCall(() => sockRef.current, bookingId);
   const phase = useSessionPhase(session);
-  const rw = canInteract(phase); // 지금 필기(쓰기) 가능 여부 — 라이브 세션은 예약 시간대에만
+  const rw = canInteract(phase); // 지금 필기·음성 가능 여부 — 라이브 세션은 예약 시간대에만
   const notice = sessionNotice(phase, session);
+  // 세션 창이 닫히면(강제 종료) 진행 중 음성통화도 자동 종료.
+  useEffect(() => { if (!rw && call.inCall) call.hangup(); }, [rw, call.inCall]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function redraw() {
     const cv = canvasRef.current; if (!cv) return;
@@ -337,7 +339,7 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
                   <button className="btn ghost sm" onClick={call.toggleMute}>{call.muted ? '🔇 음소거' : '🎙 켜짐'}</button>
                   <button className="btn danger sm" onClick={call.hangup}>통화 종료</button>
                 </>
-              : <button className="btn ghost sm" onClick={call.start}>📞 음성통화</button>)}
+              : <button className="btn ghost sm" disabled={!rw} onClick={call.start} title={rw ? '음성통화' : '상담 시간대에만 통화할 수 있어요'}>📞 음성통화</button>)}
             <button onClick={onClose} aria-label="닫기" style={{ border: 'none', background: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--muted)' }}>✕</button>
           </div>
         </div>
