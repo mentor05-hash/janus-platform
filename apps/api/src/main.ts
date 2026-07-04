@@ -8,6 +8,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
 import { LoggingInterceptor } from './common/observability/logging.interceptor';
 import { createLogger } from './common/observability/json-logger';
 import { requestIdMiddleware } from './common/observability/request-id.middleware';
+import { RedisIoAdapter } from './common/ws/redis-io.adapter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -38,6 +39,15 @@ async function bootstrap() {
     credentials: true,
   });
   app.enableShutdownHooks(); // 컨테이너 SIGTERM 시 Prisma onModuleDestroy 보장(§10)
+
+  // 소켓 수평확장(§10): WS_REDIS_ADAPTER=true 면 Redis pub/sub 어댑터로 다중 인스턴스 방 공유.
+  // 미설정 시 기본 in-memory 어댑터(단일 인스턴스) — 동작 불변.
+  if (process.env.WS_REDIS_ADAPTER === 'true') {
+    const adapter = new RedisIoAdapter(app, process.env.REDIS_URL ?? 'redis://localhost:6379');
+    await adapter.connect();
+    app.useWebSocketAdapter(adapter);
+    Logger.log('WebSocket Redis 어댑터 사용(다중 인스턴스)', 'Bootstrap');
+  }
 
   const prefix = process.env.API_PREFIX ?? '/api/v1';
   app.setGlobalPrefix(prefix.replace(/^\//, '')); // setGlobalPrefix 는 선행 슬래시 없이
