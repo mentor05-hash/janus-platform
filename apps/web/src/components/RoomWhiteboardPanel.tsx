@@ -1,0 +1,241 @@
+import { useEffect, useRef, useState } from 'react';
+import { io, type Socket } from 'socket.io-client';
+import { useRoomVoiceCall } from '../utils/roomVoiceCall';
+import { useSessionPhase, canInteract, sessionNotice, type SessionInfo } from '../utils/session';
+import type { RoomSession } from './RoomChatPanel';
+
+type Pt = { x: number; y: number; p?: number };
+type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean; highlight?: boolean };
+const COLORS = ['#16242B', '#0E5C7C', '#E5484D', '#2F9E44', '#F08C00'];
+const W = 900, H = 620;
+
+/** 룸 서비스 기반 공유 화이트보드(이관 경로). 이미지 배경 + 필기 + 음성. PDF 배경은 이음새로 보류. */
+export function RoomWhiteboardPanel({ title, onClose, session: rs }: { bookingId: string; title?: string; onClose: () => void; session: RoomSession }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const sockRef = useRef<Socket | null>(null);
+  const strokesRef = useRef<Stroke[]>([]);
+  const drawingRef = useRef<Stroke | null>(null);
+  const liveRef = useRef<Map<string, Stroke>>(new Map());
+  const sidRef = useRef('');
+  const pendingRef = useRef<Pt[]>([]);
+  const lastFlushRef = useRef(0);
+  const viewRef = useRef({ scale: 1, tx: 0, ty: 0 });
+  const pointersRef = useRef(new Map<number, { cx: number; cy: number }>());
+  const pinchRef = useRef<{ dist: number; midCx: number; midCy: number; view: { scale: number; tx: number; ty: number } } | null>(null);
+  const [zoomPct, setZoomPct] = useState(100);
+  const bgImgRef = useRef<HTMLImageElement | null>(null);
+  const bgUrlRef = useRef<string | null>(null); // 현재 배경 fileUrl(룸 서비스)
+  const [color, setColor] = useState(COLORS[0]);
+  const [width, setWidth] = useState(3);
+  const [tool, setTool] = useState<'pen' | 'eraser' | 'highlighter'>('pen');
+  const [status, setStatus] = useState<'connecting' | 'ready' | 'off'>('connecting');
+  const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved'>('idle');
+  const [live, setLive] = useState<SessionInfo>(rs.session);
+  const [camOn, setCamOn] = useState(false);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const penSeenRef = useRef(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const camStreamRef = useRef<MediaStream | null>(null);
+  const call = useRoomVoiceCall(() => sockRef.current);
+  const phase = useSessionPhase(live);
+  const rw = canInteract(phase);
+  const notice = sessionNotice(phase, live);
+  useEffect(() => { if (!rw && call.inCall) call.hangup(); }, [rw, call.inCall]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function redraw() {
+    const cv = canvasRef.current; if (!cv) return;
+    const ctx = cv.getContext('2d'); if (!ctx) return;
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
+    const v = viewRef.current; ctx.setTransform(v.scale, 0, 0, v.scale, v.tx, v.ty);
+    if (bgImgRef.current) {
+      const img = bgImgRef.current, ir = img.width / img.height, cr = W / H;
+      let dw = W, dh = H, dx = 0, dy = 0;
+      if (ir > cr) { dh = W / ir; dy = (H - dh) / 2; } else { dw = H * ir; dx = (W - dw) / 2; }
+      ctx.drawImage(img, dx, dy, dw, dh);
+    }
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (const s of [...strokesRef.current, ...liveRef.current.values(), ...(drawingRef.current ? [drawingRef.current] : [])]) {
+      if (s.points.length < 1) continue;
+      ctx.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over';
+      ctx.globalAlpha = s.highlight ? 0.32 : 1; ctx.strokeStyle = s.color;
+      if (s.erase || s.highlight || s.points.length === 1 || s.points.every((q) => q.p == null)) {
+        ctx.lineWidth = s.width; ctx.beginPath(); ctx.moveTo(s.points[0].x, s.points[0].y);
+        for (const p of s.points.slice(1)) ctx.lineTo(p.x, p.y);
+        if (s.points.length === 1) ctx.lineTo(s.points[0].x + 0.1, s.points[0].y + 0.1);
+        ctx.stroke();
+      } else {
+        for (let i = 1; i < s.points.length; i++) { const a = s.points[i - 1], b = s.points[i]; ctx.lineWidth = s.width * (0.35 + ((b.p ?? 0.5)) * 1.3); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+      }
+    }
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
+  /** 룸 배경 로드 — fileUrl(룸 서비스)을 토큰과 함께 blob 으로 가져와 표시(캔버스 오염 방지). */
+  function loadBg(fileUrl: string | null) {
+    bgUrlRef.current = fileUrl;
+    if (!fileUrl) { bgImgRef.current = null; redraw(); return; }
+    const abs = `${rs.url}${fileUrl}${fileUrl.includes('?') ? '&' : '?'}token=${encodeURIComponent(rs.token)}`;
+    fetch(abs).then((r) => r.blob()).then((b) => { const img = new Image(); img.onload = () => { bgImgRef.current = img; redraw(); }; img.src = URL.createObjectURL(b); }).catch(() => {});
+  }
+  function scheduleAutosave() { setSaveState('dirty'); if (saveTimerRef.current) clearTimeout(saveTimerRef.current); saveTimerRef.current = setTimeout(() => save(), 1500); }
+
+  useEffect(() => {
+    const s = io(rs.url, { path: '/api/rt/v1/socket.io', auth: { token: rs.token }, transports: ['websocket'] });
+    sockRef.current = s;
+    s.on('connect', () => s.emit('wb:join', {}, (r: { ok: boolean; strokes?: Stroke[]; backgroundUrl?: string | null; session?: SessionInfo }) => {
+      if (!r?.ok) { setStatus('off'); return; }
+      strokesRef.current = Array.isArray(r.strokes) ? r.strokes : []; if (r.session) setLive(r.session); setStatus('ready'); redraw();
+      if (r.backgroundUrl) loadBg(r.backgroundUrl);
+    }));
+    s.on('wb:stroke:partial', ({ sid, meta, points }: { sid: string; meta: Partial<Stroke>; points: Pt[] }) => {
+      let st = liveRef.current.get(sid);
+      if (!st) { st = { color: meta.color ?? '#16242B', width: meta.width ?? 3, erase: meta.erase, highlight: meta.highlight, points: [] }; liveRef.current.set(sid, st); }
+      st.points.push(...points); redraw();
+    });
+    s.on('wb:stroke', ({ stroke, sid }: { stroke: Stroke; sid?: string }) => { if (sid) liveRef.current.delete(sid); strokesRef.current.push(stroke); redraw(); });
+    s.on('wb:clear', () => { strokesRef.current = []; liveRef.current.clear(); redraw(); });
+    s.on('wb:image', ({ fileUrl }: { fileUrl: string | null }) => loadBg(fileUrl));
+    s.on('session:closed', (e: { closesAt?: string }) => setLive((v) => ({ ...v, state: 'closed', closesAt: e.closesAt ?? v.closesAt })));
+    s.on('session:revoked', () => setStatus('off'));
+    return () => { s.disconnect(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rs.url, rs.token]);
+
+  useEffect(() => {
+    const cv = canvasRef.current; if (!cv) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault(); const r = cv.getBoundingClientRect();
+      const cx = ((e.clientX - r.left) / r.width) * W, cy = ((e.clientY - r.top) / r.height) * H;
+      if (e.ctrlKey || e.metaKey) zoomAt(cx, cy, e.deltaY < 0 ? 1.1 : 1 / 1.1);
+      else { const v = viewRef.current; v.tx -= e.deltaX; v.ty -= e.deltaY; clampView(); redraw(); }
+    };
+    cv.addEventListener('wheel', onWheel, { passive: false });
+    return () => cv.removeEventListener('wheel', onWheel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
+  useEffect(() => { if (phase === 'closed' && status === 'ready') { finalizeStroke(); save(); } /* eslint-disable-line react-hooks/exhaustive-deps */ }, [phase]);
+
+  function canvasSpace(e: { clientX: number; clientY: number }) { const cv = canvasRef.current!; const r = cv.getBoundingClientRect(); return { cx: ((e.clientX - r.left) / r.width) * W, cy: ((e.clientY - r.top) / r.height) * H }; }
+  function pt(e: React.PointerEvent): Pt { const { cx, cy } = canvasSpace(e); const v = viewRef.current; const p = e.pointerType === 'pen' ? (e.pressure || 0.5) : e.pressure > 0 ? e.pressure : 0.5; return { x: (cx - v.tx) / v.scale, y: (cy - v.ty) / v.scale, p }; }
+  function clampView() { const v = viewRef.current; v.scale = Math.min(8, Math.max(1, v.scale)); v.tx = Math.min(0, Math.max(W - W * v.scale, v.tx)); v.ty = Math.min(0, Math.max(H - H * v.scale, v.ty)); }
+  function zoomAt(cx: number, cy: number, factor: number) { const v = viewRef.current; const ns = Math.min(8, Math.max(1, v.scale * factor)); const k = ns / v.scale; v.tx = cx - (cx - v.tx) * k; v.ty = cy - (cy - v.ty) * k; v.scale = ns; clampView(); setZoomPct(Math.round(v.scale * 100)); redraw(); }
+  function resetZoom() { viewRef.current = { scale: 1, tx: 0, ty: 0 }; setZoomPct(100); redraw(); }
+  function finalizeStroke() {
+    const st = drawingRef.current; drawingRef.current = null;
+    if (!st || st.points.length === 0) { pendingRef.current = []; return; }
+    strokesRef.current.push(st); redraw();
+    sockRef.current?.emit('wb:stroke', { stroke: st, sid: sidRef.current }); pendingRef.current = []; scheduleAutosave();
+  }
+  function rejected(e: React.PointerEvent) { if (e.pointerType === 'pen') penSeenRef.current = true; return penSeenRef.current && e.pointerType === 'touch'; }
+  function flushPartial() { const st = drawingRef.current; if (!st || pendingRef.current.length === 0) return; sockRef.current?.emit('wb:stroke:partial', { sid: sidRef.current, meta: { color: st.color, width: st.width, erase: st.erase, highlight: st.highlight }, points: pendingRef.current }); pendingRef.current = []; }
+  function beginPinch() { const p = [...pointersRef.current.values()]; if (p.length < 2) return; const [a, b] = p; pinchRef.current = { dist: Math.hypot(a.cx - b.cx, a.cy - b.cy) || 1, midCx: (a.cx + b.cx) / 2, midCy: (a.cy + b.cy) / 2, view: { ...viewRef.current } }; }
+  function down(e: React.PointerEvent) {
+    if (status !== 'ready') return;
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+    pointersRef.current.set(e.pointerId, canvasSpace(e));
+    if (pointersRef.current.size >= 2) { finalizeStroke(); beginPinch(); return; }
+    if (!rw) return; // 세션 창 밖 → 필기 불가(보기 전용)
+    if (rejected(e)) return;
+    const p0 = pt(e);
+    drawingRef.current = tool === 'eraser' ? { points: [p0], color: '#000', width: Math.max(16, width * 4), erase: true }
+      : tool === 'highlighter' ? { points: [p0], color, width: Math.max(14, width * 4), highlight: true }
+        : { points: [p0], color, width };
+    sidRef.current = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`; pendingRef.current = [p0]; lastFlushRef.current = 0; redraw();
+  }
+  function move(e: React.PointerEvent) {
+    if (pointersRef.current.has(e.pointerId)) pointersRef.current.set(e.pointerId, canvasSpace(e));
+    if (pinchRef.current && pointersRef.current.size >= 2) {
+      const [a, b] = [...pointersRef.current.values()]; const dist = Math.hypot(a.cx - b.cx, a.cy - b.cy) || 1;
+      const midCx = (a.cx + b.cx) / 2, midCy = (a.cy + b.cy) / 2, pin = pinchRef.current, v = viewRef.current;
+      const k = Math.min(8, Math.max(1, (pin.view.scale * dist) / pin.dist)) / pin.view.scale;
+      v.scale = pin.view.scale * k; v.tx = midCx - (pin.midCx - pin.view.tx) * k; v.ty = midCy - (pin.midCy - pin.view.ty) * k;
+      clampView(); setZoomPct(Math.round(v.scale * 100)); redraw(); return;
+    }
+    if (!drawingRef.current || rejected(e)) return;
+    const p = pt(e); drawingRef.current.points.push(p); pendingRef.current.push(p); redraw();
+    const now = Date.now(); if (now - lastFlushRef.current >= 50) { lastFlushRef.current = now; flushPartial(); }
+  }
+  function up(e: React.PointerEvent) { pointersRef.current.delete(e.pointerId); if (pointersRef.current.size < 2) pinchRef.current = null; finalizeStroke(); }
+  function clear() { strokesRef.current = []; loadBg(null); redraw(); sockRef.current?.emit('wb:clear'); sockRef.current?.emit('wb:image', { fileUrl: null }); scheduleAutosave(); }
+  function save() { if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; } setSaveState('saving'); sockRef.current?.emit('wb:save', { strokes: strokesRef.current, backgroundUrl: bgUrlRef.current }, () => setSaveState('saved')); }
+
+  /** 이미지 → 룸 서비스 업로드 → fileUrl 배경. */
+  async function useAsBackground(blob: Blob, name: string) {
+    const form = new FormData(); form.append('file', blob, name);
+    const r = await fetch(`${rs.url}/api/rt/v1/files`, { method: 'POST', headers: { authorization: `Bearer ${rs.token}` }, body: form });
+    if (!r.ok) return; const { fileUrl } = await r.json() as { fileUrl: string };
+    loadBg(fileUrl); sockRef.current?.emit('wb:image', { fileUrl }); scheduleAutosave();
+  }
+  async function onAttach(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]; e.target.value = ''; if (!f) return;
+    if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) { alert('PDF 배경은 준비 중입니다. 지금은 이미지 배경을 사용할 수 있어요.'); return; } // 이음새: 사업확장 후 룸 PDF 렌더로 활성화
+    if (f.type.startsWith('image/')) { try { await useAsBackground(f, f.name); } catch { alert('배경 불러오기에 실패했어요.'); } }
+  }
+  async function openCamera() { try { const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false }); camStreamRef.current = stream; setCamOn(true); setTimeout(() => { if (videoRef.current) { videoRef.current.srcObject = stream; void videoRef.current.play(); } }, 30); } catch { alert('카메라를 사용할 수 없어요.'); } }
+  function closeCamera() { camStreamRef.current?.getTracks().forEach((t) => t.stop()); camStreamRef.current = null; setCamOn(false); }
+  async function capture() { const v = videoRef.current; if (!v) return; const cw = v.videoWidth || 1280, ch = v.videoHeight || 720; const c = document.createElement('canvas'); c.width = cw; c.height = ch; c.getContext('2d')!.drawImage(v, 0, 0, cw, ch); const blob: Blob = await new Promise((res) => c.toBlob((b) => res(b!), 'image/jpeg', 0.85)); closeCamera(); await useAsBackground(blob, 'shot.jpg'); }
+  useEffect(() => () => closeCamera(), []);
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 950, background: 'rgba(8,16,20,0.5)', display: 'grid', placeItems: 'center', padding: 16 }}>
+      <div role="dialog" aria-modal="true" aria-label={title ?? '공유 화이트보드'} onClick={(e) => e.stopPropagation()} className="card" style={{ width: '100%', maxWidth: 960, display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <b style={{ fontSize: 15 }}>🖊 {title ?? '공유 화이트보드'}</b>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {status !== 'off' && (call.inCall
+              ? <>
+                  <span style={{ fontSize: 12, color: call.peerPresent ? 'var(--chip-done)' : 'var(--muted)' }}>🎧 {call.peerPresent ? '통화 중' : '연결 대기'}</span>
+                  <button className="btn ghost sm" onClick={call.toggleMute}>{call.muted ? '🔇 음소거' : '🎙 켜짐'}</button>
+                  <button className="btn danger sm" onClick={call.hangup}>통화 종료</button>
+                </>
+              : <button className="btn ghost sm" disabled={!rw} onClick={call.start}>📞 음성통화</button>)}
+            <button onClick={onClose} aria-label="닫기" style={{ border: 'none', background: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--muted)' }}>✕</button>
+          </div>
+        </div>
+        {status === 'off' ? (
+          <p style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center', padding: 40 }}>화이트보드 세션이 종료되었어요.</p>
+        ) : (
+          <>
+            {!rw && <div style={{ padding: '8px 14px', background: phase === 'closed' ? 'var(--line-soft,#eef2f4)' : 'var(--teal-50,#EAF3F7)', color: 'var(--muted)', fontSize: 12.5, textAlign: 'center', borderBottom: '1px solid var(--line)' }}>{phase === 'closed' ? '🔒 ' : '⏳ '}{notice} 필기는 예약 시간대에만 가능하고, 지금은 열람만 됩니다.</div>}
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '10px 14px', flexWrap: 'wrap', borderBottom: '1px solid var(--line)' }}>
+              {COLORS.map((c) => (
+                <button key={c} onClick={() => { setColor(c); setTool((t) => (t === 'eraser' ? 'pen' : t)); }} title={c} aria-label={`색상 ${c}`} aria-pressed={color === c && tool !== 'eraser'} style={{ width: 24, height: 24, borderRadius: '50%', background: c, cursor: 'pointer', border: color === c && tool !== 'eraser' ? '3px solid var(--teal)' : '2px solid var(--line)' }} />
+              ))}
+              {[2, 3, 6, 10].map((w) => (<button key={w} onClick={() => setWidth(w)} style={{ width: 28, height: 26, borderRadius: 6, cursor: 'pointer', border: width === w ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontWeight: 700, fontSize: 12 }}>{w}</button>))}
+              <button onClick={() => setTool('pen')} aria-pressed={tool === 'pen'} title="펜" style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'pen' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>✏️</button>
+              <button onClick={() => setTool('highlighter')} aria-pressed={tool === 'highlighter'} title="형광펜" style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'highlighter' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>🖍</button>
+              <button onClick={() => setTool('eraser')} aria-pressed={tool === 'eraser'} title="지우개" style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'eraser' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>🧽</button>
+              <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
+              <input ref={fileRef} type="file" accept="application/pdf,image/*" hidden onChange={onAttach} />
+              <button className="btn ghost sm" disabled={!rw} onClick={() => fileRef.current?.click()}>🖼 이미지</button>
+              <button className="btn ghost sm" disabled={!rw} onClick={openCamera}>📷 촬영</button>
+              <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
+              <button className="btn ghost sm" title="축소" onClick={() => zoomAt(W / 2, H / 2, 1 / 1.25)}>🔍−</button>
+              <button className="btn ghost sm" title="원본 크기" onClick={resetZoom} style={{ minWidth: 52, fontVariantNumeric: 'tabular-nums' }}>{zoomPct}%</button>
+              <button className="btn ghost sm" title="확대" onClick={() => zoomAt(W / 2, H / 2, 1.25)}>🔍＋</button>
+              <div style={{ flex: 1 }} />
+              <span style={{ fontSize: 11, color: 'var(--muted)' }}>{saveState === 'saving' ? '저장 중…' : saveState === 'saved' ? '자동 저장됨 ✓' : saveState === 'dirty' ? '변경됨' : ''}</span>
+              <button className="btn ghost sm" disabled={!rw} onClick={clear}>전체 지우기</button>
+              <button className="btn sm" disabled={!rw} onClick={save}>저장</button>
+            </div>
+            <div style={{ position: 'relative' }}>
+              <canvas ref={canvasRef} width={W} height={H} role="img" aria-label="공유 필기 캔버스" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up} style={{ width: '100%', aspectRatio: `${W} / ${H}`, background: '#fff', touchAction: 'none', cursor: 'crosshair', display: 'block' }} />
+              {camOn && (
+                <div style={{ position: 'absolute', inset: 0, background: '#000', display: 'flex', flexDirection: 'column' }}>
+                  <video ref={videoRef} playsInline muted style={{ flex: 1, width: '100%', objectFit: 'contain', minHeight: 0 }} />
+                  <div style={{ display: 'flex', gap: 10, justifyContent: 'center', padding: 12, background: '#000' }}>
+                    <button className="btn ghost sm" onClick={closeCamera}>취소</button>
+                    <button className="btn sm" onClick={capture}>📸 촬영(무음)</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+        <audio ref={call.remoteAudioRef} autoPlay />
+      </div>
+    </div>
+  );
+}

@@ -4,7 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import type { Booking, ConsultationNote, Slot, Teacher } from '../api/types';
 import { PageHeader, Card, Button, Badge, ErrorText, Spinner, EmptyState } from '../components/ui';
 import { SessionChatPanel } from '../components/SessionChatPanel';
-import { WhiteboardPanel } from '../components/WhiteboardPanel';
+import { SessionWhiteboardPanel } from '../components/SessionWhiteboardPanel';
 
 const KST = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '-';
@@ -281,7 +281,7 @@ export function StudentBookingsPage() {
         ))
       )}
       {chatId && user && <SessionChatPanel bookingId={chatId} myId={user.id} title="상담 채팅" onClose={() => setChatId(null)} />}
-      {wbId && <WhiteboardPanel bookingId={wbId} title="공유 화이트보드" onClose={() => setWbId(null)} />}
+      {wbId && <SessionWhiteboardPanel bookingId={wbId} title="공유 화이트보드" onClose={() => setWbId(null)} />}
     </div>
   );
 }
