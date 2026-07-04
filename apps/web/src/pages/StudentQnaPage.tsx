@@ -91,7 +91,7 @@ export function StudentQnaPage() {
       {error && <ErrorText>{error}</ErrorText>}
 
       {open && (
-        <Card style={{ maxWidth: 640, marginBottom: 16 }}>
+        <Card style={{ marginBottom: 16 }}>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 120 }}><SelectField label="과목" value={f.subject} onChange={(e) => set('subject', e.target.value)} options={SUBJECTS.map((s) => ({ value: s, label: s }))} /></div>
             <div style={{ minWidth: 120 }}><SelectField label="유형" value={f.qType} onChange={(e) => set('qType', e.target.value)} options={[{ value: 'general', label: '일반' }, { value: 'item', label: '문항(고난도)' }]} /></div>
