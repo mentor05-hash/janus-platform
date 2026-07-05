@@ -19,6 +19,7 @@ import { AvailabilityModule } from './modules/availability/availability.module';
 import { MatchingModule } from './modules/matching/matching.module';
 import { BookingModule } from './modules/booking/booking.module';
 import { ConsultationModule } from './modules/consultation/consultation.module';
+import { ConsultingModule } from './modules/consulting/consulting.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { PricingPolicyModule } from './modules/pricing-policy/pricing-policy.module';
 import { EvaluationModule } from './modules/evaluation/evaluation.module';
@@ -60,6 +61,7 @@ import { AssignmentModule } from './modules/assignment/assignment.module';
     MatchingModule,
     BookingModule,
     ConsultationModule,
+    ConsultingModule,
     BillingModule,
     PricingPolicyModule,
     EvaluationModule,
