@@ -41,7 +41,7 @@ export class RoomsController {
     if (hasOpen && hasClose && Date.parse(dto.opensAt!) >= Date.parse(dto.closesAt!)) throw new BadRequestException('opensAt 은 closesAt 보다 앞서야 합니다.');
     return this.svc.createRoom({
       externalRef: dto.externalRef, features: dto.features, opensAt: dto.opensAt, closesAt: dto.closesAt,
-      metadata: dto.metadata, tokenTtlSec: dto.tokenTtlSec, participants: dto.participants ?? [],
+      metadata: dto.metadata, tokenTtlSec: dto.tokenTtlSec, mode: dto.mode, participants: dto.participants ?? [],
     });
   }
 

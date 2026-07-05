@@ -5,7 +5,7 @@ import { MetricsService } from './metrics.service';
 import { TokenService } from './token.service';
 
 export type Features = { chat: boolean; whiteboard: boolean; voice: boolean };
-export type RoomRow = { id: string; external_ref: string | null; features: Features; opens_at: Date | null; closes_at: Date | null; token_epoch: number };
+export type RoomRow = { id: string; external_ref: string | null; features: Features; opens_at: Date | null; closes_at: Date | null; token_epoch: number; metadata: Record<string, unknown> | null };
 export type Feature = keyof Features;
 export type FileRow = { id: string; room_id: string; filename: string; mime: string | null; size: number | null; storage_path: string };
 
@@ -24,17 +24,21 @@ export class RoomsService {
 
   async createRoom(dto: {
     externalRef?: string; features?: Partial<Features>; opensAt?: string | null; closesAt?: string | null;
-    metadata?: unknown; tokenTtlSec?: number;
+    metadata?: unknown; tokenTtlSec?: number; mode?: string;
     participants: Array<{ extUserId?: string; displayName?: string; role?: string }>;
   }) {
     const features: Features = { chat: true, whiteboard: true, voice: true, ...(dto.features ?? {}) };
+    // mode(lecture 등)는 metadata 에 병합해 저장 — 강의 모드 게이팅의 단일 소스.
+    const metaObj: Record<string, unknown> = { ...(typeof dto.metadata === 'object' && dto.metadata ? (dto.metadata as Record<string, unknown>) : {}) };
+    if (dto.mode) metaObj.mode = dto.mode;
+    const metaJson = Object.keys(metaObj).length ? JSON.stringify(metaObj) : null;
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
       const r = await client.query<{ id: string }>(
         `INSERT INTO room (external_ref, features, opens_at, closes_at, metadata)
          VALUES ($1, $2::jsonb, $3, $4, $5::jsonb) RETURNING id`,
-        [dto.externalRef ?? null, JSON.stringify(features), dto.opensAt ?? null, dto.closesAt ?? null, dto.metadata ? JSON.stringify(dto.metadata) : null],
+        [dto.externalRef ?? null, JSON.stringify(features), dto.opensAt ?? null, dto.closesAt ?? null, metaJson],
       );
       const roomId = r.rows[0].id;
       const ttl = dto.tokenTtlSec && dto.tokenTtlSec > 0 ? dto.tokenTtlSec : 12 * 3600;
@@ -58,9 +62,20 @@ export class RoomsService {
   }
 
   async getRoom(roomId: string): Promise<RoomRow | null> {
-    const r = await this.pool.query<RoomRow>(`SELECT id, external_ref, features, opens_at, closes_at, token_epoch FROM room WHERE id = $1`, [roomId]);
+    const r = await this.pool.query<RoomRow>(`SELECT id, external_ref, features, opens_at, closes_at, token_epoch, metadata FROM room WHERE id = $1`, [roomId]);
     return r.rows[0] ?? null;
   }
+  /** 강의(1:다) 모드 여부 — metadata.mode==='lecture'. 강의 모드에선 host/presenter 만 판서. */
+  lectureMode(room: RoomRow): boolean {
+    return (room.metadata as { mode?: string } | null)?.mode === 'lecture';
+  }
+
+  /** 참가자 역할(host·viewer·presenter…) — 서버 권위 게이팅용(토큰 신뢰 금지). */
+  async getParticipantRole(roomId: string, participantId: string): Promise<string | null> {
+    const r = await this.pool.query<{ role: string | null }>(`SELECT role FROM room_participant WHERE id = $1 AND room_id = $2`, [participantId, roomId]);
+    return r.rows[0]?.role ?? null;
+  }
+
   async participantInRoom(roomId: string, participantId: string): Promise<boolean> {
     const r = await this.pool.query(`SELECT 1 FROM room_participant WHERE id = $1 AND room_id = $2`, [participantId, roomId]);
     return (r.rowCount ?? 0) > 0;

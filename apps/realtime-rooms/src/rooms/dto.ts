@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsInt, IsISO8601, IsObject, IsOptional, IsString, MaxLength, Min, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsIn, IsInt, IsISO8601, IsObject, IsOptional, IsString, MaxLength, Min, ValidateNested } from 'class-validator';
 
 class FeaturesDto {
   @IsOptional() @IsBoolean() chat?: boolean;
@@ -21,7 +21,8 @@ export class CreateRoomDto {
   @IsOptional() @IsISO8601() closesAt?: string;
   @IsOptional() @IsInt() @Min(60) tokenTtlSec?: number;
   @IsOptional() @IsObject() metadata?: Record<string, unknown>;
-  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(50) @ValidateNested({ each: true }) @Type(() => ParticipantDto) participants!: ParticipantDto[];
+  @IsOptional() @IsIn(['session', 'lecture']) mode?: string; // lecture=1:다 강의(host만 판서)
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(300) @ValidateNested({ each: true }) @Type(() => ParticipantDto) participants!: ParticipantDto[];
 }
 
 export class MintTokenDto {

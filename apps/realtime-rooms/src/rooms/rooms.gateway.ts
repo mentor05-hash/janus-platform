@@ -5,7 +5,7 @@ import { MetricsService } from './metrics.service';
 import { RoomsService, type RoomRow, type Feature } from './rooms.service';
 import { TokenService } from './token.service';
 
-type Ctx = { roomId: string; participantId: string; name?: string };
+type Ctx = { roomId: string; participantId: string; name?: string; role?: string };
 const MAX_BODY = 4000; // 채팅 본문 길이 상한(저장 폭주 방지)
 
 /**
@@ -17,9 +17,11 @@ const MAX_BODY = 4000; // 채팅 본문 길이 상한(저장 폭주 방지)
 export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger('RoomsRT');
   @WebSocketServer() server!: Server;
-  private readonly windows = new Map<string, { restricted: boolean; opensMs: number; closesMs: number; features: RoomRow['features'] }>();
+  private readonly windows = new Map<string, { restricted: boolean; opensMs: number; closesMs: number; features: RoomRow['features']; lecture: boolean }>();
   // 접속자(참가자별 소켓 수) — 채팅·화이트보드·음성이 각각 소켓을 열어도 참가자 단위로 집계.
   private readonly presence = new Map<string, Map<string, number>>();
+  // 참가자 표시정보(이름·역할) — roster(참석자 명단) 브로드캐스트용. key=`${roomId}:${pid}`.
+  private readonly pinfo = new Map<string, { name?: string; role?: string }>();
   // 서버발 강제 종료 예약(룸당 1회). 다중 인스턴스에선 인스턴스별 예약 → 클라 멱등 처리로 중복 무해.
   private readonly closeTimers = new Map<string, NodeJS.Timeout>();
 
@@ -34,31 +36,48 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const ctx: Ctx = { roomId: payload.roomId, participantId: payload.participantId, name: payload.name };
       client.data.ctx = ctx;
       client.join(`room:${ctx.roomId}`);
-      this.addPresence(ctx.roomId, ctx.participantId);
+      this.pinfo.set(`${ctx.roomId}:${ctx.participantId}`, { name: ctx.name }); // 역할은 아래에서 채움
+      const isNew = this.addPresence(ctx.roomId, ctx.participantId);
       this.metrics.wsConnections.inc();
       // epoch 폐기 검증(비동기) — 실패 시 강제 해제(handleDisconnect 가 presence·게이지 정리).
       const room = await this.svc.getRoom(payload.roomId);
       if (!room || room.token_epoch !== payload.epoch) { client.emit('error', { message: '폐기되었거나 없는 룸' }); client.disconnect(true); return; }
       this.remember(room);
+      // 역할(서버 권위) 적재 — 강의 모드 판서 게이팅에 사용. 위조 불가.
+      const role = await this.svc.getParticipantRole(ctx.roomId, ctx.participantId);
+      ctx.role = role ?? undefined;
+      this.pinfo.set(`${ctx.roomId}:${ctx.participantId}`, { name: ctx.name, role: ctx.role });
+      // 참석자 명단(roster) — 이 참가자가 새로 온라인일 때만 1회 방송.
+      if (isNew) this.server.to(`room:${ctx.roomId}`).emit('roster:join', { participantId: ctx.participantId, name: ctx.name, role: ctx.role ?? 'viewer' });
     } catch { client.disconnect(true); }
   }
   handleDisconnect(client: Socket) {
     const ctx = client.data.ctx as Ctx | undefined;
-    if (ctx) { this.removePresence(ctx.roomId, ctx.participantId); this.metrics.wsConnections.dec(); }
+    if (ctx) {
+      const wasLast = this.removePresence(ctx.roomId, ctx.participantId);
+      this.metrics.wsConnections.dec();
+      if (wasLast) {
+        this.pinfo.delete(`${ctx.roomId}:${ctx.participantId}`);
+        this.server.to(`room:${ctx.roomId}`).emit('roster:leave', { participantId: ctx.participantId });
+      }
+    }
   }
   private ctx(client: Socket): Ctx { return client.data.ctx as Ctx; }
 
   // ── 접속자(presence) ──
-  private addPresence(roomId: string, pid: string) {
+  private addPresence(roomId: string, pid: string): boolean {
     let m = this.presence.get(roomId); if (!m) { m = new Map(); this.presence.set(roomId, m); }
     const n = (m.get(pid) ?? 0) + 1; m.set(pid, n);
     if (n === 1) this.emitPresence(roomId); // 이 참가자가 새로 온라인
+    return n === 1;
   }
-  private removePresence(roomId: string, pid: string) {
-    const m = this.presence.get(roomId); if (!m) return;
+  private removePresence(roomId: string, pid: string): boolean {
+    const m = this.presence.get(roomId); if (!m) return false;
     const n = (m.get(pid) ?? 0) - 1;
-    if (n <= 0) { m.delete(pid); this.emitPresence(roomId); } else m.set(pid, n);
+    let last = false;
+    if (n <= 0) { m.delete(pid); this.emitPresence(roomId); last = true; } else m.set(pid, n);
     if (m.size === 0) this.presence.delete(roomId);
+    return last;
   }
   private emitPresence(roomId: string) {
     const online = [...(this.presence.get(roomId)?.keys() ?? [])];
@@ -67,8 +86,22 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private remember(room: RoomRow) {
     const w = this.svc.sessionWindow(room);
-    this.windows.set(room.id, { restricted: w.restricted, opensMs: w.opensAt?.getTime() ?? 0, closesMs: w.closesAt?.getTime() ?? 0, features: room.features });
+    this.windows.set(room.id, { restricted: w.restricted, opensMs: w.opensAt?.getTime() ?? 0, closesMs: w.closesAt?.getTime() ?? 0, features: room.features, lecture: this.svc.lectureMode(room) });
     this.scheduleClose(room.id);
+  }
+
+  // 강의 모드 판서 권한: 비강의 룸은 누구나, 강의 룸은 host/presenter 만(서버 권위).
+  private canDraw(client: Socket): boolean {
+    const c = this.ctx(client);
+    if (!this.windows.get(c.roomId)?.lecture) return true;
+    return c.role === 'host' || c.role === 'presenter';
+  }
+  // roster(참석자 명단) — 현재 온라인 참가자 + 이름/역할.
+  private rosterOf(roomId: string) {
+    return [...(this.presence.get(roomId)?.keys() ?? [])].map((pid) => {
+      const info = this.pinfo.get(`${roomId}:${pid}`);
+      return { participantId: pid, name: info?.name, role: info?.role ?? 'viewer' };
+    });
   }
 
   /** 토큰 폐기 시 호출 — 방에 통지 후 현재 접속 강제 해제, 캐시 정리. */
@@ -116,7 +149,7 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const read = await this.svc.markRead(c.roomId, c.participantId);
     if (read.count > 0) client.to(this.room(client)).emit('chat:read', { readerId: read.readerId, at: read.at });
     const online = [...(this.presence.get(c.roomId)?.keys() ?? [])];
-    return { ok: true, participantId: c.participantId, features: room.features, session: this.svc.sessionInfo(room), messages: hist.messages, nextCursor: hist.nextCursor, hasMore: hist.hasMore, online };
+    return { ok: true, participantId: c.participantId, features: room.features, session: this.svc.sessionInfo(room), messages: hist.messages, nextCursor: hist.nextCursor, hasMore: hist.hasMore, online, role: c.role ?? 'viewer', mode: this.windows.get(c.roomId)?.lecture ? 'lecture' : 'session', roster: this.rosterOf(c.roomId) };
   }
 
   /** 이전(오래된) 메시지 페이지 로드 — 무한 스크롤. { before?, limit? } → { messages, nextCursor, hasMore }. */
@@ -183,12 +216,14 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.remember(room);
     client.join(this.room(client));
     const snap = await this.svc.latestSnapshot(c.roomId);
-    return { ok: true, strokes: snap?.strokes ?? [], backgroundUrl: snap?.background_url ?? null, session: this.svc.sessionInfo(room) };
+    const lecture = this.windows.get(c.roomId)?.lecture ?? false;
+    return { ok: true, strokes: snap?.strokes ?? [], backgroundUrl: snap?.background_url ?? null, session: this.svc.sessionInfo(room), mode: lecture ? 'lecture' : 'session', role: c.role ?? 'viewer', roster: this.rosterOf(c.roomId) };
   }
   @SubscribeMessage('wb:image')
   wbImage(@ConnectedSocket() client: Socket, @MessageBody() { fileUrl, page, pageCount }: { fileUrl: string | null; page?: number; pageCount?: number }) {
     const c = this.ctx(client);
     if (!this.featureOn(c.roomId, 'whiteboard') || !this.openNow(c.roomId)) return { ok: false, closed: true };
+    if (!this.canDraw(client)) return { ok: false, role: 'viewer' }; // 강의 모드: 학생은 배경 변경 불가
     client.to(this.room(client)).emit('wb:image', { fileUrl, page, pageCount });
     return { ok: true };
   }
@@ -196,6 +231,7 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   wbStroke(@ConnectedSocket() client: Socket, @MessageBody() { stroke, sid }: { stroke: unknown; sid?: string }) {
     const c = this.ctx(client);
     if (!this.featureOn(c.roomId, 'whiteboard') || !this.openNow(c.roomId)) return { ok: false, closed: true };
+    if (!this.canDraw(client)) return { ok: false, role: 'viewer' }; // 강의 모드: host/presenter 만 판서
     client.to(this.room(client)).emit('wb:stroke', { stroke, sid });
     return { ok: true };
   }
@@ -203,12 +239,14 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   wbPartial(@ConnectedSocket() client: Socket, @MessageBody() { sid, meta, points }: { sid: string; meta: unknown; points: unknown }) {
     const c = this.ctx(client);
     if (!this.featureOn(c.roomId, 'whiteboard') || !this.openNow(c.roomId)) return;
+    if (!this.canDraw(client)) return; // 강의 모드: 학생 발신 무시
     client.to(this.room(client)).emit('wb:stroke:partial', { sid, meta, points });
   }
   @SubscribeMessage('wb:clear')
   wbClear(@ConnectedSocket() client: Socket) {
     const c = this.ctx(client);
     if (!this.featureOn(c.roomId, 'whiteboard') || !this.openNow(c.roomId)) return { ok: false, closed: true };
+    if (!this.canDraw(client)) return { ok: false, role: 'viewer' }; // 강의 모드: 학생은 지우기 불가
     client.to(this.room(client)).emit('wb:clear', {});
     return { ok: true };
   }
@@ -216,6 +254,7 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   async wbSave(@ConnectedSocket() client: Socket, @MessageBody() { strokes, backgroundUrl }: { strokes: unknown; backgroundUrl?: string | null }) {
     const c = this.ctx(client);
     if (!this.featureOn(c.roomId, 'whiteboard') || !this.openNow(c.roomId)) return { ok: false, closed: true };
+    if (!this.canDraw(client)) return { ok: false, role: 'viewer' }; // 강의 모드: host 만 스냅샷 저장
     await this.svc.saveSnapshot(c.roomId, c.participantId, strokes, backgroundUrl);
     return { ok: true };
   }
