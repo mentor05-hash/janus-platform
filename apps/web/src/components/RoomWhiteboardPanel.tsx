@@ -32,6 +32,11 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs }: { bookingId
   const [color, setColor] = useState(COLORS[0]);
   const [width, setWidth] = useState(3);
   const [tool, setTool] = useState<'pen' | 'eraser' | 'highlighter'>('pen');
+  // 강의(1:다) 모드: 서버가 wb:join 으로 role·mode·roster 를 알려준다. viewer=학생(열람 전용).
+  const [mode, setMode] = useState<'session' | 'lecture'>('session');
+  const [role, setRole] = useState<string>('viewer');
+  const [roster, setRoster] = useState<Array<{ participantId: string; name?: string; role?: string }>>([]);
+  const isViewer = mode === 'lecture' && role !== 'host' && role !== 'presenter';
   const [status, setStatus] = useState<'connecting' | 'ready' | 'off'>('connecting');
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved'>('idle');
   const [live, setLive] = useState<SessionInfo>(rs.session);
@@ -120,9 +125,10 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs }: { bookingId
   useEffect(() => {
     const s = io(rs.url, { path: '/api/rt/v1/socket.io', auth: { token: rs.token }, transports: ['websocket'] });
     sockRef.current = s;
-    s.on('connect', () => s.emit('wb:join', {}, (r: { ok: boolean; strokes?: Stroke[]; backgroundUrl?: string | null; session?: SessionInfo }) => {
+    s.on('connect', () => s.emit('wb:join', {}, (r: { ok: boolean; strokes?: Stroke[]; backgroundUrl?: string | null; session?: SessionInfo; mode?: 'session' | 'lecture'; role?: string; roster?: Array<{ participantId: string; name?: string; role?: string }> }) => {
       if (!r?.ok) { setStatus('off'); return; }
       strokesRef.current = Array.isArray(r.strokes) ? r.strokes : []; if (r.session) setLive(r.session); setStatus('ready'); redraw();
+      if (r.mode) setMode(r.mode); if (r.role) setRole(r.role); if (Array.isArray(r.roster)) setRoster(r.roster);
       if (r.backgroundUrl) loadBg(r.backgroundUrl);
     }));
     s.on('wb:stroke:partial', ({ sid, meta, points }: { sid: string; meta: Partial<Stroke>; points: Pt[] }) => {
@@ -132,6 +138,8 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs }: { bookingId
     });
     s.on('wb:stroke', ({ stroke, sid }: { stroke: Stroke; sid?: string }) => { if (sid) liveRef.current.delete(sid); strokesRef.current.push(stroke); redraw(); });
     s.on('wb:clear', () => { strokesRef.current = []; liveRef.current.clear(); redraw(); });
+    s.on('roster:join', (p: { participantId: string; name?: string; role?: string }) => setRoster((prev) => prev.some((x) => x.participantId === p.participantId) ? prev : [...prev, p]));
+    s.on('roster:leave', ({ participantId }: { participantId: string }) => setRoster((prev) => prev.filter((x) => x.participantId !== participantId)));
     s.on('wb:image', ({ fileUrl }: { fileUrl: string | null }) => loadBg(fileUrl));
     s.on('session:closed', (e: { closesAt?: string }) => setLive((v) => ({ ...v, state: 'closed', closesAt: e.closesAt ?? v.closesAt })));
     s.on('session:revoked', () => setStatus('off'));
@@ -174,6 +182,7 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs }: { bookingId
     pointersRef.current.set(e.pointerId, canvasSpace(e));
     if (pointersRef.current.size >= 2) { finalizeStroke(); beginPinch(); return; }
     if (!rw) return; // 세션 창 밖 → 필기 불가(보기 전용)
+    if (isViewer) return; // 강의 모드 학생 → 열람 전용(줌/팬은 위 2손가락 분기에서 허용)
     if (rejected(e)) return;
     const p0 = pt(e);
     drawingRef.current = tool === 'eraser' ? { points: [p0], color: '#000', width: Math.max(16, width * 4), erase: true }
@@ -241,28 +250,39 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs }: { bookingId
           <>
             {!rw && <div style={{ padding: '8px 14px', background: phase === 'closed' ? 'var(--line-soft,#eef2f4)' : 'var(--teal-50,#EAF3F7)', color: 'var(--muted)', fontSize: 12.5, textAlign: 'center', borderBottom: '1px solid var(--line)' }}>{phase === 'closed' ? '🔒 ' : '⏳ '}{notice} 필기는 예약 시간대에만 가능하고, 지금은 열람만 됩니다.</div>}
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '10px 14px', flexWrap: 'wrap', borderBottom: '1px solid var(--line)' }}>
-              {COLORS.map((c) => (
-                <button key={c} onClick={() => { setColor(c); setTool((t) => (t === 'eraser' ? 'pen' : t)); }} title={c} aria-label={`색상 ${c}`} aria-pressed={color === c && tool !== 'eraser'} style={{ width: 24, height: 24, borderRadius: '50%', background: c, cursor: 'pointer', border: color === c && tool !== 'eraser' ? '3px solid var(--teal)' : '2px solid var(--line)' }} />
-              ))}
-              {[2, 3, 6, 10].map((w) => (<button key={w} onClick={() => setWidth(w)} style={{ width: 28, height: 26, borderRadius: 6, cursor: 'pointer', border: width === w ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontWeight: 700, fontSize: 12 }}>{w}</button>))}
-              <button onClick={() => setTool('pen')} aria-pressed={tool === 'pen'} title="펜" style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'pen' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>✏️</button>
-              <button onClick={() => setTool('highlighter')} aria-pressed={tool === 'highlighter'} title="형광펜" style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'highlighter' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>🖍</button>
-              <button onClick={() => setTool('eraser')} aria-pressed={tool === 'eraser'} title="지우개" style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'eraser' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>🧽</button>
-              <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
-              <input ref={fileRef} type="file" accept="application/pdf,image/*" hidden onChange={onAttach} />
-              <button className="btn ghost sm" disabled={!rw} onClick={() => fileRef.current?.click()}>🖼 이미지</button>
-              <button className="btn ghost sm" disabled={!rw} onClick={openCamera}>📷 촬영</button>
-              <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
+              {mode === 'lecture' && (
+                <span style={{ fontSize: 12, fontWeight: 800, padding: '4px 10px', borderRadius: 999, background: isViewer ? '#fbeae7' : '#e9f5ee', color: isViewer ? '#a5372a' : '#1e7a4d', border: `1px solid ${isViewer ? '#f0cfc9' : '#cfe6d8'}` }}>
+                  {isViewer ? '🔴 강의 열람 중' : `🟢 강의 중 · 참석 ${roster.length}명`}
+                </span>
+              )}
+              {!isViewer && (<>
+                {COLORS.map((c) => (
+                  <button key={c} onClick={() => { setColor(c); setTool((t) => (t === 'eraser' ? 'pen' : t)); }} title={c} aria-label={`색상 ${c}`} aria-pressed={color === c && tool !== 'eraser'} style={{ width: 24, height: 24, borderRadius: '50%', background: c, cursor: 'pointer', border: color === c && tool !== 'eraser' ? '3px solid var(--teal)' : '2px solid var(--line)' }} />
+                ))}
+                {[2, 3, 6, 10].map((w) => (<button key={w} onClick={() => setWidth(w)} style={{ width: 28, height: 26, borderRadius: 6, cursor: 'pointer', border: width === w ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontWeight: 700, fontSize: 12 }}>{w}</button>))}
+                <button onClick={() => setTool('pen')} aria-pressed={tool === 'pen'} title="펜" style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'pen' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>✏️</button>
+                <button onClick={() => setTool('highlighter')} aria-pressed={tool === 'highlighter'} title="형광펜" style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'highlighter' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>🖍</button>
+                <button onClick={() => setTool('eraser')} aria-pressed={tool === 'eraser'} title="지우개" style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'eraser' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>🧽</button>
+                <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
+                <input ref={fileRef} type="file" accept="application/pdf,image/*" hidden onChange={onAttach} />
+                <button className="btn ghost sm" disabled={!rw} onClick={() => fileRef.current?.click()}>🖼 이미지</button>
+                <button className="btn ghost sm" disabled={!rw} onClick={openCamera}>📷 촬영</button>
+                <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
+              </>)}
               <button className="btn ghost sm" title="축소" onClick={() => zoomAt(W / 2, H / 2, 1 / 1.25)}>🔍−</button>
               <button className="btn ghost sm" title="원본 크기" onClick={resetZoom} style={{ minWidth: 52, fontVariantNumeric: 'tabular-nums' }}>{zoomPct}%</button>
               <button className="btn ghost sm" title="확대" onClick={() => zoomAt(W / 2, H / 2, 1.25)}>🔍＋</button>
               <div style={{ flex: 1 }} />
-              <span style={{ fontSize: 11, color: 'var(--muted)' }}>{saveState === 'saving' ? '저장 중…' : saveState === 'saved' ? '자동 저장됨 ✓' : saveState === 'dirty' ? '변경됨' : ''}</span>
-              <button className="btn ghost sm" disabled={!rw} onClick={clear}>전체 지우기</button>
-              <button className="btn sm" disabled={!rw} onClick={save}>저장</button>
+              {isViewer ? (
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>👁 선생님 판서를 실시간으로 봅니다</span>
+              ) : (<>
+                <span style={{ fontSize: 11, color: 'var(--muted)' }}>{saveState === 'saving' ? '저장 중…' : saveState === 'saved' ? '자동 저장됨 ✓' : saveState === 'dirty' ? '변경됨' : ''}</span>
+                <button className="btn ghost sm" disabled={!rw} onClick={clear}>전체 지우기</button>
+                <button className="btn sm" disabled={!rw} onClick={save}>저장</button>
+              </>)}
             </div>
             <div style={{ position: 'relative' }}>
-              <canvas ref={canvasRef} width={W} height={H} role="img" aria-label="공유 필기 캔버스" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up} style={{ width: '100%', aspectRatio: `${W} / ${H}`, background: '#fff', touchAction: 'none', cursor: 'crosshair', display: 'block' }} />
+              <canvas ref={canvasRef} width={W} height={H} role="img" aria-label="공유 필기 캔버스" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up} style={{ width: '100%', aspectRatio: `${W} / ${H}`, background: '#fff', touchAction: 'none', cursor: isViewer ? 'default' : 'crosshair', display: 'block' }} />
               {camOn && (
                 <div style={{ position: 'absolute', inset: 0, background: '#000', display: 'flex', flexDirection: 'column' }}>
                   <video ref={videoRef} playsInline muted style={{ flex: 1, width: '100%', objectFit: 'contain', minHeight: 0 }} />

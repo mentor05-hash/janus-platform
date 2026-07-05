@@ -41,6 +41,11 @@ export function RoomWhiteboardScreen({ title, onClose, embedded, session: rs }: 
   const bgUrlRef = useRef<string | null>(null);
   const camStreamRef = useRef<MediaStream | null>(null);
   const okRef = useRef(true);
+  // 강의(1:다) 모드 — 서버 wb:join 이 role·mode·roster 를 알려줌. viewer=학생(열람 전용).
+  const [mode, setMode] = useState<'session' | 'lecture'>('session');
+  const [role, setRole] = useState<string>('viewer');
+  const [roster, setRoster] = useState<Array<{ participantId: string; name?: string; role?: string }>>([]);
+  const viewerRef = useRef(false); // 그리기 게이트(핸들러 클로저용 미러)
   const [color, setColor] = useState(COLORS[0]);
   const [width, setWidth] = useState(4);
   const [tool, setTool] = useState<'pen' | 'eraser' | 'highlighter'>('pen');
@@ -120,7 +125,7 @@ export function RoomWhiteboardScreen({ title, onClose, embedded, session: rs }: 
     const down = (e: PointerEvent) => {
       if (status !== 'ready') return; cv.setPointerCapture?.(e.pointerId); pointersRef.current.set(e.pointerId, cs(e));
       if (pointersRef.current.size >= 2) { finalize(); beginPinch(); return; }
-      if (!okRef.current) return; if (rejected(e)) return;
+      if (!okRef.current) return; if (viewerRef.current) return; if (rejected(e)) return;
       const p0 = pt(e);
       drawingRef.current = toolRef.current === 'eraser' ? { points: [p0], color: '#000', width: Math.max(16, widthRef.current * 4), erase: true }
         : toolRef.current === 'highlighter' ? { points: [p0], color: colorRef.current, width: Math.max(14, widthRef.current * 4), highlight: true }
@@ -148,14 +153,17 @@ export function RoomWhiteboardScreen({ title, onClose, embedded, session: rs }: 
 
     const s = io(rs.url, { path: '/api/rt/v1/socket.io', auth: { token: rs.token }, transports: ['websocket'] });
     sockRef.current = s;
-    s.on('connect', () => s.emit('wb:join', {}, (r: { ok: boolean; strokes?: Stroke[]; backgroundUrl?: string | null; session?: SessionInfo }) => {
+    s.on('connect', () => s.emit('wb:join', {}, (r: { ok: boolean; strokes?: Stroke[]; backgroundUrl?: string | null; session?: SessionInfo; mode?: 'session' | 'lecture'; role?: string; roster?: Array<{ participantId: string; name?: string; role?: string }> }) => {
       if (!r?.ok) { setStatus('off'); return; }
       strokesRef.current = Array.isArray(r.strokes) ? r.strokes : []; if (r.session) setSession(r.session); setStatus('ready'); redraw();
+      if (r.mode) setMode(r.mode); if (r.role) setRole(r.role); if (Array.isArray(r.roster)) setRoster(r.roster);
       if (r.backgroundUrl) loadBg(r.backgroundUrl);
     }));
     s.on('wb:stroke:partial', ({ sid, meta, points }: { sid: string; meta: Partial<Stroke>; points: Pt[] }) => { let st = liveRef.current.get(sid); if (!st) { st = { color: meta.color ?? '#16242B', width: meta.width ?? 4, erase: meta.erase, highlight: meta.highlight, points: [] }; liveRef.current.set(sid, st); } st.points.push(...points); requestPaint(); });
     s.on('wb:stroke', ({ stroke, sid }: { stroke: Stroke; sid?: string }) => { if (sid) liveRef.current.delete(sid); strokesRef.current.push(stroke); redraw(); });
     s.on('wb:clear', () => { strokesRef.current = []; liveRef.current.clear(); redraw(); });
+    s.on('roster:join', (p: { participantId: string; name?: string; role?: string }) => setRoster((prev) => prev.some((x) => x.participantId === p.participantId) ? prev : [...prev, p]));
+    s.on('roster:leave', ({ participantId }: { participantId: string }) => setRoster((prev) => prev.filter((x) => x.participantId !== participantId)));
     s.on('wb:image', ({ fileUrl }: { fileUrl: string | null }) => loadBg(fileUrl));
     s.on('session:closed', (e: { closesAt?: string }) => setSession((v) => ({ ...v, state: 'closed', closesAt: e.closesAt ?? v.closesAt })));
     s.on('session:revoked', () => setStatus('off'));
@@ -168,8 +176,10 @@ export function RoomWhiteboardScreen({ title, onClose, embedded, session: rs }: 
   useEffect(() => () => closeCamera(), []);
   const phase = useSessionPhase(session);
   const rw = canInteract(phase);
+  const isViewer = mode === 'lecture' && role !== 'host' && role !== 'presenter';
   const notice = sessionNotice(phase, session);
   useEffect(() => { okRef.current = rw; }, [rw]);
+  useEffect(() => { viewerRef.current = isViewer; }, [isViewer]);
   useEffect(() => { if (phase === 'closed' && status === 'ready') save(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, [phase]);
   useEffect(() => { if (!rw && call.inCall) call.hangup(); }, [rw, call.inCall]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -228,22 +238,33 @@ export function RoomWhiteboardScreen({ title, onClose, embedded, session: rs }: 
           <>
             {!rw && <View style={[styles.notice, phase === 'closed' && { backgroundColor: C.lineSoft }]}><Text style={styles.noticeT}>{phase === 'closed' ? '🔒 ' : '⏳ '}{notice} 필기는 예약 시간대에만 가능하고 지금은 열람만 됩니다.</Text></View>}
             <View style={styles.tools}>
-              {COLORS.map((c) => (<TouchableOpacity key={c} onPress={() => pick(c)} style={[styles.swatch, { backgroundColor: c, borderColor: color === c ? C.teal : C.line, borderWidth: color === c ? 3 : 1 }]} />))}
-              <View style={{ width: 8 }} />
-              {[2, 4, 8].map((w) => (<TouchableOpacity key={w} onPress={() => pickW(w)} style={[styles.wbtn, width === w && { borderColor: C.teal, borderWidth: 2 }]}><Text style={styles.wtxt}>{w}</Text></TouchableOpacity>))}
-              <View style={{ width: 6 }} />
-              <TouchableOpacity onPress={() => pickTool('pen')} style={[styles.wbtn, { width: 40 }, tool === 'pen' && { borderColor: C.teal, borderWidth: 2 }]}><Text style={styles.wtxt}>✏️</Text></TouchableOpacity>
-              <TouchableOpacity onPress={() => pickTool('highlighter')} style={[styles.wbtn, { width: 40 }, tool === 'highlighter' && { borderColor: C.teal, borderWidth: 2 }]}><Text style={styles.wtxt}>🖍</Text></TouchableOpacity>
-              <TouchableOpacity onPress={() => pickTool('eraser')} style={[styles.wbtn, { width: 40 }, tool === 'eraser' && { borderColor: C.teal, borderWidth: 2 }]}><Text style={styles.wtxt}>🧽</Text></TouchableOpacity>
-              <TouchableOpacity disabled={!rw} onPress={attachImage} style={[styles.wbtn, { width: 40, opacity: rw ? 1 : 0.4 }]}><Text style={styles.wtxt}>🖼</Text></TouchableOpacity>
-              <TouchableOpacity disabled={!rw} onPress={openCamera} style={[styles.wbtn, { width: 40, opacity: rw ? 1 : 0.4 }]}><Text style={styles.wtxt}>📷</Text></TouchableOpacity>
+              {mode === 'lecture' && (
+                <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: isViewer ? '#fbeae7' : '#e9f5ee', marginRight: 6 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: isViewer ? '#a5372a' : '#1e7a4d' }}>{isViewer ? '🔴 강의 열람 중' : `🟢 강의 중 · 참석 ${roster.length}`}</Text>
+                </View>
+              )}
+              {!isViewer && (<>
+                {COLORS.map((c) => (<TouchableOpacity key={c} onPress={() => pick(c)} style={[styles.swatch, { backgroundColor: c, borderColor: color === c ? C.teal : C.line, borderWidth: color === c ? 3 : 1 }]} />))}
+                <View style={{ width: 8 }} />
+                {[2, 4, 8].map((w) => (<TouchableOpacity key={w} onPress={() => pickW(w)} style={[styles.wbtn, width === w && { borderColor: C.teal, borderWidth: 2 }]}><Text style={styles.wtxt}>{w}</Text></TouchableOpacity>))}
+                <View style={{ width: 6 }} />
+                <TouchableOpacity onPress={() => pickTool('pen')} style={[styles.wbtn, { width: 40 }, tool === 'pen' && { borderColor: C.teal, borderWidth: 2 }]}><Text style={styles.wtxt}>✏️</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => pickTool('highlighter')} style={[styles.wbtn, { width: 40 }, tool === 'highlighter' && { borderColor: C.teal, borderWidth: 2 }]}><Text style={styles.wtxt}>🖍</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => pickTool('eraser')} style={[styles.wbtn, { width: 40 }, tool === 'eraser' && { borderColor: C.teal, borderWidth: 2 }]}><Text style={styles.wtxt}>🧽</Text></TouchableOpacity>
+                <TouchableOpacity disabled={!rw} onPress={attachImage} style={[styles.wbtn, { width: 40, opacity: rw ? 1 : 0.4 }]}><Text style={styles.wtxt}>🖼</Text></TouchableOpacity>
+                <TouchableOpacity disabled={!rw} onPress={openCamera} style={[styles.wbtn, { width: 40, opacity: rw ? 1 : 0.4 }]}><Text style={styles.wtxt}>📷</Text></TouchableOpacity>
+              </>)}
               <TouchableOpacity onPress={() => zoomAt(W / 2, H / 2, 1 / 1.25)} style={[styles.wbtn, { width: 34 }]}><Text style={styles.wtxt}>−</Text></TouchableOpacity>
               <TouchableOpacity onPress={resetZoom} style={[styles.wbtn, { width: 48 }]}><Text style={styles.wtxt}>{zoomPct}%</Text></TouchableOpacity>
               <TouchableOpacity onPress={() => zoomAt(W / 2, H / 2, 1.25)} style={[styles.wbtn, { width: 34 }]}><Text style={styles.wtxt}>＋</Text></TouchableOpacity>
               <View style={{ flex: 1 }} />
-              <Text style={{ fontSize: 10, color: C.muted, marginRight: 4 }}>{saveState === 'saving' ? '저장 중…' : saveState === 'saved' ? '자동저장 ✓' : saveState === 'dirty' ? '변경됨' : ''}</Text>
-              <TouchableOpacity disabled={!rw} onPress={clear} style={[styles.act, !rw && { opacity: 0.4 }]}><Text style={styles.actT}>전체 지우기</Text></TouchableOpacity>
-              <TouchableOpacity disabled={!rw} onPress={save} style={[styles.act, styles.actP, !rw && { opacity: 0.4 }]}><Text style={[styles.actT, { color: '#fff' }]}>저장</Text></TouchableOpacity>
+              {isViewer ? (
+                <Text style={{ fontSize: 11, color: C.muted }}>👁 선생님 판서 열람</Text>
+              ) : (<>
+                <Text style={{ fontSize: 10, color: C.muted, marginRight: 4 }}>{saveState === 'saving' ? '저장 중…' : saveState === 'saved' ? '자동저장 ✓' : saveState === 'dirty' ? '변경됨' : ''}</Text>
+                <TouchableOpacity disabled={!rw} onPress={clear} style={[styles.act, !rw && { opacity: 0.4 }]}><Text style={styles.actT}>전체 지우기</Text></TouchableOpacity>
+                <TouchableOpacity disabled={!rw} onPress={save} style={[styles.act, styles.actP, !rw && { opacity: 0.4 }]}><Text style={[styles.actT, { color: '#fff' }]}>저장</Text></TouchableOpacity>
+              </>)}
             </View>
             <View ref={hostRef} style={styles.canvasHost} />
           </>
