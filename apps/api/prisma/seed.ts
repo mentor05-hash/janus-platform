@@ -67,18 +67,20 @@ async function main() {
       [ID.center, '강남센터(더미)', '서울'],
     );
 
-    // 2) 회원 등급 4단계 (주간 부여 크레딧)
-    const grades: [string, string, number, number, number][] = [
-      [ID.gradeBasic, 'Basic', 1, 0, 0],
-      [ID.gradeStd, 'Standard', 2, 30_000, 1],
-      [ID.gradePrem, 'Premium', 3, 60_000, 2],
-      [ID.gradeVip, 'VIP', 4, 120_000, 3],
+    // 2) 회원 등급 4단계. 하위(Basic·Standard)=주간 소멸(use-it-or-lose-it), 상위(Premium·VIP)=월간 풀.
+    //    지급량은 유닛 이코노믹스 확정값(배분 60%·소멸 15%·마진 30%, 1크=0.5원): 월 Premium 210k / VIP 350k.
+    //    [id, name, tier, grant(주간=주/월간=월), expire_policy, priority]
+    const grades: [string, string, number, number, string, number][] = [
+      [ID.gradeBasic, 'Basic', 1, 0, 'end_of_week', 0],
+      [ID.gradeStd, 'Standard', 2, 30_000, 'end_of_week', 1],
+      [ID.gradePrem, 'Premium', 3, 210_000, 'end_of_month', 2],
+      [ID.gradeVip, 'VIP', 4, 350_000, 'end_of_month', 3],
     ];
-    for (const [id, name, tier, weekly, prio] of grades) {
+    for (const [id, name, tier, grant, expire, prio] of grades) {
       await client.query(
         `INSERT INTO membership_grade (id, name, tier, weekly_credits, expire_policy, priority)
-         VALUES ($1,$2,$3,$4,'end_of_week',$5) ON CONFLICT (id) DO NOTHING`,
-        [id, name, tier, weekly, prio],
+         VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (id) DO NOTHING`,
+        [id, name, tier, grant, expire, prio],
       );
     }
 

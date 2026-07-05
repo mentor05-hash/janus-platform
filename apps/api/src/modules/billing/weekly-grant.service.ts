@@ -46,7 +46,7 @@ export class WeeklyGrantService {
    * @param onlyStudentId 지정 시 해당 학생만(운영 단일 재부여·테스트 격리용).
    */
   async runGrant(now = new Date(), onlyStudentId?: string): Promise<number> {
-    const expireAt = endOfWeekKst(now);
+    // 만료(=소멸) 시각은 등급별 expire_policy 로 결정(주말/월말). 아래 루프에서 등급마다 계산.
     // 외부학생 주간 크레딧 부여 정책(마스터 설정) — 기본 제외
     const extRow = await this.prisma.system_setting.findUnique({ where: { key: 'external_student_policy' } });
     const extWeeklyGrant = ((extRow?.value as { weeklyGrant?: boolean } | null)?.weeklyGrant) ?? false;
@@ -63,11 +63,14 @@ export class WeeklyGrantService {
       if (!extWeeklyGrant && resolveStudentType(s) === 'external') continue;
       const weekly = s.membership_grade?.weekly_credits ?? 0;
       if (weekly <= 0) continue;
+      // 등급별 만료: 월간 풀(월말 소멸) vs 주간(주말 소멸). 월간이면 dup 검사(같은 expire_at)로
+      // 자동 월 1회만 부여됨(주간 cron 이 재실행돼도 이미 있는 월말 lot 발견 → 스킵).
+      const expireAt = s.membership_grade?.expire_policy === 'end_of_month' ? endOfMonthKst(now) : endOfWeekKst(now);
       const acct = await this.prisma.credit_account.findUnique({
         where: { student_id: s.account_id },
       });
       if (!acct) continue;
-      // 멱등(L2): 이번 주 부여분이 이미 있으면 중복 부여 방지(cron 중복 실행/수동 재실행)
+      // 멱등(L2): 이번 기간 부여분이 이미 있으면 중복 부여 방지(cron 중복 실행/수동 재실행)
       const dup = await this.prisma.weekly_credit_grant.findFirst({
         where: { account_id: acct.id, expire_at: expireAt },
       });
@@ -169,5 +172,17 @@ export function endOfWeekKst(now: Date): Date {
     k.getUTCDate() + daysUntilSun,
   );
   const expireKst = sunMidnightKstAsUtc + (23 * 60 + 59) * 60 * 1000; // 일 23:59:00 KST
+  return new Date(expireKst - KST);
+}
+
+/**
+ * 해당 월 말일 23:59:00(KST) — 월간 풀(상위 등급) 소멸 시각.
+ * 다음 달 1일 00:00 KST 에서 1분을 빼 "말일 23:59:00 KST"를 만든다(주말 헬퍼와 동일한 방식).
+ */
+export function endOfMonthKst(now: Date): Date {
+  const KST = 9 * 60 * 60 * 1000;
+  const k = new Date(now.getTime() + KST);
+  const firstNextMonthKstAsUtc = Date.UTC(k.getUTCFullYear(), k.getUTCMonth() + 1, 1); // 다음 달 1일 00:00 KST
+  const expireKst = firstNextMonthKstAsUtc - 60 * 1000; // 말일 23:59:00 KST
   return new Date(expireKst - KST);
 }

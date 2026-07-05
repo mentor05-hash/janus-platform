@@ -13,6 +13,7 @@ import {
   weekdayKst,
 } from '../../common/time/kst';
 import { AccountRole, BookingStatus } from '../../config/enums';
+import { CREDIT_WON_RATIO } from '../../config/constants';
 import {
   mondayOf,
   WeeklyTemplate,
@@ -126,7 +127,9 @@ export class PayrollService {
       where: { teacher_id: teacherId, status: { in: [BookingStatus.CONFIRMED, BookingStatus.DONE] }, start_at: { gte: start, lte: end } },
       _sum: { charged_credits: true }, _count: { _all: true },
     });
-    const revenue = agg._sum.charged_credits ?? 0;
+    // 크레딧 매출 → 원 환산(1크=0.5원, O1). 배분·명세는 원 기준.
+    const creditRevenue = agg._sum.charged_credits ?? 0;
+    const revenue = Math.round(creditRevenue * CREDIT_WON_RATIO);
     const sessions = agg._count._all;
     const gross = this.grossByModel(revenue, sharePct, model);
     const deductions = computeDeductions(gross);
@@ -143,7 +146,8 @@ export class PayrollService {
       center: tp.center?.name ?? '-',
       fullTime: isFullTime(tp.employment_type),
       sessions,
-      revenue,              // 크레딧 매출(원)
+      creditRevenue,        // 크레딧 매출(크레딧 단위)
+      revenue,              // 원 매출(= creditRevenue × 0.5)
       sharePct,
       model,                // 급여 모델(share/floor/base_incentive)
       gross,                // 세전 급여(모델 반영)
