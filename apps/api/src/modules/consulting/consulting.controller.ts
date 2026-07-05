@@ -84,6 +84,18 @@ export class ConsultingController {
     return this.consulting.assignConsultant(id, dto, user);
   }
 
+  // ── Phase 3: LLM 분석 (결제완료 게이트, 스태프/배정 컨설턴트) ──
+  @Post('applications/:id/analysis')
+  @HttpCode(200)
+  runAnalysis(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.consulting.runAnalysis(id, user);
+  }
+
+  @Get('applications/:id/analysis')
+  getAnalysis(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.consulting.getAnalysis(id, user);
+  }
+
   // 자료 원문 다운로드(🔒 게이팅) — envelope 미적용(@Res 스트리밍).
   @Get('applications/:id/documents/:docId')
   async downloadDocument(

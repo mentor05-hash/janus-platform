@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   AnswerSimilarityInput,
   AnswerSimilarityResult,
+  ConsultingAnalysisInput,
+  ConsultingAnalysisResult,
   LlmProvider,
   ReportReviewInput,
   ReportReviewResult,
@@ -107,5 +109,37 @@ export class MockLlmProvider implements LlmProvider {
     let inter = 0;
     for (const x of a) if (b.has(x)) inter++;
     return inter / (a.size + b.size - inter);
+  }
+
+  // 컨설팅 분석(stub) — 메타·서류 목록 기반 휴리스틱 초안. 식별정보 미사용.
+  async analyzeConsulting(input: ConsultingAnalysisInput): Promise<ConsultingAnalysisResult> {
+    const types = new Set(input.documents.map((d) => d.type));
+    const missing: string[] = [];
+    if (!types.has('student_record')) missing.push('생활기록부(생기부)');
+    if (!types.has('transcript')) missing.push('성적표');
+    const label: Record<string, string> = { susi: '수시', jeongsi: '정시', both: '수시·정시', essay: '자소서·면접' };
+    const interest = label[input.interest] ?? input.interest;
+    const tight = input.grade === '고3' || input.grade === 'N수';
+    this.logger.log(`[stub] analyzeConsulting grade=${input.grade} interest=${input.interest} docs=${input.documents.length}`);
+    return {
+      summary: {
+        strengths: [`${input.grade} 학습 이력이 정리되어 있음`, `${interest} 준비 방향이 뚜렷함`],
+        concerns: tight ? ['지원 전략 확정까지 시간이 촉박함'] : ['핵심 활동의 일관성 보강 필요'],
+        highlights: [`제출 자료 ${input.documents.length}건 확인`],
+      },
+      diagnostic: {
+        fit_directions: interest.includes('수시')
+          ? ['학생부종합 중심 검토', '교과전형 병행 가능성']
+          : ['정시 지원권 대학 재점검'],
+        activity_suggestions: ['지원 학과 관련 심화활동 1건 추가', '자기소개서 소재 정리'],
+        target_gap: '목표 대학 기준 대비 세부 격차는 성적표 원문 분석 후 산정 필요',
+      },
+      document_check: {
+        missing,
+        inconsistencies: [],
+        requests: missing.length ? ['누락 서류 제출 요청'] : ['추가 요청 없음'],
+      },
+      model: 'mock',
+    };
   }
 }

@@ -48,8 +48,24 @@ export interface ScoreOcrResult {
   note: string;
 }
 
+// ── 컨설팅 분석(생기부 등 · 설계안 §7) ──
+// 입력에는 식별정보(이름·연락처)를 넣지 않는다(마스킹). 산출물은 컨설턴트 검수용 "초안".
+export interface ConsultingAnalysisInput {
+  grade: string;
+  interest: string;
+  package: string;
+  documents: { type: string; name: string }[];
+}
+export interface ConsultingAnalysisResult {
+  summary: { strengths: string[]; concerns: string[]; highlights: string[] };
+  diagnostic: { fit_directions: string[]; activity_suggestions: string[]; target_gap: string };
+  document_check: { missing: string[]; inconsistencies: string[]; requests: string[] };
+  model: string; // 'mock' | claude 모델 태그
+}
+
 export interface LlmProvider {
   reviewReport(input: ReportReviewInput): Promise<ReportReviewResult>;
   checkAnswerSimilarity(input: AnswerSimilarityInput): Promise<AnswerSimilarityResult>;
   extractScoreReport(input: ScoreOcrInput): Promise<ScoreOcrResult>;
+  analyzeConsulting(input: ConsultingAnalysisInput): Promise<ConsultingAnalysisResult>;
 }

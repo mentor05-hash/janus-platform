@@ -21,15 +21,24 @@ import {
 import { validateDocument } from './domain/documents';
 import { canViewDocumentContent, resolvePaymentAmount } from './domain/payment';
 import { PAYMENT_PROVIDER, type PaymentProvider } from './payment/payment.types';
+import { buildAnalysisInput } from './domain/analysis';
+import { LLM_PROVIDER, type LlmProvider } from '../llm/llm.types';
 
-// Phase 1: 도메인 & 신청/업로드. Phase 2: 결제 상태 모델링·게이팅·컨설턴트 배정.
+// Phase 1: 신청/업로드. Phase 2: 결제·게이팅·배정. Phase 3: LLM 분석.
 @Injectable()
 export class ConsultingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly files: FilesService,
     @Inject(PAYMENT_PROVIDER) private readonly payments: PaymentProvider,
+    @Inject(LLM_PROVIDER) private readonly llm: LlmProvider,
   ) {}
+
+  private assertStaffOrConsultant(app: { consultant_id: string | null }, user: AuthUser): void {
+    if (this.isStaff(user)) return;
+    if (app.consultant_id && app.consultant_id === user.id) return;
+    throw new ForbiddenException('관리자 또는 배정된 컨설턴트만 접근할 수 있습니다.');
+  }
 
   private isStaff(user: AuthUser): boolean {
     return user.role === 'admin' || user.role === 'hr';
@@ -244,6 +253,71 @@ export class ConsultingService {
 
     const { data } = await this.files.readBytes(doc.file_id);
     return { data, filename: doc.original_name, contentType: doc.mime };
+  }
+
+  // ── Phase 3: LLM 분석 ────────────────────────────────────────────
+  // 스태프/배정 컨설턴트가 트리거. 결제 완료(게이트) 필수. 식별정보 마스킹 후 LLM 호출.
+  async runAnalysis(id: string, user: AuthUser) {
+    const app = await this.prisma.consulting_application.findUnique({ where: { id } });
+    if (!app) throw new NotFoundException('신청을 찾을 수 없습니다.');
+    this.assertStaffOrConsultant(app, user);
+    const pay = await this.prisma.consulting_payment.findUnique({ where: { application_id: id } });
+    if (pay?.status !== 'paid') throw new ForbiddenException('결제 완료 후 분석할 수 있습니다.');
+
+    const docs = await this.prisma.consulting_document.findMany({ where: { application_id: id } });
+    await this.prisma.consulting_analysis.upsert({
+      where: { application_id: id },
+      create: { application_id: id, status: 'running' },
+      update: { status: 'running' },
+    });
+    try {
+      const result = await this.llm.analyzeConsulting(buildAnalysisInput(app, docs));
+      const row = await this.prisma.consulting_analysis.update({
+        where: { application_id: id },
+        data: {
+          status: 'done',
+          model: result.model,
+          summary: result.summary,
+          diagnostic: result.diagnostic,
+          document_check: result.document_check,
+          generated_at: new Date(),
+        },
+      });
+      return this.toAnalysisDto(row);
+    } catch (e) {
+      await this.prisma.consulting_analysis.update({ where: { application_id: id }, data: { status: 'failed' } });
+      throw new BadRequestException(`분석에 실패했습니다: ${(e as Error).message}`);
+    }
+  }
+
+  // 분석 결과 조회 — 스태프/배정 컨설턴트, 결제 완료 게이트.
+  async getAnalysis(id: string, user: AuthUser) {
+    const app = await this.prisma.consulting_application.findUnique({ where: { id } });
+    if (!app) throw new NotFoundException('신청을 찾을 수 없습니다.');
+    this.assertStaffOrConsultant(app, user);
+    const pay = await this.prisma.consulting_payment.findUnique({ where: { application_id: id } });
+    if (pay?.status !== 'paid') throw new ForbiddenException('결제 완료 후 열람할 수 있습니다.');
+    const row = await this.prisma.consulting_analysis.findUnique({ where: { application_id: id } });
+    return row ? this.toAnalysisDto(row) : null;
+  }
+
+  private toAnalysisDto(a: {
+    status: string;
+    model: string | null;
+    summary: unknown;
+    diagnostic: unknown;
+    document_check: unknown;
+    generated_at: Date | null;
+  }) {
+    return {
+      status: a.status,
+      model: a.model,
+      summary: a.summary ?? null,
+      diagnostic: a.diagnostic ?? null,
+      documentCheck: a.document_check ?? null,
+      generatedAt: a.generated_at,
+      note: '컨설턴트 검수용 초안입니다. 확정·발송 전 반드시 검토하세요.',
+    };
   }
 
   private toPaymentDto(

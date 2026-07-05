@@ -2,6 +2,8 @@ import { Logger } from '@nestjs/common';
 import {
   AnswerSimilarityInput,
   AnswerSimilarityResult,
+  ConsultingAnalysisInput,
+  ConsultingAnalysisResult,
   LlmProvider,
   ReportReviewInput,
   ReportReviewResult,
@@ -134,5 +136,31 @@ export class ClaudeLlmProvider implements LlmProvider {
       grade: i.grade ?? null,
     })).filter((i) => i.subject);
     return { demo: false, period: parsed.period, examType: parsed.examType, items, note: '실 비전 모델(Claude)로 추출했습니다. 값을 확인하세요.' };
+  }
+
+  // 컨설팅 분석 초안 — 식별정보 없는 메타·서류 목록만 투입. 미설정/오류 시 안전 기본값.
+  async analyzeConsulting(input: ConsultingAnalysisInput): Promise<ConsultingAnalysisResult> {
+    const fallback = (model: string): ConsultingAnalysisResult => ({
+      summary: { strengths: [], concerns: [], highlights: [`제출 자료 ${input.documents.length}건`] },
+      diagnostic: { fit_directions: [], activity_suggestions: [], target_gap: '' },
+      document_check: { missing: [], inconsistencies: [], requests: [] },
+      model,
+    });
+    if (!this.apiKey) return fallback('claude:unconfigured');
+    const prompt =
+      '당신은 대입 컨설팅 보조입니다. 아래는 식별정보가 제거된 신청 메타와 제출 서류 목록입니다. ' +
+      '컨설턴트가 상담 전에 참고할 "초안"을 아래 JSON 스키마로만(설명 없이) 출력하세요.\n' +
+      `학년: ${input.grade}\n관심: ${input.interest}\n상품: ${input.package}\n` +
+      `서류: ${input.documents.map((d) => `${d.type}(${d.name})`).join(', ') || '없음'}\n` +
+      '스키마: {"summary":{"strengths":[],"concerns":[],"highlights":[]},' +
+      '"diagnostic":{"fit_directions":[],"activity_suggestions":[],"target_gap":""},' +
+      '"document_check":{"missing":[],"inconsistencies":[],"requests":[]}}';
+    try {
+      const r = await this.completeJson<Omit<ConsultingAnalysisResult, 'model'>>(prompt, 900);
+      return { ...r, model: this.model };
+    } catch (e) {
+      this.logger.warn(`analyzeConsulting 실패: ${(e as Error).message}`);
+      return fallback('claude:error');
+    }
   }
 }
