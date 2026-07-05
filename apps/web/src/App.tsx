@@ -35,6 +35,7 @@ import { AdminEvaluationPage } from './pages/AdminEvaluationPage';
 import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
 import { AdminAssignmentPage } from './pages/AdminAssignmentPage';
 import { EmbedSessionPage } from './pages/EmbedSessionPage';
+import { RoomStandalonePage } from './pages/RoomStandalonePage';
 import { AdminAuditPage } from './pages/AdminAuditPage';
 import { AdminPayrollPage } from './pages/AdminPayrollPage';
 import { AdminScoresPage } from './pages/AdminScoresPage';
@@ -83,6 +84,7 @@ export function App() {
       <Route path="/terms" element={<LegalDocPage which="terms" />} />
       <Route path="/privacy" element={<LegalDocPage which="privacy" />} />
       <Route path="/embed/session" element={<EmbedSessionPage />} />
+      <Route path="/room" element={<RoomStandalonePage />} />
 
       <Route
         path="/app"
