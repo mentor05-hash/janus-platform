@@ -20,6 +20,9 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs }: { bookingId
   const sidRef = useRef('');
   const pendingRef = useRef<Pt[]>([]);
   const lastFlushRef = useRef(0);
+  const cacheRef = useRef<HTMLCanvasElement | null>(null); // 확정 스트로크 캐시(핫패스 O(1) 복원)
+  const rafRef = useRef(0); // rAF 코얼레싱 핸들
+  const cacheDirtyRef = useRef(true); // 확정 집합/뷰 변경 시 캐시 재빌드 필요
   const viewRef = useRef({ scale: 1, tx: 0, ty: 0 });
   const pointersRef = useRef(new Map<number, { cx: number; cy: number }>());
   const pinchRef = useRef<{ dist: number; midCx: number; midCy: number; view: { scale: number; tx: number; ty: number } } | null>(null);
@@ -43,48 +46,74 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs }: { bookingId
   const rw = canInteract(phase);
   const notice = sessionNotice(phase, live);
   useEffect(() => { if (!rw && call.inCall) call.hangup(); }, [rw, call.inCall]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); }, []);
 
-  function redraw() {
+  // 한 획을 잉크 컨텍스트에 렌더(변환은 호출측 적용). 지우개·형광펜·필압.
+  function paintStroke(ictx: CanvasRenderingContext2D, s: Stroke) {
+    if (s.points.length < 1) return;
+    ictx.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over';
+    ictx.globalAlpha = s.highlight ? 0.32 : 1; ictx.strokeStyle = s.color;
+    if (s.erase || s.highlight || s.points.length === 1 || s.points.every((q) => q.p == null)) {
+      ictx.lineWidth = s.width; ictx.beginPath(); ictx.moveTo(s.points[0].x, s.points[0].y);
+      for (const p of s.points.slice(1)) ictx.lineTo(p.x, p.y);
+      if (s.points.length === 1) ictx.lineTo(s.points[0].x + 0.1, s.points[0].y + 0.1);
+      ictx.stroke();
+    } else {
+      for (let i = 1; i < s.points.length; i++) { const a = s.points[i - 1], b = s.points[i]; ictx.lineWidth = s.width * (0.35 + ((b.p ?? 0.5)) * 1.3); ictx.beginPath(); ictx.moveTo(a.x, a.y); ictx.lineTo(b.x, b.y); ictx.stroke(); }
+    }
+  }
+
+  // 확정 스트로크만 캐시에 재렌더 — 뷰 변환 반영(핫패스 아님).
+  function rebuildCache() {
+    const cv = canvasRef.current; if (!cv) return;
+    const cache = (cacheRef.current ??= document.createElement('canvas'));
+    if (cache.width !== cv.width || cache.height !== cv.height) { cache.width = cv.width; cache.height = cv.height; }
+    const cctx = cache.getContext('2d'); if (!cctx) return;
+    const v = viewRef.current;
+    cctx.setTransform(1, 0, 0, 1, 0, 0); cctx.clearRect(0, 0, cache.width, cache.height);
+    cctx.setTransform(v.scale, 0, 0, v.scale, v.tx, v.ty);
+    cctx.lineCap = 'round'; cctx.lineJoin = 'round';
+    for (const s of strokesRef.current) paintStroke(cctx, s);
+  }
+
+  // 한 프레임 합성: 배경 + (확정 캐시 복사 + 라이브/진행 획). 확정 획 수와 무관하게 O(1) 복원.
+  function drawFrame() {
+    rafRef.current = 0;
     const cv = canvasRef.current; if (!cv) return;
     const ctx = cv.getContext('2d'); if (!ctx) return;
+    if (cacheDirtyRef.current || !cacheRef.current) { rebuildCache(); cacheDirtyRef.current = false; }
+    const v = viewRef.current;
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
-    const v = viewRef.current; ctx.setTransform(v.scale, 0, 0, v.scale, v.tx, v.ty);
+    ctx.setTransform(v.scale, 0, 0, v.scale, v.tx, v.ty);
     if (bgImgRef.current) {
       const img = bgImgRef.current, ir = img.width / img.height, cr = W / H;
       let dw = W, dh = H, dx = 0, dy = 0;
       if (ir > cr) { dh = W / ir; dy = (H - dh) / 2; } else { dw = H * ir; dx = (W - dw) / 2; }
       ctx.drawImage(img, dx, dy, dw, dh);
     }
-    // 잉크는 별도 오프스크린 레이어에 그린다 → 지우개(destination-out)가 배경을 안 뚫고 필기만 지움.
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
     const ink = (inkRef.current ??= document.createElement('canvas'));
     if (ink.width !== cv.width || ink.height !== cv.height) { ink.width = cv.width; ink.height = cv.height; }
     const ictx = ink.getContext('2d'); if (!ictx) return;
     ictx.setTransform(1, 0, 0, 1, 0, 0); ictx.clearRect(0, 0, ink.width, ink.height);
+    if (cacheRef.current) ictx.drawImage(cacheRef.current, 0, 0);
     ictx.setTransform(v.scale, 0, 0, v.scale, v.tx, v.ty);
     ictx.lineCap = 'round'; ictx.lineJoin = 'round';
-    for (const s of [...strokesRef.current, ...liveRef.current.values(), ...(drawingRef.current ? [drawingRef.current] : [])]) {
-      if (s.points.length < 1) continue;
-      ictx.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over';
-      ictx.globalAlpha = s.highlight ? 0.32 : 1; ictx.strokeStyle = s.color;
-      if (s.erase || s.highlight || s.points.length === 1 || s.points.every((q) => q.p == null)) {
-        ictx.lineWidth = s.width; ictx.beginPath(); ictx.moveTo(s.points[0].x, s.points[0].y);
-        for (const p of s.points.slice(1)) ictx.lineTo(p.x, p.y);
-        if (s.points.length === 1) ictx.lineTo(s.points[0].x + 0.1, s.points[0].y + 0.1);
-        ictx.stroke();
-      } else {
-        for (let i = 1; i < s.points.length; i++) { const a = s.points[i - 1], b = s.points[i]; ictx.lineWidth = s.width * (0.35 + ((b.p ?? 0.5)) * 1.3); ictx.beginPath(); ictx.moveTo(a.x, a.y); ictx.lineTo(b.x, b.y); ictx.stroke(); }
-      }
-    }
+    for (const s of [...liveRef.current.values(), ...(drawingRef.current ? [drawingRef.current] : [])]) paintStroke(ictx, s);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.drawImage(ink, 0, 0);
   }
+
+  // rAF 코얼레싱: 프레임당 최대 1회 합성.
+  function requestPaint() { if (!rafRef.current) rafRef.current = requestAnimationFrame(drawFrame); }
+  // 확정 집합/뷰 변경 → 캐시 재빌드 표시 후 재합성.
+  function redraw() { cacheDirtyRef.current = true; requestPaint(); }
 
   /** 룸 배경 로드 — fileUrl(룸 서비스)을 토큰과 함께 blob 으로 가져와 표시(캔버스 오염 방지). */
   function loadBg(fileUrl: string | null) {
     bgUrlRef.current = fileUrl;
-    if (!fileUrl) { bgImgRef.current = null; redraw(); return; }
+    if (!fileUrl) { bgImgRef.current = null; requestPaint(); return; }
     const abs = `${rs.url}${fileUrl}${fileUrl.includes('?') ? '&' : '?'}token=${encodeURIComponent(rs.token)}`;
-    fetch(abs).then((r) => r.blob()).then((b) => { const img = new Image(); img.onload = () => { bgImgRef.current = img; redraw(); }; img.src = URL.createObjectURL(b); }).catch(() => {});
+    fetch(abs).then((r) => r.blob()).then((b) => { const img = new Image(); img.onload = () => { bgImgRef.current = img; requestPaint(); }; img.src = URL.createObjectURL(b); }).catch(() => {});
   }
   function scheduleAutosave() { setSaveState('dirty'); if (saveTimerRef.current) clearTimeout(saveTimerRef.current); saveTimerRef.current = setTimeout(() => save(), 1500); }
 
@@ -99,7 +128,7 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs }: { bookingId
     s.on('wb:stroke:partial', ({ sid, meta, points }: { sid: string; meta: Partial<Stroke>; points: Pt[] }) => {
       let st = liveRef.current.get(sid);
       if (!st) { st = { color: meta.color ?? '#16242B', width: meta.width ?? 3, erase: meta.erase, highlight: meta.highlight, points: [] }; liveRef.current.set(sid, st); }
-      st.points.push(...points); redraw();
+      st.points.push(...points); requestPaint();
     });
     s.on('wb:stroke', ({ stroke, sid }: { stroke: Stroke; sid?: string }) => { if (sid) liveRef.current.delete(sid); strokesRef.current.push(stroke); redraw(); });
     s.on('wb:clear', () => { strokesRef.current = []; liveRef.current.clear(); redraw(); });
@@ -150,7 +179,7 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs }: { bookingId
     drawingRef.current = tool === 'eraser' ? { points: [p0], color: '#000', width: Math.max(16, width * 4), erase: true }
       : tool === 'highlighter' ? { points: [p0], color, width: Math.max(14, width * 4), highlight: true }
         : { points: [p0], color, width };
-    sidRef.current = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`; pendingRef.current = [p0]; lastFlushRef.current = 0; redraw();
+    sidRef.current = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`; pendingRef.current = [p0]; lastFlushRef.current = 0; requestPaint();
   }
   function move(e: React.PointerEvent) {
     if (pointersRef.current.has(e.pointerId)) pointersRef.current.set(e.pointerId, canvasSpace(e));
@@ -162,7 +191,7 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs }: { bookingId
       clampView(); setZoomPct(Math.round(v.scale * 100)); redraw(); return;
     }
     if (!drawingRef.current || rejected(e)) return;
-    const p = pt(e); drawingRef.current.points.push(p); pendingRef.current.push(p); redraw();
+    const p = pt(e); drawingRef.current.points.push(p); pendingRef.current.push(p); requestPaint();
     const now = Date.now(); if (now - lastFlushRef.current >= 50) { lastFlushRef.current = now; flushPartial(); }
   }
   function up(e: React.PointerEvent) { pointersRef.current.delete(e.pointerId); if (pointersRef.current.size < 2) pinchRef.current = null; finalizeStroke(); }

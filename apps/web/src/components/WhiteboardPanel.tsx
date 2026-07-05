@@ -12,7 +12,10 @@ const W = 900, H = 620; // 논리 좌표(비율 유지 스케일링)
 /** 예약 기반 공유 화이트보드(웹). 배경 이미지(첨부/촬영) 위에 필기 + 음성통화 동시. */
 export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: string; title?: string; onClose: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const inkRef = useRef<HTMLCanvasElement | null>(null); // 잉크 전용 오프스크린(지우개가 배경을 안 뚫게)
+  const inkRef = useRef<HTMLCanvasElement | null>(null); // 잉크 작업 레이어(지우개가 배경을 안 뚫게)
+  const cacheRef = useRef<HTMLCanvasElement | null>(null); // 확정 스트로크 캐시(핫패스에서 O(1) 복원)
+  const rafRef = useRef(0); // rAF 코얼레싱 핸들
+  const cacheDirtyRef = useRef(true); // 확정 집합/뷰 변경 시 캐시 재빌드 필요
   const sockRef = useRef<Socket | null>(null);
   const strokesRef = useRef<Stroke[]>([]);
   const drawingRef = useRef<Stroke | null>(null);
@@ -48,60 +51,83 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
   const notice = sessionNotice(phase, session);
   // 세션 창이 닫히면(강제 종료) 진행 중 음성통화도 자동 종료.
   useEffect(() => { if (!rw && call.inCall) call.hangup(); }, [rw, call.inCall]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); }, []);
 
-  function redraw() {
+  // 한 획을 잉크 컨텍스트에 렌더(변환은 호출측 적용). 지우개(destination-out)·형광펜(반투명)·필압.
+  function paintStroke(ictx: CanvasRenderingContext2D, s: Stroke) {
+    if (s.points.length < 1) return;
+    ictx.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over';
+    ictx.globalAlpha = s.highlight ? 0.32 : 1;
+    ictx.strokeStyle = s.color;
+    if (s.erase || s.highlight || s.points.length === 1 || s.points.every((q) => q.p == null)) {
+      ictx.lineWidth = s.width;
+      ictx.beginPath(); ictx.moveTo(s.points[0].x, s.points[0].y);
+      for (const p of s.points.slice(1)) ictx.lineTo(p.x, p.y);
+      if (s.points.length === 1) ictx.lineTo(s.points[0].x + 0.1, s.points[0].y + 0.1);
+      ictx.stroke();
+    } else {
+      for (let i = 1; i < s.points.length; i++) {
+        const a = s.points[i - 1], b = s.points[i];
+        ictx.lineWidth = s.width * (0.35 + ((b.p ?? 0.5)) * 1.3);
+        ictx.beginPath(); ictx.moveTo(a.x, a.y); ictx.lineTo(b.x, b.y); ictx.stroke();
+      }
+    }
+  }
+
+  // 확정 스트로크만 캐시에 재렌더 — 뷰 변환 반영. 확정 집합/뷰 변경 시에만(핫패스 아님).
+  function rebuildCache() {
+    const cv = canvasRef.current; if (!cv) return;
+    const cache = (cacheRef.current ??= document.createElement('canvas'));
+    if (cache.width !== cv.width || cache.height !== cv.height) { cache.width = cv.width; cache.height = cv.height; }
+    const cctx = cache.getContext('2d'); if (!cctx) return;
+    const v = viewRef.current;
+    cctx.setTransform(1, 0, 0, 1, 0, 0); cctx.clearRect(0, 0, cache.width, cache.height);
+    cctx.setTransform(v.scale, 0, 0, v.scale, v.tx, v.ty);
+    cctx.lineCap = 'round'; cctx.lineJoin = 'round';
+    for (const s of strokesRef.current) paintStroke(cctx, s);
+  }
+
+  // 한 프레임 합성: 배경 + (확정 캐시 복사 + 라이브/진행 획). 확정 획 수와 무관하게 O(1) 복원.
+  // 진행/라이브 획이 지우개면 캐시 "복사본"만 지워 정합 유지(원 캐시는 확정 시 갱신).
+  function drawFrame() {
+    rafRef.current = 0;
     const cv = canvasRef.current; if (!cv) return;
     const ctx = cv.getContext('2d'); if (!ctx) return;
-    // 장치 좌표에서 클리어 후 뷰포트(줌/팬) 적용 → 배경·필기가 함께 변환됨
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, cv.width, cv.height);
+    if (cacheDirtyRef.current || !cacheRef.current) { rebuildCache(); cacheDirtyRef.current = false; }
     const v = viewRef.current;
+    // 배경(이미지/PDF) — 뷰 변환, 비율 유지 contain
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
     ctx.setTransform(v.scale, 0, 0, v.scale, v.tx, v.ty);
-    if (bgImgRef.current) { // 배경(첨부/촬영 이미지) — 비율 유지 contain
+    if (bgImgRef.current) {
       const img = bgImgRef.current; const ir = img.width / img.height, cr = W / H;
       let dw = W, dh = H, dx = 0, dy = 0;
       if (ir > cr) { dh = W / ir; dy = (H - dh) / 2; } else { dw = H * ir; dx = (W - dw) / 2; }
       ctx.drawImage(img, dx, dy, dw, dh);
     }
-    // 잉크는 별도 오프스크린 레이어에 그린다 → 지우개(destination-out)가 배경 이미지·PDF 를 뚫지 않고 내 필기만 지운다.
-    ctx.setTransform(1, 0, 0, 1, 0, 0); // 배경 그린 뒤 메인 변환 원복(합성 준비)
+    // 작업 잉크 = 확정 캐시 복사(O(1)) + 라이브 + 진행 획
     const ink = (inkRef.current ??= document.createElement('canvas'));
     if (ink.width !== cv.width || ink.height !== cv.height) { ink.width = cv.width; ink.height = cv.height; }
     const ictx = ink.getContext('2d'); if (!ictx) return;
     ictx.setTransform(1, 0, 0, 1, 0, 0); ictx.clearRect(0, 0, ink.width, ink.height);
+    if (cacheRef.current) ictx.drawImage(cacheRef.current, 0, 0);
     ictx.setTransform(v.scale, 0, 0, v.scale, v.tx, v.ty);
     ictx.lineCap = 'round'; ictx.lineJoin = 'round';
-    for (const s of [...strokesRef.current, ...liveRef.current.values(), ...(drawingRef.current ? [drawingRef.current] : [])]) {
-      if (s.points.length < 1) continue;
-      ictx.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over';
-      // 형광펜: 반투명(겹치면 진해짐). 단일 패스로 그려 접합부 얼룩 방지.
-      ictx.globalAlpha = s.highlight ? 0.32 : 1;
-      ictx.strokeStyle = s.color;
-      if (s.erase || s.highlight || s.points.length === 1 || s.points.every((q) => q.p == null)) {
-        // 지우개·형광펜·단일점·필압 없는 스트로크: 고정 굵기(단일 패스)
-        ictx.lineWidth = s.width;
-        ictx.beginPath(); ictx.moveTo(s.points[0].x, s.points[0].y);
-        for (const p of s.points.slice(1)) ictx.lineTo(p.x, p.y);
-        if (s.points.length === 1) ictx.lineTo(s.points[0].x + 0.1, s.points[0].y + 0.1);
-        ictx.stroke();
-      } else {
-        // 펜 필압: 구간별 굵기 = base × (0.35 + p×1.3)
-        for (let i = 1; i < s.points.length; i++) {
-          const a = s.points[i - 1], b = s.points[i];
-          ictx.lineWidth = s.width * (0.35 + ((b.p ?? 0.5)) * 1.3);
-          ictx.beginPath(); ictx.moveTo(a.x, a.y); ictx.lineTo(b.x, b.y); ictx.stroke();
-        }
-      }
-    }
+    for (const s of [...liveRef.current.values(), ...(drawingRef.current ? [drawingRef.current] : [])]) paintStroke(ictx, s);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.drawImage(ink, 0, 0); // 배경 위에 잉크 레이어 합성
   }
 
+  // rAF 코얼레싱: pointermove 가 몰려도 프레임당 최대 1회 합성.
+  function requestPaint() { if (!rafRef.current) rafRef.current = requestAnimationFrame(drawFrame); }
+  // 확정 집합/뷰 변경 → 캐시 재빌드 표시 후 재합성(둘 다 코얼레싱).
+  function redraw() { cacheDirtyRef.current = true; requestPaint(); }
+
   function loadBg(fileId: string | null) {
     bgFileIdRef.current = fileId;
-    if (!fileId) { bgImgRef.current = null; redraw(); return; }
+    if (!fileId) { bgImgRef.current = null; requestPaint(); return; }
     api.fileBlobUrl(fileId).then((url) => {
       const img = new Image();
-      img.onload = () => { bgImgRef.current = img; redraw(); };
+      img.onload = () => { bgImgRef.current = img; requestPaint(); };
       img.src = url;
     }).catch(() => {});
   }
@@ -129,7 +155,7 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     s.on('wb:stroke:partial', ({ sid, meta, points }: { sid: string; meta: Partial<Stroke>; points: Pt[] }) => {
       let st = liveRef.current.get(sid);
       if (!st) { st = { color: meta.color ?? '#16242B', width: meta.width ?? 3, erase: meta.erase, highlight: meta.highlight, points: [] }; liveRef.current.set(sid, st); }
-      st.points.push(...points); redraw();
+      st.points.push(...points); requestPaint();
     });
     s.on('wb:stroke', ({ stroke, sid }: { stroke: Stroke; sid?: string }) => { if (sid) liveRef.current.delete(sid); strokesRef.current.push(stroke); redraw(); });
     s.on('wb:clear', () => { strokesRef.current = []; liveRef.current.clear(); redraw(); });
@@ -240,7 +266,7 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     sidRef.current = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
     pendingRef.current = [p0];
     lastFlushRef.current = 0;
-    redraw();
+    requestPaint();
   }
   function move(e: React.PointerEvent) {
     if (pointersRef.current.has(e.pointerId)) pointersRef.current.set(e.pointerId, canvasSpace(e));
@@ -262,7 +288,7 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     const p = pt(e);
     drawingRef.current.points.push(p);
     pendingRef.current.push(p);
-    redraw();
+    requestPaint();
     const now = Date.now();
     if (now - lastFlushRef.current >= 50) { lastFlushRef.current = now; flushPartial(); } // ~20fps 스트리밍
   }
