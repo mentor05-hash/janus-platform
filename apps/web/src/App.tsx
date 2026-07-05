@@ -6,6 +6,7 @@ import { AppLayout } from './components/AppLayout';
 import { AdminLayout } from './components/AdminLayout';
 import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
+import { ConsultingApplyPage } from './pages/ConsultingApplyPage';
 import { TeacherBookingsPage } from './pages/TeacherBookingsPage';
 import { TeacherInboxPage } from './pages/TeacherInboxPage';
 import { NotePage } from './pages/NotePage';
@@ -80,6 +81,7 @@ export function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
+      <Route path="/consulting/apply" element={<ConsultingApplyPage />} />
       <Route path="/forgot" element={<ForgotPasswordPage />} />
       <Route path="/terms" element={<LegalDocPage which="terms" />} />
       <Route path="/privacy" element={<LegalDocPage which="privacy" />} />
