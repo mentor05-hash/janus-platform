@@ -7,6 +7,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Res,
   UploadedFile,
   UseInterceptors,
@@ -22,6 +23,7 @@ import {
   AssignConsultantDto,
   CreateApplicationDto,
   CreatePaymentDto,
+  InboxQueryDto,
   UploadDocumentDto,
 } from './dto/consulting.dto';
 
@@ -33,6 +35,12 @@ export class ConsultingController {
   @Post('applications')
   create(@Body() dto: CreateApplicationDto, @CurrentUser() user: AuthUser) {
     return this.consulting.create(dto, user);
+  }
+
+  // 역할별 인박스/목록 — 스태프=전체, teacher=배정건, 그 외=본인 신청.
+  @Get('inbox')
+  inbox(@Query() q: InboxQueryDto, @CurrentUser() user: AuthUser) {
+    return this.consulting.listInbox(user, q);
   }
 
   @Get('applications/:id')

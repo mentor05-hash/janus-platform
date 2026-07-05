@@ -10,7 +10,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { FilesService } from '../storage/files.service';
 import type { UploadedFileLike } from '../storage/storage.types';
-import { AssignConsultantDto, CreateApplicationDto, CreatePaymentDto, UploadDocumentDto } from './dto/consulting.dto';
+import { AssignConsultantDto, CreateApplicationDto, CreatePaymentDto, InboxQueryDto, UploadDocumentDto } from './dto/consulting.dto';
 import {
   canTransition,
   defaultAssignmentMode,
@@ -23,8 +23,9 @@ import { canViewDocumentContent, resolvePaymentAmount } from './domain/payment';
 import { PAYMENT_PROVIDER, type PaymentProvider } from './payment/payment.types';
 import { buildAnalysisInput } from './domain/analysis';
 import { LLM_PROVIDER, type LlmProvider } from '../llm/llm.types';
+import { NotifyService } from '../notification/notify.service';
 
-// Phase 1: 신청/업로드. Phase 2: 결제·게이팅·배정. Phase 3: LLM 분석.
+// Phase 1: 신청/업로드. Phase 2: 결제·게이팅·배정. Phase 3: LLM 분석. Phase 4: 인박스·알림.
 @Injectable()
 export class ConsultingService {
   constructor(
@@ -32,6 +33,7 @@ export class ConsultingService {
     private readonly files: FilesService,
     @Inject(PAYMENT_PROVIDER) private readonly payments: PaymentProvider,
     @Inject(LLM_PROVIDER) private readonly llm: LlmProvider,
+    private readonly notify: NotifyService,
   ) {}
 
   private assertStaffOrConsultant(app: { consultant_id: string | null }, user: AuthUser): void {
@@ -200,6 +202,10 @@ export class ConsultingService {
         });
       }
     });
+    await this.notify.notify(app.applicant_account_id, 'consulting_paid', { applicationId: id });
+    if (app.consultant_id) {
+      await this.notify.notify(app.consultant_id, 'consulting_paid', { applicationId: id });
+    }
     return this.getOne(id, user);
   }
 
@@ -230,7 +236,47 @@ export class ConsultingService {
         data: { status: 'in_review', updated_at: new Date() },
       });
     }
+    await this.notify.notify(dto.consultantId, 'consulting_assigned', { applicationId: id });
     return this.getOne(id, user);
+  }
+
+  // ── Phase 4: 인박스/목록 (역할별 스코프 + 페이지네이션) ──────────
+  // 스태프=전체, teacher=배정건, 그 외=본인 신청. 상태 필터 지원.
+  async listInbox(user: AuthUser, q: InboxQueryDto) {
+    const page = Math.max(1, q.page ?? 1);
+    const size = Math.min(100, Math.max(1, q.size ?? 20));
+    const where: Record<string, unknown> = {};
+    if (this.isStaff(user)) {
+      // 전체
+    } else if (user.role === 'teacher') {
+      where.consultant_id = user.id;
+    } else {
+      where.applicant_account_id = user.id;
+    }
+    if (q.status) where.status = q.status;
+
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.consulting_application.findMany({
+        where,
+        orderBy: { created_at: 'desc' },
+        skip: (page - 1) * size,
+        take: size,
+      }),
+      this.prisma.consulting_application.count({ where }),
+    ]);
+    return {
+      data: rows.map((r) => ({
+        id: r.id,
+        applicantName: r.applicant_name,
+        studentGrade: r.student_grade,
+        interestType: r.interest_type,
+        package: r.package,
+        status: r.status,
+        consultantId: r.consultant_id,
+        createdAt: r.created_at,
+      })),
+      meta: { page, size, total },
+    };
   }
 
   // ── Phase 2: 게이팅 다운로드 ─────────────────────────────────────
@@ -283,6 +329,9 @@ export class ConsultingService {
           generated_at: new Date(),
         },
       });
+      if (app.consultant_id) {
+        await this.notify.notify(app.consultant_id, 'consulting_analysis_ready', { applicationId: id });
+      }
       return this.toAnalysisDto(row);
     } catch (e) {
       await this.prisma.consulting_analysis.update({ where: { application_id: id }, data: { status: 'failed' } });

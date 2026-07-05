@@ -49,3 +49,22 @@ export class AssignConsultantDto {
   @IsUUID()
   consultantId!: string;
 }
+
+// 인박스/목록 — 역할별 스코프. 상태 필터 + 페이지네이션.
+export class InboxQueryDto {
+  @IsOptional()
+  @IsIn(['draft', 'submitted', 'awaiting_payment', 'paid', 'in_review', 'completed', 'canceled'])
+  status?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  size?: number;
+}
