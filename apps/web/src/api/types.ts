@@ -80,23 +80,20 @@ export interface Payroll {
   expectedAmount: number;
   incentive: number;
   incentiveOn: boolean;
+  // 통합 급여 = 매출 배분(share) 단일 모델
   breakdown: {
-    doneCases: number;
-    upcomingCases: number;
-    qnaAccepted: number;
-    perCaseRate: number;
-    qnaRate: number;
-    gradeAllowance: number;
-    basePay: number;
-    incentive: number;
-    workMinutes: number;
-    workHoursPay: number;
-    hourlyRate: number;
-    staleAnswerCount: number;
-    staleBonus: number;
-    staleAnswerBonus: number;
+    model: string;              // share | floor | base_incentive
+    sharePct: number;           // 배분율(%)
+    creditWonRatio: number;     // 1크레딧 = ?원
+    doneSessions: number;
+    upcomingSessions: number;
+    confirmedCredits: number;
+    upcomingCredits: number;
+    confirmedRevenue: number;   // 확정 원 매출
+    upcomingRevenue: number;    // 예정 원 매출
+    base: number;               // 기본급(모델 floor/base_incentive)
   };
-  rates: { perCaseRate: number; qnaRate: number; hourlyRate: number; staleAnswerBonus: number; basePay?: number; employmentType?: string | null };
+  rates: { sharePct: number; model: string; base: number; employmentType?: string | null };
   gradeTable: Record<string, number>;
 }
 

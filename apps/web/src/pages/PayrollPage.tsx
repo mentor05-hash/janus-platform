@@ -6,7 +6,6 @@ import type { Payroll } from '../api/types';
 import { PageHeader, Card, Spinner, ErrorText, Badge } from '../components/ui';
 import { StatCard, StatGrid } from '../components/dashboard/widgets';
 
-const GRADE_ORDER = ['S', 'A', 'B', 'C'];
 
 type Deductions = { 국민연금: number; 건강보험: number; 장기요양: number; 고용보험: number; 소득세: number; 지방소득세: number; total: number; net: number };
 type Payslip = { period: string; teacherName: string; center: string; status: string; paidAt: string | null; gross: number; deductions: Deductions | null; net: number };
@@ -56,9 +55,6 @@ export function PayrollPage() {
   if (!p) return <Spinner />;
 
   const b = p.breakdown;
-  const grades = Object.keys(p.gradeTable).sort((a, c) => (GRADE_ORDER.indexOf(a) + 1 || 99) - (GRADE_ORDER.indexOf(c) + 1 || 99));
-  const th: React.CSSProperties = { textAlign: 'left', padding: '8px 10px', fontSize: 12, fontWeight: 700, color: 'var(--muted)', borderBottom: '1px solid var(--line)' };
-  const td: React.CSSProperties = { padding: '8px 10px', fontSize: 13, borderBottom: '1px solid var(--line)' };
 
   return (
     <div>
@@ -74,7 +70,8 @@ export function PayrollPage() {
 
       <StatGrid>
         <StatCard label={view === 'confirmed' ? '이번 달 확정' : '이번 달 예상(예정 포함)'} value={won(view === 'confirmed' ? p.confirmedAmount : p.expectedAmount)} tone="teal" />
-        <StatCard label="자동 인센티브" value={`${won(p.incentive)} · ${p.incentiveOn ? 'ON' : 'OFF'}`} />
+        <StatCard label="매출 배분율" value={`${b.sharePct}%`} />
+        <StatCard label={view === 'confirmed' ? '확정 매출' : '예상 매출'} value={won(view === 'confirmed' ? b.confirmedRevenue : b.confirmedRevenue + b.upcomingRevenue)} />
       </StatGrid>
 
       {payslip && payslip.deductions && (
@@ -95,37 +92,16 @@ export function PayrollPage() {
         </Card>
       )}
 
-      <Card title="산정 내역" style={{ marginTop: 16 }}>
+      <Card title="산정 내역 (매출 배분)" style={{ marginTop: 16 }}>
         <ul style={{ lineHeight: 1.9, color: 'var(--ink)', margin: 0 }}>
-          <li>완료 상담: {b.doneCases}건 × {won(b.perCaseRate)}</li>
-          {view === 'expected' && <li>예정 상담(예상): {b.upcomingCases}건 × {won(b.perCaseRate)}</li>}
-          <li>채택 Q&amp;A: {b.qnaAccepted}건 × {won(b.qnaRate)}</li>
-          {(b.hourlyRate > 0 || b.workHoursPay > 0) && <li>근무시간 기반: {Math.round(b.workMinutes / 6) / 10}시간 × {won(b.hourlyRate)} = {won(b.workHoursPay)}</li>}
-          {(b.basePay ?? 0) > 0 && <li>기본급{p.rates.employmentType && p.rates.employmentType !== '기본급' ? `(${p.rates.employmentType})` : ''}: {won(b.basePay)}</li>}
-          {(b.staleAnswerBonus > 0 || b.staleBonus > 0) && <li>48시간 미답 보상: {b.staleAnswerCount}건 × {won(b.staleAnswerBonus)} = {won(b.staleBonus)}</li>}
-          <li>등급 수당({p.grade}급): {won(b.gradeAllowance)}</li>
-          <li>자동 인센티브: {won(p.incentive)} {p.incentiveOn ? <Badge kind="done">ON</Badge> : <Badge kind="soft">OFF</Badge>}</li>
+          <li>완료 상담: {b.doneSessions}건 · 크레딧 매출 {b.confirmedCredits.toLocaleString()}크레딧</li>
+          {view === 'expected' && <li>예정 상담(예상): {b.upcomingSessions}건 · {b.upcomingCredits.toLocaleString()}크레딧</li>}
+          <li>원 환산: 1크레딧 = {b.creditWonRatio}원 → {view === 'confirmed' ? '확정' : '예상'} 매출 {won(view === 'confirmed' ? b.confirmedRevenue : b.confirmedRevenue + b.upcomingRevenue)}</li>
+          <li>배분율: 매출 × <b>{b.sharePct}%</b>{b.model !== 'share' ? ` (모델: ${b.model === 'floor' ? '기본급 보장' : '기본급+인센티브'}, 기본급 ${won(b.base)})` : ''}</li>
+          <li style={{ fontWeight: 700, color: 'var(--teal)' }}>= {view === 'confirmed' ? '확정' : '예상'} 급여 {won(view === 'confirmed' ? p.confirmedAmount : p.expectedAmount)}</li>
         </ul>
-        <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>근무시간 시급·48시간 미답 보상·자동 인센티브는 관리자 정책에서 관리됩니다.</p>
+        <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>급여 = 내가 완료한 세션의 크레딧 매출을 원으로 환산한 뒤 배분율을 곱한 값입니다(명세서와 동일 공식). 배분율·급여 모델은 본사 관리자 정책에서 관리됩니다.</p>
       </Card>
-
-      {grades.length > 0 && (
-        <Card title="등급별 급여표" style={{ marginTop: 16 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead><tr><th style={th}>등급</th><th style={th}>건당 요율</th><th style={th}>Q&amp;A 요율</th><th style={th}>등급 수당</th></tr></thead>
-            <tbody>
-              {grades.map((g) => (
-                <tr key={g} style={g === p.grade ? { background: 'var(--teal-50,#F0F7FA)' } : undefined}>
-                  <td style={td}><b>{g}{g === p.grade ? ' (내 등급)' : ''}</b></td>
-                  <td style={td}>{won(p.rates.perCaseRate)}</td>
-                  <td style={td}>{won(p.rates.qnaRate)}</td>
-                  <td style={td}>{won(p.gradeTable[g])}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
-      )}
     </div>
   );
 }

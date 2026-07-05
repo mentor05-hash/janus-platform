@@ -364,86 +364,53 @@ export class PayrollService {
       );
     }
 
-    const [doneCount, upcomingCount, qnaAcceptedCount, ws, staleAnswers] =
-      await Promise.all([
-        this.prisma.booking.count({
-          where: { teacher_id: teacherId, status: BookingStatus.DONE },
-        }),
-        this.prisma.booking.count({
-          where: { teacher_id: teacherId, status: BookingStatus.CONFIRMED },
-        }),
-        // 채택되어 급여 적격(pay_eligible)인 Q&A 답변만 합산(§3.1 연동)
-        this.prisma.qna_answer.count({
-          where: { teacher_id: teacherId, pay_eligible: true },
-        }),
-        // 근무시간 산정용 스케줄(T5b)
-        this.prisma.work_schedule.findFirst({ where: { teacher_id: teacherId } }),
-        // 48h 미답 보상 대상(T5c): 채택된 답변 중 질문 등록 48h 경과 후 답변한 건
-        this.prisma.qna_answer.findMany({
-          where: { teacher_id: teacherId, pay_eligible: true },
-          select: { created_at: true, qna_post: { select: { created_at: true } } },
-          take: 500,
-        }),
-      ]);
-
-    const workMinutes = this.monthWorkMinutes(ws);
-    const staleAnswerCount = staleAnswers.filter(
-      (a) =>
-        a.qna_post &&
-        a.created_at.getTime() - a.qna_post.created_at.getTime() >
-          STALE_ANSWER_HOURS * 3_600_000,
-    ).length;
-
-    // 카테고리별 정책 우선, 없으면 센터 공통(teacher_category=null) 정책으로 폴백.
-    const policies = await this.prisma.payroll_policy.findMany({
-      where: { center_id: teacher.center_id },
-    });
-    const policy =
-      policies.find((p) => p.teacher_category === teacher.teacher_category) ??
-      policies.find((p) => !p.teacher_category) ??
-      null;
-    const rates = this.resolveRates(policy, teacher.grade, {
-      perCaseRate: teacher.per_case_rate,
-      hourlyRate: teacher.hourly_rate,
-      basePay: teacher.pay_base,
-    });
-    const base = computePayroll(
-      {
-        doneCount,
-        upcomingCount,
-        qnaAcceptedCount,
-        workMinutes,
-        staleAnswerCount,
-      },
-      rates,
-    );
-
-    const rating = teacher.rating == null ? 0 : Number(teacher.rating);
-    const autoIncentive =
-      (policy?.auto_incentive as unknown as IncentivePolicy) ?? null;
-    const incentive = computeIncentive({ doneCount, rating }, autoIncentive);
-
-    const gradeMap =
-      (policy?.grade_allowance as Record<string, number> | null) ?? null;
+    // 통합 급여 = 매출 배분(share) 단일 모델. 완료(확정)·예정(예상) 세션의 크레딧 매출을
+    // 원(×0.5)으로 환산 후 배분율(모델: share/floor/base_incentive)로 산정 → 명세(payslip)와 동일 공식.
+    const [doneAgg, upAgg] = await Promise.all([
+      this.prisma.booking.aggregate({
+        where: { teacher_id: teacherId, status: BookingStatus.DONE },
+        _sum: { charged_credits: true }, _count: { _all: true },
+      }),
+      this.prisma.booking.aggregate({
+        where: { teacher_id: teacherId, status: BookingStatus.CONFIRMED },
+        _sum: { charged_credits: true }, _count: { _all: true },
+      }),
+    ]);
+    const { sharePct } = await this.getSharePolicy();
+    const model = await this.getModelPolicy();
+    const doneCredits = doneAgg._sum.charged_credits ?? 0;
+    const upCredits = upAgg._sum.charged_credits ?? 0;
+    const confirmedRevenue = Math.round(doneCredits * CREDIT_WON_RATIO); // 원
+    const upcomingRevenue = Math.round(upCredits * CREDIT_WON_RATIO);
+    const confirmedAmount = this.grossByModel(confirmedRevenue, sharePct, model);
+    const expectedAmount = this.grossByModel(confirmedRevenue + upcomingRevenue, sharePct, model);
 
     return {
       teacherId,
       grade: teacher.grade,
-      confirmedAmount: base.confirmedAmount + incentive,
-      expectedAmount: base.expectedAmount + incentive,
-      incentive,
-      incentiveOn: !!autoIncentive?.on,
-      breakdown: { ...base.breakdown, incentive },
-      // 등급별 급여표(T5d) — 정책의 등급 수당 맵 + 공통 요율.
+      confirmedAmount,
+      expectedAmount,
+      incentive: 0,          // 인센티브는 급여 모델(base_incentive)로 흡수 — 별도 항목 없음
+      incentiveOn: false,
+      breakdown: {
+        model: model.mode,
+        sharePct,
+        creditWonRatio: CREDIT_WON_RATIO,
+        doneSessions: doneAgg._count._all,
+        upcomingSessions: upAgg._count._all,
+        confirmedCredits: doneCredits,
+        upcomingCredits: upCredits,
+        confirmedRevenue,      // 확정 원 매출
+        upcomingRevenue,       // 예정 원 매출
+        base: model.base,
+      },
       rates: {
-        perCaseRate: rates.perCaseRate,
-        qnaRate: rates.qnaRate,
-        hourlyRate: rates.hourlyRate,
-        staleAnswerBonus: rates.staleAnswerBonus,
-        basePay: rates.basePay ?? 0,
+        sharePct,
+        model: model.mode,
+        base: model.base,
         employmentType: teacher.employment_type ?? null,
       },
-      gradeTable: gradeMap ?? {},
+      gradeTable: {},
     };
   }
 
