@@ -1,4 +1,5 @@
-import { IsBoolean, IsIn, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, IsUUID, Matches, MaxLength, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 import type { ConsultingPackage } from '../domain/status';
 
 // 신청 생성 — 개인정보 동의(agree=true) 필수. applicant_name/phone은 서버에서 저장(PII).
@@ -32,4 +33,19 @@ export class CreateApplicationDto {
 export class UploadDocumentDto {
   @IsIn(['student_record', 'transcript', 'mock_exam', 'other'])
   type!: string;
+}
+
+// 결제 생성 — 고정가 상품은 amountWon 생략(기본가), full(맞춤 견적)은 필수.
+export class CreatePaymentDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  amountWon?: number;
+}
+
+// 컨설턴트 배정 — teacher 계정 id.
+export class AssignConsultantDto {
+  @IsUUID()
+  consultantId!: string;
 }

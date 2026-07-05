@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -9,7 +10,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { FilesService } from '../storage/files.service';
 import type { UploadedFileLike } from '../storage/storage.types';
-import { CreateApplicationDto, UploadDocumentDto } from './dto/consulting.dto';
+import { AssignConsultantDto, CreateApplicationDto, CreatePaymentDto, UploadDocumentDto } from './dto/consulting.dto';
 import {
   canTransition,
   defaultAssignmentMode,
@@ -18,17 +19,24 @@ import {
   type ConsultingStatus,
 } from './domain/status';
 import { validateDocument } from './domain/documents';
+import { canViewDocumentContent, resolvePaymentAmount } from './domain/payment';
+import { PAYMENT_PROVIDER, type PaymentProvider } from './payment/payment.types';
 
-// Phase 1: 도메인 & 신청/업로드. 결제(Payment)·LLM(Analysis)은 Phase 2/3에서 활성.
+// Phase 1: 도메인 & 신청/업로드. Phase 2: 결제 상태 모델링·게이팅·컨설턴트 배정.
 @Injectable()
 export class ConsultingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly files: FilesService,
+    @Inject(PAYMENT_PROVIDER) private readonly payments: PaymentProvider,
   ) {}
 
   private isStaff(user: AuthUser): boolean {
     return user.role === 'admin' || user.role === 'hr';
+  }
+
+  private assertStaff(user: AuthUser): void {
+    if (!this.isStaff(user)) throw new ForbiddenException('관리자 권한이 필요합니다.');
   }
 
   private assertOwnerOrStaff(app: { applicant_account_id: string | null }, user: AuthUser): void {
@@ -67,11 +75,15 @@ export class ConsultingService {
     const app = await this.prisma.consulting_application.findUnique({ where: { id } });
     if (!app) throw new NotFoundException('신청을 찾을 수 없습니다.');
     this.assertOwnerOrStaff(app, user);
-    const docs = await this.prisma.consulting_document.findMany({
-      where: { application_id: id },
-      orderBy: { uploaded_at: 'asc' },
-    });
-    return { ...this.toApplicationDto(app), documents: docs.map((d) => this.toDocumentDto(d)) };
+    const [docs, pay] = await Promise.all([
+      this.prisma.consulting_document.findMany({ where: { application_id: id }, orderBy: { uploaded_at: 'asc' } }),
+      this.prisma.consulting_payment.findUnique({ where: { application_id: id } }),
+    ]);
+    return {
+      ...this.toApplicationDto(app),
+      payment: pay ? this.toPaymentDto(pay) : null,
+      documents: docs.map((d) => this.toDocumentDto(d)),
+    };
   }
 
   // 자료 업로드 — PDF·Word 형식 검증 후 stored_file 저장, 메타 기록. 결제 전 허용.
@@ -121,6 +133,137 @@ export class ConsultingService {
       throw new ConflictException('상태가 이미 변경되었습니다. 다시 시도해 주세요.');
     }
     return this.getOne(id, user);
+  }
+
+  // ── Phase 2: 결제 ────────────────────────────────────────────────
+  // 결제 생성 — 원화(크레딧 불가). 신청자/스태프. 상품 기본가 또는 full은 amountWon 필수.
+  async createPayment(id: string, dto: CreatePaymentDto, user: AuthUser) {
+    const app = await this.prisma.consulting_application.findUnique({ where: { id } });
+    if (!app) throw new NotFoundException('신청을 찾을 수 없습니다.');
+    this.assertOwnerOrStaff(app, user);
+    if (app.status !== 'submitted' && app.status !== 'awaiting_payment') {
+      throw new ConflictException(`현재 상태(${app.status})에서는 결제를 생성할 수 없습니다.`);
+    }
+    const existing = await this.prisma.consulting_payment.findUnique({ where: { application_id: id } });
+    if (existing) throw new ConflictException('이미 결제가 생성되었습니다.');
+
+    const amt = resolvePaymentAmount(app.package as ConsultingPackage, dto.amountWon ?? null);
+    if (!amt.ok) throw new BadRequestException(amt.reason);
+
+    const charge = await this.payments.createCharge({ applicationId: id, amountWon: amt.amount });
+    const pay = await this.prisma.consulting_payment.create({
+      data: {
+        application_id: id,
+        amount_won: amt.amount,
+        method: 'manual',
+        status: 'pending',
+        pg_provider: 'manual',
+        pg_ref: charge.providerRef,
+      },
+    });
+    if (app.status === 'submitted') {
+      await this.prisma.consulting_application.updateMany({
+        where: { id, status: 'submitted' },
+        data: { status: 'awaiting_payment', updated_at: new Date() },
+      });
+    }
+    return this.toPaymentDto(pay, charge.checkoutUrl);
+  }
+
+  // 결제 확인 — 스태프(수동/모의) 또는 PG 웹훅. paid 처리 + application → paid. 멱등.
+  async confirmPayment(id: string, user: AuthUser) {
+    this.assertStaff(user);
+    const app = await this.prisma.consulting_application.findUnique({ where: { id } });
+    if (!app) throw new NotFoundException('신청을 찾을 수 없습니다.');
+    const pay = await this.prisma.consulting_payment.findUnique({ where: { application_id: id } });
+    if (!pay) throw new BadRequestException('결제 정보가 없습니다. 먼저 결제를 생성하세요.');
+    if (pay.status === 'paid') return this.getOne(id, user);
+
+    const providerStatus = await this.payments.confirm(pay.pg_ref ?? '');
+    if (providerStatus !== 'paid') throw new ConflictException('결제 확인에 실패했습니다.');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.consulting_payment.update({ where: { id: pay.id }, data: { status: 'paid', paid_at: new Date() } });
+      if (canTransition(app.status as ConsultingStatus, 'paid')) {
+        await tx.consulting_application.updateMany({
+          where: { id, status: 'awaiting_payment' },
+          data: { status: 'paid', updated_at: new Date() },
+        });
+      }
+    });
+    return this.getOne(id, user);
+  }
+
+  // ── Phase 2: 컨설턴트 배정 ───────────────────────────────────────
+  // 스태프가 teacher 계정을 배정. 결제 완료(paid) 상태면 in_review로 전이. (상품별 배정 방식 지원)
+  async assignConsultant(id: string, dto: AssignConsultantDto, user: AuthUser) {
+    this.assertStaff(user);
+    const app = await this.prisma.consulting_application.findUnique({ where: { id } });
+    if (!app) throw new NotFoundException('신청을 찾을 수 없습니다.');
+    if (app.status === 'completed' || app.status === 'canceled') {
+      throw new ConflictException(`현재 상태(${app.status})에서는 배정할 수 없습니다.`);
+    }
+    const teacher = await this.prisma.account.findUnique({
+      where: { id: dto.consultantId },
+      select: { id: true, role: true },
+    });
+    if (!teacher || teacher.role !== 'teacher') {
+      throw new BadRequestException('배정 대상은 teacher 계정이어야 합니다.');
+    }
+    await this.prisma.consulting_application.update({
+      where: { id },
+      data: { consultant_id: dto.consultantId, updated_at: new Date() },
+    });
+    // 결제 완료 상태였다면 검토 착수(in_review)로 전이.
+    if (app.status === 'paid') {
+      await this.prisma.consulting_application.updateMany({
+        where: { id, status: 'paid' },
+        data: { status: 'in_review', updated_at: new Date() },
+      });
+    }
+    return this.getOne(id, user);
+  }
+
+  // ── Phase 2: 게이팅 다운로드 ─────────────────────────────────────
+  // 자료 원문 다운로드. 신청자/스태프는 항상, 배정 컨설턴트는 결제 완료 후에만.
+  async getDocument(id: string, docId: string, user: AuthUser) {
+    const app = await this.prisma.consulting_application.findUnique({ where: { id } });
+    if (!app) throw new NotFoundException('신청을 찾을 수 없습니다.');
+    const doc = await this.prisma.consulting_document.findFirst({ where: { id: docId, application_id: id } });
+    if (!doc) throw new NotFoundException('자료를 찾을 수 없습니다.');
+    const pay = await this.prisma.consulting_payment.findUnique({ where: { application_id: id } });
+
+    const allowed = canViewDocumentContent({
+      isOwner: !!app.applicant_account_id && app.applicant_account_id === user.id,
+      isStaff: this.isStaff(user),
+      isAssignedConsultant: !!app.consultant_id && app.consultant_id === user.id,
+      paymentStatus: pay?.status,
+    });
+    if (!allowed) throw new ForbiddenException('결제 완료 후 열람할 수 있습니다.');
+    if (!doc.file_id) throw new NotFoundException('파일이 없습니다.');
+
+    const { data } = await this.files.readBytes(doc.file_id);
+    return { data, filename: doc.original_name, contentType: doc.mime };
+  }
+
+  private toPaymentDto(
+    p: {
+      id: string;
+      amount_won: number;
+      method: string;
+      status: string;
+      paid_at: Date | null;
+    },
+    checkoutUrl?: string,
+  ) {
+    return {
+      id: p.id,
+      amountWon: p.amount_won,
+      method: p.method,
+      status: p.status,
+      paidAt: p.paid_at,
+      ...(checkoutUrl ? { checkoutUrl } : {}),
+    };
   }
 
   private toApplicationDto(a: {

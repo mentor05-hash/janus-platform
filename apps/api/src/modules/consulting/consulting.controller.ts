@@ -5,18 +5,27 @@ import {
   HttpCode,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
+  Res,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
 import type { UploadedFileLike } from '../storage/storage.types';
 import { ConsultingService } from './consulting.service';
-import { CreateApplicationDto, UploadDocumentDto } from './dto/consulting.dto';
+import {
+  AssignConsultantDto,
+  CreateApplicationDto,
+  CreatePaymentDto,
+  UploadDocumentDto,
+} from './dto/consulting.dto';
 
-// 대입 컨설팅 신청 접수 — Phase 1(신청/업로드). 전 라우트는 전역 가드로 인증됨.
+// 대입 컨설팅 신청 접수. 전 라우트는 전역 가드로 인증됨. 🔒=결제완료+권한 게이트.
 @Controller('consulting')
 export class ConsultingController {
   constructor(private readonly consulting: ConsultingService) {}
@@ -46,5 +55,46 @@ export class ConsultingController {
   @HttpCode(200)
   submit(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
     return this.consulting.submit(id, user);
+  }
+
+  // ── Phase 2 ──────────────────────────────────────────────────────
+  @Post('applications/:id/payment')
+  createPayment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CreatePaymentDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.consulting.createPayment(id, dto, user);
+  }
+
+  @Post('applications/:id/payment/confirm')
+  @Roles('admin', 'hr')
+  @HttpCode(200)
+  confirmPayment(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.consulting.confirmPayment(id, user);
+  }
+
+  @Patch('applications/:id/assign')
+  @Roles('admin', 'hr')
+  assign(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AssignConsultantDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.consulting.assignConsultant(id, dto, user);
+  }
+
+  // 자료 원문 다운로드(🔒 게이팅) — envelope 미적용(@Res 스트리밍).
+  @Get('applications/:id/documents/:docId')
+  async downloadDocument(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('docId', ParseUUIDPipe) docId: string,
+    @CurrentUser() user: AuthUser,
+    @Res() res: Response,
+  ) {
+    const { data, filename, contentType } = await this.consulting.getDocument(id, docId, user);
+    res.setHeader('Content-Type', contentType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.send(data);
   }
 }
