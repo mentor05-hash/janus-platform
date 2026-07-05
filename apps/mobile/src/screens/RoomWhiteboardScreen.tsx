@@ -29,6 +29,7 @@ export function RoomWhiteboardScreen({ title, onClose, embedded, session: rs }: 
   const pointersRef = useRef(new Map<number, { cx: number; cy: number }>());
   const pinchRef = useRef<{ dist: number; midCx: number; midCy: number; view: { scale: number; tx: number; ty: number } } | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const inkRef = useRef<HTMLCanvasElement | null>(null); // 잉크 전용 오프스크린(지우개가 배경을 안 뚫게)
   const colorRef = useRef(COLORS[0]);
   const widthRef = useRef(4);
   const toolRef = useRef<'pen' | 'eraser' | 'highlighter'>('pen');
@@ -53,17 +54,24 @@ export function RoomWhiteboardScreen({ title, onClose, embedded, session: rs }: 
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
     const v = viewRef.current; ctx.setTransform(v.scale, 0, 0, v.scale, v.tx, v.ty);
     if (bgImgRef.current) { const img = bgImgRef.current, ir = img.width / img.height, cr = W / H; let dw = W, dh = H, dx = 0, dy = 0; if (ir > cr) { dh = W / ir; dy = (H - dh) / 2; } else { dw = H * ir; dx = (W - dw) / 2; } ctx.drawImage(img, dx, dy, dw, dh); }
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    // 잉크는 별도 오프스크린 레이어 → 지우개(destination-out)가 배경을 안 뚫고 필기만 지움.
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const ink = (inkRef.current ??= document.createElement('canvas'));
+    if (ink.width !== cv.width || ink.height !== cv.height) { ink.width = cv.width; ink.height = cv.height; }
+    const ictx = ink.getContext('2d'); if (!ictx) return;
+    ictx.setTransform(1, 0, 0, 1, 0, 0); ictx.clearRect(0, 0, ink.width, ink.height);
+    ictx.setTransform(v.scale, 0, 0, v.scale, v.tx, v.ty);
+    ictx.lineCap = 'round'; ictx.lineJoin = 'round';
     for (const s of [...strokesRef.current, ...liveRef.current.values(), ...(drawingRef.current ? [drawingRef.current] : [])]) {
       if (s.points.length < 1) continue;
-      ctx.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over'; ctx.globalAlpha = s.highlight ? 0.32 : 1; ctx.strokeStyle = s.color;
+      ictx.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over'; ictx.globalAlpha = s.highlight ? 0.32 : 1; ictx.strokeStyle = s.color;
       if (s.erase || s.highlight || s.points.length === 1 || s.points.every((q) => q.p == null)) {
-        ctx.lineWidth = s.width; ctx.beginPath(); ctx.moveTo(s.points[0].x, s.points[0].y);
-        for (const p of s.points.slice(1)) ctx.lineTo(p.x, p.y);
-        if (s.points.length === 1) ctx.lineTo(s.points[0].x + 0.1, s.points[0].y + 0.1); ctx.stroke();
-      } else { for (let i = 1; i < s.points.length; i++) { const a = s.points[i - 1], b = s.points[i]; ctx.lineWidth = s.width * (0.35 + (b.p ?? 0.5) * 1.3); ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); } }
+        ictx.lineWidth = s.width; ictx.beginPath(); ictx.moveTo(s.points[0].x, s.points[0].y);
+        for (const p of s.points.slice(1)) ictx.lineTo(p.x, p.y);
+        if (s.points.length === 1) ictx.lineTo(s.points[0].x + 0.1, s.points[0].y + 0.1); ictx.stroke();
+      } else { for (let i = 1; i < s.points.length; i++) { const a = s.points[i - 1], b = s.points[i]; ictx.lineWidth = s.width * (0.35 + (b.p ?? 0.5) * 1.3); ictx.beginPath(); ictx.moveTo(a.x, a.y); ictx.lineTo(b.x, b.y); ictx.stroke(); } }
     }
-    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(ink, 0, 0);
   }
   function clampView() { const v = viewRef.current; v.scale = Math.min(8, Math.max(1, v.scale)); v.tx = Math.min(0, Math.max(W - W * v.scale, v.tx)); v.ty = Math.min(0, Math.max(H - H * v.scale, v.ty)); }
   function zoomAt(cx: number, cy: number, f: number) { const v = viewRef.current; const ns = Math.min(8, Math.max(1, v.scale * f)); const k = ns / v.scale; v.tx = cx - (cx - v.tx) * k; v.ty = cy - (cy - v.ty) * k; v.scale = ns; clampView(); setZoomPct(Math.round(v.scale * 100)); redraw(); }

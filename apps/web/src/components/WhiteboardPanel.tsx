@@ -12,6 +12,7 @@ const W = 900, H = 620; // 논리 좌표(비율 유지 스케일링)
 /** 예약 기반 공유 화이트보드(웹). 배경 이미지(첨부/촬영) 위에 필기 + 음성통화 동시. */
 export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: string; title?: string; onClose: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const inkRef = useRef<HTMLCanvasElement | null>(null); // 잉크 전용 오프스크린(지우개가 배경을 안 뚫게)
   const sockRef = useRef<Socket | null>(null);
   const strokesRef = useRef<Stroke[]>([]);
   const drawingRef = useRef<Stroke | null>(null);
@@ -62,32 +63,37 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
       if (ir > cr) { dh = W / ir; dy = (H - dh) / 2; } else { dw = H * ir; dx = (W - dw) / 2; }
       ctx.drawImage(img, dx, dy, dw, dh);
     }
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    // 잉크는 별도 오프스크린 레이어에 그린다 → 지우개(destination-out)가 배경 이미지·PDF 를 뚫지 않고 내 필기만 지운다.
+    ctx.setTransform(1, 0, 0, 1, 0, 0); // 배경 그린 뒤 메인 변환 원복(합성 준비)
+    const ink = (inkRef.current ??= document.createElement('canvas'));
+    if (ink.width !== cv.width || ink.height !== cv.height) { ink.width = cv.width; ink.height = cv.height; }
+    const ictx = ink.getContext('2d'); if (!ictx) return;
+    ictx.setTransform(1, 0, 0, 1, 0, 0); ictx.clearRect(0, 0, ink.width, ink.height);
+    ictx.setTransform(v.scale, 0, 0, v.scale, v.tx, v.ty);
+    ictx.lineCap = 'round'; ictx.lineJoin = 'round';
     for (const s of [...strokesRef.current, ...liveRef.current.values(), ...(drawingRef.current ? [drawingRef.current] : [])]) {
       if (s.points.length < 1) continue;
-      ctx.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over';
+      ictx.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over';
       // 형광펜: 반투명(겹치면 진해짐). 단일 패스로 그려 접합부 얼룩 방지.
-      ctx.globalAlpha = s.highlight ? 0.32 : 1;
-      ctx.strokeStyle = s.color;
+      ictx.globalAlpha = s.highlight ? 0.32 : 1;
+      ictx.strokeStyle = s.color;
       if (s.erase || s.highlight || s.points.length === 1 || s.points.every((q) => q.p == null)) {
         // 지우개·형광펜·단일점·필압 없는 스트로크: 고정 굵기(단일 패스)
-        ctx.lineWidth = s.width;
-        ctx.beginPath(); ctx.moveTo(s.points[0].x, s.points[0].y);
-        for (const p of s.points.slice(1)) ctx.lineTo(p.x, p.y);
-        if (s.points.length === 1) ctx.lineTo(s.points[0].x + 0.1, s.points[0].y + 0.1);
-        ctx.stroke();
+        ictx.lineWidth = s.width;
+        ictx.beginPath(); ictx.moveTo(s.points[0].x, s.points[0].y);
+        for (const p of s.points.slice(1)) ictx.lineTo(p.x, p.y);
+        if (s.points.length === 1) ictx.lineTo(s.points[0].x + 0.1, s.points[0].y + 0.1);
+        ictx.stroke();
       } else {
         // 펜 필압: 구간별 굵기 = base × (0.35 + p×1.3)
         for (let i = 1; i < s.points.length; i++) {
           const a = s.points[i - 1], b = s.points[i];
-          ctx.lineWidth = s.width * (0.35 + ((b.p ?? 0.5)) * 1.3);
-          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+          ictx.lineWidth = s.width * (0.35 + ((b.p ?? 0.5)) * 1.3);
+          ictx.beginPath(); ictx.moveTo(a.x, a.y); ictx.lineTo(b.x, b.y); ictx.stroke();
         }
       }
     }
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.globalAlpha = 1;
-    ctx.setTransform(1, 0, 0, 1, 0, 0); // 뷰포트 원복
+    ctx.drawImage(ink, 0, 0); // 배경 위에 잉크 레이어 합성
   }
 
   function loadBg(fileId: string | null) {
