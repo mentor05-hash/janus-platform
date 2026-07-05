@@ -195,7 +195,8 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     return { cx: ((e.clientX - r.left) / r.width) * W, cy: ((e.clientY - r.top) / r.height) * H };
   }
   /** 포인터 → 논리(월드) 좌표. 줌/팬 역변환 적용 → 확대 상태에서도 필기 위치 정확. */
-  function pt(e: React.PointerEvent): Pt {
+  // 네이티브/합성 이벤트 모두 허용(getCoalescedEvents 로 초고속 획 중간점 복원).
+  function pt(e: { clientX: number; clientY: number; pointerType: string; pressure: number }): Pt {
     const { cx, cy } = canvasSpace(e);
     const v = viewRef.current;
     const p = e.pointerType === 'pen' ? (e.pressure || 0.5) : e.pressure > 0 ? e.pressure : 0.5;
@@ -285,9 +286,11 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
       return;
     }
     if (!drawingRef.current || rejected(e)) return;
-    const p = pt(e);
-    drawingRef.current.points.push(p);
-    pendingRef.current.push(p);
+    // 초고속 획: 브라우저가 합친 pointermove 중간점을 복원 → 매끄러운 곡선.
+    const ne = e.nativeEvent;
+    const coalesced = typeof ne.getCoalescedEvents === 'function' ? ne.getCoalescedEvents() : [];
+    const evs = coalesced.length ? coalesced : [ne];
+    for (const ev of evs) { const p = pt(ev); drawingRef.current.points.push(p); pendingRef.current.push(p); }
     requestPaint();
     const now = Date.now();
     if (now - lastFlushRef.current >= 50) { lastFlushRef.current = now; flushPartial(); } // ~20fps 스트리밍

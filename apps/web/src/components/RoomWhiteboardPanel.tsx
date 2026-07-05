@@ -155,7 +155,7 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs }: { bookingId
   useEffect(() => { if (phase === 'closed' && status === 'ready') { finalizeStroke(); save(); } /* eslint-disable-line react-hooks/exhaustive-deps */ }, [phase]);
 
   function canvasSpace(e: { clientX: number; clientY: number }) { const cv = canvasRef.current!; const r = cv.getBoundingClientRect(); return { cx: ((e.clientX - r.left) / r.width) * W, cy: ((e.clientY - r.top) / r.height) * H }; }
-  function pt(e: React.PointerEvent): Pt { const { cx, cy } = canvasSpace(e); const v = viewRef.current; const p = e.pointerType === 'pen' ? (e.pressure || 0.5) : e.pressure > 0 ? e.pressure : 0.5; return { x: (cx - v.tx) / v.scale, y: (cy - v.ty) / v.scale, p }; }
+  function pt(e: { clientX: number; clientY: number; pointerType: string; pressure: number }): Pt { const { cx, cy } = canvasSpace(e); const v = viewRef.current; const p = e.pointerType === 'pen' ? (e.pressure || 0.5) : e.pressure > 0 ? e.pressure : 0.5; return { x: (cx - v.tx) / v.scale, y: (cy - v.ty) / v.scale, p }; }
   function clampView() { const v = viewRef.current; v.scale = Math.min(8, Math.max(1, v.scale)); v.tx = Math.min(0, Math.max(W - W * v.scale, v.tx)); v.ty = Math.min(0, Math.max(H - H * v.scale, v.ty)); }
   function zoomAt(cx: number, cy: number, factor: number) { const v = viewRef.current; const ns = Math.min(8, Math.max(1, v.scale * factor)); const k = ns / v.scale; v.tx = cx - (cx - v.tx) * k; v.ty = cy - (cy - v.ty) * k; v.scale = ns; clampView(); setZoomPct(Math.round(v.scale * 100)); redraw(); }
   function resetZoom() { viewRef.current = { scale: 1, tx: 0, ty: 0 }; setZoomPct(100); redraw(); }
@@ -191,7 +191,11 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs }: { bookingId
       clampView(); setZoomPct(Math.round(v.scale * 100)); redraw(); return;
     }
     if (!drawingRef.current || rejected(e)) return;
-    const p = pt(e); drawingRef.current.points.push(p); pendingRef.current.push(p); requestPaint();
+    const ne = e.nativeEvent;
+    const coalesced = typeof ne.getCoalescedEvents === 'function' ? ne.getCoalescedEvents() : [];
+    const evs = coalesced.length ? coalesced : [ne];
+    for (const ev of evs) { const p = pt(ev); drawingRef.current.points.push(p); pendingRef.current.push(p); }
+    requestPaint();
     const now = Date.now(); if (now - lastFlushRef.current >= 50) { lastFlushRef.current = now; flushPartial(); }
   }
   function up(e: React.PointerEvent) { pointersRef.current.delete(e.pointerId); if (pointersRef.current.size < 2) pinchRef.current = null; finalizeStroke(); }

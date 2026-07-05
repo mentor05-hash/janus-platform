@@ -190,7 +190,10 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
         clampView(); setZoomPct(Math.round(v.scale * 100)); redraw(); return;
       }
       if (!drawingRef.current || rejected(e)) return;
-      const p = pt(e); drawingRef.current.points.push(p); pendingRef.current.push(p); requestPaint();
+      const coalesced = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [];
+      const evs = coalesced.length ? coalesced : [e];
+      for (const ev of evs) { const p = pt(ev); drawingRef.current.points.push(p); pendingRef.current.push(p); }
+      requestPaint();
       const now = Date.now();
       if (now - lastFlushRef.current >= 50) { lastFlushRef.current = now; flush(); } // ~20fps 스트리밍
     };

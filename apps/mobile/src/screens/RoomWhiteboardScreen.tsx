@@ -136,7 +136,10 @@ export function RoomWhiteboardScreen({ title, onClose, embedded, session: rs }: 
         v.scale = pin.view.scale * k; v.tx = midCx - (pin.midCx - pin.view.tx) * k; v.ty = midCy - (pin.midCy - pin.view.ty) * k; clampView(); setZoomPct(Math.round(v.scale * 100)); redraw(); return;
       }
       if (!drawingRef.current || rejected(e)) return;
-      const p = pt(e); drawingRef.current.points.push(p); pendingRef.current.push(p); requestPaint();
+      const coalesced = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [];
+      const evs = coalesced.length ? coalesced : [e];
+      for (const ev of evs) { const p = pt(ev); drawingRef.current.points.push(p); pendingRef.current.push(p); }
+      requestPaint();
       const now = Date.now(); if (now - lastFlushRef.current >= 50) { lastFlushRef.current = now; flush(); }
     };
     const up = (e: PointerEvent) => { pointersRef.current.delete(e.pointerId); if (pointersRef.current.size < 2) pinchRef.current = null; finalize(); };
