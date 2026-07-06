@@ -1,0 +1,166 @@
+<title>모의고사 · 성적 분석 — 잇올 연계 서비스</title>
+<style>
+  :root{--ink:#0e2a38;--body:#3c515a;--muted:#6b7f88;--teal:#0e5c7c;--teal-d:#0a3d52;--gold:#e8a63d;--gold-d:#c98a25;--bg:#f4f7f8;--card:#fff;--tint:#eaf1f3;--line:#e0e8eb;--line-2:#eef3f4;--navy:#0b2733;--navy-2:#0f3444;--good:#1e7a4d;--maxw:1000px}
+  *{box-sizing:border-box}html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'Pretendard','Apple SD Gothic Neo','Malgun Gothic',-apple-system,system-ui,sans-serif;line-height:1.6;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+  .btn{display:inline-flex;align-items:center;gap:7px;border-radius:11px;padding:12px 20px;font-weight:800;font-size:15px;cursor:pointer;border:1px solid transparent;transition:transform .12s,background .15s}
+  .btn:hover{transform:translateY(-1px)}
+  .btn.primary{background:var(--gold);color:#241703;box-shadow:0 6px 18px rgba(232,166,61,.26)}.btn.primary:hover{background:var(--gold-d)}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}.btn.ghost:hover{background:var(--line-2)}
+  .btn.sm{padding:9px 15px;font-size:13.5px;border-radius:9px}
+  .tag{display:inline-block;font-size:12px;font-weight:800;letter-spacing:.04em;border-radius:999px;padding:4px 11px}
+  .tag.soon{background:#dcecf2;color:var(--teal-d)}.tag.prep{background:var(--line-2);color:var(--muted);border:1px solid var(--line)}.tag.partner{background:#e9f5ee;color:var(--good);border:1px solid #cfe6d8}.tag.live{background:var(--teal);color:#fff}
+  header{position:sticky;top:0;z-index:60;background:rgba(244,247,248,.86);backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--line)}
+  .nav{display:flex;align-items:center;justify-content:space-between;height:62px}
+  .lgrp{display:flex;align-items:center;gap:18px}
+  .logo{display:flex;align-items:center;gap:9px;font-weight:900;font-size:19px;letter-spacing:-.02em}
+  .logo .dot{width:10px;height:10px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 4px rgba(232,166,61,.2)}
+  .home{font-size:14px;font-weight:700;color:var(--muted)}.home:hover{color:var(--teal)}
+  .right{display:flex;gap:10px;align-items:center}
+  .hero{background:radial-gradient(120% 130% at 82% -20%,#12455b,var(--navy-2) 55%,var(--navy));color:#eaf3f6;padding:clamp(46px,7vw,80px) 0}
+  .hero .badge{width:60px;height:60px;border-radius:16px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);display:grid;place-items:center;font-size:28px}
+  .hero .cat{font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:800;color:#8fd0e8;margin-top:18px}
+  .hero h1{font-size:clamp(30px,5vw,48px);font-weight:900;letter-spacing:-.02em;margin:10px 0 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap;text-wrap:balance}
+  .hero .lead{color:#bcd7e1;font-size:17px;max-width:58ch;margin:16px 0 26px;line-height:1.65}
+  .block{padding:clamp(44px,6vw,68px) 0;border-bottom:1px solid var(--line)}
+  .block.alt{background:var(--tint)}
+  .block h2{font-size:clamp(20px,2.8vw,26px);font-weight:900;letter-spacing:-.02em;margin:0 0 6px}
+  .block .sub{color:var(--muted);font-size:14.5px;margin:0 0 22px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media(max-width:820px){.grid3{grid-template-columns:1fr}}
+  .fc{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px}
+  .block.alt .fc{background:#fff}
+  .fc .n{display:flex;align-items:center;gap:9px;font-weight:800;font-size:16px}
+  .fc .n .i{width:32px;height:32px;border-radius:9px;background:var(--line-2);display:grid;place-items:center;font-size:16px}
+  .fc p{font-size:13.5px;color:var(--muted);margin:11px 0 0;line-height:1.55}
+  .connect{display:flex;gap:16px;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:14px;padding:22px 24px}
+  .connect .k{flex:none;width:44px;height:44px;border-radius:12px;background:#fff6e7;display:grid;place-items:center;font-size:20px}
+  .connect p{margin:0;font-size:15px;color:var(--body);line-height:1.7}.connect b{color:var(--ink)}
+  .others{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  @media(max-width:820px){.others{grid-template-columns:1fr}}
+  .oc{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;transition:box-shadow .15s,transform .15s,border-color .15s}
+  .oc:hover{box-shadow:0 10px 24px rgba(11,39,51,.08);transform:translateY(-2px);border-color:#cfe0e8}
+  .oc .oi{width:34px;height:34px;border-radius:9px;background:var(--line-2);display:grid;place-items:center;font-size:17px;flex:none}
+  .oc .on{font-weight:800;font-size:14px}.oc .oc2{font-size:11.5px;color:var(--muted)}
+  .oc .go{margin-left:auto;color:var(--teal);font-weight:800;font-size:15px}
+  .band{background:var(--navy);color:#dcedf3;text-align:center;padding:clamp(44px,6vw,68px) 0}
+  .band h2{font-size:clamp(21px,3vw,30px);font-weight:900;letter-spacing:-.02em;margin:0}
+  .band p{color:#9fbecb;margin:12px 0 22px;font-size:15px}
+  .band .row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+  .band .btn.ghost{border-color:rgba(255,255,255,.3);color:#fff}
+  footer{background:var(--navy-2);color:#9fbecb;padding:32px 0;font-size:13px}
+  footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  section[id]{scroll-margin-top:78px}
+  .pricing{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  @media(max-width:820px){.pricing{grid-template-columns:1fr}}
+  .ptier{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px;display:flex;flex-direction:column;position:relative}
+  .block.alt .ptier{background:#fff}
+  .ptier.pop{border:2px solid var(--teal);box-shadow:0 14px 34px rgba(14,92,124,.14)}
+  .ptier .pbadge{position:absolute;top:-11px;left:24px;background:var(--teal);color:#fff;font-size:11px;font-weight:800;padding:4px 11px;border-radius:999px}
+  .ptier .pname{font-size:14px;font-weight:800;color:var(--teal);letter-spacing:.02em}
+  .ptier .price{font-size:26px;font-weight:900;letter-spacing:-.02em;margin:6px 0 2px}
+  .ptier .price small{font-size:14px;font-weight:700;color:var(--muted)}
+  .ptier .pdesc{font-size:13px;color:var(--muted);margin:0 0 14px}
+  .plist{list-style:none;padding:0;margin:0 0 20px;display:flex;flex-direction:column;gap:9px;flex:1}
+  .plist li{font-size:13.5px;color:var(--body);padding-left:23px;position:relative;line-height:1.5}
+  .plist li::before{content:'✓';position:absolute;left:0;color:var(--teal);font-weight:900}
+  .ptier .btn{width:100%;justify-content:center}
+  .pnote{font-size:12px;color:var(--muted);margin-top:16px}
+  .form{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:26px;max-width:660px}
+  .block.alt .form{background:#fff}
+  .form .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:560px){.form .grid2{grid-template-columns:1fr}}
+  .field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+  .field label{font-size:13px;font-weight:700;color:var(--ink)}
+  .field input,.field select,.field textarea{font:inherit;font-size:14px;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);width:100%}
+  .field textarea{resize:vertical;min-height:90px}
+  .field input:focus,.field select:focus,.field textarea:focus{outline:2px solid var(--teal);outline-offset:1px;border-color:var(--teal)}
+  .agree{display:flex;gap:9px;align-items:flex-start;font-size:13px;color:var(--muted);margin-bottom:16px;cursor:pointer}
+  .agree input{margin-top:2px;flex:none}
+  .formmsg{display:none;background:#e9f5ee;border:1px solid #cfe6d8;color:var(--good);border-radius:10px;padding:14px 16px;font-size:14px;font-weight:700;margin-top:14px}
+  .formmsg.show{display:block}
+  .reveal{opacity:0;transform:translateY(18px);transition:opacity .55s ease,transform .55s cubic-bezier(.2,.75,.25,1)}.reveal.in{opacity:1;transform:none}
+  @media(prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none;transition:none}html{scroll-behavior:auto}}
+</style>
+<header>
+  <div class="wrap nav">
+    <div class="lgrp"><a class="logo" href="#"><span class="dot"></span>잇올</a><a class="home" href="https://claude.ai/code/artifact/419b90e8-69cb-44da-a59f-9737507dd4fb">← 연계 서비스 전체</a></div>
+    <div class="right"><a class="btn ghost sm" href="#login">로그인</a><a class="btn primary sm" href="#login">시작하기</a></div>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <div class="badge" aria-hidden="true">📊</div>
+    <div class="cat">성적 관리</div>
+    <h1>모의고사 · 성적 분석 <span class="tag prep">준비 중</span></h1>
+    <p class="lead">모의고사 성적을 등급·백분위 추이로 관리하고, 취약 단원을 자동 진단해 상담·강의로 잇습니다.</p>
+    <a class="btn ghost" href="#login">출시 알림 받기</a>
+  </div>
+</section>
+
+<section class="block">
+  <div class="wrap">
+    <h2>핵심 기능</h2>
+    <p class="sub">이 서비스가 제공하는 핵심 기능</p>
+    <div class="grid3">
+        <div class="fc reveal"><div class="n"><span class="i" aria-hidden="true">📈</span>성적 추이</div><p>회차별 등급·백분위·원점수를 그래프로. 오르는 과목과 정체된 과목이 한눈에 보입니다.</p></div>
+        <div class="fc reveal"><div class="n"><span class="i" aria-hidden="true">🔍</span>취약점 진단</div><p>과목·단원별로 약한 부분을 자동 분석해, 무엇을 먼저 보완할지 짚어줍니다.</p></div>
+        <div class="fc reveal"><div class="n"><span class="i" aria-hidden="true">🎯</span>목표 격차</div><p>목표 대학 기준선과 현재 성적의 격차를 리포트로 제공합니다.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="block alt">
+  <div class="wrap">
+    <h2>잇올과 이렇게 연결됩니다</h2>
+    <p class="sub">계정 하나로, 상담과 끊김 없이 이어집니다</p>
+    <div class="connect reveal"><span class="k" aria-hidden="true">🔗</span><p>진단 결과가 <b>배치표·강의·상담</b>으로 자동 연계됩니다 — 약점 발견에서 보완까지 한 흐름.</p></div>
+  </div>
+</section>
+
+<section class="block">
+  <div class="wrap">
+    <h2>다른 연계 서비스</h2>
+    <p class="sub">잇올 계정으로 함께 쓰는 입시 서비스</p>
+    <div class="others">
+        <a class="oc" href="https://claude.ai/code/artifact/419b90e8-69cb-44da-a59f-9737507dd4fb#consulting"><span class="oi" aria-hidden="true">🎓</span><span><span class="on">대입 컨설팅</span><br><span class="oc2">프리미엄 전략</span></span><span class="go">→</span></a>
+        <a class="oc" href="https://claude.ai/code/artifact/419b90e8-69cb-44da-a59f-9737507dd4fb#baechi"><span class="oi" aria-hidden="true">📈</span><span><span class="on">대학 배치표</span><br><span class="oc2">지원 전략</span></span><span class="go">→</span></a>
+        <a class="oc" href="https://claude.ai/code/artifact/419b90e8-69cb-44da-a59f-9737507dd4fb#ganggi"><span class="oi" aria-hidden="true">🎬</span><span><span class="on">인터넷 강의</span><br><span class="oc2">학습</span></span><span class="go">→</span></a>
+        <a class="oc" href="https://claude.ai/code/artifact/419b90e8-69cb-44da-a59f-9737507dd4fb#ipgyeol"><span class="oi" aria-hidden="true">🏛️</span><span><span class="on">입결 · 경쟁률</span><br><span class="oc2">입시 정보</span></span><span class="go">→</span></a>
+        <a class="oc" href="https://claude.ai/code/artifact/419b90e8-69cb-44da-a59f-9737507dd4fb#jaso"><span class="oi" aria-hidden="true">✍️</span><span><span class="on">자소서 · 면접 첨삭</span><br><span class="oc2">수시 대비</span></span><span class="go">→</span></a>
+        <a class="oc" href="https://claude.ai/code/artifact/419b90e8-69cb-44da-a59f-9737507dd4fb#planner"><span class="oi" aria-hidden="true">🗂️</span><span><span class="on">학습 플래너</span><br><span class="oc2">플래너</span></span><span class="go">→</span></a>
+    </div>
+  </div>
+</section>
+
+<section class="band" id="login">
+  <div class="wrap">
+    <h2>잇올 계정 하나로, 모의고사 · 성적 분석까지</h2>
+    <p>멘토링부터 연계 서비스까지 다시 로그인할 필요 없이 이어집니다.</p>
+    <div class="row"><a class="btn primary" href="#login">무료로 시작하기</a><a class="btn ghost" href="https://claude.ai/code/artifact/419b90e8-69cb-44da-a59f-9737507dd4fb">전체 서비스 보기</a></div>
+  </div>
+</section>
+
+<footer><div class="wrap"><span>© 2026 잇올(itall) · 입시 멘토링 · 상담 플랫폼</span><span>서비스 상태는 준비 상황에 따라 변경될 수 있습니다.</span></div></footer>
+
+<script>
+(function(){
+  var reduce=window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  var t=[].slice.call(document.querySelectorAll('.reveal'));
+  document.querySelectorAll('.grid3, .pricing').forEach(function(g){[].slice.call(g.children).forEach(function(c,i){if(c.classList.contains('reveal'))c.style.transitionDelay=(i%3)*80+'ms'})});
+  if(reduce||!('IntersectionObserver'in window)){t.forEach(function(el){el.classList.add('in')});}
+  else{var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}})},{threshold:.14,rootMargin:'0px 0px -8% 0px'});
+  t.forEach(function(el){io.observe(el)});}
+  var f=document.getElementById('consultForm');
+  if(f){f.addEventListener('submit',function(e){e.preventDefault();
+    var name=f.querySelector('[name=name]'),phone=f.querySelector('[name=phone]'),agree=f.querySelector('[name=agree]');
+    var bad=!name.value.trim()?name:(!phone.value.trim()?phone:(!agree.checked?agree:null));
+    if(bad){bad.focus();if(bad===agree)alert('개인정보 수집·이용에 동의해 주세요.');return;}
+    document.getElementById('formMsg').classList.add('show');
+    var btn=f.querySelector('button[type=submit]');btn.textContent='접수 완료 ✓';btn.disabled=true;btn.style.opacity=.7;
+  });}
+})();
+</script>

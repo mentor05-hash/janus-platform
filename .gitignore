@@ -32,3 +32,4 @@ coverage/
 .idea/
 .vscode/*
 !.vscode/extensions.json
+marketing/dist/
