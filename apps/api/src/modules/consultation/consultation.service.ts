@@ -109,7 +109,12 @@ export class ConsultationService {
     if (kw) {
       where = {
         ...where,
-        account: { name: { contains: kw, mode: 'insensitive' } },
+        account: {
+          OR: [
+            { name: { contains: kw, mode: 'insensitive' } },
+            { login_id: { contains: kw, mode: 'insensitive' } },
+          ],
+        },
       };
     }
     const rows = await this.prisma.student_profile.findMany({
@@ -118,7 +123,7 @@ export class ConsultationService {
         account_id: true,
         total_consult: true,
         homeroom_teacher_id: true,
-        account: { select: { name: true } },
+        account: { select: { name: true, login_id: true } },
       },
       orderBy: { account: { name: 'asc' } },
       take: 200,
@@ -126,6 +131,7 @@ export class ConsultationService {
     return rows.map((s) => ({
       studentId: s.account_id,
       name: s.account?.name ?? '학생',
+      loginId: s.account?.login_id ?? null,
       totalConsult: s.total_consult ?? 0,
       isHomeroom: s.homeroom_teacher_id === user.id,
     }));
