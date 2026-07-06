@@ -3,6 +3,7 @@ import { io, type Socket } from 'socket.io-client';
 import { useRoomVoiceCall } from '../utils/roomVoiceCall';
 import { useSessionPhase, canInteract, sessionNotice, type SessionInfo } from '../utils/session';
 import type { RoomSession } from './RoomChatPanel';
+import { LectureAudioBar } from './LectureAudioBar';
 
 type Pt = { x: number; y: number; p?: number };
 type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean; highlight?: boolean };
@@ -10,7 +11,7 @@ const COLORS = ['#16242B', '#0E5C7C', '#E5484D', '#2F9E44', '#F08C00'];
 const W = 900, H = 620;
 
 /** 룸 서비스 기반 공유 화이트보드(이관 경로). 이미지 배경 + 필기 + 음성. PDF 배경은 이음새로 보류. */
-export function RoomWhiteboardPanel({ title, onClose, session: rs }: { bookingId: string; title?: string; onClose: () => void; session: RoomSession }) {
+export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaPublish }: { bookingId: string; title?: string; onClose: () => void; session: RoomSession; media?: { provider: string; url: string | null; token: string | null; note?: string } | null; mediaPublish?: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const inkRef = useRef<HTMLCanvasElement | null>(null); // 잉크 전용 오프스크린(지우개가 배경을 안 뚫게)
   const sockRef = useRef<Socket | null>(null);
@@ -249,13 +250,15 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs }: { bookingId
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <b style={{ fontSize: 15 }}>🖊 {title ?? '공유 화이트보드'}</b>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {status !== 'off' && (call.inCall
-              ? <>
-                  <span style={{ fontSize: 12, color: call.peerPresent ? 'var(--chip-done)' : 'var(--muted)' }}>🎧 {call.peerPresent ? '통화 중' : '연결 대기'}</span>
-                  <button className="btn ghost sm" onClick={call.toggleMute}>{call.muted ? '🔇 음소거' : '🎙 켜짐'}</button>
-                  <button className="btn danger sm" onClick={call.hangup}>통화 종료</button>
-                </>
-              : <button className="btn ghost sm" disabled={!rw} onClick={call.start}>📞 음성통화</button>)}
+            {media
+              ? <LectureAudioBar media={media} publish={!!mediaPublish} />
+              : (status !== 'off' && (call.inCall
+                ? <>
+                    <span style={{ fontSize: 12, color: call.peerPresent ? 'var(--chip-done)' : 'var(--muted)' }}>🎧 {call.peerPresent ? '통화 중' : '연결 대기'}</span>
+                    <button className="btn ghost sm" onClick={call.toggleMute}>{call.muted ? '🔇 음소거' : '🎙 켜짐'}</button>
+                    <button className="btn danger sm" onClick={call.hangup}>통화 종료</button>
+                  </>
+                : <button className="btn ghost sm" disabled={!rw} onClick={call.start}>📞 음성통화</button>))}
             <button onClick={onClose} aria-label="닫기" style={{ border: 'none', background: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--muted)' }}>✕</button>
           </div>
         </div>

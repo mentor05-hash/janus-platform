@@ -35,7 +35,14 @@ export function ClassroomPage() {
     setErr('');
     try {
       const j = await api.post<{ url: string; token: string; role: string }>(`/classes/${row.id}/join`, {});
-      const u = `/room?url=${encodeURIComponent(j.url)}&token=${encodeURIComponent(j.token)}&kind=whiteboard&title=${encodeURIComponent(row.title)}`;
+      let media = '';
+      try {
+        const m = await api.get<{ provider: string; url: string | null; token: string | null }>(`/classes/${row.id}/media-token`);
+        if (m.provider === 'livekit' && m.url && m.token) {
+          media = `&mediaUrl=${encodeURIComponent(m.url)}&mediaToken=${encodeURIComponent(m.token)}&publish=${j.role === 'host' ? '1' : '0'}`;
+        }
+      } catch { /* 음성 미설정이면 판서만 */ }
+      const u = `/room?url=${encodeURIComponent(j.url)}&token=${encodeURIComponent(j.token)}&kind=whiteboard&title=${encodeURIComponent(row.title)}${media}`;
       window.open(u, '_blank', 'noopener');
     } catch (e) { setErr(e instanceof ApiError ? e.message : '입장 실패'); }
   }

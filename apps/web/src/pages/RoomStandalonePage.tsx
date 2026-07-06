@@ -22,6 +22,11 @@ export function RoomStandalonePage() {
   const token = q.get('token') ?? '';
   const kind = (q.get('kind') ?? 'chat') as 'chat' | 'whiteboard';
   const title = q.get('title') ?? (kind === 'whiteboard' ? '공유 화이트보드' : '채팅');
+  // 강의 음성(LiveKit) — media-token 을 URL 로 전달(선택). publish=1 이면 선생님(송출).
+  const mediaUrl = q.get('mediaUrl');
+  const mediaToken = q.get('mediaToken');
+  const media = mediaUrl && mediaToken ? { provider: 'livekit', url: mediaUrl, token: mediaToken } : null;
+  const mediaPublish = q.get('publish') === '1';
 
   const session: RoomSession | null = useMemo(() => {
     if (!url || !token) return null;
@@ -39,6 +44,6 @@ export function RoomStandalonePage() {
   }
   const close = () => { /* 독립 페이지 — 닫기는 브라우저 탭 닫기로 */ };
   return kind === 'whiteboard'
-    ? <RoomWhiteboardPanel bookingId="" title={title} onClose={close} session={session} />
+    ? <RoomWhiteboardPanel bookingId="" title={title} onClose={close} session={session} media={media} mediaPublish={mediaPublish} />
     : <RoomChatPanel bookingId="" myId={session.participantId} title={title} onClose={close} session={session} />;
 }
