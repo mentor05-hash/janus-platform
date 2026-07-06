@@ -13,6 +13,7 @@ import { QnaScreen } from './src/screens/QnaScreen';
 import { MaterialsScreen } from './src/screens/MaterialsScreen';
 import { CommunityScreen } from './src/screens/CommunityScreen';
 import { MyScreen } from './src/screens/MyScreen';
+import { ClassroomScreen } from './src/screens/ClassroomScreen';
 import { GuardianHome, GuardianConsult, GuardianPay, GuardianCharge, GuardianMembership } from './src/screens/GuardianScreens';
 import { TeacherInbox, TeacherToday, TeacherSessions, TeacherRecords, TeacherMy } from './src/screens/TeacherScreens';
 import { ThemeProvider, useTheme, type Palette, SP } from './src/theme';
@@ -141,9 +142,9 @@ function AppInner() {
   const isGuardian = me.role === 'guardian';
   const isStudent = me.role === 'student';
   const isTeacher = me.role === 'teacher';
-  const tabs = isGuardian ? ['a', 'b', 'g', 'c', 'd'] : isTeacher ? ['ti', 'to', 'ts', 'tr', 'tm'] : ['a', 'b', 'e', 'c', 'f', 'd'];
+  const tabs = isGuardian ? ['a', 'b', 'g', 'c', 'd'] : isTeacher ? ['ti', 'to', 'ts', 'tr', 'tm'] : ['a', 'b', 'r', 'e', 'c', 'f', 'd'];
   const guardianLabel: Record<string, string> = { a: '홈', b: '상담', g: '멤버십', c: '결제', d: '충전' };
-  const studentLabel: Record<string, string> = { a: '선생님', b: '내 예약', e: '자료실', c: 'Q&A', f: '커뮤니티', d: '마이' };
+  const studentLabel: Record<string, string> = { a: '선생님', b: '내 예약', r: '강의실', e: '자료실', c: 'Q&A', f: '커뮤니티', d: '마이' };
   const teacherLabel: Record<string, string> = { ti: '인박스', to: '오늘', ts: '상담', tr: '기록', tm: '마이' };
   const tabLabel = (t: string) => (isGuardian ? guardianLabel[t] ?? '' : isTeacher ? teacherLabel[t] ?? '' : studentLabel[t] ?? '');
   // 선생님은 탭키가 다르므로 기본 진입 탭 보정('a' → 'ti')
@@ -187,6 +188,8 @@ function AppInner() {
             )
           ) : tab === 'b' ? (
             <BookingsScreen myId={me.id} />
+          ) : tab === 'r' ? (
+            <ClassroomScreen />
           ) : tab === 'e' ? (
             <MaterialsScreen />
           ) : tab === 'c' ? (
