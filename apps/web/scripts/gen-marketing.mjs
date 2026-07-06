@@ -8,6 +8,13 @@ const OVERVIEW = '/services';           // 연계 서비스 개요(실라우트)
 const LOGIN = '/login';                 // 로그인(실라우트)
 const APPLY = '/consulting/apply';      // 대입 컨설팅 실제 신청 폼(실라우트)
 
+// iframe 안에서 절대경로(앱) 링크는 최상위 창(SPA)으로 이동해야 함 → target="_top" 주입.
+// 해시 앵커(#apply 등)는 iframe 내부 스크롤이므로 제외. 재실행해도 idempotent.
+const topify = (html) =>
+  html
+    .replace(/href="(\/[^"#][^"]*)"/g, 'href="$1" target="_top"')
+    .replace(/href="(\/)"/g, 'href="$1" target="_top"');
+
 const S = [
   {id:'consulting', file:'svc-consulting.html', cat:'프리미엄 전략', icon:'🎓', name:'대입 컨설팅',
    tag:['live','운영 중'], cta:['상담 신청하기','primary'], href:APPLY,
@@ -225,7 +232,7 @@ const page = (s) => {
   const feats = s.feats.map(([i,n,p]) =>
     `<div class="fc reveal"><div class="n"><span class="i" aria-hidden="true">${i}</span>${n}</div><p>${p}</p></div>`
   ).join('\n        ');
-  return `<title>${s.name} — 잇올 연계 서비스</title>
+  return topify(`<title>${s.name} — 잇올 연계 서비스</title>
 <style>${CSS}</style>
 <header>
   <div class="wrap nav">
@@ -300,7 +307,7 @@ ${s.extra || ''}
   });}
 })();
 </script>
-`;
+`);
 };
 
 for (const s of S) {
