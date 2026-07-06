@@ -20,6 +20,7 @@ import { TeacherMaterialsPage } from './pages/TeacherMaterialsPage';
 import { TeacherQnaPage } from './pages/TeacherQnaPage';
 import { TeacherRecordsPage } from './pages/TeacherRecordsPage';
 import { TeacherProfilePage } from './pages/TeacherProfilePage';
+import { ClassroomPage } from './pages/ClassroomPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { AdminPolicyPage } from './pages/AdminPolicyPage';
 import { HrStudentsPage } from './pages/HrStudentsPage';
@@ -109,6 +110,7 @@ export function App() {
         <Route path="materials" element={<TeacherMaterialsPage />} />
         <Route path="records" element={<TeacherRecordsPage />} />
         <Route path="profile" element={<TeacherProfilePage />} />
+        <Route path="classes" element={<ClassroomPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="students/:studentId/notes" element={<StudentNotesPage />} />
         <Route path="legal" element={<LegalPage />} />
