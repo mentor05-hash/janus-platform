@@ -46,6 +46,9 @@ export function RoomWhiteboardScreen({ title, onClose, embedded, session: rs }: 
   const [role, setRole] = useState<string>('viewer');
   const [roster, setRoster] = useState<Array<{ participantId: string; name?: string; role?: string }>>([]);
   const viewerRef = useRef(false); // 그리기 게이트(핸들러 클로저용 미러)
+  const [raised, setRaised] = useState<Map<string, string | undefined>>(new Map());
+  const [handUp, setHandUp] = useState(false);
+  const myPid = useMemo(() => { try { return JSON.parse(decodeURIComponent(escape(atob(rs.token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))))).participantId as string; } catch { return ''; } }, [rs.token]);
   const [color, setColor] = useState(COLORS[0]);
   const [width, setWidth] = useState(4);
   const [tool, setTool] = useState<'pen' | 'eraser' | 'highlighter'>('pen');
@@ -163,7 +166,15 @@ export function RoomWhiteboardScreen({ title, onClose, embedded, session: rs }: 
     s.on('wb:stroke', ({ stroke, sid }: { stroke: Stroke; sid?: string }) => { if (sid) liveRef.current.delete(sid); strokesRef.current.push(stroke); redraw(); });
     s.on('wb:clear', () => { strokesRef.current = []; liveRef.current.clear(); redraw(); });
     s.on('roster:join', (p: { participantId: string; name?: string; role?: string }) => setRoster((prev) => prev.some((x) => x.participantId === p.participantId) ? prev : [...prev, p]));
-    s.on('roster:leave', ({ participantId }: { participantId: string }) => setRoster((prev) => prev.filter((x) => x.participantId !== participantId)));
+    s.on('roster:leave', ({ participantId }: { participantId: string }) => { setRoster((prev) => prev.filter((x) => x.participantId !== participantId)); setRaised((prev) => { const m = new Map(prev); m.delete(participantId); return m; }); });
+    s.on('lecture:role', ({ participantId, role: nr }: { participantId: string; role: string }) => {
+      setRoster((prev) => prev.map((x) => x.participantId === participantId ? { ...x, role: nr } : x));
+      setRaised((prev) => { const m = new Map(prev); m.delete(participantId); return m; });
+      if (participantId === myPid) { setRole(nr); s.emit('lecture:sync'); }
+    });
+    s.on('hand:raise', ({ participantId, name, raised: up }: { participantId: string; name?: string; raised?: boolean }) => {
+      setRaised((prev) => { const m = new Map(prev); if (up) m.set(participantId, name); else m.delete(participantId); return m; });
+    });
     s.on('wb:image', ({ fileUrl }: { fileUrl: string | null }) => loadBg(fileUrl));
     s.on('session:closed', (e: { closesAt?: string }) => setSession((v) => ({ ...v, state: 'closed', closesAt: e.closesAt ?? v.closesAt })));
     s.on('session:revoked', () => setStatus('off'));
@@ -259,13 +270,24 @@ export function RoomWhiteboardScreen({ title, onClose, embedded, session: rs }: 
               <TouchableOpacity onPress={() => zoomAt(W / 2, H / 2, 1.25)} style={[styles.wbtn, { width: 34 }]}><Text style={styles.wtxt}>＋</Text></TouchableOpacity>
               <View style={{ flex: 1 }} />
               {isViewer ? (
-                <Text style={{ fontSize: 11, color: C.muted }}>👁 선생님 판서 열람</Text>
+                <TouchableOpacity onPress={() => { const nv = !handUp; setHandUp(nv); sockRef.current?.emit('hand:raise', { raised: nv }); }} style={[styles.act, handUp && { borderColor: '#e8a63d' }]}><Text style={styles.actT}>{handUp ? '✋ 손내리기' : '✋ 손들기'}</Text></TouchableOpacity>
               ) : (<>
                 <Text style={{ fontSize: 10, color: C.muted, marginRight: 4 }}>{saveState === 'saving' ? '저장 중…' : saveState === 'saved' ? '자동저장 ✓' : saveState === 'dirty' ? '변경됨' : ''}</Text>
                 <TouchableOpacity disabled={!rw} onPress={clear} style={[styles.act, !rw && { opacity: 0.4 }]}><Text style={styles.actT}>전체 지우기</Text></TouchableOpacity>
                 <TouchableOpacity disabled={!rw} onPress={save} style={[styles.act, styles.actP, !rw && { opacity: 0.4 }]}><Text style={[styles.actT, { color: '#fff' }]}>저장</Text></TouchableOpacity>
               </>)}
             </View>
+            {mode === 'lecture' && role === 'host' && (raised.size > 0 || roster.some((r) => r.role === 'presenter')) && (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, padding: 8, backgroundColor: '#fffaf0' }}>
+                {raised.size > 0 && <Text style={{ fontSize: 11, fontWeight: '700', color: '#c98a25', alignSelf: 'center' }}>✋ 손든 학생</Text>}
+                {[...raised].map(([pid, nm]) => (
+                  <TouchableOpacity key={pid} onPress={() => sockRef.current?.emit('lecture:grant', { participantId: pid })} style={styles.act}><Text style={styles.actT}>{nm ?? '학생'} 발표권</Text></TouchableOpacity>
+                ))}
+                {roster.filter((r) => r.role === 'presenter').map((r) => (
+                  <TouchableOpacity key={r.participantId} onPress={() => sockRef.current?.emit('lecture:revoke', { participantId: r.participantId })} style={styles.act}><Text style={styles.actT}>{r.name ?? '학생'} 회수</Text></TouchableOpacity>
+                ))}
+              </View>
+            )}
             <View ref={hostRef} style={styles.canvasHost} />
           </>
         )}
