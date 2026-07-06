@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+// (media-token·recording 엔드포인트 추가)
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -57,5 +58,30 @@ export class ClassroomController {
   @HttpCode(200)
   end(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
     return this.classroom.end(id, user);
+  }
+
+  // 음성(SFU) 접속 토큰 — 선생님 송출 / 학생 수신.
+  @Get(':id/media-token')
+  mediaToken(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.classroom.mediaToken(id, user);
+  }
+
+  // 녹화(필수) — 시작/종료/목록.
+  @Post(':id/recording/start')
+  @Roles('teacher', 'admin', 'hr')
+  startRecording(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.classroom.startRecording(id, user);
+  }
+
+  @Post(':id/recording/:recId/stop')
+  @Roles('teacher', 'admin', 'hr')
+  @HttpCode(200)
+  stopRecording(@Param('id', ParseUUIDPipe) id: string, @Param('recId', ParseUUIDPipe) recId: string, @CurrentUser() user: AuthUser) {
+    return this.classroom.stopRecording(id, recId, user);
+  }
+
+  @Get(':id/recordings')
+  recordings(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.classroom.listRecordings(id, user);
   }
 }

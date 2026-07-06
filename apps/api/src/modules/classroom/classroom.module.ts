@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { RoomsBridgeModule } from '../rooms-bridge/rooms-bridge.module';
+import { MediaModule } from '../media/media.module';
 import { ClassroomController } from './classroom.controller';
 import { ClassroomService } from './classroom.service';
 
-// 온라인 강의실. RoomsBridge(RoomsProvider)로 룸 서비스에 lecture 룸을 프로비저닝.
+// 온라인 강의실. RoomsBridge(판서 룸)·MediaModule(음성 SFU·녹화) 주입.
 @Module({
-  imports: [RoomsBridgeModule],
+  imports: [RoomsBridgeModule, MediaModule],
   controllers: [ClassroomController],
   providers: [ClassroomService],
   exports: [ClassroomService],

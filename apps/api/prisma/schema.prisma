@@ -1160,3 +1160,20 @@ model class_enrollment {
   @@index([class_session_id])
   @@index([student_id])
 }
+
+model class_recording {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  class_session_id String    @db.Uuid
+  kind             String    @default("av")
+  provider         String?
+  recording_ref    String?
+  status           String    @default("recording")
+  url              String?
+  size_bytes       BigInt?
+  duration_sec     Int?
+  started_at       DateTime  @default(now()) @db.Timestamptz(6)
+  ended_at         DateTime? @db.Timestamptz(6)
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([class_session_id])
+}

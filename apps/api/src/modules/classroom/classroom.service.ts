@@ -1,16 +1,18 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { RoomsProvider } from '../rooms-bridge/rooms.provider';
 import { CreateClassDto, EnrollDto } from './dto/classroom.dto';
 import { canTransition, type ClassStatus } from './domain/status';
+import { MEDIA_PROVIDER, type MediaProvider } from '../media/media.types';
 
-// 온라인 강의실 — 개설(룸 프로비저닝) · 학생 등록 · 입장 토큰 · 시작/종료.
+// 온라인 강의실 — 개설(룸 프로비저닝) · 학생 등록 · 입장 토큰 · 시작/종료 · 음성(SFU) · 녹화.
 @Injectable()
 export class ClassroomService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly rooms: RoomsProvider,
+    @Inject(MEDIA_PROVIDER) private readonly media: MediaProvider,
   ) {}
 
   private isStaff(u: AuthUser) { return u.role === 'admin' || u.role === 'hr'; }
@@ -121,6 +123,66 @@ export class ClassroomService {
       if (!enr) throw new ForbiddenException('이 강의에 접근할 권한이 없습니다.');
     }
     return { ...this.toDto(cls), enrolledCount };
+  }
+
+  // ── 음성(SFU) ────────────────────────────────────────────────────
+  // 미디어 접속 토큰 — 선생님=publisher(송출), 등록 학생=subscriber(수신). SFU 미설정 시 note 반환.
+  async mediaToken(classId: string, user: AuthUser) {
+    const cls = await this.prisma.class_session.findUnique({ where: { id: classId } });
+    if (!cls) throw new NotFoundException('강의를 찾을 수 없습니다.');
+    if (!cls.room_id) throw new ConflictException('강의실이 아직 준비되지 않았습니다.');
+    const isOwner = cls.teacher_id === user.id || this.isStaff(user);
+    if (!isOwner) {
+      const enr = await this.prisma.class_enrollment.findFirst({ where: { class_session_id: classId, student_id: user.id } });
+      if (!enr) throw new ForbiddenException('이 강의에 등록되어 있지 않습니다.');
+    }
+    const name = await this.accountName(user.id);
+    return this.media.issueToken(cls.room_id, user.id, isOwner ? 'publisher' : 'subscriber', name);
+  }
+
+  // ── 녹화(필수) ───────────────────────────────────────────────────
+  async startRecording(classId: string, user: AuthUser) {
+    const cls = await this.mustOwn(classId, user);
+    if (!cls.room_id) throw new ConflictException('강의실이 준비되지 않았습니다.');
+    const open = await this.prisma.class_recording.findFirst({ where: { class_session_id: classId, status: 'recording' } });
+    if (open) throw new ConflictException('이미 녹화 중입니다.');
+    const rec = await this.media.startRecording(cls.room_id);
+    const row = await this.prisma.class_recording.create({
+      data: { class_session_id: classId, kind: 'av', provider: rec.provider, recording_ref: rec.recordingRef, status: 'recording' },
+    });
+    return this.toRecordingDto(row);
+  }
+
+  async stopRecording(classId: string, recordingId: string, user: AuthUser) {
+    const cls = await this.mustOwn(classId, user);
+    const rec = await this.prisma.class_recording.findFirst({ where: { id: recordingId, class_session_id: classId } });
+    if (!rec) throw new NotFoundException('녹화를 찾을 수 없습니다.');
+    if (rec.status !== 'recording') return this.toRecordingDto(rec);
+    const res = cls.room_id && rec.recording_ref ? await this.media.stopRecording(cls.room_id, rec.recording_ref) : { url: null };
+    const row = await this.prisma.class_recording.update({
+      where: { id: rec.id },
+      data: { status: 'done', url: res.url ?? null, duration_sec: res.durationSec ?? null, ended_at: new Date() },
+    });
+    return this.toRecordingDto(row);
+  }
+
+  async listRecordings(classId: string, user: AuthUser) {
+    const cls = await this.prisma.class_session.findUnique({ where: { id: classId } });
+    if (!cls) throw new NotFoundException('강의를 찾을 수 없습니다.');
+    const isOwner = cls.teacher_id === user.id || this.isStaff(user);
+    if (!isOwner) {
+      const enr = await this.prisma.class_enrollment.findFirst({ where: { class_session_id: classId, student_id: user.id } });
+      if (!enr) throw new ForbiddenException('이 강의에 접근할 권한이 없습니다.');
+    }
+    const rows = await this.prisma.class_recording.findMany({ where: { class_session_id: classId }, orderBy: { started_at: 'desc' } });
+    return { data: rows.map((r) => this.toRecordingDto(r)) };
+  }
+
+  private toRecordingDto(r: {
+    id: string; kind: string; provider: string | null; status: string; url: string | null;
+    duration_sec: number | null; started_at: Date; ended_at: Date | null;
+  }) {
+    return { id: r.id, kind: r.kind, provider: r.provider, status: r.status, url: r.url, durationSec: r.duration_sec, startedAt: r.started_at, endedAt: r.ended_at };
   }
 
   // 출석/명단 — teacher/staff. 등록 학생 + 입장 여부(joined_at)·역할.
