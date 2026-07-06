@@ -18,7 +18,8 @@
     "api:dev": "npm run start:dev --workspace apps/api",
     "api:build": "npm run build --workspace apps/api",
     "api:seed": "npm run seed --workspace apps/api",
-    "gen:types": "openapi-typescript ./openapi.yaml -o ./packages/shared/src/api-types.ts"
+    "gen:types": "openapi-typescript ./openapi.yaml -o ./packages/shared/src/api-types.ts",
+    "gen:marketing": "node apps/web/scripts/gen-marketing.mjs"
   },
   "devDependencies": {
     "openapi-typescript": "^7.4.0"

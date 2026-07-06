@@ -38,6 +38,7 @@ import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
 import { AdminAssignmentPage } from './pages/AdminAssignmentPage';
 import { EmbedSessionPage } from './pages/EmbedSessionPage';
 import { RoomStandalonePage } from './pages/RoomStandalonePage';
+import { SiteLandingPage, SiteServicesPage, SiteServiceDetailPage } from './pages/SitePage';
 import { AdminAuditPage } from './pages/AdminAuditPage';
 import { AdminPayrollPage } from './pages/AdminPayrollPage';
 import { AdminScoresPage } from './pages/AdminScoresPage';
@@ -80,6 +81,9 @@ export function App() {
     <>
     <RealtimeNotifier />
     <Routes>
+      <Route path="/" element={<SiteLandingPage />} />
+      <Route path="/services" element={<SiteServicesPage />} />
+      <Route path="/services/:slug" element={<SiteServiceDetailPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/consulting/apply" element={<ConsultingApplyPage />} />
