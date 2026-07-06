@@ -123,6 +123,22 @@ export class ClassroomService {
     return { ...this.toDto(cls), enrolledCount };
   }
 
+  // 출석/명단 — teacher/staff. 등록 학생 + 입장 여부(joined_at)·역할.
+  async roster(classId: string, user: AuthUser) {
+    const cls = await this.mustOwn(classId, user);
+    const enrs = await this.prisma.class_enrollment.findMany({ where: { class_session_id: cls.id }, orderBy: { created_at: 'asc' } });
+    const ids = enrs.map((e) => e.student_id).filter((x): x is string => !!x);
+    const accounts = ids.length ? await this.prisma.account.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } }) : [];
+    const nameById = new Map(accounts.map((a) => [a.id, a.name]));
+    return {
+      data: enrs.map((e) => ({
+        id: e.id, studentId: e.student_id, name: e.student_id ? (nameById.get(e.student_id) ?? null) : null,
+        role: e.role, joined: !!e.joined_at, joinedAt: e.joined_at, leftAt: e.left_at,
+      })),
+      meta: { total: enrs.length, joined: enrs.filter((e) => e.joined_at).length },
+    };
+  }
+
   private async mustOwn(classId: string, user: AuthUser) {
     const cls = await this.prisma.class_session.findUnique({ where: { id: classId } });
     if (!cls) throw new NotFoundException('강의를 찾을 수 없습니다.');

@@ -259,6 +259,43 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return { ok: true };
   }
 
+  // ── 강의 상호작용(발표권 위임·손들기) ──
+  // 발표권 부여 — host 만. DB role 을 presenter 로 바꾸고 방에 알림(대상 클라가 lecture:sync 로 ctx 갱신).
+  @SubscribeMessage('lecture:grant')
+  async lectureGrant(@ConnectedSocket() client: Socket, @MessageBody() { participantId }: { participantId: string }) {
+    const c = this.ctx(client);
+    if (c.role !== 'host') return { ok: false, error: 'host 만 발표권을 줄 수 있습니다.' };
+    await this.svc.setParticipantRole(c.roomId, participantId, 'presenter');
+    const info = this.pinfo.get(`${c.roomId}:${participantId}`); if (info) info.role = 'presenter';
+    this.server.to(this.room(client)).emit('lecture:role', { participantId, role: 'presenter' });
+    return { ok: true };
+  }
+  // 발표권 회수 — host 만.
+  @SubscribeMessage('lecture:revoke')
+  async lectureRevoke(@ConnectedSocket() client: Socket, @MessageBody() { participantId }: { participantId: string }) {
+    const c = this.ctx(client);
+    if (c.role !== 'host') return { ok: false, error: 'host 만 회수할 수 있습니다.' };
+    await this.svc.setParticipantRole(c.roomId, participantId, 'viewer');
+    const info = this.pinfo.get(`${c.roomId}:${participantId}`); if (info) info.role = 'viewer';
+    this.server.to(this.room(client)).emit('lecture:role', { participantId, role: 'viewer' });
+    return { ok: true };
+  }
+  // 내 역할 재동기화 — DB role 을 다시 읽어 ctx.role 갱신(발표권 변경 후 대상 클라가 호출).
+  @SubscribeMessage('lecture:sync')
+  async lectureSync(@ConnectedSocket() client: Socket) {
+    const c = this.ctx(client);
+    const role = await this.svc.getParticipantRole(c.roomId, c.participantId);
+    c.role = role ?? undefined;
+    return { ok: true, role: c.role ?? 'viewer' };
+  }
+  // 손들기 — 방 전체에 알림(host 가 발표권을 줄 판단). 상태만 전달(멱등).
+  @SubscribeMessage('hand:raise')
+  handRaise(@ConnectedSocket() client: Socket, @MessageBody() { raised }: { raised?: boolean }) {
+    const c = this.ctx(client);
+    client.to(this.room(client)).emit('hand:raise', { participantId: c.participantId, name: c.name, raised: !!raised });
+    return { ok: true };
+  }
+
   // ── 음성(WebRTC 시그널 중계) ──
   @SubscribeMessage('call:join')
   async callJoin(@ConnectedSocket() client: Socket) {

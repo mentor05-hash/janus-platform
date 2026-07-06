@@ -89,6 +89,12 @@ export class RoomsService {
     return r.rows[0]?.role ?? null;
   }
 
+  /** 참가자 역할 변경 — 발표권 위임/회수(host→presenter, presenter→viewer). 다중 인스턴스 공유(DB). */
+  async setParticipantRole(roomId: string, participantId: string, role: string): Promise<boolean> {
+    const r = await this.pool.query(`UPDATE room_participant SET role = $3 WHERE id = $1 AND room_id = $2`, [participantId, roomId, role]);
+    return (r.rowCount ?? 0) > 0;
+  }
+
   async participantInRoom(roomId: string, participantId: string): Promise<boolean> {
     const r = await this.pool.query(`SELECT 1 FROM room_participant WHERE id = $1 AND room_id = $2`, [participantId, roomId]);
     return (r.rowCount ?? 0) > 0;

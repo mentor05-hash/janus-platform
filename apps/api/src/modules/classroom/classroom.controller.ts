@@ -26,6 +26,12 @@ export class ClassroomController {
     return this.classroom.getOne(id, user);
   }
 
+  @Get(':id/roster')
+  @Roles('teacher', 'admin', 'hr')
+  roster(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.classroom.roster(id, user);
+  }
+
   @Post(':id/enroll')
   @Roles('teacher', 'admin', 'hr')
   enroll(@Param('id', ParseUUIDPipe) id: string, @Body() dto: EnrollDto, @CurrentUser() user: AuthUser) {

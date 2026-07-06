@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { useRoomVoiceCall } from '../utils/roomVoiceCall';
 import { useSessionPhase, canInteract, sessionNotice, type SessionInfo } from '../utils/session';
@@ -36,7 +36,12 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs }: { bookingId
   const [mode, setMode] = useState<'session' | 'lecture'>('session');
   const [role, setRole] = useState<string>('viewer');
   const [roster, setRoster] = useState<Array<{ participantId: string; name?: string; role?: string }>>([]);
+  const [raised, setRaised] = useState<Map<string, string | undefined>>(new Map()); // 손든 참가자(host 화면)
+  const [handUp, setHandUp] = useState(false); // 내 손들기 상태(학생)
   const isViewer = mode === 'lecture' && role !== 'host' && role !== 'presenter';
+  const isHost = mode === 'lecture' && role === 'host';
+  // 내 룸 참가자 id(토큰에서 디코드) — lecture:role 이 나를 가리키는지 판단.
+  const myPid = useMemo(() => { try { return JSON.parse(atob(rs.token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).participantId as string; } catch { return ''; } }, [rs.token]);
   const [status, setStatus] = useState<'connecting' | 'ready' | 'off'>('connecting');
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved'>('idle');
   const [live, setLive] = useState<SessionInfo>(rs.session);
@@ -139,7 +144,17 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs }: { bookingId
     s.on('wb:stroke', ({ stroke, sid }: { stroke: Stroke; sid?: string }) => { if (sid) liveRef.current.delete(sid); strokesRef.current.push(stroke); redraw(); });
     s.on('wb:clear', () => { strokesRef.current = []; liveRef.current.clear(); redraw(); });
     s.on('roster:join', (p: { participantId: string; name?: string; role?: string }) => setRoster((prev) => prev.some((x) => x.participantId === p.participantId) ? prev : [...prev, p]));
-    s.on('roster:leave', ({ participantId }: { participantId: string }) => setRoster((prev) => prev.filter((x) => x.participantId !== participantId)));
+    s.on('roster:leave', ({ participantId }: { participantId: string }) => { setRoster((prev) => prev.filter((x) => x.participantId !== participantId)); setRaised((prev) => { const m = new Map(prev); m.delete(participantId); return m; }); });
+    // 발표권 변경: roster 역할 갱신 + 내가 대상이면 역할 반영하고 서버 ctx 재동기화(그래야 판서 허용).
+    s.on('lecture:role', ({ participantId, role: nr }: { participantId: string; role: string }) => {
+      setRoster((prev) => prev.map((x) => x.participantId === participantId ? { ...x, role: nr } : x));
+      setRaised((prev) => { const m = new Map(prev); m.delete(participantId); return m; });
+      if (participantId === myPid) { setRole(nr); s.emit('lecture:sync'); }
+    });
+    // 손들기: host 화면에 손든 학생 표시.
+    s.on('hand:raise', ({ participantId, name, raised: up }: { participantId: string; name?: string; raised?: boolean }) => {
+      setRaised((prev) => { const m = new Map(prev); if (up) m.set(participantId, name); else m.delete(participantId); return m; });
+    });
     s.on('wb:image', ({ fileUrl }: { fileUrl: string | null }) => loadBg(fileUrl));
     s.on('session:closed', (e: { closesAt?: string }) => setLive((v) => ({ ...v, state: 'closed', closesAt: e.closesAt ?? v.closesAt })));
     s.on('session:revoked', () => setStatus('off'));
@@ -273,14 +288,27 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs }: { bookingId
               <button className="btn ghost sm" title="원본 크기" onClick={resetZoom} style={{ minWidth: 52, fontVariantNumeric: 'tabular-nums' }}>{zoomPct}%</button>
               <button className="btn ghost sm" title="확대" onClick={() => zoomAt(W / 2, H / 2, 1.25)}>🔍＋</button>
               <div style={{ flex: 1 }} />
-              {isViewer ? (
+              {isViewer ? (<>
+                <button className="btn ghost sm" onClick={() => { const nv = !handUp; setHandUp(nv); sockRef.current?.emit('hand:raise', { raised: nv }); }} style={handUp ? { borderColor: 'var(--gold, #e8a63d)', color: 'var(--gold-d, #c98a25)' } : undefined}>{handUp ? '✋ 손 내리기' : '✋ 손들기'}</button>
+                <div style={{ flex: 1 }} />
                 <span style={{ fontSize: 12, color: 'var(--muted)' }}>👁 선생님 판서를 실시간으로 봅니다</span>
-              ) : (<>
+              </>) : (<>
                 <span style={{ fontSize: 11, color: 'var(--muted)' }}>{saveState === 'saving' ? '저장 중…' : saveState === 'saved' ? '자동 저장됨 ✓' : saveState === 'dirty' ? '변경됨' : ''}</span>
                 <button className="btn ghost sm" disabled={!rw} onClick={clear}>전체 지우기</button>
                 <button className="btn sm" disabled={!rw} onClick={save}>저장</button>
               </>)}
             </div>
+            {isHost && (raised.size > 0 || roster.some((r) => r.role === 'presenter')) && (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 14px', flexWrap: 'wrap', borderBottom: '1px solid var(--line)', background: '#fffaf0' }}>
+                {raised.size > 0 && <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--gold-d, #c98a25)' }}>✋ 손든 학생</span>}
+                {[...raised].map(([pid, nm]) => (
+                  <button key={pid} className="btn ghost sm" onClick={() => sockRef.current?.emit('lecture:grant', { participantId: pid })}>{nm ?? '학생'} · 발표권 주기</button>
+                ))}
+                {roster.filter((r) => r.role === 'presenter').map((r) => (
+                  <button key={r.participantId} className="btn ghost sm" onClick={() => sockRef.current?.emit('lecture:revoke', { participantId: r.participantId })}>{r.name ?? '학생'} · 발표권 회수</button>
+                ))}
+              </div>
+            )}
             <div style={{ position: 'relative' }}>
               <canvas ref={canvasRef} width={W} height={H} role="img" aria-label="공유 필기 캔버스" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up} style={{ width: '100%', aspectRatio: `${W} / ${H}`, background: '#fff', touchAction: 'none', cursor: isViewer ? 'default' : 'crosshair', display: 'block' }} />
               {camOn && (
