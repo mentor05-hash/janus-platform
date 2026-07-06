@@ -1122,3 +1122,41 @@ model consulting_analysis {
   created_at     DateTime               @default(now()) @db.Timestamptz(6)
   application    consulting_application @relation(fields: [application_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
+
+// =====================================================================
+// classroom — 온라인 강의실 (migrations/0047_classroom.sql)
+// =====================================================================
+model class_session {
+  id                  String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teacher_id          String             @db.Uuid
+  title               String
+  subject             String?
+  scheduled_at        DateTime?          @db.Timestamptz(6)
+  duration_min        Int?
+  capacity            Int                @default(100)
+  room_id             String?            @db.Uuid
+  host_participant_id String?            @db.Uuid
+  status              String             @default("scheduled")
+  created_at          DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime           @default(now()) @db.Timestamptz(6)
+  enrollments         class_enrollment[]
+
+  @@index([teacher_id])
+  @@index([status])
+}
+
+model class_enrollment {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  class_session_id String        @db.Uuid
+  student_id       String?       @db.Uuid
+  role             String        @default("viewer")
+  participant_id   String?       @db.Uuid
+  joined_at        DateTime?     @db.Timestamptz(6)
+  left_at          DateTime?     @db.Timestamptz(6)
+  created_at       DateTime      @default(now()) @db.Timestamptz(6)
+  class            class_session @relation(fields: [class_session_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([class_session_id, student_id])
+  @@index([class_session_id])
+  @@index([student_id])
+}

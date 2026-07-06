@@ -2,7 +2,7 @@ import { BadRequestException, Body, Controller, Get, Header, Inject, NotFoundExc
 import type { Pool } from 'pg';
 import { PG } from '../db';
 import { ApiKeyGuard } from './api-key.guard';
-import { CreateRoomDto, MintTokenDto } from './dto';
+import { AddParticipantDto, CreateRoomDto, MintTokenDto } from './dto';
 import { MetricsService } from './metrics.service';
 import { RoomsGateway } from './rooms.gateway';
 import { RoomsService } from './rooms.service';
@@ -63,6 +63,15 @@ export class RoomsController {
     if (!room) throw new NotFoundException('room not found');
     if (!(await this.svc.participantInRoom(id, body.participantId))) throw new NotFoundException('participant not in room');
     return { token: this.tokens.issue(id, body.participantId, body.ttlSec && body.ttlSec > 0 ? body.ttlSec : 12 * 3600, room.token_epoch, body.name) };
+  }
+
+  /** 참가자 동적 추가 + 토큰 — 강의실 학생 입장(사전 등록 없이 입장 시 생성). */
+  @UseGuards(ApiKeyGuard)
+  @Post('rooms/:id/participants')
+  async addParticipant(@Param('id') id: string, @Body() body: AddParticipantDto) {
+    const r = await this.svc.addParticipant(id, body);
+    if (!r) throw new NotFoundException('room not found');
+    return r;
   }
 
   /** 토큰 폐기 — 발급된 모든 토큰 무효화 + 현재 접속 강제 해제(예: 세션 조기 종료·킥). */

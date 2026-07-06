@@ -65,6 +65,19 @@ export class RoomsService {
     const r = await this.pool.query<RoomRow>(`SELECT id, external_ref, features, opens_at, closes_at, token_epoch, metadata FROM room WHERE id = $1`, [roomId]);
     return r.rows[0] ?? null;
   }
+  /** 룸에 참가자 1명 추가 + 접속 토큰 발급 — 강의실 학생 입장(동적 등록)용. */
+  async addParticipant(roomId: string, p: { extUserId?: string; displayName?: string; role?: string; ttlSec?: number }): Promise<{ participantId: string; token: string } | null> {
+    const room = await this.getRoom(roomId);
+    if (!room) return null;
+    const pr = await this.pool.query<{ id: string }>(
+      `INSERT INTO room_participant (room_id, ext_user_id, display_name, role) VALUES ($1,$2,$3,$4) RETURNING id`,
+      [roomId, p.extUserId ?? null, p.displayName ?? null, p.role ?? null],
+    );
+    const pid = pr.rows[0].id;
+    const ttl = p.ttlSec && p.ttlSec > 0 ? p.ttlSec : 12 * 3600;
+    return { participantId: pid, token: this.tokens.issue(roomId, pid, ttl, room.token_epoch, p.displayName) };
+  }
+
   /** 강의(1:다) 모드 여부 — metadata.mode==='lecture'. 강의 모드에선 host/presenter 만 판서. */
   lectureMode(room: RoomRow): boolean {
     return (room.metadata as { mode?: string } | null)?.mode === 'lecture';

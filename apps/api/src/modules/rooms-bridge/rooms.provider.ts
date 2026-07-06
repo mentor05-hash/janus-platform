@@ -29,7 +29,7 @@ export class RoomsProvider {
 
   createRoom(payload: {
     externalRef: string; features: { chat: boolean; whiteboard: boolean; voice: boolean };
-    opensAt: string | null; closesAt: string | null;
+    opensAt: string | null; closesAt: string | null; mode?: string;
     participants: Array<{ extUserId: string; displayName?: string; role?: string }>;
   }): Promise<CreateResult> {
     return this.post<CreateResult>('/api/rt/v1/rooms', payload);
@@ -39,4 +39,12 @@ export class RoomsProvider {
     const r = await this.post<{ token: string }>(`/api/rt/v1/rooms/${roomId}/tokens`, { participantId, ttlSec });
     return r.token;
   }
+
+  /** 참가자 동적 추가 + 토큰 — 강의실 학생 입장. */
+  addParticipant(roomId: string, p: { extUserId?: string; displayName?: string; role?: string; ttlSec?: number }): Promise<{ participantId: string; token: string }> {
+    return this.post<{ participantId: string; token: string }>(`/api/rt/v1/rooms/${roomId}/participants`, p);
+  }
+
+  /** 룸 서비스 공개 접속 URL(클라이언트가 socket 으로 붙는 주소). */
+  get publicUrl(): string { return this.config.get<string>('ROOMS_PUBLIC_URL') || this.apiUrl; }
 }

@@ -30,3 +30,11 @@ export class MintTokenDto {
   @IsOptional() @IsInt() @Min(60) ttlSec?: number;
   @IsOptional() @IsString() @MaxLength(200) name?: string;
 }
+
+// 룸에 참가자 동적 추가(강의실 학생 입장) — 참가자 생성 + 토큰 발급.
+export class AddParticipantDto {
+  @IsOptional() @IsString() @MaxLength(200) extUserId?: string;
+  @IsOptional() @IsString() @MaxLength(200) displayName?: string;
+  @IsOptional() @IsString() @MaxLength(60) role?: string;
+  @IsOptional() @IsInt() @Min(60) ttlSec?: number;
+}

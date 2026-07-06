@@ -9,5 +9,6 @@ import { RoomsProvider } from './rooms.provider';
   imports: [RealtimeModule],
   controllers: [RoomsBridgeController],
   providers: [RoomsBridgeService, RoomsProvider],
+  exports: [RoomsProvider],
 })
 export class RoomsBridgeModule {}

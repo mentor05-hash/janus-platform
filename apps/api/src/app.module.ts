@@ -20,6 +20,7 @@ import { MatchingModule } from './modules/matching/matching.module';
 import { BookingModule } from './modules/booking/booking.module';
 import { ConsultationModule } from './modules/consultation/consultation.module';
 import { ConsultingModule } from './modules/consulting/consulting.module';
+import { ClassroomModule } from './modules/classroom/classroom.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { PricingPolicyModule } from './modules/pricing-policy/pricing-policy.module';
 import { EvaluationModule } from './modules/evaluation/evaluation.module';
@@ -62,6 +63,7 @@ import { AssignmentModule } from './modules/assignment/assignment.module';
     BookingModule,
     ConsultationModule,
     ConsultingModule,
+    ClassroomModule,
     BillingModule,
     PricingPolicyModule,
     EvaluationModule,
