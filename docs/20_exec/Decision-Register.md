@@ -11,6 +11,8 @@
 | O39 | 2026-07-07 | **10_platform 편입 = clone 방식**: 잇올 모노레포를 이력 보존 clone → `janus/10_platform/janus-platform`. 원본 폴더는 이름변경 보관(터널·경로 변경 허용) | 사용자 확정(7/7). 데모 스택 볼륨 재사용은 `COMPOSE_PROJECT_NAME=itall-mentoring` |
 | O40 | 2026-07-07 | **문서 canonical = repo `docs/`**: `janus/00_docs`는 symlink. 살아있는 문서 1개 원칙 | 00_INDEX §2-3 |
 | O41 | 2026-07-07 | **디자인 통합 절충 원칙 4 채택**: ①로직 기존·비주얼 신규 ②번들 직접 이식 금지 ③패리티 전 구버전 삭제 금지 ④신규 기능 백로그 | 디자인통합 지시서 §B |
+| O42 | 2026-07-07 | **SSO 토큰 스키마·registry 확정**: rooms TokenService(HS256+epoch) 승격, sub/role/tier/aud/scope/epoch 클레임, `sso_service` 테이블 등록제, 정적 페이지는 `GET /sso/verify` 위임 | `docs/SSO_토큰_일반화_설계_v1_2026-07-07.md` (W1 D3) |
+| O43 | 2026-07-07 | **janus_score 규약 = v22 키 동결**(변경 금지, 하위호환 확장만): `{gye, nb\|kor/mat/tam1/tam2, eng, han}` + period·mode·근거배지 추가 필드. 플랫폼이 규약에 맞춰 export | `docs/janus_score_변환스펙_v1_2026-07-07.md` (W1 D3). gye 실값·3모드 명칭은 c항 감사 후 v1.1 |
 
 ## 미결 (N) — 결정 대기
 
