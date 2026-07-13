@@ -16,11 +16,11 @@ export function printPayslip(ps: Payslip) {
   const d = ps.deductions;
   const rows = d ? DED_ROWS.map((k) => `<tr><td>${k}</td><td style="text-align:right">- ${d[k].toLocaleString()}원</td></tr>`).join('') : '';
   const html = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>급여명세서 ${ps.period}</title>
-  <style>body{font-family:'Pretendard',-apple-system,system-ui,sans-serif;color:#16242b;padding:32px;max-width:640px;margin:0 auto}
-  h1{font-size:20px;margin:0 0 4px}.muted{color:#52656d;font-size:13px}
-  table{width:100%;border-collapse:collapse;margin-top:16px}td{padding:8px 4px;border-bottom:1px solid #e7ecef;font-size:14px}
-  .tot{font-weight:800}.net{font-size:18px;color:#0e5c7c;font-weight:800}
-  .box{border:1px solid #e7ecef;border-radius:10px;padding:16px;margin-top:16px}
+  <style>body{font-family:'Pretendard',-apple-system,system-ui,sans-serif;color:#1e3550;padding:32px;max-width:640px;margin:0 auto}
+  h1{font-size:20px;margin:0 0 4px}.muted{color:#52627a;font-size:13px}
+  table{width:100%;border-collapse:collapse;margin-top:16px}td{padding:8px 4px;border-bottom:1px solid #e4eaf1;font-size:14px}
+  .tot{font-weight:800}.net{font-size:18px;color:#2f6fb3;font-weight:800}
+  .box{border:1px solid #e4eaf1;border-radius:10px;padding:16px;margin-top:16px}
   @media print{button{display:none}}</style></head><body>
   <h1>급여명세서</h1><div class="muted">${ps.center} · ${ps.teacherName} 선생님 · ${ps.period} · 상태: ${ps.status === 'paid' ? '지급완료' : '정산확정'}</div>
   <div class="box"><table>
@@ -30,7 +30,7 @@ export function printPayslip(ps: Payslip) {
   <tr><td class="net">실지급액</td><td style="text-align:right" class="net">${ps.net.toLocaleString()}원</td></tr>
   </table></div>
   <p class="muted" style="margin-top:14px">본 명세서는 데모 산정 기준(원천징수·4대보험 근사)으로 생성되었습니다.</p>
-  <button onclick="window.print()" style="margin-top:16px;padding:10px 20px;border:none;background:#0e5c7c;color:#fff;border-radius:8px;font-weight:700;cursor:pointer">PDF로 저장 / 인쇄</button>
+  <button onclick="window.print()" style="margin-top:16px;padding:10px 20px;border:none;background:#2f6fb3;color:#fff;border-radius:8px;font-weight:700;cursor:pointer">PDF로 저장 / 인쇄</button>
   </body></html>`;
   const w = window.open('', '_blank', 'width=720,height=800');
   if (w) { w.document.write(html); w.document.close(); }
@@ -61,7 +61,7 @@ export function PayrollPage() {
       <PageHeader title="급여 · 예상급여" sub="정산 주기 월 1회 기본(카테고리별 변경 가능) · 자동 인센티브 적용" />
 
       {/* 확정 / 예상 토글 */}
-      <div style={{ display: 'inline-flex', background: 'var(--fill,#eef2f4)', borderRadius: 10, padding: 3, marginBottom: 14 }}>
+      <div style={{ display: 'inline-flex', background: 'var(--fill,#eef2f7)', borderRadius: 10, padding: 3, marginBottom: 14 }}>
         {([['confirmed', '확정(완료분)'], ['expected', '예상(예약 포함)']] as const).map(([v, l]) => (
           <button key={v} onClick={() => setView(v)} style={{ border: 'none', cursor: 'pointer', padding: '7px 18px', borderRadius: 8, fontWeight: 700, fontSize: 13,
             background: view === v ? '#fff' : 'transparent', color: view === v ? 'var(--teal)' : 'var(--muted)', boxShadow: view === v ? '0 1px 2px rgba(0,0,0,.08)' : 'none' }}>{l}</button>

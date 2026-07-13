@@ -10,11 +10,11 @@ import { initTheme } from './theme';
 import { COLORS, APP_NAME } from './branding.generated'; // 화이트라벨 브랜드(설정 주입)
 
 // 브랜드 컬러를 CSS 변수로 주입(tokens.css 기본값 오버라이드 — 기본값=현재값이면 무변화)
-const rootStyle = document.documentElement.style;
-rootStyle.setProperty('--teal', COLORS.primary);
-rootStyle.setProperty('--teal-900', COLORS.primaryDark);
-rootStyle.setProperty('--teal-500', COLORS.primary500);
-document.title = `${APP_NAME} — 선생님`; // 브라우저 탭 제목(index.html 기본값 오버라이드)
+// 스타일시트 방식: 다크모드 :root[data-theme='dark'] 블록이 특이도로 이겨 다크 팔레트가 유지된다.
+const brandStyle = document.createElement('style');
+brandStyle.textContent = `:root{--teal:${COLORS.primary};--teal-900:${COLORS.primaryDark};--teal-500:${COLORS.primary500};}`;
+document.head.appendChild(brandStyle);
+document.title = `${APP_NAME} — 미래를 여는 문`; // 브라우저 탭 제목(index.html 기본값 오버라이드)
 
 initTheme();
 

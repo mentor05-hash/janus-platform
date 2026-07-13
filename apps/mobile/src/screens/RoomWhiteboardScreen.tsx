@@ -9,7 +9,7 @@ import type { RoomSession } from './RoomChatScreen';
 
 type Pt = { x: number; y: number; p?: number };
 type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean; highlight?: boolean };
-const COLORS = ['#16242B', '#0E5C7C', '#E5484D', '#2F9E44', '#F08C00'];
+const COLORS = ['#1E3550', '#2F6FB3', '#E5484D', '#2A8A5F', '#CF9A3A'];
 const W = 720, H = 900;
 
 /** 룸 서비스 기반 공유 화이트보드(모바일/expo-web 이관 경로). 이미지 배경 + 필기 + 음성. PDF 는 이음새로 보류. */
@@ -162,7 +162,7 @@ export function RoomWhiteboardScreen({ title, onClose, embedded, session: rs }: 
       if (r.mode) setMode(r.mode); if (r.role) setRole(r.role); if (Array.isArray(r.roster)) setRoster(r.roster);
       if (r.backgroundUrl) loadBg(r.backgroundUrl);
     }));
-    s.on('wb:stroke:partial', ({ sid, meta, points }: { sid: string; meta: Partial<Stroke>; points: Pt[] }) => { let st = liveRef.current.get(sid); if (!st) { st = { color: meta.color ?? '#16242B', width: meta.width ?? 4, erase: meta.erase, highlight: meta.highlight, points: [] }; liveRef.current.set(sid, st); } st.points.push(...points); requestPaint(); });
+    s.on('wb:stroke:partial', ({ sid, meta, points }: { sid: string; meta: Partial<Stroke>; points: Pt[] }) => { let st = liveRef.current.get(sid); if (!st) { st = { color: meta.color ?? '#1E3550', width: meta.width ?? 4, erase: meta.erase, highlight: meta.highlight, points: [] }; liveRef.current.set(sid, st); } st.points.push(...points); requestPaint(); });
     s.on('wb:stroke', ({ stroke, sid }: { stroke: Stroke; sid?: string }) => { if (sid) liveRef.current.delete(sid); strokesRef.current.push(stroke); redraw(); });
     s.on('wb:clear', () => { strokesRef.current = []; liveRef.current.clear(); redraw(); });
     s.on('roster:join', (p: { participantId: string; name?: string; role?: string }) => setRoster((prev) => prev.some((x) => x.participantId === p.participantId) ? prev : [...prev, p]));
@@ -222,7 +222,7 @@ export function RoomWhiteboardScreen({ title, onClose, embedded, session: rs }: 
       const bar = document.createElement('div'); bar.style.cssText = 'display:flex;gap:10px;justify-content:center;padding:12px;background:#000;';
       const btn = (t: string, bg: string) => { const b = document.createElement('button'); b.textContent = t; b.style.cssText = `padding:9px 16px;border-radius:8px;border:none;font-weight:700;font-size:14px;color:#fff;background:${bg};`; return b; };
       const cancel = btn('취소', '#3a4a52'); cancel.onclick = () => closeCamera();
-      const shot = btn('📸 촬영(무음)', '#0E5C7C'); shot.onclick = async () => { const cw = v.videoWidth || 1280, ch = v.videoHeight || 720; const c = document.createElement('canvas'); c.width = cw; c.height = ch; c.getContext('2d')!.drawImage(v, 0, 0, cw, ch); const blob: Blob = await new Promise((res) => c.toBlob((b) => res(b!), 'image/jpeg', 0.85)); closeCamera(); await useAsBackground(blob, 'shot.jpg'); };
+      const shot = btn('📸 촬영(무음)', '#2F6FB3'); shot.onclick = async () => { const cw = v.videoWidth || 1280, ch = v.videoHeight || 720; const c = document.createElement('canvas'); c.width = cw; c.height = ch; c.getContext('2d')!.drawImage(v, 0, 0, cw, ch); const blob: Blob = await new Promise((res) => c.toBlob((b) => res(b!), 'image/jpeg', 0.85)); closeCamera(); await useAsBackground(blob, 'shot.jpg'); };
       bar.append(cancel, shot); ov.append(v, bar); host.appendChild(ov);
     } catch { /* 권한 거부 */ }
   }
@@ -251,7 +251,7 @@ export function RoomWhiteboardScreen({ title, onClose, embedded, session: rs }: 
             <View style={styles.tools}>
               {mode === 'lecture' && (
                 <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: isViewer ? '#fbeae7' : '#e9f5ee', marginRight: 6 }}>
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: isViewer ? '#a5372a' : '#1e7a4d' }}>{isViewer ? '🔴 강의 열람 중' : `🟢 강의 중 · 참석 ${roster.length}`}</Text>
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: isViewer ? '#a64b37' : '#2a8a5f' }}>{isViewer ? '🔴 강의 열람 중' : `🟢 강의 중 · 참석 ${roster.length}`}</Text>
                 </View>
               )}
               {!isViewer && (<>
@@ -279,7 +279,7 @@ export function RoomWhiteboardScreen({ title, onClose, embedded, session: rs }: 
             </View>
             {mode === 'lecture' && role === 'host' && (raised.size > 0 || roster.some((r) => r.role === 'presenter')) && (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, padding: 8, backgroundColor: '#fffaf0' }}>
-                {raised.size > 0 && <Text style={{ fontSize: 11, fontWeight: '700', color: '#c98a25', alignSelf: 'center' }}>✋ 손든 학생</Text>}
+                {raised.size > 0 && <Text style={{ fontSize: 11, fontWeight: '700', color: '#a97d24', alignSelf: 'center' }}>✋ 손든 학생</Text>}
                 {[...raised].map(([pid, nm]) => (
                   <TouchableOpacity key={pid} onPress={() => sockRef.current?.emit('lecture:grant', { participantId: pid })} style={styles.act}><Text style={styles.actT}>{nm ?? '학생'} 발표권</Text></TouchableOpacity>
                 ))}

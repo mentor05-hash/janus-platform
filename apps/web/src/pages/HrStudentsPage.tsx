@@ -87,7 +87,7 @@ export function HrStudentsPage() {
   }
 
   if (loading && rows.length === 0) return <Spinner />;
-  const th: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', background: 'var(--fill,#f6f8fa)' };
+  const th: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', background: 'var(--fill,#f4f7fb)' };
   const td: React.CSSProperties = { padding: '10px 12px', fontSize: 13, borderTop: '1px solid var(--line)' };
 
   return (
@@ -102,7 +102,7 @@ export function HrStudentsPage() {
         <Button variant="ghost" onClick={() => fileRef.current?.click()}>CSV 파일</Button>
         <Button variant="ghost" onClick={() => setExtOpen((o) => !o)}>🔗 외부 연동</Button>
       </div>
-      <p style={{ fontSize: 12, color: 'var(--teal)', background: 'var(--teal-50,#F0F7FA)', border: '1px solid var(--teal-100,#DCECF3)', borderRadius: 10, padding: '10px 12px', lineHeight: 1.5 }}>
+      <p style={{ fontSize: 12, color: 'var(--teal)', background: 'var(--teal-50,#EEF4FB)', border: '1px solid var(--teal-100,#D7E4F2)', borderRadius: 10, padding: '10px 12px', lineHeight: 1.5 }}>
         민감정보(인적사항·보호자 정보)는 저장소(git)에 저장하지 않고 로컬/서버 DB에만 보관하며, 권한별로 마스킹됩니다.
       </p>
       {msg && <p style={{ color: 'var(--chip-done)', fontSize: 13 }}>{msg}</p>}

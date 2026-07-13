@@ -8,9 +8,9 @@ const TYPES = ['원장 상담', '특강', '모의고사'];
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
 const PERM = [
-  { lv: 'L1', color: '#7c3aed', name: '본사 관리자', desc: '전 센터 차단 · 정책 설정' },
-  { lv: 'L2', color: '#0e5c7c', name: '센터장', desc: '자기 센터 전체 차단' },
-  { lv: 'L3', color: '#64748b', name: '과목 책임', desc: '담당 과목 시간만 차단' },
+  { lv: 'L1', color: '#6D5DD3', name: '본사 관리자', desc: '전 센터 차단 · 정책 설정' },
+  { lv: 'L2', color: '#2f6fb3', name: '센터장', desc: '자기 센터 전체 차단' },
+  { lv: 'L3', color: '#8496ab', name: '과목 책임', desc: '담당 과목 시간만 차단' },
 ];
 
 export function AdminBlockPage() {
@@ -125,12 +125,12 @@ export function AdminBlockPage() {
 }
 
 function chip(active: boolean, purple = false): React.CSSProperties {
-  const c = purple ? '#7c3aed' : 'var(--teal)';
+  const c = purple ? '#6D5DD3' : 'var(--teal)';
   return {
     flex: 1,
-    background: active ? (purple ? '#f4f1fa' : 'var(--teal-50)') : '#fff',
+    background: active ? (purple ? '#F1EFFA' : 'var(--teal-50)') : '#fff',
     color: active ? c : 'var(--muted)',
-    border: `1px solid ${active ? (purple ? '#ddd2f0' : 'var(--teal-100)') : 'var(--line)'}`,
+    border: `1px solid ${active ? (purple ? '#DCD5F2' : 'var(--teal-100)') : 'var(--line)'}`,
     boxShadow: 'none',
   };
 }

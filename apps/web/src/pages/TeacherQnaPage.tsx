@@ -29,7 +29,7 @@ function AnswerList({ answers }: { answers: Answer[] }) {
   return (
     <div style={{ marginBottom: 10 }}>
       {answers.map((a) => (
-        <div key={a.id} style={{ background: 'var(--fill,#f6f8fa)', borderRadius: 8, padding: 8, marginBottom: 6, fontSize: 13 }}>
+        <div key={a.id} style={{ background: 'var(--fill,#f4f7fb)', borderRadius: 8, padding: 8, marginBottom: 6, fontSize: 13 }}>
           <b>{a.teacherName}</b>{a.accepted && <Badge kind="done">채택</Badge>}<div style={{ whiteSpace: 'pre-wrap', marginTop: 2 }}>{a.body}</div>
         </div>
       ))}

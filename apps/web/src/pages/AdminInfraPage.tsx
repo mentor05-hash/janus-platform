@@ -94,7 +94,7 @@ export function AdminInfraPage() {
         <Card title="실시간 상담 기능 정책" style={{ marginBottom: 16 }}>
           <p style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 0 }}>
             채팅·화이트보드·실시간 알림을 전사 정책으로 제어합니다. <b>프리미엄 전용</b>은 프리미엄 등급 학생에게만 열립니다(선생님·직원은 항상 사용).
-            {!isHq && <span style={{ color: 'var(--chip-rejected,#c0392b)' }}> · 변경은 본사 마스터관리자만 가능합니다.</span>}
+            {!isHq && <span style={{ color: 'var(--chip-rejected,#c25a43)' }}> · 변경은 본사 마스터관리자만 가능합니다.</span>}
           </p>
           <div style={{ display: 'grid', gap: 10, maxWidth: 620 }}>
             {RT_ITEMS.map((it) => (
@@ -126,7 +126,7 @@ export function AdminInfraPage() {
         <Card title="역상담 정책" style={{ marginBottom: 16 }}>
           <p style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 0 }}>
             선생님이 먼저 제안하는 역상담의 전사 규칙입니다.
-            {!isHq && <span style={{ color: 'var(--chip-rejected,#c0392b)' }}> · 변경은 본사 마스터관리자만 가능합니다.</span>}
+            {!isHq && <span style={{ color: 'var(--chip-rejected,#c25a43)' }}> · 변경은 본사 마스터관리자만 가능합니다.</span>}
           </p>
           <div style={{ display: 'grid', gap: 10, maxWidth: 620 }}>
             {([
@@ -161,7 +161,7 @@ export function AdminInfraPage() {
         <Card title="상담 종류별 기본시간" style={{ marginBottom: 16 }}>
           <p style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 0 }}>
             종류별 기본 상담시간(분)입니다. 자동매칭·전임 강제배정의 슬롯 길이 기준이 됩니다. 10~240분, 10분 단위.
-            {!isHq && <span style={{ color: 'var(--chip-rejected,#c0392b)' }}> · 변경은 본사 관리자만 가능합니다.</span>}
+            {!isHq && <span style={{ color: 'var(--chip-rejected,#c25a43)' }}> · 변경은 본사 관리자만 가능합니다.</span>}
           </p>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             {['담임', '교과', '입시', '심리'].map((k) => (
@@ -184,7 +184,7 @@ export function AdminInfraPage() {
         <Card title="질문 답변블록 길이" style={{ marginBottom: 16 }}>
           <p style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 0 }}>
             전임 근무시간에 질문 답변을 자동 배정할 때 난이도별 블록 길이(분)입니다. 10~120분, 10분 단위.
-            {!isHq && <span style={{ color: 'var(--chip-rejected,#c0392b)' }}> · 변경은 본사 관리자만 가능합니다.</span>}
+            {!isHq && <span style={{ color: 'var(--chip-rejected,#c25a43)' }}> · 변경은 본사 관리자만 가능합니다.</span>}
           </p>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             {['기초', '중급', '심화', '기본'].map((k) => (
@@ -207,7 +207,7 @@ export function AdminInfraPage() {
         <Card title="외부학생 정책" style={{ marginBottom: 16 }}>
           <p style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 0 }}>
             학원생(재원)과 구분되는 외부학생의 전사 규칙입니다. 접근(온라인 한정·상담 제한)은 본사, 요금·크레딧은 마스터관리자가 설정합니다.
-            {!isHq && <span style={{ color: 'var(--chip-rejected,#c0392b)' }}> · 변경은 본사 마스터관리자만 가능합니다.</span>}
+            {!isHq && <span style={{ color: 'var(--chip-rejected,#c25a43)' }}> · 변경은 본사 마스터관리자만 가능합니다.</span>}
           </p>
           <div style={{ display: 'grid', gap: 10, maxWidth: 620 }}>
             {/* 오프라인 개방 2단계 스테이지 — 노출 → 예약 · 본사 관리자 */}
@@ -283,7 +283,7 @@ export function AdminInfraPage() {
         <Card title="대시보드 노출 정책" style={{ marginBottom: 16 }}>
           <p style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 0 }}>
             센터 관리자·선생님에게 보일 대시보드 탭과 센터별 노출 여부를 본사에서 제어합니다.
-            {!isHq && <span style={{ color: 'var(--chip-rejected,#c0392b)' }}> · 변경은 본사 마스터관리자만 가능합니다.</span>}
+            {!isHq && <span style={{ color: 'var(--chip-rejected,#c25a43)' }}> · 변경은 본사 마스터관리자만 가능합니다.</span>}
           </p>
           {/* 선생님 대시보드 on/off */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
@@ -325,7 +325,7 @@ export function AdminInfraPage() {
                     <button key={c.id}
                       onClick={() => run(async () => { const next = off ? dash.disabledCenters.filter((x) => x !== c.id) : [...dash.disabledCenters, c.id]; setDash(await api.put<DashPolicy>('/admin/dashboard/policy', { disabledCenters: next })); }, '센터 노출 저장됨')}
                       style={{ padding: '5px 12px', borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
-                        border: off ? '1px solid var(--danger,#c0392b)' : '1px solid var(--teal)', background: off ? '#FAD9D9' : 'var(--teal-50,#F0F7FA)', color: off ? '#c0392b' : 'var(--teal)' }}>
+                        border: off ? '1px solid var(--danger,#c25a43)' : '1px solid var(--teal)', background: off ? '#F9E8E4' : 'var(--teal-50,#EEF4FB)', color: off ? '#c25a43' : 'var(--teal)' }}>
                       {off ? '🚫 ' : '✓ '}{c.name}
                     </button>
                   );
@@ -357,7 +357,7 @@ export function AdminInfraPage() {
                 const allowed = allowMap[key] !== false;
                 return (
                   <button key={key} onClick={() => setAllowMap((p) => ({ ...p, [key]: !(p[key] !== false) }))}
-                    style={{ height: 26, borderRadius: 6, cursor: 'pointer', border: allowed ? '1px solid #AFC8F4' : '1px solid var(--line)', background: allowed ? '#D6E4FB' : '#f4f6f7', color: allowed ? '#2563EB' : 'var(--muted)', fontSize: 10, fontWeight: 700 }}>
+                    style={{ height: 26, borderRadius: 6, cursor: 'pointer', border: allowed ? '1px solid #C4D8EE' : '1px solid var(--line)', background: allowed ? '#DCE9F7' : '#f4f6f7', color: allowed ? '#2F6FB3' : 'var(--muted)', fontSize: 10, fontWeight: 700 }}>
                     {allowed ? '허용' : '차단'}
                   </button>
                 );
@@ -366,7 +366,7 @@ export function AdminInfraPage() {
           ))}
         </div>
         <div style={{ display: 'flex', gap: 14, marginTop: 10, fontSize: 11, color: 'var(--muted)' }}>
-          <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: '#D6E4FB', border: '1px solid #AFC8F4', verticalAlign: 'middle', marginRight: 4 }} />허용</span>
+          <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: '#DCE9F7', border: '1px solid #C4D8EE', verticalAlign: 'middle', marginRight: 4 }} />허용</span>
           <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: '#f4f6f7', border: '1px solid var(--line)', verticalAlign: 'middle', marginRight: 4 }} />차단</span>
         </div>
       </Card>

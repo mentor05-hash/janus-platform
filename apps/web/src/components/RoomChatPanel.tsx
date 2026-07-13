@@ -94,11 +94,11 @@ export function RoomChatPanel({ session: rs, title, onClose }: { bookingId: stri
       <div role="dialog" aria-modal="true" aria-label={title ?? '상담 채팅'} onClick={(e) => e.stopPropagation()} className="card" style={{ position: 'relative', width: '100%', maxWidth: 460, height: '80vh', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <b style={{ fontSize: 15 }}>💬 {title ?? '상담 채팅'}
-            <span title={peerOnline ? '상대 접속 중' : '상대 오프라인'} style={{ marginLeft: 8, fontSize: 10, color: peerOnline ? 'var(--chip-done,#2F9E44)' : 'var(--caption)' }}>● {peerOnline ? '접속 중' : '오프라인'}</span>
+            <span title={peerOnline ? '상대 접속 중' : '상대 오프라인'} style={{ marginLeft: 8, fontSize: 10, color: peerOnline ? 'var(--chip-done,#2A8A5F)' : 'var(--caption)' }}>● {peerOnline ? '접속 중' : '오프라인'}</span>
           </b>
           <button onClick={onClose} aria-label="닫기" style={{ border: 'none', background: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--muted)' }}>✕</button>
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 4, background: 'var(--surface-2,#f6f8fa)' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 4, background: 'var(--surface-2,#f4f7fb)' }}>
           {status === 'off' ? <p style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center', marginTop: 20 }}>채팅 세션이 종료되었어요.</p>
             : status === 'connecting' ? <p style={{ color: 'var(--caption)', fontSize: 13, textAlign: 'center' }}>연결 중…</p>
             : msgs.length === 0 ? <p style={{ color: 'var(--caption)', fontSize: 13, textAlign: 'center', marginTop: 20 }}>첫 메시지를 보내보세요.</p>
@@ -107,16 +107,16 @@ export function RoomChatPanel({ session: rs, title, onClose }: { bookingId: stri
               const rx = m.reactions ?? {}; const rxKeys = Object.keys(rx).filter((k) => (rx[k] ?? []).length > 0);
               return (
                 <div key={m.id}>
-                  {showDay && <div style={{ textAlign: 'center', margin: '10px 0 6px' }}><span style={{ fontSize: 11, color: 'var(--muted)', background: 'var(--line-soft,#e9eef1)', borderRadius: 999, padding: '3px 10px' }}>{dayLabel(m.createdAt)}</span></div>}
+                  {showDay && <div style={{ textAlign: 'center', margin: '10px 0 6px' }}><span style={{ fontSize: 11, color: 'var(--muted)', background: 'var(--line-soft,#e4eaf1)', borderRadius: 999, padding: '3px 10px' }}>{dayLabel(m.createdAt)}</span></div>}
                   <div onMouseEnter={() => setHover(m.id)} onMouseLeave={() => setHover((h) => (h === m.id ? null : h))} style={{ alignSelf: m.mine ? 'flex-end' : 'flex-start', maxWidth: '82%', marginLeft: m.mine ? 'auto' : 0, marginTop: 4, position: 'relative' }}>
-                    {m.replyTo && <div style={{ fontSize: 11, color: 'var(--muted)', borderLeft: '3px solid var(--teal)', padding: '2px 8px', background: 'var(--line-soft,#eef2f4)', borderRadius: 6, marginBottom: 3, maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>↩ {m.replyTo.senderId === myPid ? '나' : '상대'}: {snippet(m.replyTo)}</div>}
+                    {m.replyTo && <div style={{ fontSize: 11, color: 'var(--muted)', borderLeft: '3px solid var(--teal)', padding: '2px 8px', background: 'var(--line-soft,#eef2f7)', borderRadius: 6, marginBottom: 3, maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>↩ {m.replyTo.senderId === myPid ? '나' : '상대'}: {snippet(m.replyTo)}</div>}
                     <div style={{ background: m.mine ? 'var(--teal)' : 'var(--surface)', color: m.mine ? '#fff' : 'var(--ink)', border: m.mine ? 'none' : '1px solid var(--line)', borderRadius: 12, padding: '8px 12px', fontSize: 14, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                       {linkify(m.body ?? '', m.mine)}
                     </div>
                     {rxKeys.length > 0 && (
                       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 3, justifyContent: m.mine ? 'flex-end' : 'flex-start' }}>
                         {rxKeys.map((e) => { const mineR = (rx[e] ?? []).includes(myPid); return (
-                          <button key={e} onClick={() => react(m.id, e)} style={{ fontSize: 11, border: `1px solid ${mineR ? 'var(--teal)' : 'var(--line)'}`, background: mineR ? 'var(--teal-50,#EAF3F7)' : 'var(--surface)', color: 'var(--ink)', borderRadius: 999, padding: '1px 7px', cursor: 'pointer' }}>{e} {(rx[e] ?? []).length}</button>
+                          <button key={e} onClick={() => react(m.id, e)} style={{ fontSize: 11, border: `1px solid ${mineR ? 'var(--teal)' : 'var(--line)'}`, background: mineR ? 'var(--teal-50,#E8F0F9)' : 'var(--surface)', color: 'var(--ink)', borderRadius: 999, padding: '1px 7px', cursor: 'pointer' }}>{e} {(rx[e] ?? []).length}</button>
                         ); })}
                       </div>
                     )}
@@ -142,14 +142,14 @@ export function RoomChatPanel({ session: rs, title, onClose }: { bookingId: stri
           <div ref={endRef} />
         </div>
         {reply && rw && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderTop: '1px solid var(--line)', background: 'var(--line-soft,#eef2f4)', fontSize: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderTop: '1px solid var(--line)', background: 'var(--line-soft,#eef2f7)', fontSize: 12 }}>
             <span style={{ color: 'var(--teal)', fontWeight: 700 }}>↩ 답장</span>
             <span style={{ flex: 1, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{reply.senderId === myPid ? '나' : '상대'}: {snippet({ id: reply.id, senderId: reply.senderId, kind: reply.kind, body: reply.body })}</span>
             <button onClick={() => setReply(null)} aria-label="답장 취소" style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>✕</button>
           </div>
         )}
         {status !== 'off' && !rw && (
-          <div style={{ padding: '11px 14px', borderTop: '1px solid var(--line)', background: phase === 'closed' ? 'var(--line-soft,#eef2f4)' : 'var(--teal-50,#EAF3F7)', color: 'var(--muted)', fontSize: 12.5, textAlign: 'center' }}>{phase === 'closed' ? '🔒 ' : '⏳ '}{notice}</div>
+          <div style={{ padding: '11px 14px', borderTop: '1px solid var(--line)', background: phase === 'closed' ? 'var(--line-soft,#eef2f7)' : 'var(--teal-50,#E8F0F9)', color: 'var(--muted)', fontSize: 12.5, textAlign: 'center' }}>{phase === 'closed' ? '🔒 ' : '⏳ '}{notice}</div>
         )}
         {status !== 'off' && rw && (
           <div style={{ display: 'flex', gap: 6, padding: 10, borderTop: '1px solid var(--line)', alignItems: 'center' }}>

@@ -165,7 +165,7 @@ export function AdminScoresPage() {
     } catch (e) { setError(e instanceof ApiError ? e.message : '저장 실패'); }
   }
 
-  const th: React.CSSProperties = { textAlign: 'left', padding: '8px 10px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', background: 'var(--fill,#f6f8fa)' };
+  const th: React.CSSProperties = { textAlign: 'left', padding: '8px 10px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', background: 'var(--fill,#f4f7fb)' };
   const td: React.CSSProperties = { padding: '8px 10px', fontSize: 13, borderTop: '1px solid var(--line)' };
 
   return (
@@ -231,7 +231,7 @@ export function AdminScoresPage() {
           <input ref={ocrRef} type="file" accept="image/*" hidden onChange={onOcr} />
           <Button variant="ghost" onClick={() => ocrRef.current?.click()}>📷 성적표 이미지 OCR</Button>
         </div>
-        {ocrNote && <p style={{ fontSize: 12, color: 'var(--chip-confirmed)', background: 'var(--chip-confirmed-bg,#FEF6E7)', borderRadius: 8, padding: '7px 10px', margin: '0 0 10px' }}>ℹ️ {ocrNote}</p>}
+        {ocrNote && <p style={{ fontSize: 12, color: 'var(--chip-confirmed)', background: 'var(--chip-confirmed-bg,#FAF1E2)', borderRadius: 8, padding: '7px 10px', margin: '0 0 10px' }}>ℹ️ {ocrNote}</p>}
         <div style={{ display: 'grid', gap: 6 }}>
           {items.map((it, i) => (
             <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -271,7 +271,7 @@ export function AdminScoresPage() {
       </Card>
 
       {/* 탭 */}
-      <div style={{ display: 'inline-flex', background: 'var(--fill,#eef2f4)', borderRadius: 10, padding: 3, marginBottom: 12 }}>
+      <div style={{ display: 'inline-flex', background: 'var(--fill,#eef2f7)', borderRadius: 10, padding: 3, marginBottom: 12 }}>
         {([['list', '성적 목록'], ['missing', '미업로드 학생'], ['stats', '📊 성적 통계']] as const).map(([v, l]) => (
           <button key={v} onClick={() => setTab(v)} style={{ border: 'none', cursor: 'pointer', padding: '7px 16px', borderRadius: 8, fontWeight: 700, fontSize: 13, background: tab === v ? 'var(--surface)' : 'transparent', color: tab === v ? 'var(--teal)' : 'var(--muted)' }}>{l}</button>
         ))}
@@ -377,7 +377,7 @@ function StatsView({ s }: { s: Stats }) {
           {s.distribution.map((d) => (
             <div key={d.bucket} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ width: 56, fontSize: 12, color: 'var(--muted)', textAlign: 'right' }}>{d.bucket}</span>
-              <div style={{ flex: 1, background: 'var(--fill,#eef2f4)', borderRadius: 6, height: 22, overflow: 'hidden' }}>
+              <div style={{ flex: 1, background: 'var(--fill,#eef2f7)', borderRadius: 6, height: 22, overflow: 'hidden' }}>
                 <div style={{ width: `${(d.count / maxDist) * 100}%`, height: '100%', background: 'var(--teal)', borderRadius: 6, transition: 'width .3s' }} />
               </div>
               <span style={{ width: 40, fontSize: 12, fontWeight: 700 }}>{d.count}명</span>
@@ -393,8 +393,8 @@ function StatsView({ s }: { s: Stats }) {
               {s.subjects.map((sub) => (
                 <div key={sub.subject} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ width: 56, fontSize: 12, fontWeight: 700 }}>{sub.subject}</span>
-                  <div style={{ flex: 1, background: 'var(--fill,#eef2f4)', borderRadius: 6, height: 22, overflow: 'hidden' }}>
-                    <div style={{ width: `${(sub.avg / maxSubj) * 100}%`, height: '100%', background: sub.avg >= 80 ? '#2F9E44' : sub.avg >= 70 ? 'var(--teal)' : sub.avg >= 60 ? '#F08C00' : '#E5484D', borderRadius: 6 }} />
+                  <div style={{ flex: 1, background: 'var(--fill,#eef2f7)', borderRadius: 6, height: 22, overflow: 'hidden' }}>
+                    <div style={{ width: `${(sub.avg / maxSubj) * 100}%`, height: '100%', background: sub.avg >= 80 ? '#2A8A5F' : sub.avg >= 70 ? 'var(--teal)' : sub.avg >= 60 ? '#CF9A3A' : '#E5484D', borderRadius: 6 }} />
                   </div>
                   <span style={{ width: 40, fontSize: 12, fontWeight: 700 }}>{sub.avg}</span>
                 </div>
@@ -421,12 +421,12 @@ function StatsView({ s }: { s: Stats }) {
         {!s.movement.prevPeriod || movTotal === 0 ? <EmptyState>비교할 직전 기간 데이터가 없어요.</EmptyState> : (
           <>
             <div style={{ display: 'flex', height: 26, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--line)' }}>
-              {s.movement.improved > 0 && <div style={{ width: `${(s.movement.improved / movTotal) * 100}%`, background: '#2F9E44', color: '#fff', fontSize: 11, fontWeight: 700, display: 'grid', placeItems: 'center' }}>▲{s.movement.improved}</div>}
+              {s.movement.improved > 0 && <div style={{ width: `${(s.movement.improved / movTotal) * 100}%`, background: '#2A8A5F', color: '#fff', fontSize: 11, fontWeight: 700, display: 'grid', placeItems: 'center' }}>▲{s.movement.improved}</div>}
               {s.movement.same > 0 && <div style={{ width: `${(s.movement.same / movTotal) * 100}%`, background: 'var(--line)', color: 'var(--ink)', fontSize: 11, fontWeight: 700, display: 'grid', placeItems: 'center' }}>={s.movement.same}</div>}
               {s.movement.declined > 0 && <div style={{ width: `${(s.movement.declined / movTotal) * 100}%`, background: '#E5484D', color: '#fff', fontSize: 11, fontWeight: 700, display: 'grid', placeItems: 'center' }}>▼{s.movement.declined}</div>}
             </div>
             <div style={{ display: 'flex', gap: 16, marginTop: 10, fontSize: 12, color: 'var(--muted)' }}>
-              <span><b style={{ color: '#2F9E44' }}>▲ 향상 {s.movement.improved}명</b></span>
+              <span><b style={{ color: '#2A8A5F' }}>▲ 향상 {s.movement.improved}명</b></span>
               <span>= 유지 {s.movement.same}명</span>
               <span><b style={{ color: '#E5484D' }}>▼ 하락 {s.movement.declined}명</b></span>
               <span style={{ marginLeft: 'auto' }}>두 기간 모두 업로드된 {movTotal}명 기준</span>

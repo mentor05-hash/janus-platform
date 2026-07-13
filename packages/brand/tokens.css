@@ -1,0 +1,103 @@
+/* ═══════════════════════════════════════════════════════════════
+   야누스 디자인 토큰 — 단일 소스 (tokens.json과 동기)
+   출처: 시안 janus_design_system_v1 (2026-07-13 추출)
+   웹: apps/web/src/styles/tokens.css 가 @import
+   규칙: 골드 채움 CTA는 화면당 1개(핵심 전환) · 신호등은 차분한 채도
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  /* 브랜드 코어 */
+  --j-navy: #24405f;   /* 신뢰·텍스트 */
+  --j-blue: #2f6fb3;   /* 미래·메인(주요 액션) */
+  --j-gold: #cf9a3a;   /* 기회·핵심 전환 CTA */
+  --j-gold-ink: #a97d24;
+  --j-silver: #c7ccd2;
+  --j-blue-soft: rgba(47, 111, 179, 0.1);
+  --j-gold-soft: rgba(207, 154, 58, 0.14);
+
+  /* 표면·잉크·보더 */
+  --j-page: #eef2f8;
+  --j-surface: #ffffff;
+  --j-surface2: #f4f7fb;
+  --j-ink: #1e3550;
+  --j-ink2: #52627a;
+  --j-ink3: #8695a8;
+  --j-hair: #e4eaf1;
+  --j-hair2: #eef2f7;
+  --j-chrome: #0d1626; /* 유틸리티 바·관리자 사이드바(다크 크롬) */
+
+  /* CTA 위계 — 회색 아웃라인(탐색 보조) */
+  --j-ghost-bg: #eef2f7;
+  --j-ghost-border: #e0e6ee;
+  --j-arrow-muted: #98a4b5;
+
+  /* 신호등 4구간 (안정/적정/소신/상향) */
+  --j-stable: #2a8a5f;
+  --j-fit: #57a86a;
+  --j-reach: #cf9f2f;
+  --j-high: #d06b52;
+  --j-stable-soft: rgba(42, 138, 95, 0.11);
+  --j-fit-soft: rgba(87, 168, 106, 0.13);
+  --j-reach-soft: rgba(207, 159, 47, 0.14);
+  --j-high-soft: rgba(208, 107, 82, 0.12);
+
+  /* AI 투명성 라벨 (✦ 초안 / ✦✎ 보완 / ✓ 사람) */
+  --j-ai: #6d5dd3;
+  --j-ai-soft: rgba(109, 93, 211, 0.12);
+  --j-aug: #1f8a8a;
+  --j-aug-soft: rgba(31, 138, 138, 0.12);
+  --j-human: #2f6fb3;
+  --j-human-soft: rgba(47, 111, 179, 0.1);
+
+  /* 버티컬 도메인 슬롯 */
+  --j-dom-mental: #1f8a8a;
+  --j-dom-career: #a2568c;
+  --j-dom-habit: #4e5ba6;
+  --j-dom-sleep: #337f9e;
+  --j-dom-fitness: #a45c38;
+  --j-dom-planner: #5d7a46;
+  --j-dom-admcal: #9e4a5e;
+
+  /* 타이포 */
+  --j-font-sans: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont,
+    system-ui, sans-serif;
+  --j-font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+/* ── 다크 (선생님·야간) ── */
+:root[data-theme='dark'] {
+  --j-blue: #4d93da;
+  --j-gold: #e3b45c;
+  --j-gold-ink: #e3b45c;
+  --j-silver: #8496ab;
+  --j-blue-soft: rgba(77, 147, 218, 0.16);
+  --j-gold-soft: rgba(227, 180, 92, 0.16);
+
+  --j-page: #0a1728;
+  --j-surface: #122036;
+  --j-surface2: #182a41;
+  --j-ink: #eaf1f8;
+  --j-ink2: #93a7bd;
+  --j-ink3: #657b95;
+  --j-hair: #23364e;
+  --j-hair2: rgba(255, 255, 255, 0.05);
+
+  --j-ghost-bg: rgba(255, 255, 255, 0.05);
+  --j-ghost-border: #2c4159;
+  --j-arrow-muted: #657b95;
+
+  --j-stable: #33a873;
+  --j-fit: #66c07a;
+  --j-reach: #e3ac33;
+  --j-high: #e26a5b;
+  --j-stable-soft: rgba(51, 168, 115, 0.16);
+  --j-fit-soft: rgba(102, 192, 122, 0.16);
+  --j-reach-soft: rgba(227, 172, 51, 0.16);
+  --j-high-soft: rgba(226, 106, 91, 0.16);
+
+  --j-ai: #9a8be8;
+  --j-ai-soft: rgba(154, 139, 232, 0.18);
+  --j-aug: #3fb5b5;
+  --j-aug-soft: rgba(63, 181, 181, 0.16);
+  --j-human: #4d93da;
+  --j-human-soft: rgba(77, 147, 218, 0.16);
+}

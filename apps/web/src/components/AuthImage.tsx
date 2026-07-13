@@ -17,7 +17,7 @@ export function AuthImage({ fileId, alt, size = 84, zoomable = true }: { fileId:
 
   const box: React.CSSProperties = {
     width: size, height: size, borderRadius: 8, objectFit: 'cover',
-    border: '1px solid var(--line)', background: 'var(--surface-2,#f6f8fa)',
+    border: '1px solid var(--line)', background: 'var(--surface-2,#f4f7fb)',
     cursor: zoomable ? 'zoom-in' : 'default', display: 'block',
   };
   if (err) return <div style={{ ...box, display: 'grid', placeItems: 'center', fontSize: 11, color: 'var(--caption)' }}>이미지</div>;

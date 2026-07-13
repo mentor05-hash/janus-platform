@@ -13,7 +13,7 @@ export function LectureAudioBar({ media, publish }: { media: { provider: string;
   }
   return (
     <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
-      <span style={{ fontSize: 12, color: audio.connected ? 'var(--good, #1e7a4d)' : 'var(--muted)' }}>
+      <span style={{ fontSize: 12, color: audio.connected ? 'var(--good, #2a8a5f)' : 'var(--muted)' }}>
         {audio.connected ? '🎧 음성 연결' : '음성 연결 중…'}
       </span>
       {publish ? (
@@ -21,7 +21,7 @@ export function LectureAudioBar({ media, publish }: { media: { provider: string;
       ) : (
         <button className="btn ghost sm" onClick={audio.toggleMute}>{audio.muted ? '🔇 음소거' : '🔊 듣는 중'}</button>
       )}
-      {audio.error && <span style={{ fontSize: 11, color: 'var(--crit, #a5372a)' }}>{audio.error}</span>}
+      {audio.error && <span style={{ fontSize: 11, color: 'var(--crit, #a64b37)' }}>{audio.error}</span>}
     </span>
   );
 }

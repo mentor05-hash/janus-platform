@@ -76,7 +76,7 @@ export function AdminReversePage() {
                   marginBottom: 6,
                   borderRadius: 10,
                   border: '1px solid var(--line)',
-                  background: s.reverseAdmin ? 'var(--teal-50, #eef6fa)' : 'var(--surface, #fff)',
+                  background: s.reverseAdmin ? 'var(--teal-50, #eef4fb)' : 'var(--surface, #fff)',
                 }}
               >
                 <span style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>

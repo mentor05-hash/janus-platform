@@ -316,7 +316,7 @@ export function SchedulePage() {
           })}
         </div>
         {usingDefault && (
-          <p style={{ marginTop: 10, marginBottom: 0, fontSize: 13, color: '#92600a', background: '#FEF6E7', border: '1px solid #F0DCAE', borderRadius: 9, padding: '8px 10px' }}>
+          <p style={{ marginTop: 10, marginBottom: 0, fontSize: 13, color: '#A97D24', background: '#FAF1E2', border: '1px solid #EDDCB8', borderRadius: 9, padding: '8px 10px' }}>
             ⓘ 이 주는 아직 설정되지 않아 <b>기본 근무시간</b>이 적용됩니다. 아래에서 변경 후 저장하면 이 주에만 적용됩니다.
           </p>
         )}
@@ -343,8 +343,8 @@ export function SchedulePage() {
             {!isDefault && (
               <div style={{ display: 'flex', gap: 14, fontSize: 11, color: 'var(--muted)', marginBottom: 6 }}>
                 <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: 'var(--teal)', verticalAlign: 'middle', marginRight: 4 }} />근무</span>
-                <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: '#D6E4FB', border: '1px solid #AFC8F4', verticalAlign: 'middle', marginRight: 4 }} />예약됨</span>
-                <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: '#FDE8C8', border: '1px solid #F0DCAE', verticalAlign: 'middle', marginRight: 4 }} />연차·반차·병가</span>
+                <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: '#DCE9F7', border: '1px solid #C4D8EE', verticalAlign: 'middle', marginRight: 4 }} />예약됨</span>
+                <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: '#F5E7CB', border: '1px solid #EDDCB8', verticalAlign: 'middle', marginRight: 4 }} />연차·반차·병가</span>
               </div>
             )}
             <div style={{ userSelect: 'none', overflowX: 'auto' }}>
@@ -356,11 +356,11 @@ export function SchedulePage() {
                     {i % 2 === 0 ? <div style={{ fontSize: 11, color: 'var(--caption)', textAlign: 'right', paddingRight: 4, lineHeight: '16px' }}>{hhmm(rowMin(i))}</div> : <div />}
                     {DAY_ORDER.map((wd) => {
                       const ov = overlay[wd].get(i);
-                      if (ov === 'booked') return <div key={wd + '-' + i} title="예약됨" style={{ height: 16, borderRadius: 3, background: '#D6E4FB', border: '1px solid #AFC8F4', cursor: 'not-allowed' }} />;
-                      if (ov === 'leave') return <div key={wd + '-' + i} title="연차·반차·병가" style={{ height: 16, borderRadius: 3, background: '#FDE8C8', border: '1px solid #F0DCAE', cursor: 'not-allowed' }} />;
+                      if (ov === 'booked') return <div key={wd + '-' + i} title="예약됨" style={{ height: 16, borderRadius: 3, background: '#DCE9F7', border: '1px solid #C4D8EE', cursor: 'not-allowed' }} />;
+                      if (ov === 'leave') return <div key={wd + '-' + i} title="연차·반차·병가" style={{ height: 16, borderRadius: 3, background: '#F5E7CB', border: '1px solid #EDDCB8', cursor: 'not-allowed' }} />;
                       const on = has(wd, i);
                       return <div key={wd + '-' + i} onMouseDown={() => onDown(wd, i)} onMouseEnter={() => onEnter(wd, i)}
-                        style={{ height: 16, borderRadius: 3, cursor: 'pointer', background: on ? 'var(--teal)' : '#f4f6f7', border: on ? 'none' : '1px solid #eef2f4' }} />;
+                        style={{ height: 16, borderRadius: 3, cursor: 'pointer', background: on ? 'var(--teal)' : '#f4f6f7', border: on ? 'none' : '1px solid #eef2f7' }} />;
                     })}
                   </div>
                 ))}
@@ -407,7 +407,7 @@ export function SchedulePage() {
                 ⬆ 엑셀 업로드(일괄 적용)<input type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={onExcel} />
               </label>
             </div>
-            <div style={{ fontSize: 12, color: 'var(--muted)', background: 'var(--fill,#f6f8fa)', borderRadius: 8, padding: 10, fontFamily: 'monospace', whiteSpace: 'pre', overflowX: 'auto' }}>
+            <div style={{ fontSize: 12, color: 'var(--muted)', background: 'var(--fill,#f4f7fb)', borderRadius: 8, padding: 10, fontFamily: 'monospace', whiteSpace: 'pre', overflowX: 'auto' }}>
 {`주,요일,시작,종료,설명
 기본,월,09:00,18:00,종일 근무
 기본,화,09:00,12:00,오전 근무(분할)
@@ -479,7 +479,7 @@ export function SchedulePage() {
           <p style={{ fontSize: 14, color: 'var(--ink)' }}>변경한 근무시간과 겹쳐 진행이 어려운 학생 상담이 <b>{conflicts.length}건</b> 있습니다. 대응 방안을 선택하세요.</p>
           <div style={{ display: 'grid', gap: 6, margin: '8px 0 14px', maxHeight: 160, overflow: 'auto' }}>
             {conflicts.map((c) => (
-              <div key={c.bookingId} style={{ fontSize: 13, background: 'var(--fill,#f6f8fa)', borderRadius: 8, padding: '6px 10px' }}>
+              <div key={c.bookingId} style={{ fontSize: 13, background: 'var(--fill,#f4f7fb)', borderRadius: 8, padding: '6px 10px' }}>
                 {c.date} {hhmm(c.startMin)}~{hhmm(c.endMin)} · {c.studentName} · {c.consultType ?? ''}·{c.mode}
               </div>
             ))}
@@ -489,7 +489,7 @@ export function SchedulePage() {
             <Button variant="ghost" onClick={() => respondConflict('substitute')} loading={busy}>② 대체 선생님 후보 제안</Button>
             <Button variant="ghost" onClick={() => respondConflict('priority')} loading={busy}>③ 학생 일정 우선권 부여</Button>
             <Button variant="ghost" onClick={() => respondConflict('admin_manual')} loading={busy}>④ 센터 관리자 수동 배정 요청</Button>
-            <p style={{ fontSize: 12, color: '#b91c1c', margin: 0 }}>선생님 사유 취소 시 관련 패널티(당일취소·랭킹 가중치 등)가 적용될 수 있으며, 예정 크레딧은 학생에게 환원됩니다.</p>
+            <p style={{ fontSize: 12, color: '#b85a44', margin: 0 }}>선생님 사유 취소 시 관련 패널티(당일취소·랭킹 가중치 등)가 적용될 수 있으며, 예정 크레딧은 학생에게 환원됩니다.</p>
           </div>
         </Modal>
       )}

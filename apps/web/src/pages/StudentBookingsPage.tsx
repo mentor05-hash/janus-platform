@@ -67,14 +67,14 @@ function RescheduleBox({ booking, onDone }: { booking: Booking; onDone: () => vo
                   const inSel = selStart !== null && selValid && s.index >= selStart && s.index < selStart + duration;
                   return <button key={s.index} disabled={s.status !== 'avail'} onClick={() => setSelStart(s.index)}
                     style={{ width: 48, padding: '4px 0', fontSize: 11, borderRadius: 6, border: 'none', cursor: s.status === 'avail' ? 'pointer' : 'default',
-                      background: inSel ? 'var(--teal)' : s.status === 'avail' ? '#CDEBDD' : '#EEF1F3', color: inSel ? '#fff' : 'var(--ink)' }}>{s.time}</button>;
+                      background: inSel ? 'var(--teal)' : s.status === 'avail' ? '#CFE7DA' : '#EEF1F3', color: inSel ? '#fff' : 'var(--ink)' }}>{s.time}</button>;
                 })}
               </div>
             </div>
           ))}
         </div>
       )}
-      {selStart !== null && !selValid && <p style={{ fontSize: 12, color: '#92600a', marginTop: 6 }}>이 시작 시간부터 {duration * 10}분 연속으로 비어있지 않아요.</p>}
+      {selStart !== null && !selValid && <p style={{ fontSize: 12, color: '#A97D24', marginTop: 6 }}>이 시작 시간부터 {duration * 10}분 연속으로 비어있지 않아요.</p>}
       {err && <ErrorText>{err}</ErrorText>}
       <Button size="sm" disabled={!selValid || busy} onClick={submit} style={{ marginTop: 8 }}>이 시간으로 변경</Button>
     </div>
@@ -105,7 +105,7 @@ function ReviewBox({ bookingId }: { bookingId: string }) {
           <span style={{ width: 56, fontSize: 13, color: 'var(--muted)' }}>{label}</span>
           {[1, 2, 3, 4, 5].map((n) => (
             <button key={n} type="button" onClick={() => setR((p) => ({ ...p, [k]: n }))}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: n <= (r[k] as number) ? '#F5A623' : 'var(--line)' }}>★</button>
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: n <= (r[k] as number) ? '#CF9A3A' : 'var(--line)' }}>★</button>
           ))}
         </div>
       ))}

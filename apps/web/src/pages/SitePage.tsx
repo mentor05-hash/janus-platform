@@ -20,15 +20,15 @@ function Frame({ src, title }: { src: string; title: string }) {
 }
 
 export function SiteLandingPage() {
-  return <Frame src="/site/landing.html" title="잇올 — 입시의 모든 길을 잇다" />;
+  return <Frame src="/site/landing.html" title="야누스 — 미래를 여는 문 (구버전)" />;
 }
 
 export function SiteServicesPage() {
-  return <Frame src="/site/services.html" title="잇올 연계 서비스 — 상세 소개" />;
+  return <Frame src="/site/services.html" title="연계 서비스 — 상세 소개 (구버전)" />;
 }
 
 export function SiteServiceDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   if (!slug || !SLUGS.includes(slug as (typeof SLUGS)[number])) return <Navigate to="/services" replace />;
-  return <Frame src={`/site/svc-${slug}.html`} title={`${SLUG_NAME[slug] ?? '연계 서비스'} — 잇올`} />;
+  return <Frame src={`/site/svc-${slug}.html`} title={`${SLUG_NAME[slug] ?? '연계 서비스'} — 야누스`} />;
 }

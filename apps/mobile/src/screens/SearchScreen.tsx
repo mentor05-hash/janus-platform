@@ -152,7 +152,7 @@ export function SearchScreen({ onPick, onGoQna }: { onPick: (t: Teacher, mode?: 
             </View>
           )}
           {consultType === '심리' && <Text style={styles.note}>💬 심리상담(LCA코칭·심리상담)은 현재 기숙 온/오프라인으로 운영돼요.</Text>}
-          {subType === '유료상담' && <Text style={[styles.note, { color: '#92600A', backgroundColor: '#FEF6E7' }]}>💎 입시 유료상담은 별도 단가가 적용돼요.</Text>}
+          {subType === '유료상담' && <Text style={[styles.note, { color: '#A97D24', backgroundColor: '#FAF1E2' }]}>💎 입시 유료상담은 별도 단가가 적용돼요.</Text>}
           {/* 카테고리 — 라벨 왼쪽, 버튼 오른쪽 */}
           <View style={styles.inlineRow}>
             <Text style={styles.inlineLbl}>카테고리</Text>
@@ -287,9 +287,9 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   sortPill: { alignSelf: 'flex-start', borderWidth: 1, borderColor: C.lineSoft, borderRadius: R.pill, paddingVertical: 4, paddingHorizontal: 12, backgroundColor: C.white },
   sortOn: { borderColor: C.teal, backgroundColor: C.teal50 },
   sortT: { color: C.caption, fontWeight: '700', fontSize: 12, lineHeight: 16 },
-  extBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FEF6E7', borderColor: '#F0DCAE', borderWidth: 1, borderRadius: 10, padding: 10, marginTop: 10 },
-  extBadge: { fontSize: 11, fontWeight: '800', color: '#92600a', backgroundColor: '#F7E4BC', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, overflow: 'hidden' },
-  extBannerT: { flex: 1, fontSize: 12, color: '#92600a', fontWeight: '600', lineHeight: 17 },
+  extBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FAF1E2', borderColor: '#EDDCB8', borderWidth: 1, borderRadius: 10, padding: 10, marginTop: 10 },
+  extBadge: { fontSize: 11, fontWeight: '800', color: '#A97D24', backgroundColor: '#EDDCB8', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, overflow: 'hidden' },
+  extBannerT: { flex: 1, fontSize: 12, color: '#A97D24', fontWeight: '600', lineHeight: 17 },
   seg: { flexDirection: 'row', backgroundColor: C.lineSoft, borderRadius: 10, padding: 3 },
   segItem: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8 },
   segOn: { backgroundColor: C.white },

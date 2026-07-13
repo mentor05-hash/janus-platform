@@ -89,7 +89,7 @@ export function TeacherProfilePage() {
             const on = modes.includes(m.value);
             return (
               <button key={m.value} type="button" onClick={() => toggle(modes, setModes, m.value)} style={{ cursor: 'pointer', textAlign: 'left', padding: '10px 12px', borderRadius: 10,
-                border: on ? '1px solid var(--teal)' : '1px solid var(--line)', background: on ? 'var(--teal-50,#F0F7FA)' : '#fff' }}>
+                border: on ? '1px solid var(--teal)' : '1px solid var(--line)', background: on ? 'var(--teal-50,#EEF4FB)' : '#fff' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ width: 18, height: 18, borderRadius: 5, border: on ? 'none' : '1.5px solid var(--line)', background: on ? 'var(--teal)' : '#fff', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 800 }}>{on ? '✓' : ''}</span>
                   <b style={{ fontSize: 14, color: on ? 'var(--teal)' : 'var(--ink)' }}>{m.icon} {m.label}</b>
@@ -99,7 +99,7 @@ export function TeacherProfilePage() {
             );
           })}
         </div>
-        {modes.length === 0 && <p style={{ fontSize: 12, color: 'var(--danger,#c0392b)', margin: '0 0 12px' }}>⚠ 방식을 하나도 선택하지 않으면 방식으로 검색하는 학생에게 노출되지 않아요.</p>}
+        {modes.length === 0 && <p style={{ fontSize: 12, color: 'var(--danger,#c25a43)', margin: '0 0 12px' }}>⚠ 방식을 하나도 선택하지 않으면 방식으로 검색하는 학생에게 노출되지 않아요.</p>}
 
         <label className="label">담당 과목</label>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>

@@ -51,12 +51,12 @@ export function EmbedSessionPage() {
 
   const wide = window.innerWidth >= 900 && kind === 'both';
   return (
-    <div style={{ position: 'fixed', inset: 0, background: '#F2F4F6', display: 'flex' }}>
+    <div style={{ position: 'fixed', inset: 0, background: '#EEF2F8', display: 'flex' }}>
       {kind === 'whiteboard' ? (
         <WhiteboardPanel bookingId={bookingId} title={title} onClose={close} />
       ) : kind === 'both' && wide ? (
         <>
-          <div style={{ flex: 1, borderRight: '1px solid #E7ECEF' }}><ChatPanel bookingId={bookingId} myId={myId} title={title} onClose={close} /></div>
+          <div style={{ flex: 1, borderRight: '1px solid #E4EAF1' }}><ChatPanel bookingId={bookingId} myId={myId} title={title} onClose={close} /></div>
           <div style={{ flex: 1 }}><WhiteboardPanel bookingId={bookingId} title={title} onClose={close} /></div>
         </>
       ) : (

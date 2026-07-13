@@ -92,5 +92,5 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   rank: { fontSize: 15, fontWeight: '800', color: C.teal, width: 30 },
   mTitle: { fontSize: 14, fontWeight: '700', color: C.ink },
   rTeacher: { fontSize: 13, fontWeight: '800', color: C.ink },
-  star: { fontSize: 13, fontWeight: '700', color: '#E0A52E' },
+  star: { fontSize: 13, fontWeight: '700', color: '#E3B45C' },
 });

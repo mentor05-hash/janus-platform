@@ -74,7 +74,7 @@ export function AdminRoomsPage() {
     { key: 'hours', header: '운영 시간', render: (r) => r.operating_hours ?? '자동' },
     { key: 'setting', header: '설정', render: (r) => (
       <button onClick={() => saveRoom(r.id, { setting: r.setting === 'manual' ? 'auto' : 'manual' })}
-        style={{ cursor: 'pointer', border: '1px solid var(--line)', borderRadius: 7, padding: '3px 9px', fontSize: 12, fontWeight: 700, background: r.setting === 'manual' ? 'var(--teal-50,#F0F7FA)' : '#fff', color: r.setting === 'manual' ? 'var(--teal)' : 'var(--muted)' }}>
+        style={{ cursor: 'pointer', border: '1px solid var(--line)', borderRadius: 7, padding: '3px 9px', fontSize: 12, fontWeight: 700, background: r.setting === 'manual' ? 'var(--teal-50,#EEF4FB)' : '#fff', color: r.setting === 'manual' ? 'var(--teal)' : 'var(--muted)' }}>
         {r.setting === 'manual' ? '수동 설정' : '자동 계산'}
       </button>
     ) },

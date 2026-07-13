@@ -3,7 +3,7 @@ import type { Me } from '../api/types';
 /** 로그인 후 역할별 시작 경로. */
 export function roleHome(role: Me['role']): string {
   if (role === 'admin' || role === 'hr') return '/admin/dashboard';
-  if (role === 'student') return '/student/bookings'; // 학생 웹
+  if (role === 'student') return '/student'; // 학생 웹 — "나의 관문" 대시보드
   return '/app/bookings'; // teacher (보호자는 mobile)
 }
 

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" fill="none" role="img" aria-label="야누스">
+  <defs>
+    <linearGradient id="jaT" gradientUnits="userSpaceOnUse" x1="18" y1="0" x2="78" y2="0">
+      <stop offset="50%" stop-color="#2F6FB3"/>
+      <stop offset="50%" stop-color="#BC8A28"/>
+    </linearGradient>
+    <linearGradient id="jaB" gradientUnits="userSpaceOnUse" x1="14" y1="0" x2="82" y2="0">
+      <stop offset="50%" stop-color="#2F6FB3"/>
+      <stop offset="50%" stop-color="#BC8A28"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="10">
+    <path d="M18 74V43C18 27.5 30.2 15 48 15C65.8 15 78 27.5 78 43V52" stroke="url(#jaT)"/>
+    <path d="M14 79H82" stroke="url(#jaB)"/>
+  </g>
+</svg>

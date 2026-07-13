@@ -169,7 +169,7 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
           <b style={{ fontSize: 15 }}>💬 {title ?? '상담 채팅'}</b>
           <button onClick={onClose} aria-label="닫기" style={{ border: 'none', background: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--muted)' }}>✕</button>
         </div>
-        <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 4, background: 'var(--surface-2,#f6f8fa)', position: 'relative' }}>
+        <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 4, background: 'var(--surface-2,#f4f7fb)', position: 'relative' }}>
           {status === 'off' ? <p style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center', marginTop: 20 }}>채팅이 비활성화되어 있어요.</p>
             : status === 'connecting' ? <p style={{ color: 'var(--caption)', fontSize: 13, textAlign: 'center' }}>연결 중…</p>
             : msgs.length === 0 ? <p style={{ color: 'var(--caption)', fontSize: 13, textAlign: 'center', marginTop: 20 }}>첫 메시지를 보내보세요.</p>
@@ -179,10 +179,10 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
               const rxKeys = Object.keys(rx).filter((k) => (rx[k] ?? []).length > 0);
               return (
                 <div key={m.id}>
-                  {showDay && <div style={{ textAlign: 'center', margin: '10px 0 6px' }}><span style={{ fontSize: 11, color: 'var(--muted)', background: 'var(--line-soft,#e9eef1)', borderRadius: 999, padding: '3px 10px' }}>{dayLabel(m.createdAt)}</span></div>}
+                  {showDay && <div style={{ textAlign: 'center', margin: '10px 0 6px' }}><span style={{ fontSize: 11, color: 'var(--muted)', background: 'var(--line-soft,#e4eaf1)', borderRadius: 999, padding: '3px 10px' }}>{dayLabel(m.createdAt)}</span></div>}
                   <div onMouseEnter={() => setHover(m.id)} onMouseLeave={() => { setHover((h) => (h === m.id ? null : h)); }} style={{ alignSelf: m.mine ? 'flex-end' : 'flex-start', maxWidth: '82%', marginLeft: m.mine ? 'auto' : 0, marginTop: 4, position: 'relative' }}>
                     {/* 답장 인용 */}
-                    {m.replyTo && <div style={{ fontSize: 11, color: 'var(--muted)', borderLeft: '3px solid var(--teal)', padding: '2px 8px', background: 'var(--line-soft,#eef2f4)', borderRadius: 6, marginBottom: 3, maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>↩ {m.replyTo.senderId === myId ? '나' : '상대'}: {snippet(m.replyTo)}</div>}
+                    {m.replyTo && <div style={{ fontSize: 11, color: 'var(--muted)', borderLeft: '3px solid var(--teal)', padding: '2px 8px', background: 'var(--line-soft,#eef2f7)', borderRadius: 6, marginBottom: 3, maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>↩ {m.replyTo.senderId === myId ? '나' : '상대'}: {snippet(m.replyTo)}</div>}
                     <div style={{ background: m.mine ? 'var(--teal)' : 'var(--surface)', color: m.mine ? '#fff' : 'var(--ink)', border: m.mine ? 'none' : '1px solid var(--line)', borderRadius: 12, padding: m.kind === 'image' ? 6 : '8px 12px', fontSize: 14, whiteSpace: 'pre-wrap', wordBreak: 'break-word', opacity: m.pending ? 0.6 : 1 }}>
                       {m.kind === 'image' && m.imageFileId ? <AuthImage fileId={m.imageFileId} size={160} />
                         : m.kind === 'file' && m.imageFileId ? (
@@ -195,13 +195,13 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
                     {rxKeys.length > 0 && (
                       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 3, justifyContent: m.mine ? 'flex-end' : 'flex-start' }}>
                         {rxKeys.map((e) => { const mineR = (rx[e] ?? []).includes(myId); return (
-                          <button key={e} onClick={() => react(m.id, e)} style={{ fontSize: 11, border: `1px solid ${mineR ? 'var(--teal)' : 'var(--line)'}`, background: mineR ? 'var(--teal-50,#EAF3F7)' : 'var(--surface)', color: 'var(--ink)', borderRadius: 999, padding: '1px 7px', cursor: 'pointer', fontVariantNumeric: 'tabular-nums' }}>{e} {(rx[e] ?? []).length}</button>
+                          <button key={e} onClick={() => react(m.id, e)} style={{ fontSize: 11, border: `1px solid ${mineR ? 'var(--teal)' : 'var(--line)'}`, background: mineR ? 'var(--teal-50,#E8F0F9)' : 'var(--surface)', color: 'var(--ink)', borderRadius: 999, padding: '1px 7px', cursor: 'pointer', fontVariantNumeric: 'tabular-nums' }}>{e} {(rx[e] ?? []).length}</button>
                         ); })}
                       </div>
                     )}
                     {/* 시각·읽음 */}
                     <div style={{ fontSize: 10, color: 'var(--caption)', textAlign: m.mine ? 'right' : 'left', marginTop: 2 }}>
-                      {m.failed ? <button onClick={() => retry(m)} style={{ color: 'var(--danger,#c0392b)', border: 'none', background: 'none', cursor: 'pointer', fontSize: 10, padding: 0 }}>⚠ 전송 실패 · 재시도</button>
+                      {m.failed ? <button onClick={() => retry(m)} style={{ color: 'var(--danger,#c25a43)', border: 'none', background: 'none', cursor: 'pointer', fontSize: 10, padding: 0 }}>⚠ 전송 실패 · 재시도</button>
                         : m.pending ? '전송 중…'
                         : <>{m.mine && m.readAt && <span style={{ color: 'var(--teal)', marginRight: 4 }}>읽음</span>}{KST(m.createdAt)}</>}
                     </div>
@@ -227,14 +227,14 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
           {unseen > 0 && <button onClick={jumpBottom} style={{ position: 'sticky', bottom: 6, alignSelf: 'center', fontSize: 12, fontWeight: 700, color: '#fff', background: 'var(--teal)', border: 'none', borderRadius: 999, padding: '5px 12px', cursor: 'pointer', boxShadow: '0 3px 10px rgba(0,0,0,.18)' }}>새 메시지 {unseen} ↓</button>}
         </div>
         {reply && rw && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderTop: '1px solid var(--line)', background: 'var(--line-soft,#eef2f4)', fontSize: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderTop: '1px solid var(--line)', background: 'var(--line-soft,#eef2f7)', fontSize: 12 }}>
             <span style={{ color: 'var(--teal)', fontWeight: 700 }}>↩ 답장</span>
             <span style={{ flex: 1, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{reply.senderId === myId ? '나' : '상대'}: {snippet({ id: reply.id, senderId: reply.senderId, kind: reply.kind, body: reply.body })}</span>
             <button onClick={() => setReply(null)} aria-label="답장 취소" style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14 }}>✕</button>
           </div>
         )}
         {status !== 'off' && !rw && (
-          <div style={{ padding: '11px 14px', borderTop: '1px solid var(--line)', background: phase === 'closed' ? 'var(--line-soft,#eef2f4)' : 'var(--teal-50,#EAF3F7)', color: 'var(--muted)', fontSize: 12.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <div style={{ padding: '11px 14px', borderTop: '1px solid var(--line)', background: phase === 'closed' ? 'var(--line-soft,#eef2f7)' : 'var(--teal-50,#E8F0F9)', color: 'var(--muted)', fontSize: 12.5, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
             <span>{phase === 'closed' ? '🔒' : '⏳'}</span><span>{notice}</span>
           </div>
         )}

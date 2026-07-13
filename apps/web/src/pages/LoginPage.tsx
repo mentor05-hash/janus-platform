@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import { roleHome } from '../auth/roleHome';
 import { Button, ErrorText, TextField, PasswordField } from '../components/ui';
 import { APP_NAME } from '../branding.generated';
+import { JanusLogo } from '../components/JanusLogo';
 
 const DEMO_PW = 'dev-password!';
 // 데모 모드에서만 로그인 편의(자동로그인·역할 원터치·기본 비번 노출) 활성. 실서비스=false.
@@ -66,9 +67,15 @@ export function LoginPage() {
   }
 
   return (
-    <div style={{ display: 'grid', placeItems: 'center', height: '100vh' }}>
-      <form className="card" style={{ width: 340 }} onSubmit={onSubmit}>
-        <h2 style={{ marginTop: 0, color: 'var(--teal)' }}>{APP_NAME} 로그인</h2>
+    <div style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', background: 'var(--bg)', backgroundImage: 'radial-gradient(rgba(36,64,95,.08) 1px, transparent 1px)', backgroundSize: '26px 26px', padding: 16 }}>
+      <form className="card" style={{ width: 360, padding: 26 }} onSubmit={onSubmit}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+          <JanusLogo size={34} />
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--ink)', letterSpacing: '-.01em' }}>3초면 문이 열려요</div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{APP_NAME} — 진단 결과와 질문 기록을 안전하게 이어서 보려면 로그인하세요</div>
+          </div>
+        </div>
         {DEMO && (
           <>
             <label className="label" style={{ marginBottom: 6 }}>역할 선택(원터치 채움)</label>
@@ -93,14 +100,16 @@ export function LoginPage() {
         <Button type="submit" block loading={busy} style={{ marginTop: 12 }}>
           로그인
         </Button>
+        <Link to="/placement" className="btn ghost block" style={{ marginTop: 8, textDecoration: 'none', textAlign: 'center', display: 'block' }}>
+          가입 없이 예시로 둘러보기
+        </Link>
         <p style={{ fontSize: 12, textAlign: 'center', margin: '12px 0 0' }}>
-          계정이 없으신가요? <Link to="/signup" style={{ color: 'var(--teal)', fontWeight: 700 }}>회원가입</Link>
+          계정이 없으신가요? <Link to="/signup" style={{ color: 'var(--blue)', fontWeight: 700 }}>회원가입</Link>
           {' · '}<Link to="/forgot" style={{ color: 'var(--muted)' }}>비밀번호 찾기</Link>
         </p>
-        <p style={{ fontSize: 11, textAlign: 'center', margin: '8px 0 0', color: 'var(--caption)' }}>
-          <Link to="/terms" style={{ color: 'var(--muted)' }}>이용약관</Link>
-          {' · '}
-          <Link to="/privacy" style={{ color: 'var(--muted)' }}>개인정보처리방침</Link>
+        <p style={{ fontSize: 11, textAlign: 'center', margin: '8px 0 0', color: 'var(--caption)', lineHeight: 1.6 }}>
+          계속하면 <Link to="/terms" style={{ color: 'var(--muted)' }}>이용약관</Link>·<Link to="/privacy" style={{ color: 'var(--muted)' }}>개인정보 처리방침</Link>에 동의하게 됩니다.<br />
+          성적·질문 데이터는 본인 동의 없이 공유되지 않아요.
         </p>
       </form>
     </div>

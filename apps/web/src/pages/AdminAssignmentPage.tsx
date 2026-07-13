@@ -88,7 +88,7 @@ export function AdminAssignmentPage() {
     { key: 'net', header: '실수령', align: 'right', render: (r) => w(r.net) },
     { key: 'totalCost', header: '회사총부담(전임)', align: 'right', render: (r) => <b>{w(r.totalCost)}</b> },
     { key: 'freelancerCost', header: '프리랜서 부담', align: 'right', render: (r) => w(r.freelancerCost) },
-    { key: 'premium', header: '전임 추가비용', align: 'right', render: (r) => <span style={{ color: '#C0392B' }}>+{w(r.premium)}</span> },
+    { key: 'premium', header: '전임 추가비용', align: 'right', render: (r) => <span style={{ color: '#C25A43' }}>+{w(r.premium)}</span> },
   ];
 
   return (

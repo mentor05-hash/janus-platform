@@ -51,7 +51,7 @@ export function AdminAuditPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead><tr>
               {['시각', '조작', '요약', '수행자'].map((h) => (
-                <th key={h} style={{ textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', background: 'var(--fill,#f6f8fa)' }}>{h}</th>
+                <th key={h} style={{ textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', background: 'var(--fill,#f4f7fb)' }}>{h}</th>
               ))}
             </tr></thead>
             <tbody>

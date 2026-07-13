@@ -124,7 +124,7 @@ function AppInner() {
   if (!ready)
     return (
       <View style={styles.center}>
-        <ActivityIndicator color="#0E5C7C" />
+        <ActivityIndicator color="#2F6FB3" />
       </View>
     );
 
@@ -146,7 +146,12 @@ function AppInner() {
   const guardianLabel: Record<string, string> = { a: '홈', b: '상담', g: '멤버십', c: '결제', d: '충전' };
   const studentLabel: Record<string, string> = { a: '선생님', b: '내 예약', r: '강의실', e: '자료실', c: 'Q&A', f: '커뮤니티', d: '마이' };
   const teacherLabel: Record<string, string> = { ti: '인박스', to: '오늘', ts: '상담', tr: '기록', tm: '마이' };
+  // 시안(janus_app_v1) 하단 탭: 아이콘+라벨 — 도메인 아이콘 슬롯 규칙
+  const guardianIcon: Record<string, string> = { a: '⌂', b: '◇', g: '◈', c: '₩', d: '⊕' };
+  const studentIcon: Record<string, string> = { a: '◇', b: '▤', r: '▶', e: '▦', c: '✎', f: '◫', d: '◯' };
+  const teacherIcon: Record<string, string> = { ti: '✎', to: '▤', ts: '◇', tr: '▦', tm: '◯' };
   const tabLabel = (t: string) => (isGuardian ? guardianLabel[t] ?? '' : isTeacher ? teacherLabel[t] ?? '' : studentLabel[t] ?? '');
+  const tabIcon = (t: string) => (isGuardian ? guardianIcon[t] ?? '' : isTeacher ? teacherIcon[t] ?? '' : studentIcon[t] ?? '');
   // 선생님은 탭키가 다르므로 기본 진입 탭 보정('a' → 'ti')
   const tTab = isTeacher && !['ti', 'to', 'ts', 'tr', 'tm'].includes(tab) ? 'ti' : tab;
 
@@ -225,6 +230,7 @@ function AppInner() {
               style={[styles.tab, tTab === t && styles.tabActiveBox]}
               onPress={() => goTab(t)}
             >
+              <Text style={[styles.tabIcon, tTab === t && styles.tabIconActive]}>{tabIcon(t)}</Text>
               <Text style={[styles.tabLabel, tTab === t && styles.tabActive]}>{tabLabel(t)}</Text>
             </TouchableOpacity>
           ))}
@@ -243,16 +249,18 @@ function AppInner() {
 const makeStyles = (C: Palette) => StyleSheet.create({
   app: { flex: 1, backgroundColor: C.bg },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bg },
-  header: { backgroundColor: C.teal, paddingHorizontal: SP.lg, paddingVertical: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  header: { backgroundColor: C.navy, paddingHorizontal: SP.lg, paddingVertical: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   brand: { color: '#FFFFFF', fontWeight: '800', fontSize: 16, letterSpacing: -0.3 },
-  logout: { color: '#cfe3ec', fontSize: 13, fontWeight: '600' },
+  logout: { color: '#cfe0f5', fontSize: 13, fontWeight: '600' },
   body: { flex: 1 },
   notice: { padding: SP.xl, color: C.muted },
   exitToast: { position: 'absolute', left: 0, right: 0, bottom: 76, alignItems: 'center' },
-  exitToastT: { backgroundColor: 'rgba(22,36,43,0.92)', color: '#fff', fontSize: 13, fontWeight: '700', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, overflow: 'hidden' },
+  exitToastT: { backgroundColor: 'rgba(13,22,38,0.92)', color: '#fff', fontSize: 13, fontWeight: '700', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, overflow: 'hidden' },
   tabs: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: C.line, backgroundColor: C.white, paddingBottom: 4 },
-  tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderTopWidth: 2, borderTopColor: 'transparent' },
-  tabActiveBox: { borderTopColor: C.teal },
-  tabLabel: { color: C.caption, fontWeight: '600', fontSize: 13 },
-  tabActive: { color: C.teal, fontWeight: '800' },
+  tab: { flex: 1, paddingVertical: 8, alignItems: 'center', borderTopWidth: 2, borderTopColor: 'transparent' },
+  tabActiveBox: { borderTopColor: C.blue },
+  tabIcon: { color: C.caption, fontSize: 16, lineHeight: 20 },
+  tabIconActive: { color: C.blue },
+  tabLabel: { color: C.caption, fontWeight: '600', fontSize: 12, marginTop: 1 },
+  tabActive: { color: C.blue, fontWeight: '800' },
 });

@@ -7,7 +7,7 @@ import { LectureAudioBar } from './LectureAudioBar';
 
 type Pt = { x: number; y: number; p?: number };
 type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean; highlight?: boolean };
-const COLORS = ['#16242B', '#0E5C7C', '#E5484D', '#2F9E44', '#F08C00'];
+const COLORS = ['#1E3550', '#2F6FB3', '#E5484D', '#2A8A5F', '#CF9A3A'];
 const W = 900, H = 620;
 
 /** 룸 서비스 기반 공유 화이트보드(이관 경로). 이미지 배경 + 필기 + 음성. PDF 배경은 이음새로 보류. */
@@ -139,7 +139,7 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
     }));
     s.on('wb:stroke:partial', ({ sid, meta, points }: { sid: string; meta: Partial<Stroke>; points: Pt[] }) => {
       let st = liveRef.current.get(sid);
-      if (!st) { st = { color: meta.color ?? '#16242B', width: meta.width ?? 3, erase: meta.erase, highlight: meta.highlight, points: [] }; liveRef.current.set(sid, st); }
+      if (!st) { st = { color: meta.color ?? '#1E3550', width: meta.width ?? 3, erase: meta.erase, highlight: meta.highlight, points: [] }; liveRef.current.set(sid, st); }
       st.points.push(...points); requestPaint();
     });
     s.on('wb:stroke', ({ stroke, sid }: { stroke: Stroke; sid?: string }) => { if (sid) liveRef.current.delete(sid); strokesRef.current.push(stroke); redraw(); });
@@ -266,10 +266,10 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
           <p style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center', padding: 40 }}>화이트보드 세션이 종료되었어요.</p>
         ) : (
           <>
-            {!rw && <div style={{ padding: '8px 14px', background: phase === 'closed' ? 'var(--line-soft,#eef2f4)' : 'var(--teal-50,#EAF3F7)', color: 'var(--muted)', fontSize: 12.5, textAlign: 'center', borderBottom: '1px solid var(--line)' }}>{phase === 'closed' ? '🔒 ' : '⏳ '}{notice} 필기는 예약 시간대에만 가능하고, 지금은 열람만 됩니다.</div>}
+            {!rw && <div style={{ padding: '8px 14px', background: phase === 'closed' ? 'var(--line-soft,#eef2f7)' : 'var(--teal-50,#E8F0F9)', color: 'var(--muted)', fontSize: 12.5, textAlign: 'center', borderBottom: '1px solid var(--line)' }}>{phase === 'closed' ? '🔒 ' : '⏳ '}{notice} 필기는 예약 시간대에만 가능하고, 지금은 열람만 됩니다.</div>}
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '10px 14px', flexWrap: 'wrap', borderBottom: '1px solid var(--line)' }}>
               {mode === 'lecture' && (
-                <span style={{ fontSize: 12, fontWeight: 800, padding: '4px 10px', borderRadius: 999, background: isViewer ? '#fbeae7' : '#e9f5ee', color: isViewer ? '#a5372a' : '#1e7a4d', border: `1px solid ${isViewer ? '#f0cfc9' : '#cfe6d8'}` }}>
+                <span style={{ fontSize: 12, fontWeight: 800, padding: '4px 10px', borderRadius: 999, background: isViewer ? '#fbeae7' : '#e9f5ee', color: isViewer ? '#a64b37' : '#2a8a5f', border: `1px solid ${isViewer ? '#f0cfc9' : '#cfe6d8'}` }}>
                   {isViewer ? '🔴 강의 열람 중' : `🟢 강의 중 · 참석 ${roster.length}명`}
                 </span>
               )}
@@ -292,7 +292,7 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
               <button className="btn ghost sm" title="확대" onClick={() => zoomAt(W / 2, H / 2, 1.25)}>🔍＋</button>
               <div style={{ flex: 1 }} />
               {isViewer ? (<>
-                <button className="btn ghost sm" onClick={() => { const nv = !handUp; setHandUp(nv); sockRef.current?.emit('hand:raise', { raised: nv }); }} style={handUp ? { borderColor: 'var(--gold, #e8a63d)', color: 'var(--gold-d, #c98a25)' } : undefined}>{handUp ? '✋ 손 내리기' : '✋ 손들기'}</button>
+                <button className="btn ghost sm" onClick={() => { const nv = !handUp; setHandUp(nv); sockRef.current?.emit('hand:raise', { raised: nv }); }} style={handUp ? { borderColor: 'var(--gold, #e8a63d)', color: 'var(--gold-d, #a97d24)' } : undefined}>{handUp ? '✋ 손 내리기' : '✋ 손들기'}</button>
                 <div style={{ flex: 1 }} />
                 <span style={{ fontSize: 12, color: 'var(--muted)' }}>👁 선생님 판서를 실시간으로 봅니다</span>
               </>) : (<>
@@ -303,7 +303,7 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
             </div>
             {isHost && (raised.size > 0 || roster.some((r) => r.role === 'presenter')) && (
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 14px', flexWrap: 'wrap', borderBottom: '1px solid var(--line)', background: '#fffaf0' }}>
-                {raised.size > 0 && <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--gold-d, #c98a25)' }}>✋ 손든 학생</span>}
+                {raised.size > 0 && <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--gold-d, #a97d24)' }}>✋ 손든 학생</span>}
                 {[...raised].map(([pid, nm]) => (
                   <button key={pid} className="btn ghost sm" onClick={() => sockRef.current?.emit('lecture:grant', { participantId: pid })}>{nm ?? '학생'} · 발표권 주기</button>
                 ))}

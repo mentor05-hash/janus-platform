@@ -42,7 +42,7 @@ function ReviewBox({ id }: { id: string }) {
           <Text style={{ width: 52, fontSize: 13, color: C.muted }}>{label}</Text>
           {[1, 2, 3, 4, 5].map((n) => (
             <TouchableOpacity key={n} onPress={() => setR((p) => ({ ...p, [k]: n }))}>
-              <Text style={{ fontSize: 20, color: n <= (r[k] as number) ? '#F5A623' : C.line }}>★</Text>
+              <Text style={{ fontSize: 20, color: n <= (r[k] as number) ? '#CF9A3A' : C.line }}>★</Text>
             </TouchableOpacity>
           ))}
         </View>

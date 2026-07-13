@@ -48,9 +48,9 @@ export function AdminDashboardPage() {
           {(() => {
             const total = d.teacherCount || 1;
             const seg = [
-              { g: 'S', n: d.gradeDistribution!.S ?? 0, c: '#C99A2E' },
-              { g: 'A', n: d.gradeDistribution!.A ?? 0, c: '#0E5C7C' },
-              { g: 'B', n: d.gradeDistribution!.B ?? 0, c: '#64748B' },
+              { g: 'S', n: d.gradeDistribution!.S ?? 0, c: '#CF9A3A' },
+              { g: 'A', n: d.gradeDistribution!.A ?? 0, c: '#2F6FB3' },
+              { g: 'B', n: d.gradeDistribution!.B ?? 0, c: '#8496AB' },
             ];
             return (
               <>
@@ -79,7 +79,7 @@ export function AdminDashboardPage() {
                 <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', height: 110 }}>
                   {d.trend!.map((t, i) => (
                     <div key={i} style={{ flex: 1, display: 'flex', gap: 3, alignItems: 'flex-end', height: '100%' }}>
-                      <div title={`신청 ${t.applied}`} style={{ flex: 1, background: '#CBD5DA', height: `${(t.applied / max) * 100}%`, borderRadius: '4px 4px 0 0', minHeight: 2 }} />
+                      <div title={`신청 ${t.applied}`} style={{ flex: 1, background: '#C6D1E0', height: `${(t.applied / max) * 100}%`, borderRadius: '4px 4px 0 0', minHeight: 2 }} />
                       <div title={`성사 ${t.matched}`} style={{ flex: 1, background: 'var(--teal)', height: `${(t.matched / max) * 100}%`, borderRadius: '4px 4px 0 0', minHeight: 2 }} />
                     </div>
                   ))}
@@ -88,7 +88,7 @@ export function AdminDashboardPage() {
                   {d.trend!.map((t, i) => <div key={i} style={{ flex: 1, textAlign: 'center', fontSize: 11, color: 'var(--muted)' }}>{t.weeksAgo === 0 ? '이번주' : `${t.weeksAgo}주전`}</div>)}
                 </div>
                 <div style={{ display: 'flex', gap: 14, marginTop: 8, fontSize: 12, color: 'var(--muted)' }}>
-                  <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: '#CBD5DA', verticalAlign: 'middle', marginRight: 4 }} />신청</span>
+                  <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: '#C6D1E0', verticalAlign: 'middle', marginRight: 4 }} />신청</span>
                   <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: 'var(--teal)', verticalAlign: 'middle', marginRight: 4 }} />성사</span>
                 </div>
               </>

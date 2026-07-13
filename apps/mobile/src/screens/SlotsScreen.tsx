@@ -12,11 +12,11 @@ const minToTime = (idx: number) => `${String(Math.floor((idx * 10) / 60)).padSta
 
 // 슬롯 상태별 표시(학생 관점). avail 만 신청 가능, 나머지는 안내용.
 const SLOT_UI: Record<Slot['status'], { label: string; bg: string; fg: string; bd: string }> = {
-  avail: { label: '가능', bg: '#E3F4EA', fg: '#15803D', bd: '#B7E0C6' },
-  booked: { label: '예약', bg: '#EAF0FC', fg: '#2563EB', bd: '#C7D8F6' },
-  rest: { label: '휴게', bg: '#EEF1F3', fg: '#8B9BA3', bd: '#E0E5E8' },
-  off: { label: '근무외', bg: '#F4F6F8', fg: '#B6C0C6', bd: '#EAEEF0' },
-  blocked: { label: '차단', bg: '#FBE7E7', fg: '#C92A2A', bd: '#F1C9C9' },
+  avail: { label: '가능', bg: '#E7F3ED', fg: '#2A8A5F', bd: '#BFE0D0' },
+  booked: { label: '예약', bg: '#E8F0F9', fg: '#2F6FB3', bd: '#C4D8EE' },
+  rest: { label: '휴게', bg: '#EEF1F3', fg: '#8695A8', bd: '#E0E5E8' },
+  off: { label: '근무외', bg: '#F0F4FA', fg: '#B6C0C6', bd: '#E8EDF5' },
+  blocked: { label: '차단', bg: '#F9E8E4', fg: '#C25A43', bd: '#EFC7BD' },
 };
 
 const SUBJECTS = ['국어', '수학', '영어', '탐구'];
@@ -284,7 +284,7 @@ export function SlotsScreen({ teacher, onBack, initialMode, consultType, initial
           const we = d.dow === 0 || d.dow === 6;
           return (
             <TouchableOpacity key={d.iso} style={[styles.dateChip, on && styles.dateChipOn]} onPress={() => setDate(d.iso)}>
-              <Text style={[styles.dateWd, on && styles.dateOnT, we && !on && { color: d.dow === 0 ? '#DC2626' : '#2563EB' }]}>{d.wd}</Text>
+              <Text style={[styles.dateWd, on && styles.dateOnT, we && !on && { color: d.dow === 0 ? '#D06B52' : '#2F6FB3' }]}>{d.wd}</Text>
               <Text style={[styles.dateMd, on && styles.dateOnT]}>{d.md}</Text>
             </TouchableOpacity>
           );
@@ -378,8 +378,8 @@ export function SlotsScreen({ teacher, onBack, initialMode, consultType, initial
       {quote && (
         <>
           {!quote.valid && (
-            <View style={[styles.warn, { backgroundColor: '#fff9ed', borderColor: '#f0dcae' }]}>
-              <Text style={{ color: '#92600a', fontWeight: '700', fontSize: 13 }}>⚠ {quote.message || '이 시간대는 이용할 수 없어요.'}</Text>
+            <View style={[styles.warn, { backgroundColor: '#fff9ed', borderColor: '#eddcb8' }]}>
+              <Text style={{ color: '#A97D24', fontWeight: '700', fontSize: 13 }}>⚠ {quote.message || '이 시간대는 이용할 수 없어요.'}</Text>
             </View>
           )}
           <View style={styles.payRow}>
@@ -436,8 +436,8 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   cellEdge: { borderColor: '#fff', borderWidth: 2 },
   cellT: { fontSize: 11, fontWeight: '700' },
   edgeMark: { color: '#fff', fontSize: 9, marginTop: -1, fontWeight: '800' },
-  notice: { marginTop: 8, backgroundColor: '#FEF6E7', borderColor: '#F0DCAE', borderWidth: 1, borderRadius: 9, padding: 9 },
-  noticeT: { color: '#92600a', fontSize: 12, fontWeight: '600', lineHeight: 17 },
+  notice: { marginTop: 8, backgroundColor: '#FAF1E2', borderColor: '#EDDCB8', borderWidth: 1, borderRadius: 9, padding: 9 },
+  noticeT: { color: '#A97D24', fontSize: 12, fontWeight: '600', lineHeight: 17 },
   selBar: { marginTop: 10, backgroundColor: C.teal50, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12 },
   selTop: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   selTime: { color: C.ink, fontWeight: '800', fontSize: 14 },

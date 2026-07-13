@@ -6,7 +6,7 @@ import { useSessionPhase, canInteract, sessionNotice, type SessionInfo } from '.
 
 type Pt = { x: number; y: number; p?: number }; // p=필압(0~1)
 type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean; highlight?: boolean };
-const COLORS = ['#16242B', '#0E5C7C', '#E5484D', '#2F9E44', '#F08C00'];
+const COLORS = ['#1E3550', '#2F6FB3', '#E5484D', '#2A8A5F', '#CF9A3A'];
 const W = 900, H = 620; // 논리 좌표(비율 유지 스케일링)
 
 /** 예약 기반 공유 화이트보드(웹). 배경 이미지(첨부/촬영) 위에 필기 + 음성통화 동시. */
@@ -154,7 +154,7 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     // 라이브 잉크: 상대가 그리는 중인 부분 획을 실시간 반영
     s.on('wb:stroke:partial', ({ sid, meta, points }: { sid: string; meta: Partial<Stroke>; points: Pt[] }) => {
       let st = liveRef.current.get(sid);
-      if (!st) { st = { color: meta.color ?? '#16242B', width: meta.width ?? 3, erase: meta.erase, highlight: meta.highlight, points: [] }; liveRef.current.set(sid, st); }
+      if (!st) { st = { color: meta.color ?? '#1E3550', width: meta.width ?? 3, erase: meta.erase, highlight: meta.highlight, points: [] }; liveRef.current.set(sid, st); }
       st.points.push(...points); requestPaint();
     });
     s.on('wb:stroke', ({ stroke, sid }: { stroke: Stroke; sid?: string }) => { if (sid) liveRef.current.delete(sid); strokesRef.current.push(stroke); redraw(); });
@@ -383,7 +383,7 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
         ) : (
           <>
             {!rw && (
-              <div style={{ padding: '8px 14px', background: phase === 'closed' ? 'var(--line-soft,#eef2f4)' : 'var(--teal-50,#EAF3F7)', color: 'var(--muted)', fontSize: 12.5, textAlign: 'center', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <div style={{ padding: '8px 14px', background: phase === 'closed' ? 'var(--line-soft,#eef2f7)' : 'var(--teal-50,#E8F0F9)', color: 'var(--muted)', fontSize: 12.5, textAlign: 'center', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                 <span>{phase === 'closed' ? '🔒' : '⏳'}</span><span>{notice} 필기는 예약 시간대에만 가능하고, 지금은 열람만 됩니다.</span>
               </div>
             )}

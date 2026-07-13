@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { APP_NAME, LOGO_MARK } from '../branding.generated';
+import { APP_NAME } from '../branding.generated';
+import { JanusLogo } from './JanusLogo';
 import { NavLink, Outlet } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
@@ -8,6 +9,7 @@ import { ThemeToggle } from './ThemeToggle';
 const navCls = ({ isActive }: { isActive: boolean }) => (isActive ? 'nav-item active' : 'nav-item');
 
 const NAV = [
+  { to: '/student', label: '나의 관문', end: true },
   { to: '/student/search', label: '선생님 찾기' },
   { to: '/student/bookings', label: '내 예약·상담' },
   { to: '/student/scores', label: '내 성적·배치', flag: 'scores' as const },
@@ -32,7 +34,7 @@ export function StudentLayout() {
     <div className="shell">
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <span className="mark">{LOGO_MARK}</span>
+          <span className="mark"><JanusLogo size={30} /></span>
           <div>
             <div className="title">{APP_NAME}</div>
             <div className="center">학생</div>
@@ -40,7 +42,7 @@ export function StudentLayout() {
         </div>
         <nav className="sidebar-nav">
           {nav.map((n) => (
-            <NavLink key={n.to} to={n.to} className={navCls}>
+            <NavLink key={n.to} to={n.to} className={navCls} end={'end' in n && n.end}>
               {n.label}
             </NavLink>
           ))}

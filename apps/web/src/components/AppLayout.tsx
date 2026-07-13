@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { APP_NAME, LOGO_MARK } from '../branding.generated';
+import { APP_NAME } from '../branding.generated';
+import { JanusLogo } from './JanusLogo';
 import { useAuth } from '../auth/AuthContext';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -29,7 +30,7 @@ export function AppLayout() {
     <div className="shell">
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <span className="mark">{LOGO_MARK}</span>
+          <span className="mark"><JanusLogo size={30} /></span>
           <div>
             <div className="title">{APP_NAME}</div>
             <div className="center">선생님 콘솔</div>

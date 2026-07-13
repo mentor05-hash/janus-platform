@@ -171,7 +171,7 @@ export function ChatScreen({ bookingId, myId, title, onClose, embedded }: { book
       const bar = document.createElement('div'); bar.style.cssText = 'display:flex;gap:12px;justify-content:center;padding:16px;background:#000;';
       const mk = (t: string, bg: string) => { const b = document.createElement('button'); b.textContent = t; b.style.cssText = `padding:11px 20px;border-radius:10px;border:none;font-weight:800;font-size:15px;color:#fff;background:${bg};`; return b; };
       const cancel = mk('취소', '#3a4a52'); cancel.onclick = () => closeCamera();
-      const shot = mk('📸 촬영(무음)', '#0E5C7C'); shot.onclick = async () => { const cw = v.videoWidth || 1280, ch = v.videoHeight || 720; const c = document.createElement('canvas'); c.width = cw; c.height = ch; c.getContext('2d')!.drawImage(v, 0, 0, cw, ch); const blob: Blob = await new Promise((res) => c.toBlob((b) => res(b!), 'image/jpeg', 0.85)); closeCamera(); await sendImage(blob, 'shot.jpg'); };
+      const shot = mk('📸 촬영(무음)', '#2F6FB3'); shot.onclick = async () => { const cw = v.videoWidth || 1280, ch = v.videoHeight || 720; const c = document.createElement('canvas'); c.width = cw; c.height = ch; c.getContext('2d')!.drawImage(v, 0, 0, cw, ch); const blob: Blob = await new Promise((res) => c.toBlob((b) => res(b!), 'image/jpeg', 0.85)); closeCamera(); await sendImage(blob, 'shot.jpg'); };
       bar.append(cancel, shot); ov.append(v, bar); document.body.appendChild(ov);
     } catch { /* 권한 거부 */ }
   }

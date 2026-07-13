@@ -11,7 +11,7 @@ const MODES: [string, string][] = [['zoom', '줌 화상'], ['chat', '채팅'], [
 const CT_KO: Record<string, string> = { homeroom: '담임', subject: '교과', admission: '입시', psych: '심리', 담임: '담임', 교과: '교과', 입시: '입시', 심리: '심리' };
 const MODE_KO: Record<string, string> = { zoom: '줌 화상', chat: '채팅', hand: '필기', offline: '오프라인' };
 const STATUS: Record<string, { label: string; color: string }> = {
-  waiting: { label: '대기중', color: '#B4690E' },
+  waiting: { label: '대기중', color: '#A97D24' },
   assigned: { label: '배정완료', color: '#1A7F37' },
   cancelled: { label: '취소됨', color: '#8B95A1' },
 };

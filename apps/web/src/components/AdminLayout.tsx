@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { APP_NAME, LOGO_MARK } from '../branding.generated';
+import { APP_NAME } from '../branding.generated';
+import { JanusLogo } from './JanusLogo';
 import { useAuth } from '../auth/AuthContext';
 import { isHq } from '../auth/roleHome';
 import { ThemeToggle } from './ThemeToggle';
@@ -19,7 +20,7 @@ export function AdminLayout() {
     <div className="shell">
       <aside className="sidebar navy">
         <div className="sidebar-logo">
-          <span className="mark">{LOGO_MARK}</span>
+          <span className="mark"><JanusLogo size={30} /></span>
           <div>
             <div className="title">{APP_NAME}</div>
             <div className="center">{isMaster ? '마스터' : hq ? '본사' : '관리자'} · {scopeLabel}</div>

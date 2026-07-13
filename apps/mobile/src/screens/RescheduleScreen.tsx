@@ -5,7 +5,7 @@ import { R, SP, useTheme, useUI, type Palette } from '../theme';
 
 const WD = ['일', '월', '화', '수', '목', '금', '토'];
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
-const SLOT_BG: Record<Slot['status'], string> = { avail: '#CDEBDD', booked: '#D6E4FB', rest: '#E9EDF0', off: '#F4F6F8', blocked: '#FAD9D9' };
+const SLOT_BG: Record<Slot['status'], string> = { avail: '#CFE7DA', booked: '#DCE9F7', rest: '#E9EDF0', off: '#F0F4FA', blocked: '#F9E8E4' };
 
 export function RescheduleScreen({ bookingId, teacherId, teacherName, duration, onBack, onDone }: {
   bookingId: string; teacherId: string; teacherName: string; duration: number; onBack: () => void; onDone: () => void;
@@ -115,6 +115,6 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   cells: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, flex: 1 },
   cell: { width: 50, paddingVertical: 5, borderRadius: 7, alignItems: 'center' },
   cellT: { fontSize: 11, color: C.ink, fontWeight: '600' },
-  warn: { fontSize: 12, color: '#92600a', backgroundColor: '#FEF6E7', borderRadius: 8, padding: 9, marginTop: 8 },
+  warn: { fontSize: 12, color: '#A97D24', backgroundColor: '#FAF1E2', borderRadius: 8, padding: 9, marginTop: 8 },
   dock: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.line, padding: SP.lg },
 });

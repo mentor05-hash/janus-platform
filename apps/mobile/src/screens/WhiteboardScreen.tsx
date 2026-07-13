@@ -9,7 +9,7 @@ import { useSessionPhase, canInteract, sessionNotice, type SessionInfo } from '.
 
 type Pt = { x: number; y: number; p?: number };
 type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean; highlight?: boolean };
-const COLORS = ['#16242B', '#0E5C7C', '#E5484D', '#2F9E44', '#F08C00'];
+const COLORS = ['#1E3550', '#2F6FB3', '#E5484D', '#2A8A5F', '#CF9A3A'];
 const W = 720, H = 900;
 
 /** 공유 화이트보드(모바일/expo-web). web 에서는 실제 canvas 를 DOM 에 주입해 웹 패널과 동일 프로토콜 사용. */
@@ -213,7 +213,7 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
     }));
     s.on('wb:stroke:partial', ({ sid, meta, points }: { sid: string; meta: Partial<Stroke>; points: Pt[] }) => {
       let st = liveRef.current.get(sid);
-      if (!st) { st = { color: meta.color ?? '#16242B', width: meta.width ?? 4, erase: meta.erase, highlight: meta.highlight, points: [] }; liveRef.current.set(sid, st); }
+      if (!st) { st = { color: meta.color ?? '#1E3550', width: meta.width ?? 4, erase: meta.erase, highlight: meta.highlight, points: [] }; liveRef.current.set(sid, st); }
       st.points.push(...points); requestPaint();
     });
     s.on('wb:stroke', ({ stroke, sid }: { stroke: Stroke; sid?: string }) => { if (sid) liveRef.current.delete(sid); strokesRef.current.push(stroke); redraw(); });
@@ -291,7 +291,7 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
       const bar = document.createElement('div'); bar.style.cssText = 'display:flex;gap:10px;justify-content:center;padding:12px;background:#000;';
       const btn = (t: string, bg: string) => { const b = document.createElement('button'); b.textContent = t; b.style.cssText = `padding:9px 16px;border-radius:8px;border:none;font-weight:700;font-size:14px;color:#fff;background:${bg};`; return b; };
       const cancel = btn('취소', '#3a4a52'); cancel.onclick = () => closeCamera();
-      const shot = btn('📸 촬영(무음)', '#0E5C7C'); shot.onclick = () => capture(v);
+      const shot = btn('📸 촬영(무음)', '#2F6FB3'); shot.onclick = () => capture(v);
       bar.append(cancel, shot); ov.append(v, bar); host.appendChild(ov);
     } catch { /* 권한 거부 */ }
   }

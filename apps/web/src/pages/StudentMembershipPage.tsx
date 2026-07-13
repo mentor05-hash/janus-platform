@@ -56,7 +56,7 @@ export function StudentMembershipPage() {
         <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
           {([['card', '💳 카드'], ['voucher', '🎟️ 상품권']] as const).map(([v, l]) => (
             <button key={v} onClick={() => setPayMethod(v)} style={{ cursor: 'pointer', padding: '7px 16px', borderRadius: 8, fontSize: 13, fontWeight: 700,
-              border: payMethod === v ? '1px solid var(--teal)' : '1px solid var(--line)', background: payMethod === v ? 'var(--teal-50,#F0F7FA)' : '#fff', color: payMethod === v ? 'var(--teal)' : 'var(--muted)' }}>{l}</button>
+              border: payMethod === v ? '1px solid var(--teal)' : '1px solid var(--line)', background: payMethod === v ? 'var(--teal-50,#EEF4FB)' : '#fff', color: payMethod === v ? 'var(--teal)' : 'var(--muted)' }}>{l}</button>
           ))}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

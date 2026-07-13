@@ -33,11 +33,11 @@ const TYPE_KIND: Record<ReverseType, 'confirmed' | 'soft' | 'done'> = {
 
 // 슬롯 상태 표시(전체 예약현황 표). avail = 선생님 가용 ∩ 학생 체류(교집합) → 선택 가능.
 const SLOT_STATUS: Record<Slot['status'], { label: string; bg: string; fg: string; border: string }> = {
-  avail: { label: '가능', bg: '#CDEBDD', fg: '#0F7A43', border: '#9FD9BE' },
-  booked: { label: '내 예약', bg: '#D6E4FB', fg: '#2563EB', border: '#AFC8F4' },
-  rest: { label: '휴게', bg: '#E9EDF0', fg: '#8B9BA3', border: '#DCE2E6' },
-  off: { label: '불가', bg: '#F4F6F8', fg: '#BAC4CA', border: '#EAEEF0' },
-  blocked: { label: '차단', bg: '#FAD9D9', fg: '#C92A2A', border: '#F0BEBE' },
+  avail: { label: '가능', bg: '#CFE7DA', fg: '#2A8A5F', border: '#BFE0D0' },
+  booked: { label: '내 예약', bg: '#DCE9F7', fg: '#2F6FB3', border: '#C4D8EE' },
+  rest: { label: '휴게', bg: '#E9EDF0', fg: '#8695A8', border: '#DCE4EE' },
+  off: { label: '불가', bg: '#F0F4FA', fg: '#B9C4D6', border: '#E8EDF5' },
+  blocked: { label: '차단', bg: '#F9E8E4', fg: '#C25A43', border: '#EFC7BD' },
 };
 
 /** 자격 배지: 단일이면 일반 배지, 중복이면 작은 조합 배지("관리자 지정/학생 신청"). */
@@ -81,7 +81,7 @@ function StudentRow({
         marginBottom: 6,
         borderRadius: 10,
         border: selected ? '2px solid var(--teal)' : '1px solid var(--line)',
-        background: selected ? 'var(--teal-50, #eef6fa)' : 'var(--surface, #fff)',
+        background: selected ? 'var(--teal-50, #eef4fb)' : 'var(--surface, #fff)',
         cursor: 'pointer',
       }}
     >
@@ -252,7 +252,7 @@ export function ReverseProposePage() {
         {/* 오른쪽: 제안 폼 + 예약현황 표 */}
         <Card style={{ flex: '1 1 440px', minWidth: 340 }}>
           {selected ? (
-            <div style={{ marginBottom: 12, padding: '8px 12px', borderRadius: 10, background: 'var(--teal-50, #eef6fa)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <div style={{ marginBottom: 12, padding: '8px 12px', borderRadius: 10, background: 'var(--teal-50, #eef4fb)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
               <span style={{ fontWeight: 600, color: 'var(--ink)' }}>
                 {selected.name}
                 {selected.loginId && <span style={{ color: 'var(--muted)', fontSize: 12, marginLeft: 6 }}>@{selected.loginId}</span>}
@@ -325,7 +325,7 @@ export function ReverseProposePage() {
                                 fontSize: 11,
                                 borderRadius: 7,
                                 border: sel ? '2px solid var(--teal)' : `1px solid ${st.border}`,
-                                background: sel ? 'var(--teal-50, #eef6fa)' : st.bg,
+                                background: sel ? 'var(--teal-50, #eef4fb)' : st.bg,
                                 color: sel ? 'var(--teal)' : st.fg,
                                 cursor: clickable ? 'pointer' : 'default',
                                 fontWeight: sel ? 700 : 500,

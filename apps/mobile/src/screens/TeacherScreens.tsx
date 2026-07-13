@@ -394,7 +394,7 @@ export function TeacherToday({ myId }: { myId: string }) {
       <Text style={s.h1}>오늘</Text>
       <View style={s.seg}>
         {WORK.map((w) => (
-          <TouchableOpacity key={w.k} style={[s.segItem, work === w.k && (w.k === 'rest' ? { backgroundColor: '#F3B34D' } : w.k === 'off' ? { backgroundColor: C.line } : s.segOn)]} onPress={() => setStatus(w.k)}>
+          <TouchableOpacity key={w.k} style={[s.segItem, work === w.k && (w.k === 'rest' ? { backgroundColor: '#CF9A3A' } : w.k === 'off' ? { backgroundColor: C.line } : s.segOn)]} onPress={() => setStatus(w.k)}>
             <Text style={[s.segT, work === w.k && (w.k === 'on' ? s.segTOn : { color: w.k === 'rest' ? '#5A3A00' : C.ink })]}>{w.label}</Text>
           </TouchableOpacity>
         ))}

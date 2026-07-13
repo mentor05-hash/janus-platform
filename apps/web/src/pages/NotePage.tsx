@@ -65,7 +65,7 @@ export function NotePage() {
         </Badge>
       </h2>
       {booking && (booking.content || (booking.attachments?.length ?? 0) > 0) && (
-        <Card style={{ marginBottom: 12, background: 'var(--teal-50, #eef6fa)' }}>
+        <Card style={{ marginBottom: 12, background: 'var(--teal-50, #eef4fb)' }}>
           <h4 style={{ margin: '0 0 8px', fontSize: 14, color: 'var(--ink)' }}>학생 상담 요청</h4>
           {booking.content && (
             <p style={{ whiteSpace: 'pre-wrap', fontSize: 14, color: 'var(--ink)', margin: '0 0 10px' }}>{booking.content}</p>

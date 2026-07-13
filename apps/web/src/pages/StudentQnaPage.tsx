@@ -98,7 +98,7 @@ export function StudentQnaPage() {
             <div style={{ minWidth: 120 }}><SelectField label="공개범위" value={f.scope} onChange={(e) => set('scope', e.target.value)} options={[{ value: 'open', label: '공개' }, { value: 'assigned', label: '지정' }]} /></div>
             <div style={{ minWidth: 100 }}><SelectField label="난이도" value={f.difficulty} onChange={(e) => set('difficulty', e.target.value)} options={['하', '중', '상'].map((d) => ({ value: d, label: d }))} /></div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--teal-50,#F0F7FA)', borderRadius: 8, padding: '8px 12px', marginTop: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--teal-50,#EEF4FB)', borderRadius: 8, padding: '8px 12px', marginTop: 8 }}>
             <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--teal)' }}>답변블록 약 {blockMin}분</span>
             <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
               · 건당 {(f.qType === 'item' ? fee?.itemFee : fee?.generalFee)?.toLocaleString() ?? '—'} 크레딧
@@ -109,7 +109,7 @@ export function StudentQnaPage() {
 
           {/* 이미지 첨부 (문제 사진) — 최대 3장, 한 문항만 */}
           <label className="label" style={{ marginTop: 4 }}>문제 이미지 (최대 {MAX_IMG}장)</label>
-          <p style={{ fontSize: 12, color: 'var(--chip-confirmed)', background: 'var(--chip-confirmed-bg,#FEF6E7)', borderRadius: 8, padding: '7px 10px', margin: '0 0 8px' }}>
+          <p style={{ fontSize: 12, color: 'var(--chip-confirmed)', background: 'var(--chip-confirmed-bg,#FAF1E2)', borderRadius: 8, padding: '7px 10px', margin: '0 0 8px' }}>
             ⚠️ 한 번에 <b>한 문항만</b> 올려주세요. 여러 문항을 함께 올리면 답변이 정확하지 않을 수 있어요.
           </p>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
@@ -153,7 +153,7 @@ export function StudentQnaPage() {
             {(p.answers?.length ?? 0) > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {p.answers!.map((a) => (
-                  <div key={a.id} style={{ background: 'var(--fill,#f6f8fa)', borderRadius: 8, padding: 10 }}>
+                  <div key={a.id} style={{ background: 'var(--fill,#f4f7fb)', borderRadius: 8, padding: 10 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                       <b style={{ fontSize: 13 }}>{a.teacherName} 선생님 답변 {a.accepted && <Badge kind="done">채택</Badge>}</b>
                       {!a.accepted && p.status !== 'resolved' && <Button size="sm" onClick={() => accept(a.id)}>채택</Button>}

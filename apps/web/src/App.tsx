@@ -39,6 +39,9 @@ import { AdminAssignmentPage } from './pages/AdminAssignmentPage';
 import { EmbedSessionPage } from './pages/EmbedSessionPage';
 import { RoomStandalonePage } from './pages/RoomStandalonePage';
 import { SiteLandingPage, SiteServicesPage, SiteServiceDetailPage } from './pages/SitePage';
+import { JanusLandingPage } from './pages/JanusLandingPage';
+import { PlacementPage } from './pages/PlacementPage';
+import { StudentHomePage } from './pages/StudentHomePage';
 import { AdminAuditPage } from './pages/AdminAuditPage';
 import { AdminPayrollPage } from './pages/AdminPayrollPage';
 import { AdminScoresPage } from './pages/AdminScoresPage';
@@ -81,7 +84,10 @@ export function App() {
     <>
     <RealtimeNotifier />
     <Routes>
-      <Route path="/" element={<SiteLandingPage />} />
+      <Route path="/" element={<JanusLandingPage />} />
+      <Route path="/placement" element={<PlacementPage />} />
+      {/* 구 잇올 랜딩 — 패리티 통과 전 삭제 금지(병행 유지) */}
+      <Route path="/legacy" element={<SiteLandingPage />} />
       <Route path="/services" element={<SiteServicesPage />} />
       <Route path="/services/:slug" element={<SiteServiceDetailPage />} />
       <Route path="/login" element={<LoginPage />} />
@@ -162,7 +168,7 @@ export function App() {
           </Protected>
         }
       >
-        <Route index element={<Navigate to="bookings" replace />} />
+        <Route index element={<StudentHomePage />} />
         <Route path="search" element={<StudentSearchPage />} />
         <Route path="bookings" element={<StudentBookingsPage />} />
         <Route path="materials" element={<StudentMaterialsPage />} />

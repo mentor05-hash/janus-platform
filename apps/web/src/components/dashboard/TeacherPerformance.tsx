@@ -40,7 +40,7 @@ export function TeacherPerformance() {
 
   return (
     <Card title="내 성과 대시보드" style={{ marginTop: 16 }}>
-      <div style={{ display: 'inline-flex', background: 'var(--fill,#eef2f4)', borderRadius: 10, padding: 3, marginBottom: 14 }}>
+      <div style={{ display: 'inline-flex', background: 'var(--fill,#eef2f7)', borderRadius: 10, padding: 3, marginBottom: 14 }}>
         {tabs.map((v) => (
           <button key={v} onClick={() => setTab(v)} style={{ border: 'none', cursor: 'pointer', padding: '6px 14px', borderRadius: 8, fontWeight: 700, fontSize: 13, background: cur === v ? 'var(--surface)' : 'transparent', color: cur === v ? 'var(--teal)' : 'var(--muted)' }}>{TAB_LABEL[v]}</button>
         ))}
@@ -68,7 +68,7 @@ export function TeacherPerformance() {
             <div style={{ fontSize: 34, fontWeight: 800, color: 'var(--teal)' }}>{me.rank}<span style={{ fontSize: 16, color: 'var(--muted)' }}>위</span></div>
             <div style={{ fontSize: 13, color: 'var(--muted)' }}>센터 내 {d.totalInCenter}명 중 (종합점수 기준)</div>
           </div>
-          <div style={{ background: 'var(--fill,#eef2f4)', borderRadius: 8, height: 12, overflow: 'hidden' }}>
+          <div style={{ background: 'var(--fill,#eef2f7)', borderRadius: 8, height: 12, overflow: 'hidden' }}>
             <div style={{ width: `${Math.max(4, ((d.totalInCenter - me.rank + 1) / d.totalInCenter) * 100)}%`, height: '100%', background: 'var(--teal)', borderRadius: 8 }} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--caption)', marginTop: 4 }}><span>하위</span><span>상위</span></div>
@@ -79,8 +79,8 @@ export function TeacherPerformance() {
           {d.trend.map((t) => (
             <div key={t.month} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ width: 64, fontSize: 12, color: 'var(--muted)' }}>{t.month.slice(2)}</span>
-              <div style={{ flex: 1, background: 'var(--fill,#eef2f4)', borderRadius: 6, height: 22, overflow: 'hidden', display: 'flex' }}>
-                <div style={{ width: `${(t.done / maxTrend) * 100}%`, background: '#2F9E44', height: '100%' }} title={`완료 ${t.done}`} />
+              <div style={{ flex: 1, background: 'var(--fill,#eef2f7)', borderRadius: 6, height: 22, overflow: 'hidden', display: 'flex' }}>
+                <div style={{ width: `${(t.done / maxTrend) * 100}%`, background: '#2A8A5F', height: '100%' }} title={`완료 ${t.done}`} />
                 <div style={{ width: `${((t.total - t.done) / maxTrend) * 100}%`, background: 'var(--teal)', opacity: 0.4, height: '100%' }} title={`기타 ${t.total - t.done}`} />
               </div>
               <span style={{ width: 64, fontSize: 12, fontWeight: 700 }}>{t.total}건<span style={{ color: 'var(--muted)', fontWeight: 500 }}> ·완료{t.done}</span></span>

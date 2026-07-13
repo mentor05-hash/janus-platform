@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>야누스 토큰 데모 — packages/brand</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="./tokens.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--j-font-sans); background: var(--j-page); color: var(--j-ink2); -webkit-font-smoothing: antialiased; padding: 34px; line-height: 1.6; }
+  h1 { font-size: 26px; font-weight: 800; color: var(--j-ink); letter-spacing: -.02em; margin: 0 0 4px; }
+  .sub { font-size: 13px; color: var(--j-ink3); margin-bottom: 26px; }
+  .sect { font-family: var(--j-font-mono); font-size: 11px; font-weight: 600; letter-spacing: .14em; color: var(--j-ink3); text-transform: uppercase; padding-bottom: 9px; border-bottom: 1px solid var(--j-hair); margin: 30px 0 16px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .sw { width: 130px; border: 1px solid var(--j-hair); border-radius: 12px; overflow: hidden; background: var(--j-surface); }
+  .sw .c { height: 52px; }
+  .sw .l { padding: 7px 10px; font-size: 11px; font-weight: 700; color: var(--j-ink); }
+  .sw .v { font-family: var(--j-font-mono); font-size: 10px; color: var(--j-ink3); padding: 0 10px 8px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+  .btn { padding: 11px 20px; border: none; border-radius: 9px; font-weight: 700; font-size: 14px; font-family: inherit; cursor: pointer; white-space: nowrap; }
+  .card { background: var(--j-surface); border: 1px solid var(--j-hair); border-radius: 14px; padding: 18px; }
+  .mono { font-family: var(--j-font-mono); }
+</style>
+</head>
+<body>
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+    <img src="./logo/janus-arch-stroke.svg" width="40" height="40" alt="야누스">
+    <div>
+      <h1>야누스 디자인 토큰 v1</h1>
+      <div class="sub">packages/brand — 컬러 · 타이포 · 버튼 위계 · 신호등 · AI 라벨 (라이트, 시안 추출값)</div>
+    </div>
+  </div>
+
+  <div class="sect">01 — 브랜드 코어</div>
+  <div class="row">
+    <div class="sw"><div class="c" style="background:var(--j-navy)"></div><div class="l">네이비 · 신뢰</div><div class="v">#24405F</div></div>
+    <div class="sw"><div class="c" style="background:var(--j-blue)"></div><div class="l">블루 · 미래</div><div class="v">#2F6FB3</div></div>
+    <div class="sw"><div class="c" style="background:var(--j-gold)"></div><div class="l">골드 · 기회</div><div class="v">#CF9A3A</div></div>
+    <div class="sw"><div class="c" style="background:var(--j-silver)"></div><div class="l">실버</div><div class="v">#C7CCD2</div></div>
+    <div class="sw"><div class="c" style="background:var(--j-ink)"></div><div class="l">잉크(제목)</div><div class="v">#1E3550</div></div>
+    <div class="sw"><div class="c" style="background:var(--j-ink2)"></div><div class="l">잉크2(본문)</div><div class="v">#52627A</div></div>
+    <div class="sw"><div class="c" style="background:var(--j-page)"></div><div class="l">페이지 bg</div><div class="v">#EEF2F8</div></div>
+  </div>
+
+  <div class="sect">02 — CTA 위계 (골드=화면당 1개)</div>
+  <div class="row">
+    <button class="btn" style="background:var(--j-gold);color:#fff">핵심 전환 — 다음 문 →</button>
+    <button class="btn" style="background:var(--j-blue);color:#fff">주요 액션</button>
+    <button class="btn" style="background:var(--j-ghost-bg);color:var(--j-ink2);border:1px solid var(--j-ghost-border)">탐색 보조</button>
+  </div>
+
+  <div class="sect">03 — 신호등 4구간 (차분한 채도)</div>
+  <div class="row">
+    <span class="chip" style="color:var(--j-stable);background:var(--j-stable-soft)">● 안정 — 떨어질 이유를 찾기 어려운 곳</span>
+    <span class="chip" style="color:var(--j-fit);background:var(--j-fit-soft)">● 적정 — 가장 합리적인 주력 카드</span>
+    <span class="chip" style="color:var(--j-reach);background:var(--j-reach-soft)">● 소신 — 붙으면 이득, 계산된 도전</span>
+    <span class="chip" style="color:var(--j-high);background:var(--j-high-soft)">● 상향 — 판을 흔드는 한 장</span>
+  </div>
+
+  <div class="sect">04 — AI 투명성 라벨</div>
+  <div class="row">
+    <span class="chip" style="color:var(--j-ai);background:var(--j-ai-soft)">✦ AI 초안</span>
+    <span class="chip" style="color:var(--j-aug);background:var(--j-aug-soft)">✦✎ AI 보완</span>
+    <span class="chip" style="color:var(--j-human);background:var(--j-human-soft)">✓ 선생님 답변</span>
+  </div>
+
+  <div class="sect">05 — 카드 · 타이포</div>
+  <div class="row" style="align-items:stretch">
+    <div class="card" style="width:300px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:14px;font-weight:700;color:var(--j-ink)">아주대 소프트웨어</span>
+        <span class="mono" style="font-size:16px;font-weight:700;color:var(--j-stable)">82</span>
+      </div>
+      <div class="row" style="gap:6px">
+        <span class="chip" style="font-size:10.5px;padding:3px 9px;color:var(--j-stable);background:var(--j-stable-soft)">● 안정</span>
+        <span class="chip" style="font-size:10.5px;padding:3px 9px;color:var(--j-blue);background:var(--j-blue-soft)">실측 기반</span>
+      </div>
+    </div>
+    <div class="card" style="flex:1;min-width:280px">
+      <div style="font-size:17px;font-weight:800;color:var(--j-ink);letter-spacing:-.01em">헤드라인 800 — Pretendard Variable</div>
+      <p style="margin:8px 0 0;font-size:14px">본문 500 · 행간 1.6 — 진단 → 처방 → 실행 → 통과의 루프를 하나의 언어로.</p>
+      <p class="mono" style="margin:8px 0 0;font-size:13px;color:var(--j-ink3)">IBM Plex Mono 0123456789 · 표점 131 · 백분위 96</p>
+    </div>
+  </div>
+
+  <p style="margin-top:34px;font-family:var(--j-font-mono);font-size:10px;letter-spacing:.1em;color:var(--j-ink3)">JANUS BRAND TOKENS · v1 · 재배포 금지 · © 2026</p>
+</body>
+</html>
