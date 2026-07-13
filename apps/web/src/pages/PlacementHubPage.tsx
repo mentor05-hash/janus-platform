@@ -9,12 +9,20 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { JanusLogo } from '../components/JanusLogo';
+import { track } from '../utils/track';
 
 interface HubMeta { slug: string; title: string; short?: string; icon?: string; kind?: string; updated?: string; badge?: string; tier?: string }
 interface HubList { available: boolean; tables: HubMeta[] }
 
 const FILE_BASE = '/api/v1/placement-hub/file/';
 const isFree = (t: HubMeta) => !t.tier || t.tier === 'free';
+
+/* janus_score(v22 규약 — O43·접합계약 C1). 키·이벤트명 변경 금지. */
+interface JanusScore {
+  gye: '이과' | '문과' | null; mode: 'std' | 'nb';
+  kor?: number; mat?: number; tam1?: number; tam2?: number; nb?: number;
+  eng?: number; han?: number; period: string; source: string;
+}
 
 export function PlacementHubPage() {
   const { user } = useAuth();
@@ -25,6 +33,21 @@ export function PlacementHubPage() {
   const [error, setError] = useState(false);
 
   const seasonOff = params.get('season') === '0'; // 카이로스 숨김(원서 시즌 밖)
+  const [scoreLinked, setScoreLinked] = useState<JanusScore | null>(null);
+
+  // C1 성적 자동연동 — 로그인 학생(학부모)의 최신 성적을 v22 규약으로 주입.
+  // 배치표 iframe 은 동일 출처(/api/v1/...)라 localStorage.janus_score 를 그대로 읽는다(ingest 계약).
+  useEffect(() => {
+    if (!user || (user.role !== 'student' && user.role !== 'guardian')) return;
+    if (user.role === 'guardian') return; // 자녀 선택 UI 전 — 학생 본인만(후속: ?studentId=)
+    api.get<JanusScore>('/scores/janus-score')
+      .then((js) => {
+        localStorage.setItem('janus_score', JSON.stringify(js));
+        window.dispatchEvent(new CustomEvent('janus:score', { detail: js })); // 이벤트명 동결(C1)
+        setScoreLinked(js);
+      })
+      .catch(() => setScoreLinked(null)); // NO_SCORE → 표에서 수동 입력 폴백(계약 §5)
+  }, [user?.id, user?.role]);
 
   async function srcFor(t: HubMeta): Promise<string | null> {
     if (isFree(t)) return FILE_BASE + t.slug;
@@ -43,6 +66,8 @@ export function PlacementHubPage() {
     const src = await srcFor(t);
     if (src) setSrcs((m) => ({ ...m, [t.slug]: src }));
   }
+
+  useEffect(() => track('baechi', 'view', undefined, { view: 'hub' }), []);
 
   useEffect(() => {
     api.get<HubList>('/placement-hub/list')
@@ -89,12 +114,18 @@ export function PlacementHubPage() {
             <b style={{ color: 'var(--ink)' }}>{activeMeta?.short ?? activeMeta?.title ?? '허브'}</b>
           </nav>
           <span style={{ flex: 1 }} />
+          {scoreLinked && (
+            <span className="chip ai-human" title={`localStorage.janus_score 주입됨 (${scoreLinked.mode})`} style={{ fontSize: 10.5 }}>
+              ✓ 성적 연동 · {scoreLinked.period}{scoreLinked.source === 'ocr' ? ' · OCR' : ''}
+            </span>
+          )}
           {activeMeta?.updated && (
             <span className="mono" style={{ fontSize: 11, color: 'var(--caption)', whiteSpace: 'nowrap' }}>갱신 {activeMeta.updated}</span>
           )}
           <Link to="/placement" style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--muted)', background: 'var(--j-ghost-bg)', border: '1px solid var(--j-ghost-border)', borderRadius: 999, padding: '5px 11px', whiteSpace: 'nowrap', textDecoration: 'none' }}>무료 미리보기</Link>
           {/* 골드 1개 — 상담 전환(접합계약 C3: id 고정, 계측 앵커) */}
-          <Link id="consult-reserve" to="/consulting/apply" className="btn gold sm" style={{ textDecoration: 'none' }}>1:1 상담 예약</Link>
+          <Link id="consult-reserve" to="/consulting/apply" className="btn gold sm" style={{ textDecoration: 'none' }}
+            onClick={() => track('baechi', 'cta', 'consult-reserve', { view: 'hub' })}>1:1 상담 예약</Link>
         </div>
         {/* 탭 — 그림만 바꾼다 */}
         {tables.length > 0 && (

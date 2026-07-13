@@ -86,6 +86,10 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
+  SSO_JWT_SECRET?: string; // 크로스서비스 SSO 시크릿(O42) — rooms 와 분리, 미설정 시 dev 기본값
+
+  @IsOptional()
+  @IsString()
   ZOOM_PROVIDER?: string;
 
   @IsOptional()

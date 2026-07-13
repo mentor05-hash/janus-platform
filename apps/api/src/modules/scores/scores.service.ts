@@ -7,6 +7,7 @@ import { FilesService } from '../storage/files.service';
 import { AuditService } from '../audit/audit.service';
 import { LLM_PROVIDER } from '../llm/llm.types';
 import type { LlmProvider, ScoreOcrResult } from '../llm/llm.types';
+import { toJanusScore } from './domain/janus-score';
 
 type ItemInput = { subject: string; score?: number | null; maxScore?: number | null; grade?: string | null };
 type ManualInput = { studentId?: string; studentLoginId?: string; period: string; examType?: string; note?: string; reportFileId?: string; items: ItemInput[] };
@@ -283,6 +284,34 @@ export class ScoresService {
     const p = await this.getScorePolicy();
     if (!p.student) throw new ForbiddenException('성적 조회가 비활성화되어 있습니다.');
     return this.buildTrend(user.id, !!p.placement);
+  }
+
+  /** janus_score export(O43·C1) — 최신 리포트를 배치표 규약으로. 성적 없으면 404 NO_SCORE. */
+  async janusScore(actor: AuthUser, studentId?: string) {
+    let targetId = actor.id;
+    if (actor.role === AccountRole.GUARDIAN) {
+      if (!studentId) throw new BadRequestException('studentId 가 필요합니다.');
+      const link = await this.prisma.guardian_student_link.findFirst({ where: { guardian_id: actor.id, student_id: studentId } });
+      if (!link) throw new ForbiddenException('연결된 자녀가 아닙니다.');
+      targetId = studentId;
+    } else if (actor.role !== AccountRole.STUDENT) {
+      throw new ForbiddenException('학생·학부모만 사용할 수 있습니다.');
+    }
+    const report = await this.prisma.score_report.findFirst({
+      where: { student_id: targetId },
+      orderBy: { period: 'desc' },
+      include: { items: true },
+    });
+    const js = toJanusScore(
+      report && {
+        period: report.period,
+        source: report.source,
+        placement: (report.placement as Record<string, unknown> | null) ?? null,
+        items: report.items.map((i) => ({ subject: i.subject, score: i.score == null ? null : Number(i.score), grade: i.grade })),
+      },
+    );
+    if (!js) throw new NotFoundException({ code: 'NO_SCORE', message: '연동할 성적이 없습니다 — 배치표에서 직접 입력하세요.' });
+    return js;
   }
 
   /** 학부모 자녀 성적·배치 추이(연결·정책 게이트). */

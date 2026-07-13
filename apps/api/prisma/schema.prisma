@@ -1177,3 +1177,26 @@ model class_recording {
 
   @@index([class_session_id])
 }
+
+model funnel_event {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  page       String
+  event      String
+  cta        String?
+  session_id String?
+  meta       Json?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([page, event, created_at])
+}
+
+model sso_service {
+  id               String   @id
+  name             String
+  allowed_scopes   Json     @default("[\"view\"]")
+  min_tier         String   @default("member")
+  epoch            Int      @default(1)
+  redirect_origins Json     @default("[]")
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime @default(now()) @db.Timestamptz(6)
+}

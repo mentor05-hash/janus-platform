@@ -44,6 +44,8 @@ import { InboxModule } from './modules/inbox/inbox.module';
 import { AssignmentModule } from './modules/assignment/assignment.module';
 import { GatewayModule } from './modules/gateway/gateway.module';
 import { PlacementHubModule } from './modules/placement-hub/placement-hub.module';
+import { FunnelModule } from './modules/funnel/funnel.module';
+import { SsoModule } from './modules/sso/sso.module';
 
 @Module({
   imports: [
@@ -89,6 +91,8 @@ import { PlacementHubModule } from './modules/placement-hub/placement-hub.module
     AssignmentModule,
     GatewayModule, // 관문 홈 LLM 훅(W2 D5) — 공개 해석 엔드포인트
     PlacementHubModule, // 배치표 허브 — JANUS_DATA_DIR 런타임 서빙(데이터 무반입)
+    FunnelModule, // 간이 전환 계측(W3·C3) — baechi→consult-reserve 전환율
+    SsoModule, // 크로스서비스 SSO(O42·W3) — HS256+epoch·레지스트리·verify 위임
   ],
   providers: [
     // 전역 가드: rate limit(§10) → 인증 → 인가 순. @Public() 은 인증 통과, @Roles() 로 역할 제한.

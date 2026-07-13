@@ -168,6 +168,13 @@ export class ScoresMeController {
     return this.scores.selfTrend(user);
   }
 
+  /** GET /scores/janus-score — 배치표 자동연동 export(O43·접합계약 C1). guardian 은 ?studentId=. */
+  @Get('scores/janus-score')
+  @Roles('student', 'guardian')
+  janusScore(@CurrentUser() user: AuthUser, @Query('studentId') studentId?: string) {
+    return this.scores.janusScore(user, studentId);
+  }
+
   /** GET /guardian/scores/trend?studentId= — 학부모 자녀 성적·배치 추이. */
   @Get('guardian/scores/trend')
   @Roles('guardian')

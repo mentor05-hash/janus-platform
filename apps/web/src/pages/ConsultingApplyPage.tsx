@@ -1,7 +1,8 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { Button, ErrorText, TextField, TextareaField, SelectField } from '../components/ui';
+import { track } from '../utils/track';
 
 // 대입 컨설팅 상담 신청 폼 — POST /consulting/applications 연결(설계안 랜딩 폼 실동작).
 const GRADES = [
@@ -31,6 +32,8 @@ interface CreatedApplication {
 }
 
 export function ConsultingApplyPage() {
+  useEffect(() => track('consult', 'view'), []); // 계측 왕복 종점(C3) — baechi→consult 전환 측정
+
   const [f, setF] = useState({
     applicantName: '',
     applicantPhone: '',

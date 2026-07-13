@@ -2,9 +2,10 @@
  * ⚠ 데이터: 전부 예시(샘플)값 — 저작권 데이터(어디가·실측 컷 등)는 repo 반입 금지(JANUS_DATA_DIR 연동은 생성기 v23에서).
  * 로직(3모드 환산·gbias·relTier·janus_score)은 배치표_DDD_v2 생성기 소관 — 이 페이지는 표현+티어 게이팅 UI만.
  * 무료 티어: 구간별 대표 3개 + 잠금 표시 + 업셀 CTA(골드 1개). */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { JanusLogo } from '../components/JanusLogo';
+import { track } from '../utils/track';
 
 type Mode = '표준점수' | '백분위' | '등급';
 
@@ -56,6 +57,7 @@ const EVIDENCE = [
 
 export function PlacementPage() {
   const [mode, setMode] = useState<Mode>('백분위');
+  useEffect(() => track('baechi', 'view', undefined, { view: 'preview' }), []); // C3 페이지 id 고정
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
@@ -127,7 +129,8 @@ export function PlacementPage() {
 
         {/* 업셀 CTA — 이 화면의 골드 1개 */}
         <div style={{ display: 'flex', justifyContent: 'center', margin: '26px 0 8px' }}>
-          <Link to="/signup" className="btn gold" style={{ textDecoration: 'none', padding: '14px 34px', fontSize: 15.5 }}>
+          <Link to="/signup" className="btn gold" style={{ textDecoration: 'none', padding: '14px 34px', fontSize: 15.5 }}
+            onClick={() => track('baechi', 'cta', 'signup-upsell', { view: 'preview' })}>
             무료 회원으로 전체 배치표 열기 →
           </Link>
         </div>

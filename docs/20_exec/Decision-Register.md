@@ -21,6 +21,8 @@
 | O49 | 2026-07-13 | **관문 LLM 훅 아키텍처 확정**: `POST /api/v1/gateway/interpret`(공개·IP 분당 20회) → 마스킹(전화·이메일·주민번호) → 일 상한(`GATEWAY_LLM_DAILY_LIMIT`, 기본 200, KST 일자 키) → LlmProvider(Claude) → 실패·미구성·상한 시 규칙 분류 폴백(막다른 화면 금지 불변식). 웹은 API 자체 실패 시 로컬 규칙 폴백 2중화 | W2 D5. 실모델 활성화 = `LLM_PROVIDER=claude`+`ANTHROPIC_API_KEY`(운영 키 분리, W2 인프라 표) |
 | O50 | 2026-07-13 | **배치표 허브 아키텍처**: 원본 HTML 은 `JANUS_DATA_DIR/placement-hub/`+manifest 허용목록에서 **런타임 서빙만**(repo 무반입, §4). 웹 `/placement/hub` = 시안 janus_report_hub_v1 액자(탭+iframe 프리로드, `?season=0` 카이로스 숨김). **C2 게이트**: free 만 공개, 회원급은 로그인→일회성 티켓(2분)→iframe. C3 계측 앵커 `consult-reserve` 배치 | 핸드오프(2026-07-14) C1~C6 준수. `ops/placement/README.md` |
 | O51 | 2026-07-13 | **랜딩(/) = 최신 홈 janus_web2d_v1 포털형으로 교체**: 히어로 3-슬라이드(관문 딥 포탈=1번 슬라이드로 흡수·이벤트·Q&A) + 빠른 타일 4 + 강좌·인기 학과·공지(예시) + 신뢰 밴드 + 3컬럼 푸터. O45 는 슬라이드 1로 승계 | 사용자 업로드 최신 시안(7/13). 강좌·공지·지표는 '예시' 라벨 유지 — 실연동 백로그 |
+| O52 | 2026-07-13 | **전환 계측 = 자체 `funnel_event` 테이블**(외부 애널리틱스 도입 전 유일 소스): 공개 `POST /funnel/event`(익명 세션 id·PII 없음) + 관리자 요약(세션 기준 전환율). C3 고정 id(page `baechi`·cta `consult-reserve`) 준수 | W3 항목 선완료. janus_score v1.1 확정(gye=이과/문과·nb=전국누백)도 동일 세션 — 스펙 문서 §8 |
+| O53 | 2026-07-13 | **SSO 티어 판정 잠정 규칙**: 로그인 = `member` · admin/hr = `consultant` · `paid` 승격은 가격 확정(N23~N25) 후 멤버십 연동. 시크릿 `SSO_JWT_SECRET`(rooms 와 분리) | O42 구현과 함께. 확정 시 본 행 갱신 |
 
 ## 미결 (N) — 결정 대기
 
