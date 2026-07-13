@@ -19,6 +19,8 @@
 | O47 | 2026-07-13 | **네이티브 식별자(bundleId/scheme/slug)는 야누스 전환에서 제외** — 기존 `com.example.mentoring` 유지, 스토어 재등록 시점에 별도 결정 | 설치본 호환·빌드 파이프 보호 |
 | O48 | 2026-07-13 | **/services = 야누스 7종 카탈로그로 재정의**: 진단(배치표·수준진단)·커리큘럼 처방·Q&A·상담·과외·클리닉(준비 중)·강의 VOD(준비 중). 구 잇올 slug 7종은 근접 서비스로 301성 리다이렉트, 구 iframe은 `/legacy/services` 병행 | 감사 매트릭스 "rebuild — 데이터만 야누스로" 실행 |
 | O49 | 2026-07-13 | **관문 LLM 훅 아키텍처 확정**: `POST /api/v1/gateway/interpret`(공개·IP 분당 20회) → 마스킹(전화·이메일·주민번호) → 일 상한(`GATEWAY_LLM_DAILY_LIMIT`, 기본 200, KST 일자 키) → LlmProvider(Claude) → 실패·미구성·상한 시 규칙 분류 폴백(막다른 화면 금지 불변식). 웹은 API 자체 실패 시 로컬 규칙 폴백 2중화 | W2 D5. 실모델 활성화 = `LLM_PROVIDER=claude`+`ANTHROPIC_API_KEY`(운영 키 분리, W2 인프라 표) |
+| O50 | 2026-07-13 | **배치표 허브 아키텍처**: 원본 HTML 은 `JANUS_DATA_DIR/placement-hub/`+manifest 허용목록에서 **런타임 서빙만**(repo 무반입, §4). 웹 `/placement/hub` = 시안 janus_report_hub_v1 액자(탭+iframe 프리로드, `?season=0` 카이로스 숨김). **C2 게이트**: free 만 공개, 회원급은 로그인→일회성 티켓(2분)→iframe. C3 계측 앵커 `consult-reserve` 배치 | 핸드오프(2026-07-14) C1~C6 준수. `ops/placement/README.md` |
+| O51 | 2026-07-13 | **랜딩(/) = 최신 홈 janus_web2d_v1 포털형으로 교체**: 히어로 3-슬라이드(관문 딥 포탈=1번 슬라이드로 흡수·이벤트·Q&A) + 빠른 타일 4 + 강좌·인기 학과·공지(예시) + 신뢰 밴드 + 3컬럼 푸터. O45 는 슬라이드 1로 승계 | 사용자 업로드 최신 시안(7/13). 강좌·공지·지표는 '예시' 라벨 유지 — 실연동 백로그 |
 
 ## 미결 (N) — 결정 대기
 

@@ -76,7 +76,7 @@ const WebSocket = require('ws');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const prof = '/tmp/chrome-branding';
 fs.rmSync(prof, { recursive: true, force: true });
-const chrome = spawn(CHROME, ['--headless=new', '--remote-debugging-port=9250', `--user-data-dir=${prof}`, '--hide-scrollbars', 'about:blank'], { stdio: 'ignore' });
+const chrome = spawn(CHROME, ['--headless=new', '--no-sandbox', '--disable-gpu', '--remote-debugging-port=9250', `--user-data-dir=${prof}`, '--hide-scrollbars', 'about:blank'], { stdio: 'ignore' });
 let page = null;
 for (let i = 0; i < 30; i++) { await sleep(500); try { const j = await (await fetch('http://localhost:9250/json')).json(); page = j.find((t) => t.type === 'page'); if (page?.webSocketDebuggerUrl) break; } catch { /* wait */ } }
 if (!page) { console.error('CDP 연결 실패'); chrome.kill('SIGKILL'); process.exit(1); }

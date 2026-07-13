@@ -43,6 +43,7 @@ import { RoomsBridgeModule } from './modules/rooms-bridge/rooms-bridge.module';
 import { InboxModule } from './modules/inbox/inbox.module';
 import { AssignmentModule } from './modules/assignment/assignment.module';
 import { GatewayModule } from './modules/gateway/gateway.module';
+import { PlacementHubModule } from './modules/placement-hub/placement-hub.module';
 
 @Module({
   imports: [
@@ -87,6 +88,7 @@ import { GatewayModule } from './modules/gateway/gateway.module';
     InboxModule,
     AssignmentModule,
     GatewayModule, // 관문 홈 LLM 훅(W2 D5) — 공개 해석 엔드포인트
+    PlacementHubModule, // 배치표 허브 — JANUS_DATA_DIR 런타임 서빙(데이터 무반입)
   ],
   providers: [
     // 전역 가드: rate limit(§10) → 인증 → 인가 순. @Public() 은 인증 통과, @Roles() 로 역할 제한.

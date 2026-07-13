@@ -69,6 +69,7 @@ export function PlacementPage() {
           <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--j-blue)', background: 'var(--j-blue-soft)', borderRadius: 6, padding: '3px 7px', whiteSpace: 'nowrap' }}>입시배치표</span>
           <span style={{ flex: 1 }} />
           <span className="chip sig-fit">무료 미리보기</span>
+          <Link to="/placement/hub" style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--muted)', background: 'var(--j-ghost-bg)', border: '1px solid var(--j-ghost-border)', borderRadius: 999, padding: '6px 12px', whiteSpace: 'nowrap', textDecoration: 'none' }}>배치표 허브 →</Link>
           <Link to="/signup" className="btn sm" style={{ textDecoration: 'none' }}>회원 시작하기</Link>
         </div>
       </header>

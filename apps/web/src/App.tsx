@@ -43,6 +43,7 @@ import { JanusLandingPage } from './pages/JanusLandingPage';
 import { PlacementPage } from './pages/PlacementPage';
 import { StudentHomePage } from './pages/StudentHomePage';
 import { ServicesPage, ServiceDetailPage } from './pages/ServicesPage';
+import { PlacementHubPage } from './pages/PlacementHubPage';
 import { AdminAuditPage } from './pages/AdminAuditPage';
 import { AdminPayrollPage } from './pages/AdminPayrollPage';
 import { AdminScoresPage } from './pages/AdminScoresPage';
@@ -87,6 +88,7 @@ export function App() {
     <Routes>
       <Route path="/" element={<JanusLandingPage />} />
       <Route path="/placement" element={<PlacementPage />} />
+      <Route path="/placement/hub" element={<PlacementHubPage />} />
       <Route path="/services" element={<ServicesPage />} />
       <Route path="/services/:slug" element={<ServiceDetailPage />} />
       {/* 구 잇올 랜딩·연계서비스 — 패리티 통과 전 삭제 금지(병행 유지) */}

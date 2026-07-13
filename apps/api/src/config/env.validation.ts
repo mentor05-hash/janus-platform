@@ -82,6 +82,10 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
+  JANUS_DATA_DIR?: string; // 저작권 데이터 루트(경로 하드코딩 금지 — CLAUDE.md §4). 배치표 허브 등이 참조
+
+  @IsOptional()
+  @IsString()
   ZOOM_PROVIDER?: string;
 
   @IsOptional()
