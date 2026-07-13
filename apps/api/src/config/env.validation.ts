@@ -78,6 +78,10 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
+  GATEWAY_LLM_DAILY_LIMIT?: string; // 관문 해석 일 호출 상한(비용 가드, 기본 200)
+
+  @IsOptional()
+  @IsString()
   ZOOM_PROVIDER?: string;
 
   @IsOptional()

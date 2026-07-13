@@ -42,6 +42,7 @@ import { SiteLandingPage, SiteServicesPage, SiteServiceDetailPage } from './page
 import { JanusLandingPage } from './pages/JanusLandingPage';
 import { PlacementPage } from './pages/PlacementPage';
 import { StudentHomePage } from './pages/StudentHomePage';
+import { ServicesPage, ServiceDetailPage } from './pages/ServicesPage';
 import { AdminAuditPage } from './pages/AdminAuditPage';
 import { AdminPayrollPage } from './pages/AdminPayrollPage';
 import { AdminScoresPage } from './pages/AdminScoresPage';
@@ -86,10 +87,12 @@ export function App() {
     <Routes>
       <Route path="/" element={<JanusLandingPage />} />
       <Route path="/placement" element={<PlacementPage />} />
-      {/* 구 잇올 랜딩 — 패리티 통과 전 삭제 금지(병행 유지) */}
+      <Route path="/services" element={<ServicesPage />} />
+      <Route path="/services/:slug" element={<ServiceDetailPage />} />
+      {/* 구 잇올 랜딩·연계서비스 — 패리티 통과 전 삭제 금지(병행 유지) */}
       <Route path="/legacy" element={<SiteLandingPage />} />
-      <Route path="/services" element={<SiteServicesPage />} />
-      <Route path="/services/:slug" element={<SiteServiceDetailPage />} />
+      <Route path="/legacy/services" element={<SiteServicesPage />} />
+      <Route path="/legacy/services/:slug" element={<SiteServiceDetailPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/consulting/apply" element={<ConsultingApplyPage />} />

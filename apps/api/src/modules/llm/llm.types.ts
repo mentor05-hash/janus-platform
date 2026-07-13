@@ -63,9 +63,28 @@ export interface ConsultingAnalysisResult {
   model: string; // 'mock' | claude 모델 태그
 }
 
+// ── 관문 해석(W2 D5 — 관문 홈 자유서술 → 의도·커리큘럼 카드) ──
+// 입력은 반드시 마스킹된 텍스트(gateway 도메인 maskSensitive 통과분).
+export interface GatewayInterpretInput {
+  text: string;
+}
+export interface GatewayLlmCard {
+  title: string;
+  desc: string;
+  service: string; // diagnosis|qna|consulting|tutoring|lecture|mental|curriculum
+  to: string; // 웹 라우트
+}
+export interface GatewayLlmResult {
+  intent: string; // diagnosis|qna|consulting|tutoring|lecture|mental|unknown
+  summary: string;
+  cards: GatewayLlmCard[];
+}
+
 export interface LlmProvider {
   reviewReport(input: ReportReviewInput): Promise<ReportReviewResult>;
   checkAnswerSimilarity(input: AnswerSimilarityInput): Promise<AnswerSimilarityResult>;
   extractScoreReport(input: ScoreOcrInput): Promise<ScoreOcrResult>;
   analyzeConsulting(input: ConsultingAnalysisInput): Promise<ConsultingAnalysisResult>;
+  /** 관문 자유서술 해석. 미구성/실패 시 예외 → 호출측(gateway)이 규칙 폴백. */
+  interpretGateway(input: GatewayInterpretInput): Promise<GatewayLlmResult>;
 }

@@ -4,6 +4,8 @@ import {
   AnswerSimilarityResult,
   ConsultingAnalysisInput,
   ConsultingAnalysisResult,
+  GatewayInterpretInput,
+  GatewayLlmResult,
   LlmProvider,
   ReportReviewInput,
   ReportReviewResult,
@@ -85,6 +87,11 @@ export class MockLlmProvider implements LlmProvider {
       ],
       note: '데모 OCR: 실제 성적표 인식은 비전 모델(LLM_PROVIDER=claude) 연동이 필요합니다. 과목 틀만 채웠으니 점수를 확인·입력하세요.',
     };
+  }
+
+  /** 관문 해석(stub) — 실모델 미구성 신호로 예외를 던진다 → gateway 가 규칙 폴백을 사용(중복 규칙 구현 방지). */
+  async interpretGateway(_input: GatewayInterpretInput): Promise<GatewayLlmResult> {
+    throw new Error('mock LLM 은 관문 해석을 지원하지 않습니다 — 규칙 폴백을 사용하세요.');
   }
 
   private static norm(s: string): string {

@@ -4,6 +4,8 @@ import {
   AnswerSimilarityResult,
   ConsultingAnalysisInput,
   ConsultingAnalysisResult,
+  GatewayInterpretInput,
+  GatewayLlmResult,
   LlmProvider,
   ReportReviewInput,
   ReportReviewResult,
@@ -136,6 +138,18 @@ export class ClaudeLlmProvider implements LlmProvider {
       grade: i.grade ?? null,
     })).filter((i) => i.subject);
     return { demo: false, period: parsed.period, examType: parsed.examType, items, note: '실 비전 모델(Claude)로 추출했습니다. 값을 확인하세요.' };
+  }
+
+  /** 관문 자유서술 해석(W2 D5) — 마스킹된 입력만 투입. 실패 시 예외 → gateway 규칙 폴백. */
+  async interpretGateway(input: GatewayInterpretInput): Promise<GatewayLlmResult> {
+    const prompt =
+      '너는 입시 전환 관문 플랫폼 "야누스"의 안내자다. 학생/학부모의 자유서술 한 줄을 읽고 ' +
+      '가장 맞는 다음 문(서비스)을 고른다. 단정·공포 조장 금지, 차분한 톤. **JSON만** 출력(설명·마크다운 금지).\n' +
+      '의도(intent) 중 택1: diagnosis(배치표·격차 진단)|qna(문제 질문)|consulting(입시 전략 상담)|tutoring(1:1 과외)|lecture(강의)|mental(불안·컨디션)|unknown\n' +
+      '카드(cards) 1~3장, 각 카드의 to 는 다음 중에서만: /placement, /student/qna, /consulting/apply, /student/search, /services/lecture, /services\n' +
+      '형식: {"intent":"...","summary":"입력을 되짚는 한 줄(단정 금지)","cards":[{"title":"...","desc":"...","service":"...","to":"..."}]}\n' +
+      `입력: ${input.text.slice(0, 300)}`;
+    return this.completeJson<GatewayLlmResult>(prompt, 600);
   }
 
   // 컨설팅 분석 초안 — 식별정보 없는 메타·서류 목록만 투입. 미설정/오류 시 안전 기본값.

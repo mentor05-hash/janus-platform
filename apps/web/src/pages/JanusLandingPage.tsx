@@ -1,9 +1,11 @@
 /* 관문 랜딩(/) — 시안 janus_home_v2(딥 포탈) 기준 신규 구현.
  * 원칙(시안): 관문 우선 — 역할 4카드 폐기, 큰 질문 1 + 행동 타일 3. 학부모·선생님·B2B는 헤더 보조 진입.
- * CTA 위계: 골드 채움(길 찾기) = 화면당 1개. 로직 없음 — 표현 전용. LLM 의도분류 훅은 백엔드 연동 시 교체.
+ * CTA 위계: 골드 채움(길 찾기) = 화면당 1개.
+ * 길 찾기 = POST /gateway/interpret (LlmProvider 경유·마스킹·일 상한) — 실패 시 로컬 규칙 폴백(W2 D5).
  * 구 잇올 랜딩(iframe)은 /legacy 병행 유지(패리티 통과 전 삭제 금지). */
-import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState, type FormEvent } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { api } from '../api/client';
 import { JanusLogo } from '../components/JanusLogo';
 
 const TILES = [
@@ -29,17 +31,70 @@ const TILES = [
 
 const CHIP_SUGGEST = ['정시·이과', '📷 사진 질문', '상담 받기', '배치표 보기'];
 
-export function JanusLandingPage() {
-  const navigate = useNavigate();
-  const [q, setQ] = useState('');
+/* 관문 해석 응답(API GatewayInterpretResponse와 동일 형태) */
+interface FindCard { title: string; desc: string; service: string; to: string }
+interface FindResult { intent: string; summary: string; cards: FindCard[]; source: 'llm' | 'rules'; reason?: string }
 
-  // 길 찾기 — LLM 의도분류 훅 연동 전 임시 라우팅(키워드 휴리스틱 폴백)
+/* 로컬 규칙 폴백 — API 자체가 실패(네트워크 등)해도 막다른 화면 금지(서버 규칙의 축약판) */
+function localFallback(s: string): FindResult {
+  const has = (kws: string[]) => kws.some((k) => s.includes(k));
+  let intent = 'diagnosis';
+  if (has(['불안', '멘탈', '슬럼프', '잠', '컨디션'])) intent = 'mental';
+  else if (has(['질문', '문제', '모르', '풀이', '해설'])) intent = 'qna';
+  else if (has(['상담', '컨설팅', '전략', '전형'])) intent = 'consulting';
+  else if (has(['과외', '선생님', '1:1'])) intent = 'tutoring';
+  else if (has(['강의', '인강'])) intent = 'lecture';
+  const cards: Record<string, FindCard[]> = {
+    diagnosis: [{ title: '배치표로 지금 위치 확인', desc: '안정·적정·소신·상향 4구간', service: 'diagnosis', to: '/placement' }],
+    qna: [{ title: '질문 올리기', desc: '사진 한 장 → ✦ AI 초안 즉시', service: 'qna', to: '/student/qna' }],
+    consulting: [{ title: '상담 신청', desc: '진단 근거 위 1:1 전략 상담', service: 'consulting', to: '/consulting/apply' }],
+    tutoring: [{ title: '선생님 찾기', desc: '풀별 응답시간·만족도 1:1 매칭', service: 'tutoring', to: '/student/search' }],
+    lecture: [{ title: '커리큘럼에서 강의로', desc: '처방 카드에서 강의로 연결', service: 'lecture', to: '/services/lecture' }],
+    mental: [{ title: '컨디션·불안 관리', desc: '차분하게, 지킨 것부터', service: 'mental', to: '/services' }],
+  };
+  return { intent, summary: '연결이 원활하지 않아 규칙으로 해석했어요.', cards: cards[intent], source: 'rules', reason: 'offline' };
+}
+
+const SVC_COLOR: Record<string, { c: string; bg: string; icon: string }> = {
+  diagnosis: { c: 'var(--j-blue)', bg: 'var(--j-blue-soft)', icon: '◱' },
+  qna: { c: 'var(--j-ai)', bg: 'var(--j-ai-soft)', icon: '✦' },
+  consulting: { c: 'var(--j-gold-ink)', bg: 'var(--j-gold-soft)', icon: '◇' },
+  tutoring: { c: 'var(--j-blue)', bg: 'var(--j-blue-soft)', icon: '◉' },
+  lecture: { c: 'var(--j-blue)', bg: 'var(--j-blue-soft)', icon: '▶' },
+  mental: { c: 'var(--j-dom-mental)', bg: 'var(--j-aug-soft)', icon: '♡' },
+  curriculum: { c: 'var(--j-gold-ink)', bg: 'var(--j-gold-soft)', icon: '◈' },
+};
+
+export function JanusLandingPage() {
+  const [params] = useSearchParams();
+  const [q, setQ] = useState(() => params.get('q') ?? '');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<FindResult | null>(null);
+
+  // 길 찾기 — 관문 해석 API(LLM 훅) 호출, 실패 시 로컬 규칙 폴백
+  async function interpret(s: string) {
+    if (!s || busy) return;
+    setBusy(true);
+    try {
+      setResult(await api.post<FindResult>('/gateway/interpret', { q: s }));
+    } catch {
+      setResult(localFallback(s));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function onFind(e: FormEvent) {
     e.preventDefault();
-    const s = q.trim();
-    if (/질문|문제|모르/.test(s)) navigate('/login');
-    else navigate('/placement');
+    void interpret(q.trim());
   }
+
+  // 딥링크: /?q=... 진입 시 자동 해석(제안 칩·외부 링크 공유용)
+  useEffect(() => {
+    const initial = params.get('q')?.trim();
+    if (initial) void interpret(initial);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
@@ -66,8 +121,9 @@ export function JanusLandingPage() {
           </span>
           <nav style={{ display: 'flex', gap: 6, flex: 1 }}>
             <Link to="/placement" style={{ display: 'inline-flex', alignItems: 'center', fontSize: 15.5, fontWeight: 700, color: 'var(--ink)', padding: '8px 12px', borderRadius: 8, whiteSpace: 'nowrap', textDecoration: 'none' }}>배치표</Link>
-            <Link to="/login" style={{ display: 'inline-flex', alignItems: 'center', fontSize: 15.5, fontWeight: 600, color: 'var(--ink-body)', padding: '8px 12px', borderRadius: 8, whiteSpace: 'nowrap', textDecoration: 'none' }}>질문·답변</Link>
-            <Link to="/login" style={{ display: 'inline-flex', alignItems: 'center', fontSize: 15.5, fontWeight: 600, color: 'var(--ink-body)', padding: '8px 12px', borderRadius: 8, whiteSpace: 'nowrap', textDecoration: 'none' }}>선생님</Link>
+            <Link to="/services" style={{ display: 'inline-flex', alignItems: 'center', fontSize: 15.5, fontWeight: 600, color: 'var(--ink-body)', padding: '8px 12px', borderRadius: 8, whiteSpace: 'nowrap', textDecoration: 'none' }}>서비스</Link>
+            <Link to="/services/qna" style={{ display: 'inline-flex', alignItems: 'center', fontSize: 15.5, fontWeight: 600, color: 'var(--ink-body)', padding: '8px 12px', borderRadius: 8, whiteSpace: 'nowrap', textDecoration: 'none' }}>질문·답변</Link>
+            <Link to="/services/tutoring" style={{ display: 'inline-flex', alignItems: 'center', fontSize: 15.5, fontWeight: 600, color: 'var(--ink-body)', padding: '8px 12px', borderRadius: 8, whiteSpace: 'nowrap', textDecoration: 'none' }}>선생님</Link>
             <Link to="/consulting/apply" style={{ display: 'inline-flex', alignItems: 'center', fontSize: 15.5, fontWeight: 600, color: 'var(--ink-body)', padding: '8px 12px', borderRadius: 8, whiteSpace: 'nowrap', textDecoration: 'none' }}>상담 신청</Link>
           </nav>
           <Link to="/legacy" style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--muted)', background: 'var(--j-ghost-bg)', border: '1px solid var(--j-ghost-border)', borderRadius: 999, padding: '6px 12px', whiteSpace: 'nowrap', textDecoration: 'none' }}>구버전 보기</Link>
@@ -96,10 +152,39 @@ export function JanusLandingPage() {
               style={{ flex: 1, minWidth: 0, padding: '15px 18px', borderRadius: 12, border: '1px solid rgba(255,255,255,.18)', background: 'rgba(255,255,255,.08)', color: '#fff', fontSize: 15.5, outline: 'none' }}
             />
             {/* 골드 채움 — 이 화면의 핵심 전환(1개) */}
-            <button type="submit" style={{ padding: '15px 24px', borderRadius: 12, border: 'none', background: 'var(--j-gold)', color: '#fff', fontSize: 15.5, fontWeight: 800, whiteSpace: 'nowrap' }}>
-              길 찾기 →
+            <button type="submit" disabled={busy} style={{ padding: '15px 24px', borderRadius: 12, border: 'none', background: 'var(--j-gold)', color: '#fff', fontSize: 15.5, fontWeight: 800, whiteSpace: 'nowrap', opacity: busy ? 0.7 : 1, cursor: busy ? 'wait' : 'pointer' }}>
+              {busy ? '해석 중…' : '길 찾기 →'}
             </button>
           </form>
+
+          {/* 해석 결과 — 커리큘럼 카드(AI 투명성 라벨 필수) */}
+          {result && (
+            <div style={{ maxWidth: 560, margin: '18px auto 0', textAlign: 'left', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.14)', borderRadius: 14, padding: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                {result.source === 'llm' ? (
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: '#b9addf', background: 'rgba(154,139,232,.2)', borderRadius: 999, padding: '3px 9px', whiteSpace: 'nowrap' }}>✦ AI 초안</span>
+                ) : (
+                  <span style={{ fontSize: 10.5, fontWeight: 700, color: '#93a7bd', background: 'rgba(255,255,255,.08)', borderRadius: 999, padding: '3px 9px', whiteSpace: 'nowrap' }}>규칙 분류</span>
+                )}
+                <span style={{ fontSize: 13, color: '#c3d2e6', lineHeight: 1.5 }}>{result.summary}</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {result.cards.map((c) => {
+                  const s = SVC_COLOR[c.service] ?? SVC_COLOR.diagnosis;
+                  return (
+                    <Link key={c.title} to={c.to} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 13px', borderRadius: 11, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', textDecoration: 'none' }}>
+                      <span style={{ width: 32, height: 32, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: s.c, background: s.bg, flexShrink: 0 }}>{s.icon}</span>
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <b style={{ display: 'block', fontSize: 14, color: '#eef3fb' }}>{c.title}</b>
+                        <span style={{ fontSize: 12, color: '#8aa0bd' }}>{c.desc}</span>
+                      </span>
+                      <span style={{ color: '#e3b45c', fontWeight: 800 }}>›</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginTop: 14 }}>
             {CHIP_SUGGEST.map((c) => (
               <button key={c} type="button" onClick={() => setQ(c)} style={{ fontSize: 12.5, fontWeight: 600, color: '#c3d2e6', background: 'rgba(255,255,255,.07)', border: '1px solid rgba(255,255,255,.14)', borderRadius: 999, padding: '6px 13px', whiteSpace: 'nowrap' }}>
