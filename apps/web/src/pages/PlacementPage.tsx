@@ -4,6 +4,7 @@
  * 무료 티어: 구간별 대표 3개 + 잠금 표시 + 업셀 CTA(골드 1개). */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext';
 import { JanusLogo } from '../components/JanusLogo';
 import { track } from '../utils/track';
 
@@ -56,8 +57,12 @@ const EVIDENCE = [
 ];
 
 export function PlacementPage() {
+  const { user } = useAuth();
   const [mode, setMode] = useState<Mode>('백분위');
   useEffect(() => track('baechi', 'view', undefined, { view: 'preview' }), []); // C3 페이지 id 고정
+
+  // 전체 배치표 진입: 로그인 상태면 바로 허브(회원 표), 아니면 가입으로.
+  const fullTableTo = user ? '/placement/hub' : '/signup';
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)' }}>
@@ -72,7 +77,11 @@ export function PlacementPage() {
           <span style={{ flex: 1 }} />
           <span className="chip sig-fit">무료 미리보기</span>
           <Link to="/placement/hub" style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--muted)', background: 'var(--j-ghost-bg)', border: '1px solid var(--j-ghost-border)', borderRadius: 999, padding: '6px 12px', whiteSpace: 'nowrap', textDecoration: 'none' }}>배치표 허브 →</Link>
-          <Link to="/signup" className="btn sm" style={{ textDecoration: 'none' }}>회원 시작하기</Link>
+          {user ? (
+            <Link to="/student" className="btn sm" style={{ textDecoration: 'none' }}>내 대시보드</Link>
+          ) : (
+            <Link to="/login" className="btn sm outline" style={{ textDecoration: 'none' }}>로그인</Link>
+          )}
         </div>
       </header>
 
@@ -127,11 +136,11 @@ export function PlacementPage() {
           ))}
         </div>
 
-        {/* 업셀 CTA — 이 화면의 골드 1개 */}
+        {/* 업셀 CTA — 이 화면의 골드 1개. 로그인 상태면 바로 허브로, 아니면 가입으로. */}
         <div style={{ display: 'flex', justifyContent: 'center', margin: '26px 0 8px' }}>
-          <Link to="/signup" className="btn gold" style={{ textDecoration: 'none', padding: '14px 34px', fontSize: 15.5 }}
-            onClick={() => track('baechi', 'cta', 'signup-upsell', { view: 'preview' })}>
-            무료 회원으로 전체 배치표 열기 →
+          <Link to={fullTableTo} className="btn gold" style={{ textDecoration: 'none', padding: '14px 34px', fontSize: 15.5 }}
+            onClick={() => track('baechi', 'cta', user ? 'open-hub' : 'signup-upsell', { view: 'preview' })}>
+            {user ? '전체 배치표 열기 →' : '무료 회원으로 전체 배치표 열기 →'}
           </Link>
         </div>
         <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--muted)', margin: '0 0 34px' }}>구간별 대표 3개만 표시 중 · 회원은 전체 학과 + 실측 컷 + 검색</p>
