@@ -17,6 +17,7 @@ const ROLES = [
   { label: '본사관리자', id: 'hqadmin' },
   { label: 'HR', id: 'hr01' },
   { label: '학생', id: 'student01' },
+  { label: '학부모', id: 'guardian01' },
 ];
 
 export function LoginPage() {
