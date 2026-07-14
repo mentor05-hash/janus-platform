@@ -34,7 +34,7 @@ export const GATEWAY_INTENTS: GatewayIntent[] = [
 export const INTENT_CARDS: Record<GatewayIntent, GatewayCard[]> = {
   diagnosis: [
     { title: '배치표로 지금 위치 확인', desc: '성적 입력 → 안정·적정·소신·상향 4구간', service: 'diagnosis', to: '/placement' },
-    { title: '격차 리포트', desc: '목표까지 부족분을 근거와 함께', service: 'diagnosis', to: '/placement' },
+    { title: '격차 리포트', desc: '목표까지 부족분을 근거와 함께', service: 'diagnosis', to: '/placement/gap' },
     { title: '전략 상담으로 잇기', desc: '진단 근거 위에서 지원선 설계', service: 'consulting', to: '/consulting/apply' },
   ],
   qna: [

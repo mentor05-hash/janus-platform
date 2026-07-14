@@ -8,6 +8,7 @@ import { AuditService } from '../audit/audit.service';
 import { LLM_PROVIDER } from '../llm/llm.types';
 import type { LlmProvider, ScoreOcrResult } from '../llm/llm.types';
 import { toJanusScore } from './domain/janus-score';
+import { buildGapReport, type GapTarget, type JanusReport } from './domain/gap-report';
 
 type ItemInput = { subject: string; score?: number | null; maxScore?: number | null; grade?: string | null };
 type ManualInput = { studentId?: string; studentLoginId?: string; period: string; examType?: string; note?: string; reportFileId?: string; items: ItemInput[] };
@@ -312,6 +313,15 @@ export class ScoresService {
     );
     if (!js) throw new NotFoundException({ code: 'NO_SCORE', message: '연동할 성적이 없습니다 — 배치표에서 직접 입력하세요.' });
     return js;
+  }
+
+  /** 격차 리포트(janus_report v1·C5) — 내 성적(nb) + 목표 컷 → 격차·근거·처방. */
+  async gapReport(actor: AuthUser, target: GapTarget, studentId?: string): Promise<JanusReport> {
+    const js = await this.janusScore(actor, studentId); // 성적 없으면 NO_SCORE throw
+    if (js.nb == null) {
+      throw new BadRequestException({ code: 'NO_NB', message: '전국누백이 필요합니다 — 배치표에서 점수를 적용하면 자동 계산됩니다.' });
+    }
+    return buildGapReport(js, target);
   }
 
   /** 학부모 자녀 성적·배치 추이(연결·정책 게이트). */

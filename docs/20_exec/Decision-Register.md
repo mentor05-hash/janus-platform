@@ -23,6 +23,8 @@
 | O51 | 2026-07-13 | **랜딩(/) = 최신 홈 janus_web2d_v1 포털형으로 교체**: 히어로 3-슬라이드(관문 딥 포탈=1번 슬라이드로 흡수·이벤트·Q&A) + 빠른 타일 4 + 강좌·인기 학과·공지(예시) + 신뢰 밴드 + 3컬럼 푸터. O45 는 슬라이드 1로 승계 | 사용자 업로드 최신 시안(7/13). 강좌·공지·지표는 '예시' 라벨 유지 — 실연동 백로그 |
 | O52 | 2026-07-13 | **전환 계측 = 자체 `funnel_event` 테이블**(외부 애널리틱스 도입 전 유일 소스): 공개 `POST /funnel/event`(익명 세션 id·PII 없음) + 관리자 요약(세션 기준 전환율). C3 고정 id(page `baechi`·cta `consult-reserve`) 준수 | W3 항목 선완료. janus_score v1.1 확정(gye=이과/문과·nb=전국누백)도 동일 세션 — 스펙 문서 §8 |
 | O53 | 2026-07-13 | **SSO 티어 판정 잠정 규칙**: 로그인 = `member` · admin/hr = `consultant` · `paid` 승격은 가격 확정(N23~N25) 후 멤버십 연동. 시크릿 `SSO_JWT_SECRET`(rooms 와 분리) | O42 구현과 함께. 확정 시 본 행 갱신 |
+| O54 | 2026-07-14 | **티어 빌드 파이프라인 = 마스킹+FLAGS+검증기(무료판 먼저)**: `ops/placement/tier_build.py`(센티넬 영역 마스킹 + strip_assignments 페이로드 제거 + `window.__JANUS_FLAGS` 주입 + 워터마크·면책 + 무료판 접속로그 비콘) → `dist-tier/{tier}`. `tier_verify.py`가 forbidden(원천 파일명·컷 수치) 검출 시 비-0 종료로 배포 차단. 저작권 마스터는 repo 밖(`--src` 로컬), 코드만 repo(C6). dist-tier 전체 gitignore(무료판은 janus-public `/baechi/`, C4) | 실행계획서 W2 D1. 합성 픽스처로 E2E 실증(무료판 통과·회원판 데이터보유로 실패=공개불가) |
+| O55 | 2026-07-14 | **격차 리포트 v1 = janus_report 규약 첫 구현(C5)**: 순수 도메인 `scores/domain/gap-report.ts`(nb + 목표컷 → 밴드 안정/적정/소신/상향·shortfall·근거·처방). `POST /scores/gap-report`(student·guardian). evidence[] 전건 relTier 필수(measured/multiyear/estimated). 컷 근접 구간만 합격률 힌트(≈37%). 업셀 윤리로 무료 액션 우선 + 상담 CTA `consult-reserve`(C3). 웹 `/placement/gap` + 관문 홈 '격차 리포트' 카드 연결. 저작권 컷은 입력으로 받음(C6) | 실행계획서 W4. 도메인 14케이스 실측 통과. 목표컷 소스(파일 서빙 vs 엔진직결)는 N29 |
 
 ## 미결 (N) — 결정 대기
 

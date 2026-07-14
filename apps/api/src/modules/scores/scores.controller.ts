@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, Post, Put, Query, Res, UploadedFile, UseI
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsBoolean, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsNumber, IsOptional, IsString, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -25,6 +25,13 @@ class ManualScoreDto {
   @IsArray() @ArrayMaxSize(30) @ValidateNested({ each: true }) @Type(() => ScoreItemDto) items!: ScoreItemDto[];
 }
 class OcrDto { @IsString() fileId!: string; }
+class GapReportDto {
+  @IsString() @MaxLength(60) univ!: string;
+  @IsString() @MaxLength(60) dept!: string;
+  @IsNumber() @Min(0.01) @Max(99.99) cutNb!: number; // 목표 70%컷/지원가능선(전국누백)
+  @IsOptional() @IsString() @MaxLength(20) track?: string;
+  @IsOptional() @IsString() studentId?: string; // 학부모용
+}
 class GoalDto {
   @IsString() studentLoginId!: string;
   @IsOptional() @IsString() tier?: string | null;
@@ -173,6 +180,13 @@ export class ScoresMeController {
   @Roles('student', 'guardian')
   janusScore(@CurrentUser() user: AuthUser, @Query('studentId') studentId?: string) {
     return this.scores.janusScore(user, studentId);
+  }
+
+  /** POST /scores/gap-report — 격차 리포트(janus_report v1·C5). 내 성적(nb)+목표 컷 → 격차·근거·처방. */
+  @Post('scores/gap-report')
+  @Roles('student', 'guardian')
+  gapReport(@CurrentUser() user: AuthUser, @Body() dto: GapReportDto) {
+    return this.scores.gapReport(user, { univ: dto.univ, dept: dto.dept, cutNb: dto.cutNb, track: dto.track }, dto.studentId);
   }
 
   /** GET /guardian/scores/trend?studentId= — 학부모 자녀 성적·배치 추이. */
