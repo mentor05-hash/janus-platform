@@ -38,7 +38,6 @@ import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
 import { AdminAssignmentPage } from './pages/AdminAssignmentPage';
 import { EmbedSessionPage } from './pages/EmbedSessionPage';
 import { RoomStandalonePage } from './pages/RoomStandalonePage';
-import { SiteLandingPage, SiteServicesPage, SiteServiceDetailPage } from './pages/SitePage';
 import { JanusLandingPage } from './pages/JanusLandingPage';
 import { PlacementPage } from './pages/PlacementPage';
 import { StudentHomePage } from './pages/StudentHomePage';
@@ -91,10 +90,10 @@ export function App() {
       <Route path="/placement/hub" element={<PlacementHubPage />} />
       <Route path="/services" element={<ServicesPage />} />
       <Route path="/services/:slug" element={<ServiceDetailPage />} />
-      {/* 구 잇올 랜딩·연계서비스 — 패리티 통과 전 삭제 금지(병행 유지) */}
-      <Route path="/legacy" element={<SiteLandingPage />} />
-      <Route path="/legacy/services" element={<SiteServicesPage />} />
-      <Route path="/legacy/services/:slug" element={<SiteServiceDetailPage />} />
+      {/* 구 잇올 랜딩·연계서비스는 신규 야누스 페이지로 대체 완료 → 리다이렉트(잇올 노출 차단) */}
+      <Route path="/legacy" element={<Navigate to="/" replace />} />
+      <Route path="/legacy/services" element={<Navigate to="/services" replace />} />
+      <Route path="/legacy/services/:slug" element={<Navigate to="/services" replace />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/consulting/apply" element={<ConsultingApplyPage />} />
