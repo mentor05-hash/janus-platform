@@ -123,7 +123,6 @@ function ServicesHeader() {
         </Link>
         <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--j-blue)', background: 'var(--j-blue-soft)', borderRadius: 6, padding: '3px 7px', whiteSpace: 'nowrap' }}>서비스</span>
         <span style={{ flex: 1 }} />
-        <Link to="/legacy/services" style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--muted)', background: 'var(--j-ghost-bg)', border: '1px solid var(--j-ghost-border)', borderRadius: 999, padding: '6px 12px', whiteSpace: 'nowrap', textDecoration: 'none' }}>구버전 보기</Link>
         <Link to="/login" className="btn sm" style={{ textDecoration: 'none' }}>로그인</Link>
       </div>
     </header>

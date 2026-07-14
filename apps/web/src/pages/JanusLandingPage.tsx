@@ -154,7 +154,6 @@ export function JanusLandingPage() {
             {gnbLink('1:1 상담', '/consulting/apply')}
             {gnbLink('서비스', '/services')}
           </nav>
-          <Link to="/legacy" style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--muted)', background: 'var(--j-ghost-bg)', border: '1px solid var(--j-ghost-border)', borderRadius: 999, padding: '6px 12px', whiteSpace: 'nowrap', textDecoration: 'none' }}>구버전 보기</Link>
         </div>
       </header>
 
