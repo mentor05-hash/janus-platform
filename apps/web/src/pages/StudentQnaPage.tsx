@@ -4,7 +4,7 @@ import { PageHeader, Card, Button, Badge, ErrorText, Spinner, EmptyState, Textar
 import { AuthImage } from '../components/AuthImage';
 
 type Attachment = { id: string; name: string; type?: string };
-type Answer = { id: string; body: string; accepted: boolean; teacherName: string };
+type Answer = { id: string; body: string; accepted: boolean; teacherName: string; teacherId?: string | null };
 type Post = {
   id: string;
   subject: string | null;
@@ -14,13 +14,36 @@ type Post = {
   status: string;
   q_type?: string | null;
   created_at: string;
+  rating?: number | null;
+  continuePref?: boolean | null;
   attachments?: Attachment[];
   answers?: Answer[];
 };
+type Block = { teacherId: string; teacherName: string; since: string };
 const isImage = (a: Attachment) => (a.type ?? '').startsWith('image/') || /\.(png|jpe?g|gif|webp|heic)$/i.test(a.name);
 const MAX_IMG = 3;
 
 const SUBJECTS = ['국어', '수학', '영어', '탐구'];
+
+/** Q1 해결 피드백 — 별점 + "계속 받을까요". 그만 받으면 소프트 블록. */
+function FeedbackPanel({ onSubmit }: { onSubmit: (rating: number, cont: boolean) => void }) {
+  const [r, setR] = useState(0);
+  return (
+    <div style={{ borderTop: '1px dashed var(--input-border)', marginTop: 8, paddingTop: 8 }}>
+      <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>이 답변, 어떠셨어요?</div>
+      <div style={{ display: 'flex', gap: 2, marginBottom: 8 }}>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button key={n} type="button" onClick={() => setR(n)} aria-label={`${n}점`} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 20, color: n <= r ? '#CF9A3A' : '#d4dbe4', padding: 0, lineHeight: 1 }}>★</button>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <Button size="sm" disabled={r === 0} onClick={() => onSubmit(r, true)}>이 선생님께 계속 받을게요</Button>
+        <button type="button" disabled={r === 0} onClick={() => onSubmit(r, false)}
+          style={{ fontSize: 12.5, border: '1px solid var(--input-border)', background: 'var(--surface)', borderRadius: 8, padding: '6px 12px', cursor: r === 0 ? 'not-allowed' : 'pointer', color: 'var(--muted)' }}>그만 받을게요</button>
+      </div>
+    </div>
+  );
+}
 
 export function StudentQnaPage() {
   const [posts, setPosts] = useState<Post[] | null>(null);
@@ -58,15 +81,31 @@ export function StudentQnaPage() {
     e.target.value = '';
   }
 
+  const [blocks, setBlocks] = useState<Block[]>([]);
+  function loadBlocks() { api.get<{ blocks: Block[] }>('/qna/blocks').then((r) => setBlocks(r.blocks)).catch(() => { /* 무시 */ }); }
   function load() {
     api.get<Post[]>('/qna/posts').then(setPosts).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
   }
-  useEffect(load, []);
+  useEffect(() => { load(); loadBlocks(); }, []);
 
   async function accept(answerId: string) {
     setError(''); setMsg('');
     try { await api.patch(`/qna/answers/${answerId}/accept`, {}); setMsg('답변을 채택했습니다.'); load(); }
     catch (e) { setError(e instanceof ApiError ? e.message : '채택 실패'); }
+  }
+
+  // Q1 해결 피드백 — 만족도 + 계속 여부(아니오면 서버가 소프트 블록).
+  async function sendFeedback(postId: string, rating: number, continuePref: boolean) {
+    setError(''); setMsg('');
+    try {
+      const r = await api.post<{ blockedTeacher: boolean }>(`/qna/posts/${postId}/feedback`, { rating, continuePref });
+      setMsg(r.blockedTeacher ? '평가 완료 — 이 선생님께는 앞으로 노출되지 않습니다(직접 해제 가능).' : '평가해 주셔서 감사합니다.');
+      load(); loadBlocks();
+    } catch (e) { setError(e instanceof ApiError ? e.message : '평가 실패'); }
+  }
+  async function unblock(teacherId: string) {
+    try { await api.post('/qna/blocks', { teacherId, blocked: false }); setMsg('차단을 해제했습니다.'); loadBlocks(); load(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : '해제 실패'); }
   }
 
   async function submit() {
@@ -163,8 +202,28 @@ export function StudentQnaPage() {
                 ))}
               </div>
             )}
+            {/* Q1 해결 피드백 */}
+            {p.status === 'resolved' && p.rating == null && <FeedbackPanel onSubmit={(r, c) => sendFeedback(p.id, r, c)} />}
+            {p.status === 'resolved' && p.rating != null && (
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>
+                평가함 {'★'.repeat(p.rating)}{p.continuePref === false ? ' · 이 선생님 비노출' : ''}
+              </div>
+            )}
           </Card>
         ))
+      )}
+
+      {blocks.length > 0 && (
+        <Card style={{ marginTop: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 8 }}>그만 받기로 한 선생님</div>
+          <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 8px' }}>이 선생님에게는 내 질문이 노출·배정되지 않습니다(선생님에게는 알리지 않음).</p>
+          {blocks.map((b) => (
+            <div key={b.teacherId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderTop: '1px solid var(--fill,#eef2f7)' }}>
+              <span style={{ fontSize: 13.5 }}>{b.teacherName} 선생님</span>
+              <button type="button" onClick={() => unblock(b.teacherId)} style={{ fontSize: 12.5, border: '1px solid var(--input-border)', background: 'var(--surface)', borderRadius: 8, padding: '5px 12px', cursor: 'pointer', color: 'var(--teal)' }}>다시 받기</button>
+            </div>
+          ))}
+        </Card>
       )}
     </div>
   );

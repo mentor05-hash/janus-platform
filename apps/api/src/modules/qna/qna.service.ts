@@ -15,6 +15,7 @@ import { AccountRole } from '../../config/enums';
 import { CreditService } from '../billing/credit.service';
 import { PricingService } from '../pricing-policy/pricing.service';
 import { canAnswerQuestion, QnaScope } from './domain/qna';
+import { computeSla } from './domain/qna-sla';
 import { CreateAnswerDto, CreateQuestionDto } from './dto/qna.dto';
 import { Inject } from '@nestjs/common';
 import { LLM_PROVIDER } from '../llm/llm.types';
@@ -23,8 +24,8 @@ import type { LlmProvider } from '../llm/llm.types';
 interface QnaRow {
   id: string; subject: string | null; difficulty: string | null; scope: string | null;
   body: string | null; status: string | null; created_at: Date; assigned_teacher_id?: string | null;
-  attachments?: unknown;
-  qna_answer?: { id: string; body: string | null; accepted: boolean | null; created_at: Date; teacher_profile?: { account?: { name?: string } } }[];
+  attachments?: unknown; rating?: number | null; continue_pref?: boolean | null;
+  qna_answer?: { id: string; body: string | null; accepted: boolean | null; created_at: Date; teacher_id?: string | null; teacher_profile?: { account?: { name?: string } } }[];
 }
 
 /**
@@ -143,6 +144,8 @@ export class QnaService {
         body: p.body ?? '',
         status: p.status ?? 'open',
         created_at: p.created_at,
+        rating: p.rating ?? null,
+        continuePref: p.continue_pref ?? null,
         attachments: Array.isArray(p.attachments)
           ? (p.attachments as { id: string; name: string; type?: string }[])
           : [],
@@ -150,6 +153,7 @@ export class QnaService {
           id: a.id,
           body: a.body ?? '',
           accepted: !!a.accepted,
+          teacherId: a.teacher_id ?? null,
           teacherName: a.teacher_profile?.account?.name ?? '선생님',
           createdAt: a.created_at,
         })),
@@ -159,8 +163,16 @@ export class QnaService {
       return shape(await this.prisma.qna_post.findMany({ where: { student_id: user.id }, orderBy: { created_at: 'desc' }, include: answersInclude }));
     }
     if (user.role === AccountRole.TEACHER) {
+      // Q1: 나를 소프트 블록한 학생의 질문은 화면·배정 큐에서 제외(사유 비노출).
+      const blocks = await this.prisma.qna_relation_block.findMany({ where: { teacher_id: user.id }, select: { student_id: true } });
+      const blockedStudents = blocks.map((b) => b.student_id);
       return shape(await this.prisma.qna_post.findMany({
-        where: { OR: [{ scope: 'open', status: 'open' }, { assigned_teacher_id: user.id }] },
+        where: {
+          AND: [
+            { OR: [{ scope: 'open', status: 'open' }, { assigned_teacher_id: user.id }] },
+            ...(blockedStudents.length ? [{ student_id: { notIn: blockedStudents } }] : []),
+          ],
+        },
         orderBy: { created_at: 'desc' }, include: answersInclude,
       }));
     }
@@ -194,7 +206,12 @@ export class QnaService {
         '학생이 맞지 않는 선생님으로 분류하여 가져올 수 없습니다(§5-9).',
       );
     }
-    // 선착순: scope=open·미배정일 때만 1건 전환. 경쟁 시 count!==1 → 409.
+    // Q1 소프트 블록: 학생이 이 선생님을 차단했으면 가져갈 수 없음(사유 비노출).
+    const blocked = await this.prisma.qna_relation_block.findUnique({
+      where: { student_id_teacher_id: { student_id: post.student_id, teacher_id: teacher.id } },
+    });
+    if (blocked) throw new NotFoundException('질문을 찾을 수 없습니다.');
+    // 선착순: scope=open·미배정일 때만 1건 전환. 경쟁 시 count!==1 → 409. claimed_at 기록(SLA).
     const upd = await this.prisma.qna_post.updateMany({
       where: {
         id: postId,
@@ -202,7 +219,7 @@ export class QnaService {
         status: 'open',
         assigned_teacher_id: null,
       },
-      data: { scope: 'assigned', assigned_teacher_id: teacher.id },
+      data: { scope: 'assigned', assigned_teacher_id: teacher.id, claimed_at: new Date() },
     });
     if (upd.count !== 1) {
       throw new ConflictException('다른 선생님이 먼저 가져갔습니다.');
@@ -265,6 +282,10 @@ export class QnaService {
         sim_flagged: sim.flagged,
       },
     });
+    // Q1 SLA: 최초 응답 시각(1회만).
+    if (post.first_reply_at == null) {
+      await this.prisma.qna_post.update({ where: { id: postId }, data: { first_reply_at: new Date() } });
+    }
     return { id: ans.id, postId, accepted: false, simFlagged: sim.flagged, similarity: sim.maxSimilarity, simSummary: sim.summary };
   }
 
@@ -281,7 +302,7 @@ export class QnaService {
     await this.prisma.$transaction(async (tx) => {
       const upd = await tx.qna_post.updateMany({
         where: { id: ans.post_id, status: 'open' },
-        data: { status: 'resolved' },
+        data: { status: 'resolved', resolved_at: new Date() }, // Q1 SLA: 해결 시각
       });
       if (upd.count !== 1)
         throw new ConflictException('이미 채택/마감된 질문입니다.');
@@ -291,5 +312,72 @@ export class QnaService {
       });
     });
     return { id: answerId, accepted: true, payEligible: true };
+  }
+
+  /** Q1 해결 피드백(질문 학생) — 만족도(1~5)+계속 여부. continue=false 면 채택 답변 선생님을 소프트 블록. */
+  async feedback(student: AuthUser, postId: string, dto: { rating?: number; continuePref?: boolean }) {
+    const post = await this.prisma.qna_post.findUnique({
+      where: { id: postId },
+      include: { qna_answer: { where: { accepted: true }, take: 1, select: { teacher_id: true } } },
+    });
+    if (!post) throw new NotFoundException('질문을 찾을 수 없습니다.');
+    if (post.student_id !== student.id) throw new ForbiddenException('본인 질문만 평가할 수 있습니다.');
+    if (post.status !== 'resolved') throw new BadRequestException('해결된 질문만 평가할 수 있습니다.');
+    const rating = dto.rating != null ? Math.min(5, Math.max(1, Math.round(dto.rating))) : null;
+    await this.prisma.qna_post.update({ where: { id: postId }, data: { rating, continue_pref: dto.continuePref ?? null } });
+    let blockedTeacher = false;
+    const teacherId = post.qna_answer[0]?.teacher_id;
+    if (dto.continuePref === false && teacherId) {
+      await this.prisma.qna_relation_block.upsert({
+        where: { student_id_teacher_id: { student_id: student.id, teacher_id: teacherId } },
+        create: { student_id: student.id, teacher_id: teacherId },
+        update: {},
+      });
+      blockedTeacher = true;
+    }
+    return { postId, rating, continuePref: dto.continuePref ?? null, blockedTeacher };
+  }
+
+  /** 소프트 블록 설정/해제(학생) — 선생님에게 비공지. */
+  async setBlock(student: AuthUser, teacherId: string, blocked: boolean) {
+    if (student.role !== AccountRole.STUDENT) throw new ForbiddenException('학생만 설정할 수 있습니다.');
+    if (blocked) {
+      await this.prisma.qna_relation_block.upsert({
+        where: { student_id_teacher_id: { student_id: student.id, teacher_id: teacherId } },
+        create: { student_id: student.id, teacher_id: teacherId },
+        update: {},
+      });
+    } else {
+      await this.prisma.qna_relation_block.deleteMany({ where: { student_id: student.id, teacher_id: teacherId } });
+    }
+    return { teacherId, blocked };
+  }
+
+  /** 내 소프트 블록 목록(학생) — 해제 UI 용. */
+  async myBlocks(student: AuthUser) {
+    if (student.role !== AccountRole.STUDENT) throw new ForbiddenException('학생만 조회할 수 있습니다.');
+    const blocks = await this.prisma.qna_relation_block.findMany({ where: { student_id: student.id }, orderBy: { created_at: 'desc' } });
+    if (!blocks.length) return { blocks: [] as Array<{ teacherId: string; teacherName: string; since: Date }> };
+    const accounts = await this.prisma.account.findMany({ where: { id: { in: blocks.map((b) => b.teacher_id) } }, select: { id: true, name: true } });
+    const nameOf = new Map(accounts.map((a) => [a.id, a.name]));
+    return { blocks: blocks.map((b) => ({ teacherId: b.teacher_id, teacherName: nameOf.get(b.teacher_id) ?? '선생님', since: b.created_at })) };
+  }
+
+  /** Q1 SLA 풀별 집계(admin/hr) — 접수→클레임→첫응답→해결 지연·해결률. */
+  async sla(user: AuthUser) {
+    if (user.role !== AccountRole.ADMIN && user.role !== AccountRole.HR) throw new ForbiddenException('관리자만 조회할 수 있습니다.');
+    const rows = await this.prisma.qna_post.findMany({
+      select: { scope: true, created_at: true, claimed_at: true, first_reply_at: true, resolved_at: true },
+    });
+    const pools = computeSla(
+      rows.map((r) => ({
+        pool: r.scope ?? 'open',
+        createdAt: r.created_at.getTime(),
+        claimedAt: r.claimed_at?.getTime() ?? null,
+        firstReplyAt: r.first_reply_at?.getTime() ?? null,
+        resolvedAt: r.resolved_at?.getTime() ?? null,
+      })),
+    );
+    return { pools };
   }
 }

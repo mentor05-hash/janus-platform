@@ -7,11 +7,21 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
+import { IsBoolean, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { QnaService } from './qna.service';
 import { CreateAnswerDto, CreateQuestionDto } from './dto/qna.dto';
+
+class QnaFeedbackDto {
+  @IsOptional() @IsInt() @Min(1) @Max(5) rating?: number;
+  @IsOptional() @IsBoolean() continuePref?: boolean;
+}
+class QnaBlockDto {
+  @IsUUID() teacherId!: string;
+  @IsBoolean() blocked!: boolean;
+}
 
 @Controller('qna')
 export class QnaController {
@@ -66,5 +76,33 @@ export class QnaController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.qna.acceptAnswer(id, user);
+  }
+
+  /** POST /qna/posts/{id}/feedback — 해결 만족도+계속 여부(학생·Q1). continue=false 면 소프트 블록. */
+  @Post('posts/:id/feedback')
+  @Roles('student')
+  feedback(@Param('id', ParseUUIDPipe) id: string, @Body() dto: QnaFeedbackDto, @CurrentUser() user: AuthUser) {
+    return this.qna.feedback(user, id, dto);
+  }
+
+  /** POST /qna/blocks — 선생님 소프트 블록 설정/해제(학생·Q1). */
+  @Post('blocks')
+  @Roles('student')
+  setBlock(@Body() dto: QnaBlockDto, @CurrentUser() user: AuthUser) {
+    return this.qna.setBlock(user, dto.teacherId, dto.blocked);
+  }
+
+  /** GET /qna/blocks — 내 소프트 블록 목록(학생). */
+  @Get('blocks')
+  @Roles('student')
+  myBlocks(@CurrentUser() user: AuthUser) {
+    return this.qna.myBlocks(user);
+  }
+
+  /** GET /qna/sla — 풀별 SLA 집계(admin/hr·Q1). */
+  @Get('sla')
+  @Roles('admin', 'hr')
+  sla(@CurrentUser() user: AuthUser) {
+    return this.qna.sla(user);
   }
 }
