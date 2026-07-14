@@ -105,4 +105,11 @@ export class QnaController {
   sla(@CurrentUser() user: AuthUser) {
     return this.qna.sla(user);
   }
+
+  /** POST /qna/assign/sweep — 강제배정 스윕 수동 트리거(admin). 방치 클레임 재개방 + 공개질문 강제배정. */
+  @Post('assign/sweep')
+  @Roles('admin', 'hr')
+  sweep() {
+    return this.qna.sweep();
+  }
 }

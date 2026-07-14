@@ -5,10 +5,15 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
+import { CACHE_PROVIDER } from '../../common/cache/cache.types';
+import type { CacheProvider } from '../../common/cache/cache.types';
+import { withCronLock } from '../../common/cache/cron-lock';
 import { ShortfallError } from '../../common/errors/shortfall.error';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccountRole } from '../../config/enums';
@@ -16,10 +21,16 @@ import { CreditService } from '../billing/credit.service';
 import { PricingService } from '../pricing-policy/pricing.service';
 import { canAnswerQuestion, QnaScope } from './domain/qna';
 import { computeSla } from './domain/qna-sla';
+import { pickAssignee } from './domain/qna-assign';
 import { CreateAnswerDto, CreateQuestionDto } from './dto/qna.dto';
 import { Inject } from '@nestjs/common';
 import { LLM_PROVIDER } from '../llm/llm.types';
 import type { LlmProvider } from '../llm/llm.types';
+
+// 강제배정 상태기계 임계값(§1-2 배정 루프). 운영 중 필요 시 정책값으로 승격.
+const CLAIM_TTL_MIN = 30; // 클레임 후 이 시간까지 첫 응답 없으면 재개방
+const OPEN_AGE_MIN = 15; // 공개(미배정) 질문이 이 시간 지나면 강제배정
+const SWEEP_LIMIT = 50; // 1회 스윕당 강제배정 상한
 
 interface QnaRow {
   id: string; subject: string | null; difficulty: string | null; scope: string | null;
@@ -34,11 +45,14 @@ interface QnaRow {
  */
 @Injectable()
 export class QnaService {
+  private readonly logger = new Logger('Qna');
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly pricing: PricingService,
     private readonly credit: CreditService,
     @Inject(LLM_PROVIDER) private readonly llm: LlmProvider,
+    @Inject(CACHE_PROVIDER) private readonly cache: CacheProvider,
   ) {}
 
   /** 질문 요금 안내(학생) — 문항형/일반형 건당 크레딧. 센터별 정책 반영. */
@@ -379,5 +393,76 @@ export class QnaService {
       })),
     );
     return { pools };
+  }
+
+  // ── 강제배정 상태기계(§1-2 배정 루프, 감사 우선순위 2) ──────────────────
+  /** 10분마다: 방치된 클레임 재개방 + 오래된 공개질문 강제배정. cron-lock 으로 다중 인스턴스 안전. */
+  @Cron('*/10 * * * *', { timeZone: 'Asia/Seoul' })
+  async scheduledSweep() {
+    await withCronLock(this.cache, 'qna-sweep', 300, async () => {
+      const r = await this.sweep();
+      if (r.released || r.assigned) this.logger.log(`Q&A 스윕: 재개방 ${r.released} · 강제배정 ${r.assigned}`);
+    }, this.logger);
+  }
+
+  /** 재개방 + 강제배정 1회(관리자 수동 트리거도 이 경로). */
+  async sweep(ttlMin = CLAIM_TTL_MIN, maxAgeMin = OPEN_AGE_MIN) {
+    const released = await this.releaseStaleClaims(ttlMin);
+    const assigned = await this.autoAssignOpen(maxAgeMin, SWEEP_LIMIT);
+    return { released, assigned };
+  }
+
+  /** 클레임 TTL: 가져간 뒤 첫 응답 없이 ttlMin 경과한 질문을 공개로 되돌린다(지정 질문은 claimed_at NULL 이라 제외). */
+  async releaseStaleClaims(ttlMin: number): Promise<number> {
+    const cutoff = new Date(Date.now() - ttlMin * 60_000);
+    const res = await this.prisma.qna_post.updateMany({
+      where: { scope: 'assigned', status: 'open', first_reply_at: null, claimed_at: { lt: cutoff } },
+      data: { scope: 'open', assigned_teacher_id: null, claimed_at: null },
+    });
+    return res.count;
+  }
+
+  /** 미배정 공개질문(생성 후 maxAgeMin 경과) → 자격 있는 전임 중 최소 부하에게 강제배정(claimed_at 기록). */
+  async autoAssignOpen(maxAgeMin: number, limit: number): Promise<number> {
+    const cutoff = new Date(Date.now() - maxAgeMin * 60_000);
+    const opens = await this.prisma.qna_post.findMany({
+      where: { scope: 'open', status: 'open', assigned_teacher_id: null, created_at: { lt: cutoff } },
+      orderBy: { created_at: 'asc' }, take: limit,
+      select: { id: true, student_id: true },
+    });
+    let assigned = 0;
+    for (const q of opens) {
+      const teacherId = await this.pickForStudent(q.student_id);
+      if (!teacherId) continue;
+      const upd = await this.prisma.qna_post.updateMany({
+        where: { id: q.id, scope: 'open', status: 'open', assigned_teacher_id: null },
+        data: { scope: 'assigned', assigned_teacher_id: teacherId, claimed_at: new Date() },
+      });
+      if (upd.count === 1) assigned += 1;
+    }
+    return assigned;
+  }
+
+  /** 학생에게 배정 가능한 전임 선택 — 같은 센터·근무중, unfit·소프트블록 제외, 최소 부하. */
+  private async pickForStudent(studentId: string): Promise<string | null> {
+    const sp = await this.prisma.student_profile.findUnique({ where: { account_id: studentId }, select: { center_id: true } });
+    if (!sp?.center_id) return null;
+    const teachers = await this.prisma.teacher_profile.findMany({ where: { center_id: sp.center_id, work_status: 'on' }, select: { account_id: true } });
+    const ids = teachers.map((t) => t.account_id);
+    if (!ids.length) return null;
+    const [unfit, blocks] = await Promise.all([
+      this.prisma.teacher_list_entry.findMany({ where: { student_id: studentId, teacher_id: { in: ids }, list_kind: 'unfit' }, select: { teacher_id: true } }),
+      this.prisma.qna_relation_block.findMany({ where: { student_id: studentId, teacher_id: { in: ids } }, select: { teacher_id: true } }),
+    ]);
+    const excluded = new Set([...unfit.map((u) => u.teacher_id), ...blocks.map((b) => b.teacher_id)]);
+    const eligible = ids.filter((id) => !excluded.has(id));
+    if (!eligible.length) return null;
+    const loads = await this.prisma.qna_post.groupBy({
+      by: ['assigned_teacher_id'],
+      where: { assigned_teacher_id: { in: eligible }, scope: 'assigned', status: 'open', first_reply_at: null },
+      _count: { _all: true },
+    });
+    const loadMap = new Map(loads.map((l) => [l.assigned_teacher_id as string, l._count._all]));
+    return pickAssignee(eligible.map((id) => ({ teacherId: id, load: loadMap.get(id) ?? 0 })));
   }
 }
