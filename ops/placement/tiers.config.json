@@ -1,0 +1,46 @@
+{
+  "_comment": "티어 빌드 규약 — 배치표 마스터(HTML) → dist-tier/{tier}. 저작권 데이터는 repo 밖(JANUS_DATA_DIR), 이 파일은 '무엇을 어느 티어에 남길지'의 선언만 담는다. 접합계약 C4(4종)·C6(데이터 경계) 준수. 실행: python3 ops/placement/tier_build.py --src <마스터.html> --tier free|member|paid|consultant [--out dist-tier]",
+  "levels": ["free", "member", "paid", "consultant"],
+  "watermark": "야누스 · 예측 면책 — 모든 수치는 지난 입시 데이터 기반 추정치이며 실제 합격을 보장하지 않습니다. 재배포 금지.",
+  "access_log_endpoint": "/api/v1/funnel/event",
+  "tiers": {
+    "free": {
+      "label": "무료판",
+      "flags": { "fullTable": false, "filters": false, "advanced": false, "showNumbers": false, "recPerBand": 4 },
+      "strip_assignments": ["__JANUS_RAWDATA__", "__JANUS_CUTS__"],
+      "access_log": true
+    },
+    "member": {
+      "label": "회원판",
+      "flags": { "fullTable": true, "filters": true, "advanced": false, "showNumbers": true, "recPerBand": 999 },
+      "strip_assignments": [],
+      "access_log": false
+    },
+    "paid": {
+      "label": "유료판",
+      "flags": { "fullTable": true, "filters": true, "advanced": true, "showNumbers": true, "recPerBand": 999 },
+      "strip_assignments": [],
+      "access_log": false
+    },
+    "consultant": {
+      "label": "컨설턴트판",
+      "flags": { "fullTable": true, "filters": true, "advanced": true, "showNumbers": true, "recPerBand": 999, "consultantTools": true },
+      "strip_assignments": [],
+      "access_log": false
+    }
+  },
+  "verify": {
+    "_comment": "무료판 산출에 절대 있으면 안 되는 '데이터 내용' 패턴(원천 파일명·컷 필드/수치·내부표식). 빈 스텁 변수명(__JANUS_RAWDATA__ 등)은 마스킹 후 남는 정상 잔여이므로 여기 넣지 않는다 — 검사 대상은 페이로드 '값'이다. 실제 마스터용으로 원천 파일명·컷 스키마 토큰을 추가한다.",
+    "forbidden": [
+      "cut70",
+      "cut50",
+      "70%컷 1.2",
+      "고속_어디가",
+      "esteacher",
+      "adiga_정시",
+      "_INTERNAL",
+      "보정_calib"
+    ],
+    "required_free": ["data-janus-watermark", "__JANUS_TIER"]
+  }
+}

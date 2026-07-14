@@ -1,0 +1,57 @@
+<!doctype html>
+<!--
+  합성 픽스처(가짜 데이터) — 티어 빌드/검증 E2E 테스트 전용. 저작권 데이터 없음.
+  실제 마스터는 JANUS_DATA_DIR 로컬에만 두고 --src 로 물린다(C6).
+  이 파일은 두 가지 마스킹 메커니즘을 모두 시험한다:
+   (a) 센티넬 영역: 상위 티어 전용 UI/데이터를 <!--JANUS-TIER:LEVEL--> 로 감싼다.
+   (b) 지정 페이로드: 대형 데이터 배열을 const __JANUS_RAWDATA__ 로 두면 무료판이 떨궈낸다.
+-->
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>야누스 배치표 (합성 픽스처)</title>
+</head>
+<body>
+  <h1>야누스 정시 배치표 — 합성 픽스처</h1>
+  <p>이 파일은 저작권 데이터가 없는 가짜 마스터입니다.</p>
+
+  <!-- (a) 센티넬: 무료판에는 없어야 할 회원 전용 전체표 + 컷 수치 -->
+  <!--JANUS-TIER:member-->
+  <section id="fullTable">
+    <h2>전체 배치표 (회원 전용)</h2>
+    <table><tr><td>서울대 컴공</td><td>70%컷 1.2</td><td>50%컷 0.9</td></tr></table>
+  </section>
+  <!--/JANUS-TIER-->
+
+  <!-- 유료 전용 고급 옵션 -->
+  <!--JANUS-TIER:paid-->
+  <section id="advanced"><h2>고급 시뮬레이터 (유료 전용)</h2></section>
+  <!--/JANUS-TIER-->
+
+  <!-- 무료판에도 남는 입력 UI + 추천(색상만) -->
+  <section id="inputUI"><h2>내 점수 입력</h2><input placeholder="전국 누백"></section>
+
+  <script>
+    // (b) 저작권 페이로드를 흉내낸 대형 데이터 배열 — 무료판은 이걸 물리적으로 제거해야 한다.
+    const __JANUS_RAWDATA__ = [
+      { univ: '서울대', dept: '컴공', cut70: 1.21, cut50: 0.93, sample: 187 },
+      { univ: '연세대', dept: '전기전자', cut70: 1.55, cut50: 1.10, sample: 142 },
+      { univ: '고려대', dept: '수학', cut70: 1.80, cut50: 1.40, sample: 98 }
+    ];
+    const __JANUS_CUTS__ = { '서울대_컴공': [1.21, 0.93], '연세대_전기전자': [1.55, 1.10] };
+
+    // 마스터 UI 로직 — FLAGS 로 기능을 게이팅(무료판은 fullTable/advanced 숨김·수치 마스킹).
+    (function () {
+      var F = window.__JANUS_FLAGS || {};
+      var ft = document.getElementById('fullTable');
+      if (ft && !F.fullTable) ft.style.display = 'none';
+      var adv = document.getElementById('advanced');
+      if (adv && !F.advanced) adv.style.display = 'none';
+      if (!F.showNumbers) {
+        // 무료판: 추천은 색상만, 수치 마스킹
+        document.body.setAttribute('data-numbers', 'masked');
+      }
+    })();
+  </script>
+</body>
+</html>

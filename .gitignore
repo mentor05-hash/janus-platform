@@ -41,9 +41,8 @@ seed-restricted/
 janus-data/
 20_data/
 # 티어 빌드 산출 중 회원 이상(임베드 데이터 포함) — 무료판만 배포
-dist-tier/member/
-dist-tier/paid/
-dist-tier/consultant/
+dist-tier/
+scratch-disttier/
 # 저작권 데이터 파일 패턴(어디가·esteacher·고속 — 재배포 금지 조건)
 adiga_*.json
 esteacher_*.json
