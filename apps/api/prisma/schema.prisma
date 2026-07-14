@@ -648,6 +648,9 @@ model qna_post {
   resolved_at         DateTime?        @db.Timestamptz(6) // Q1 SLA — 해결(채택) 시점
   rating              Int?             @db.SmallInt        // Q1 해결 만족도(1~5)
   continue_pref       Boolean?         // Q1 "이 선생님께 계속 받을까요"
+  reanswer_count      Int              @default(0)         // 재답변 요청 횟수(한도 qa.reanswerLimit)
+  reanswer_reason     String?          // 마지막 재답변 사유
+  escalated_booking_id String?         @db.Uuid           // 상담 승격 시 생성된 예약
   qna_answer          qna_answer[]
   teacher_profile     teacher_profile? @relation(fields: [assigned_teacher_id], references: [account_id], onDelete: NoAction, onUpdate: NoAction)
   student_profile     student_profile  @relation(fields: [student_id], references: [account_id], onDelete: NoAction, onUpdate: NoAction)

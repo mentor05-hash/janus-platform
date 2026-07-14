@@ -107,6 +107,25 @@ export function StudentQnaPage() {
     try { await api.post('/qna/blocks', { teacherId, blocked: false }); setMsg('차단을 해제했습니다.'); loadBlocks(); load(); }
     catch (e) { setError(e instanceof ApiError ? e.message : '해제 실패'); }
   }
+  // 재답변 요청(불만족) — 이전 답변자 제외 후 재공개.
+  async function reanswer(postId: string) {
+    setError(''); setMsg('');
+    const reason = window.prompt('재답변을 요청하는 이유가 있다면 적어주세요(선택).') ?? undefined;
+    try {
+      const r = await api.post<{ remaining: number }>(`/qna/posts/${postId}/reanswer`, { reason });
+      setMsg(`재답변을 요청했어요(이전 답변자 제외). 남은 횟수 ${r.remaining}회.`);
+      load();
+    } catch (e) { setError(e instanceof ApiError ? e.message : '재답변 요청 실패'); }
+  }
+  // 상담으로 이어가기 — 답변 선생님과 상담 예약 생성(컨텍스트 이관).
+  async function escalate(postId: string) {
+    setError(''); setMsg('');
+    try {
+      const r = await api.post<{ bookingId?: string; message?: string }>(`/qna/posts/${postId}/escalate`, {});
+      setMsg(r.bookingId ? '상담 예약이 생성됐어요. 예약 화면에서 확인하세요.' : (r.message ?? '상담 예약을 생성하지 못했어요.'));
+      load();
+    } catch (e) { setError(e instanceof ApiError ? e.message : '상담 승격 실패'); }
+  }
 
   async function submit() {
     setError(''); setMsg('');
@@ -200,6 +219,13 @@ export function StudentQnaPage() {
                     <div style={{ fontSize: 14, whiteSpace: 'pre-wrap', marginTop: 4 }}>{a.body}</div>
                   </div>
                 ))}
+              </div>
+            )}
+            {/* 불만족 후속: 답변이 있는데 아직 미채택이면 재답변·상담승격 */}
+            {(p.answers?.length ?? 0) > 0 && p.status === 'open' && (
+              <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                <button type="button" onClick={() => reanswer(p.id)} style={{ fontSize: 12.5, border: '1px solid var(--input-border)', background: 'var(--surface)', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', color: 'var(--muted)' }}>🔁 다른 답변 받기</button>
+                <button type="button" onClick={() => escalate(p.id)} style={{ fontSize: 12.5, border: '1px solid var(--teal)', background: 'var(--teal-50,#EEF4FB)', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', color: 'var(--teal)', fontWeight: 700 }}>💬 상담으로 이어가기</button>
               </div>
             )}
             {/* Q1 해결 피드백 */}

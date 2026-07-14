@@ -7,7 +7,7 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { IsBoolean, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -21,6 +21,9 @@ class QnaFeedbackDto {
 class QnaBlockDto {
   @IsUUID() teacherId!: string;
   @IsBoolean() blocked!: boolean;
+}
+class QnaReanswerDto {
+  @IsOptional() @IsString() @MaxLength(300) reason?: string;
 }
 
 @Controller('qna')
@@ -83,6 +86,20 @@ export class QnaController {
   @Roles('student')
   feedback(@Param('id', ParseUUIDPipe) id: string, @Body() dto: QnaFeedbackDto, @CurrentUser() user: AuthUser) {
     return this.qna.feedback(user, id, dto);
+  }
+
+  /** POST /qna/posts/{id}/reanswer — 재답변 요청(학생·불만족). 이전 답변자 제외 후 재공개. */
+  @Post('posts/:id/reanswer')
+  @Roles('student')
+  reanswer(@Param('id', ParseUUIDPipe) id: string, @Body() dto: QnaReanswerDto, @CurrentUser() user: AuthUser) {
+    return this.qna.requestReanswer(user, id, dto.reason);
+  }
+
+  /** POST /qna/posts/{id}/escalate — 상담 승격(학생). 답변 선생님과 상담 예약 생성(컨텍스트 이관). */
+  @Post('posts/:id/escalate')
+  @Roles('student')
+  escalate(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.qna.escalate(user, id);
   }
 
   /** POST /qna/blocks — 선생님 소프트 블록 설정/해제(학생·Q1). */

@@ -16,7 +16,10 @@ import type { CacheProvider } from '../../common/cache/cache.types';
 import { withCronLock } from '../../common/cache/cron-lock';
 import { ShortfallError } from '../../common/errors/shortfall.error';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { AccountRole } from '../../config/enums';
+import { kstDateString } from '../../common/time/kst';
+import { AccountRole, ConsultMode, ConsultType, TeacherGrade } from '../../config/enums';
+import { AvailabilityService } from '../availability/availability.service';
+import { BookingService } from '../booking/booking.service';
 import { CreditService } from '../billing/credit.service';
 import { PricingService } from '../pricing-policy/pricing.service';
 import { canAnswerQuestion, QnaScope } from './domain/qna';
@@ -31,6 +34,19 @@ import type { LlmProvider } from '../llm/llm.types';
 const CLAIM_TTL_MIN = 30; // 클레임 후 이 시간까지 첫 응답 없으면 재개방
 const OPEN_AGE_MIN = 15; // 공개(미배정) 질문이 이 시간 지나면 강제배정
 const SWEEP_LIMIT = 50; // 1회 스윕당 강제배정 상한
+const REANSWER_LIMIT = 3; // 재답변 요청 한도(qa.reanswerLimit — 정책값화는 후속)
+const ESCALATE_HORIZON_DAYS = 7; // 상담 승격 시 빈 슬롯 탐색 범위
+const ESCALATE_SLOT_MIN = 10; // 슬롯 단위(분)
+
+/** need 개 연속 'free' 슬롯의 시작 인덱스(없으면 null). */
+function firstFreeRun(statuses: string[], need: number): number | null {
+  let run = 0;
+  for (let i = 0; i < statuses.length; i++) {
+    if (statuses[i] === 'free') { run += 1; if (run >= need) return i - need + 1; }
+    else run = 0;
+  }
+  return null;
+}
 
 interface QnaRow {
   id: string; subject: string | null; difficulty: string | null; scope: string | null;
@@ -53,6 +69,8 @@ export class QnaService {
     private readonly credit: CreditService,
     @Inject(LLM_PROVIDER) private readonly llm: LlmProvider,
     @Inject(CACHE_PROVIDER) private readonly cache: CacheProvider,
+    private readonly booking: BookingService,
+    private readonly availability: AvailabilityService,
   ) {}
 
   /** 질문 요금 안내(학생) — 문항형/일반형 건당 크레딧. 센터별 정책 반영. */
@@ -225,6 +243,11 @@ export class QnaService {
       where: { student_id_teacher_id: { student_id: post.student_id, teacher_id: teacher.id } },
     });
     if (blocked) throw new NotFoundException('질문을 찾을 수 없습니다.');
+    // 재답변 요청된 질문: 이전 답변자는 다시 가져갈 수 없음(제외 후 재공개).
+    if (post.reanswer_count > 0) {
+      const answered = await this.prisma.qna_answer.findFirst({ where: { post_id: postId, teacher_id: teacher.id }, select: { id: true } });
+      if (answered) throw new ForbiddenException('재답변 요청된 질문입니다 — 이전 답변자는 다시 답할 수 없습니다.');
+    }
     // 선착순: scope=open·미배정일 때만 1건 전환. 경쟁 시 count!==1 → 409. claimed_at 기록(SLA).
     const upd = await this.prisma.qna_post.updateMany({
       where: {
@@ -272,6 +295,11 @@ export class QnaService {
           ? '학생이 맞지 않는 선생님으로 분류하여 답변할 수 없습니다(§5-9).'
           : '지정된 선생님만 답변할 수 있습니다.',
       );
+    }
+    // 재답변 요청된 질문: 이전 답변자 제외.
+    if (post.reanswer_count > 0) {
+      const already = await this.prisma.qna_answer.findFirst({ where: { post_id: postId, teacher_id: teacher.id }, select: { id: true } });
+      if (already) throw new ForbiddenException('재답변 요청된 질문입니다 — 이전 답변자는 다시 답할 수 없습니다.');
     }
     // AI 1차 답변 유사도(표절·중복) — 같은 질문의 다른 답변 + 이 선생님의 최근 답변과 비교
     const priorRows = await this.prisma.qna_answer.findMany({
@@ -464,5 +492,67 @@ export class QnaService {
     });
     const loadMap = new Map(loads.map((l) => [l.assigned_teacher_id as string, l._count._all]));
     return pickAssignee(eligible.map((id) => ({ teacherId: id, load: loadMap.get(id) ?? 0 })));
+  }
+
+  // ── 불만족 후속 경로(§1-4, 감사 우선순위 3) ─────────────────────────────
+  /** 재답변 요청(질문 학생) — 답변에 불만족 시 이전 답변자 제외하고 재공개. 한도 REANSWER_LIMIT. */
+  async requestReanswer(student: AuthUser, postId: string, reason?: string) {
+    const post = await this.prisma.qna_post.findUnique({ where: { id: postId }, include: { qna_answer: { select: { id: true }, take: 1 } } });
+    if (!post) throw new NotFoundException('질문을 찾을 수 없습니다.');
+    if (post.student_id !== student.id) throw new ForbiddenException('본인 질문만 재답변 요청할 수 있습니다.');
+    if ((post.qna_answer?.length ?? 0) === 0) throw new BadRequestException('아직 답변이 없어 재답변을 요청할 수 없습니다.');
+    if (post.status !== 'open') throw new BadRequestException('진행 중인 질문만 재답변을 요청할 수 있습니다(채택 후에는 불가).');
+    if (post.reanswer_count >= REANSWER_LIMIT) throw new BadRequestException(`재답변은 최대 ${REANSWER_LIMIT}회까지 요청할 수 있습니다.`);
+    await this.prisma.qna_post.update({
+      where: { id: postId },
+      data: {
+        reanswer_count: { increment: 1 }, reanswer_reason: reason ?? null,
+        scope: 'open', assigned_teacher_id: null, claimed_at: null, first_reply_at: null, // 재공개 + SLA 리셋
+      },
+    });
+    const count = post.reanswer_count + 1;
+    return { postId, reanswerCount: count, remaining: REANSWER_LIMIT - count };
+  }
+
+  /** 상담 승격(질문 학생) — 답변 선생님에게 질문·답변 컨텍스트를 담아 상담 예약 생성(가까운 빈 슬롯). */
+  async escalate(student: AuthUser, postId: string) {
+    const post = await this.prisma.qna_post.findUnique({
+      where: { id: postId },
+      include: { qna_answer: { orderBy: { created_at: 'desc' }, take: 1, select: { teacher_id: true, body: true } } },
+    });
+    if (!post) throw new NotFoundException('질문을 찾을 수 없습니다.');
+    if (post.student_id !== student.id) throw new ForbiddenException('본인 질문만 상담으로 이어갈 수 있습니다.');
+    if (post.escalated_booking_id) return { bookingId: post.escalated_booking_id, already: true };
+    const ans = post.qna_answer[0];
+    const teacherId = ans?.teacher_id ?? post.assigned_teacher_id;
+    if (!teacherId) throw new BadRequestException('답변한 선생님이 없어 상담으로 이어갈 수 없습니다.');
+    const tp = await this.prisma.teacher_profile.findUnique({ where: { account_id: teacherId }, select: { center_id: true, grade: true } });
+    if (!tp) throw new NotFoundException('선생님 정보를 찾을 수 없습니다.');
+
+    const minutes = await this.booking.defaultMinutes('subject');
+    const need = Math.max(1, Math.round(minutes / ESCALATE_SLOT_MIN));
+    const content = `Q&A 상담 승격 — 질문: ${(post.body ?? '').slice(0, 120)}${ans?.body ? `\n이전 답변 요약: ${ans.body.slice(0, 120)}` : ''}`;
+    const now = new Date();
+    for (let d = 0; d < ESCALATE_HORIZON_DAYS; d++) {
+      const dateStr = kstDateString(new Date(now.getTime() + d * 86_400_000));
+      const slots = await this.availability.getDaySlots(teacherId, dateStr, student.id);
+      const start = firstFreeRun(slots.map((sl) => sl.status), need);
+      if (start === null) continue;
+      const res = await this.booking.createAssigned({
+        studentId: student.id, teacherId, centerId: tp.center_id,
+        teacherGrade: (tp.grade as TeacherGrade) ?? TeacherGrade.B,
+        consultType: ConsultType.SUBJECT, mode: ConsultMode.CHAT, dateStr,
+        slotStart: slots[start].index, slotEnd: slots[start].index + need,
+        charge: 'session', origin: '질문승격', content,
+      });
+      if (res.ok && res.bookingId) {
+        await this.prisma.qna_post.update({ where: { id: postId }, data: { escalated_booking_id: res.bookingId } });
+        return { bookingId: res.bookingId };
+      }
+      if (res.reason === 'shortfall') {
+        return { ok: false, reason: 'shortfall', message: '크레딧이 부족해 상담 예약을 생성하지 못했어요. 충전 후 다시 시도하거나 상담 예약에서 직접 진행하세요.' };
+      }
+    }
+    return { ok: false, reason: 'no_slot', message: '가까운 빈 시간을 찾지 못했어요. 상담 예약에서 직접 시간을 골라주세요.' };
   }
 }
