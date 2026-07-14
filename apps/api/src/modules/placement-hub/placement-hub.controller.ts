@@ -1,5 +1,7 @@
 import { Body, Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { RateLimit } from '../../common/ratelimit/rate-limit.decorator';
 import { HubTicketDto } from './dto/placement-hub.dto';
@@ -16,11 +18,11 @@ export class PlacementHubController {
     return this.hub.list();
   }
 
-  /** 회원급 파일 열람 티켓 — 로그인 필수(접합계약 C2: 토큰 없으면 무료판만). */
+  /** 회원급 파일 열람 티켓 — 로그인 필수 + 티어 검증(C2: 사용자 티어 ≥ 표 요구 티어). */
   @Post('placement-hub/ticket')
   @RateLimit({ limit: 30, windowSec: 60 })
-  ticket(@Body() dto: HubTicketDto) {
-    return this.hub.issueTicket(dto.slug);
+  ticket(@CurrentUser() user: AuthUser, @Body() dto: HubTicketDto) {
+    return this.hub.issueTicket(user, dto.slug);
   }
 
   /** 배치표 HTML 서빙 — manifest 허용목록만. 무료=공개, 회원급=?t=티켓 필수. iframe(동일 출처) 임베드용. */

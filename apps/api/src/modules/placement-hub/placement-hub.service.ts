@@ -5,6 +5,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { CACHE_PROVIDER } from '../../common/cache/cache.types';
 import type { CacheProvider } from '../../common/cache/cache.types';
+import type { AuthUser } from '../../common/decorators/current-user.decorator';
+import { tierAtLeast, tierForRole, type SsoTier } from '../sso/domain/sso-token';
 
 /**
  * 배치표 허브(§CLAUDE.md 4) — 저작권 데이터(배치표·격차 리포트 HTML)는 repo 에 없고
@@ -57,10 +59,32 @@ export class PlacementHubService {
     return { available: tables.length > 0, tables };
   }
 
-  /** 접합계약 C2 — 토큰 없으면 무료판만. 회원급 파일은 로그인 사용자에게 일회성 티켓 발급(iframe 은 헤더를 못 실으므로). */
-  async issueTicket(slug: string): Promise<{ ticket: string }> {
+  /** 표별 요구 티어(미지정=free). */
+  private tierOf(entry: HubTable): SsoTier {
+    const t = entry.tier;
+    return t === 'member' || t === 'paid' || t === 'consultant' ? t : 'free';
+  }
+
+  private readonly TIER_LABEL: Record<SsoTier, string> = { free: '무료', member: '회원', paid: '유료 회원', consultant: '컨설턴트' };
+
+  /**
+   * 접합계약 C2 — 토큰 없으면 무료판만. 회원급 파일은 **사용자 티어가 표 요구 티어 이상일 때만**
+   * 일회성 티켓 발급(iframe 은 헤더를 못 실으므로 티켓 방식). 티어 판정 = tierForRole(O53).
+   */
+  async issueTicket(user: AuthUser, slug: string): Promise<{ ticket: string }> {
     const entry = this.readManifest().find((t) => t.slug === slug);
     if (!entry) throw new NotFoundException({ code: 'HUB_NOT_FOUND', message: '해당 배치표가 없습니다.' });
+    const required = this.tierOf(entry);
+    const userTier = tierForRole(user.role);
+    if (!tierAtLeast(userTier, required)) {
+      const need = this.TIER_LABEL[required];
+      const msg = required === 'paid'
+        ? '유료 회원 전용입니다 — 유료 전환은 준비 중입니다.'
+        : required === 'consultant'
+          ? '컨설턴트 전용 자료입니다.'
+          : `${need}부터 열람할 수 있습니다.`;
+      throw new ForbiddenException({ code: 'HUB_TIER_LOCKED', message: msg, requiredTier: required, yourTier: userTier });
+    }
     const ticket = crypto.randomUUID();
     await this.cache.set(`hubtkt:${ticket}`, slug, 120); // 2분 내 iframe 로드용
     return { ticket };

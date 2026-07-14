@@ -16,6 +16,11 @@ interface HubList { available: boolean; tables: HubMeta[] }
 
 const FILE_BASE = '/api/v1/placement-hub/file/';
 const isFree = (t: HubMeta) => !t.tier || t.tier === 'free';
+// 티어 서열(O53·회원 게이트) — 서버가 진짜 게이트(티켓 발급 시 검증). 여기선 UX용.
+const TIER_RANK: Record<string, number> = { free: 0, member: 1, paid: 2, consultant: 3 };
+const requiredTier = (t: HubMeta): 'free' | 'member' | 'paid' | 'consultant' =>
+  t.tier === 'member' || t.tier === 'paid' || t.tier === 'consultant' ? t.tier : 'free';
+const TIER_LABEL: Record<string, string> = { free: '무료', member: '회원', paid: '유료 회원', consultant: '컨설턴트' };
 
 /* janus_score(v22 규약 — O43·접합계약 C1). 키·이벤트명 변경 금지. */
 interface JanusScore {
@@ -26,6 +31,9 @@ interface JanusScore {
 
 export function PlacementHubPage() {
   const { user } = useAuth();
+  // 뷰어 티어(tierForRole 미러) — 비로그인=free, admin/hr=consultant, 그 외 로그인=member.
+  const viewerTier = !user ? 'free' : user.role === 'admin' || user.role === 'hr' ? 'consultant' : 'member';
+  const canOpen = (t: HubMeta) => TIER_RANK[viewerTier] >= TIER_RANK[requiredTier(t)];
   const [params] = useSearchParams();
   const [list, setList] = useState<HubList | null>(null);
   const [active, setActive] = useState<string>('');
@@ -51,7 +59,7 @@ export function PlacementHubPage() {
 
   async function srcFor(t: HubMeta): Promise<string | null> {
     if (isFree(t)) return FILE_BASE + t.slug;
-    if (!user) return null; // 잠금 — 로그인 유도(C2)
+    if (!canOpen(t)) return null; // 티어 미달 — 잠금(C2). 서버도 티켓 발급 시 재검증.
     try {
       const { ticket } = await api.post<{ ticket: string }>('/placement-hub/ticket', { slug: t.slug });
       return `${FILE_BASE}${t.slug}?t=${ticket}`;
@@ -94,7 +102,8 @@ export function PlacementHubPage() {
 
   const tables = list?.tables ?? [];
   const activeMeta = tables.find((t) => t.slug === active);
-  const activeLocked = !!activeMeta && !isFree(activeMeta) && !user;
+  const activeLocked = !!activeMeta && !canOpen(activeMeta);
+  const lockNeed = activeMeta ? requiredTier(activeMeta) : 'member';
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
@@ -132,7 +141,7 @@ export function PlacementHubPage() {
           <div style={{ maxWidth: 1380, margin: '0 auto', padding: '0 16px 10px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {tables.map((t) => {
               const on = t.slug === active;
-              const locked = !isFree(t) && !user;
+              const locked = !canOpen(t);
               return (
                 <button key={t.slug} type="button" onClick={() => void open(t)} style={{
                   display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 15px', borderRadius: 999,
@@ -177,14 +186,28 @@ export function PlacementHubPage() {
             <div className="card" style={{ maxWidth: 460, textAlign: 'center', padding: 30 }}>
               <div style={{ fontSize: 34, marginBottom: 10 }}>🔒</div>
               <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--ink)' }}>{activeMeta?.title}</div>
-              <p style={{ fontSize: 13.5, lineHeight: 1.7, color: 'var(--ink-body)', margin: '10px 0 18px' }}>
-                실측 컷·검색·상세가 담긴 원본 표는 <b>회원부터</b> 열람할 수 있어요.<br />
-                로그인하면 이 자리에서 바로 열립니다.
-              </p>
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-                <Link to="/login" className="btn" style={{ textDecoration: 'none' }}>로그인</Link>
-                <Link to="/placement" className="btn ghost" style={{ textDecoration: 'none' }}>무료 미리보기</Link>
-              </div>
+              {!user ? (
+                <>
+                  <p style={{ fontSize: 13.5, lineHeight: 1.7, color: 'var(--ink-body)', margin: '10px 0 18px' }}>
+                    실측 컷·검색·상세가 담긴 원본 표는 <b>{TIER_LABEL[lockNeed]}부터</b> 열람할 수 있어요.<br />
+                    로그인하면 이 자리에서 바로 열립니다.
+                  </p>
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                    <Link to="/login" className="btn" style={{ textDecoration: 'none' }}>로그인</Link>
+                    <Link to="/placement" className="btn ghost" style={{ textDecoration: 'none' }}>무료 미리보기</Link>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p style={{ fontSize: 13.5, lineHeight: 1.7, color: 'var(--ink-body)', margin: '10px 0 18px' }}>
+                    이 자료는 <b>{TIER_LABEL[lockNeed]} 전용</b>입니다.
+                    {lockNeed === 'paid' ? ' 유료 전환은 준비 중입니다.' : lockNeed === 'consultant' ? ' 컨설턴트 계정에서 열람할 수 있어요.' : ''}
+                  </p>
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                    <Link to="/placement" className="btn ghost" style={{ textDecoration: 'none' }}>무료 미리보기</Link>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}

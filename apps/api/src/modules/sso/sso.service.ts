@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { signSsoToken, SsoRole, SsoTier, tierAtLeast, verifySsoToken } from './domain/sso-token';
+import { signSsoToken, SsoRole, SsoTier, tierAtLeast, tierForRole, verifySsoToken } from './domain/sso-token';
 
 /**
  * 크로스서비스 SSO(O42) — 플랫폼 로그인 1회 → 연계 서비스(배치표·입결 등) 재로그인 없이 진입.
@@ -23,10 +23,9 @@ export class SsoService {
     this.secret = config.get<string>('SSO_JWT_SECRET') || 'dev-sso-secret-change';
   }
 
-  /** 로그인 사용자 → 서비스 티어. paid/consultant 승격은 후속(멤버십·컨설턴트 콘솔 결합). */
+  /** 로그인 사용자 → 서비스 티어(단일 소스 tierForRole). paid 승격은 후속(멤버십 연동). */
   tierOf(user: AuthUser): SsoTier {
-    if (user.role === 'admin' || user.role === 'hr') return 'consultant';
-    return 'member';
+    return tierForRole(user.role);
   }
 
   async issue(user: AuthUser, serviceId: string) {

@@ -23,6 +23,14 @@ const TIER_RANK: Record<SsoTier, number> = { free: 0, member: 1, paid: 2, consul
 
 export const tierAtLeast = (tier: SsoTier, min: SsoTier): boolean => TIER_RANK[tier] >= TIER_RANK[min];
 
+/**
+ * 역할 → 서비스 티어(O53 잠정 규칙, 단일 소스). admin/hr = consultant · 그 외 로그인 = member.
+ * paid 승격은 가격 확정(N23~N25) 후 membership 연동 시 여기서 분기 추가.
+ */
+export function tierForRole(role: string): SsoTier {
+  return role === 'admin' || role === 'hr' ? 'consultant' : 'member';
+}
+
 const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url');
 const hmac = (data: string, secret: string) => crypto.createHmac('sha256', secret).update(data).digest('base64url');
 
