@@ -8,7 +8,7 @@ import { AuditService } from '../audit/audit.service';
 import { LLM_PROVIDER } from '../llm/llm.types';
 import type { LlmProvider, ScoreOcrResult } from '../llm/llm.types';
 import { toJanusScore } from './domain/janus-score';
-import { buildGapReport, type GapTarget, type JanusReport } from './domain/gap-report';
+import { buildGapReport, type GapMode, type JanusReport } from './domain/gap-report';
 
 type ItemInput = { subject: string; score?: number | null; maxScore?: number | null; grade?: string | null };
 type ManualInput = { studentId?: string; studentLoginId?: string; period: string; examType?: string; note?: string; reportFileId?: string; items: ItemInput[] };
@@ -315,13 +315,27 @@ export class ScoresService {
     return js;
   }
 
-  /** 격차 리포트(janus_report v1·C5) — 내 성적(nb) + 목표 컷 → 격차·근거·처방. */
-  async gapReport(actor: AuthUser, target: GapTarget, studentId?: string): Promise<JanusReport> {
-    const js = await this.janusScore(actor, studentId); // 성적 없으면 NO_SCORE throw
+  /** 격차 리포트(janus_report v1·C5) — 정시(누백)/수시(내신등급) + 목표 컷 → 격차·근거·처방. */
+  async gapReport(
+    actor: AuthUser,
+    opts: { mode: GapMode; univ: string; dept: string; cut: number; track?: string; myGrade?: number; studentId?: string },
+  ): Promise<JanusReport> {
+    const target = { univ: opts.univ, dept: opts.dept, cut: opts.cut, track: opts.track };
+    if (opts.mode === 'susi') {
+      if (opts.myGrade == null) {
+        throw new BadRequestException({ code: 'NO_GRADE', message: '내신 평균등급이 필요합니다(1~9).' });
+      }
+      // 수시는 내신 등급 입력으로 진행 — 계열(gye)만 성적에서 가져오되 없으면 null.
+      let gye: '이과' | '문과' | null = null;
+      try { gye = (await this.janusScore(actor, opts.studentId)).gye; } catch { /* 성적 없어도 진행 */ }
+      return buildGapReport({ mode: 'susi', gye, myValue: opts.myGrade, target });
+    }
+    // 정시: janus_score.nb 필요
+    const js = await this.janusScore(actor, opts.studentId); // 성적 없으면 NO_SCORE throw
     if (js.nb == null) {
       throw new BadRequestException({ code: 'NO_NB', message: '전국누백이 필요합니다 — 배치표에서 점수를 적용하면 자동 계산됩니다.' });
     }
-    return buildGapReport(js, target);
+    return buildGapReport({ mode: 'jeongsi', gye: js.gye, myValue: js.nb, target });
   }
 
   /** 학부모 자녀 성적·배치 추이(연결·정책 게이트). */

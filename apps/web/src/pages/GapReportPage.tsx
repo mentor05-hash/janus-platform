@@ -4,13 +4,13 @@ import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { track } from '../utils/track';
 
-/** 격차 리포트 v1 (janus_report·C5). 내 성적(전국누백)과 목표 컷의 격차를 근거·처방과 함께. */
+/** 격차 리포트 v1 (janus_report·C5). 정시(전국누백)/수시(내신등급) 격차를 근거·처방과 함께. */
 type RelTier = 'measured' | 'multiyear' | 'estimated';
+type Mode = 'jeongsi' | 'susi';
 type GapReport = {
-  kind: 'gap'; version: string;
-  generatedFor: { gye: string | null; nb: number };
-  target: { univ: string; dept: string; cutNb: number; track?: string };
-  gap: { deltaNb: number; shortfall: number; band: '안정' | '적정' | '소신' | '상향'; admitProbHint: number | null; message: string };
+  kind: 'gap'; version: string; mode: Mode;
+  unit: { label: string; suffix: string };
+  gap: { delta: number; shortfall: number; band: '안정' | '적정' | '소신' | '상향'; admitProbHint: number | null; message: string };
   evidence: Array<{ claim: string; source: string; relTier: RelTier }>;
   prescription: { headline: string; actions: Array<{ label: string; to: string; ctaId?: string; free?: boolean }> };
   disclaimer: string;
@@ -25,6 +25,8 @@ export function GapReportPage() {
   const { user } = useAuth();
   const [scoreState, setScoreState] = useState<'loading' | 'ready' | 'noscore' | 'nonb'>('loading');
   const [score, setScore] = useState<JScore | null>(null);
+  const [mode, setMode] = useState<Mode>('jeongsi');
+  const [myGrade, setMyGrade] = useState(''); // 수시: 내신 평균등급
   const [univ, setUniv] = useState('');
   const [dept, setDept] = useState('');
   const [cutNb, setCutNb] = useState('');
@@ -74,12 +76,17 @@ export function GapReportPage() {
   async function submit() {
     setErr(null);
     const cut = Number(cutNb);
-    if (!univ.trim() || !dept.trim() || !Number.isFinite(cut) || cut <= 0 || cut >= 100) {
-      setErr('대학·학과·목표 전국누백(0.01~99.99)을 입력하세요.'); return;
+    const cutMax = mode === 'susi' ? 9.01 : 100;
+    if (!univ.trim() || !dept.trim() || !Number.isFinite(cut) || cut <= 0 || cut >= cutMax) {
+      setErr(mode === 'susi' ? '대학·학과·목표 내신 등급(1~9)을 입력하세요.' : '대학·학과·목표 전국누백(0.01~99.99)을 입력하세요.'); return;
     }
+    const grade = Number(myGrade);
+    if (mode === 'susi' && (!Number.isFinite(grade) || grade < 1 || grade > 9)) { setErr('내 내신 평균등급(1~9)을 입력하세요.'); return; }
     setBusy(true);
     try {
-      const r = await api.post<GapReport>('/scores/gap-report', { univ: univ.trim(), dept: dept.trim(), cutNb: cut });
+      const body: { mode: Mode; univ: string; dept: string; cutNb: number; myGrade?: number } =
+        { mode, univ: univ.trim(), dept: dept.trim(), cutNb: cut, ...(mode === 'susi' ? { myGrade: grade } : {}) };
+      const r = await api.post<GapReport>('/scores/gap-report', body);
       setReport(r);
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : '격차 리포트 생성 실패');
@@ -106,19 +113,38 @@ export function GapReportPage() {
         목표까지 얼마나 부족한지, <b>근거와 함께</b> 확인하고 무엇부터 하면 되는지 처방을 받습니다.
       </p>
 
-      {/* 내 성적 */}
+      {/* 모드 토글 — 정시(수능 누백) / 수시(내신 등급) */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+        {(['jeongsi', 'susi'] as Mode[]).map((m) => (
+          <button key={m} onClick={() => { setMode(m); setReport(null); }}
+            className={mode === m ? 'btn sm' : 'btn ghost sm'} style={{ minWidth: 96 }}>
+            {m === 'jeongsi' ? '정시 (수능)' : '수시 (내신)'}
+          </button>
+        ))}
+      </div>
+
+      {/* 내 위치 */}
       <div style={card}>
         <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 8 }}>내 위치</div>
-        {scoreState === 'loading' && <p style={{ color: 'var(--muted)', fontSize: 13 }}>불러오는 중…</p>}
-        {scoreState === 'ready' && score && (
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-            <span style={{ fontSize: 30, fontWeight: 800, fontFamily: 'ui-monospace, monospace', color: 'var(--teal,#2f6fb3)' }}>{score.nb}%</span>
-            <span style={{ color: 'var(--muted)', fontSize: 13 }}>전국누백 · {score.gye ?? '계열 미상'}</span>
-          </div>
-        )}
-        {(scoreState === 'noscore' || scoreState === 'nonb') && (
-          <div style={{ background: '#fbeae7', border: '1px solid #f0cfc9', color: '#a64b37', borderRadius: 10, padding: '10px 14px', fontSize: 13 }}>
-            {scoreState === 'noscore' ? '연동할 성적이 없습니다.' : '전국누백이 아직 없습니다.'} <Link to="/placement" style={{ color: 'inherit', textDecoration: 'underline' }}>배치표에서 점수를 적용</Link>하면 자동으로 계산됩니다.
+        {mode === 'jeongsi' ? (
+          <>
+            {scoreState === 'loading' && <p style={{ color: 'var(--muted)', fontSize: 13 }}>불러오는 중…</p>}
+            {scoreState === 'ready' && score && (
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+                <span style={{ fontSize: 30, fontWeight: 800, fontFamily: 'ui-monospace, monospace', color: 'var(--teal,#2f6fb3)' }}>{score.nb}%</span>
+                <span style={{ color: 'var(--muted)', fontSize: 13 }}>전국누백 · {score.gye ?? '계열 미상'}</span>
+              </div>
+            )}
+            {(scoreState === 'noscore' || scoreState === 'nonb') && (
+              <div style={{ background: '#fbeae7', border: '1px solid #f0cfc9', color: '#a64b37', borderRadius: 10, padding: '10px 14px', fontSize: 13 }}>
+                {scoreState === 'noscore' ? '연동할 성적이 없습니다.' : '전국누백이 아직 없습니다.'} <Link to="/placement" style={{ color: 'inherit', textDecoration: 'underline' }}>배치표에서 점수를 적용</Link>하면 자동으로 계산됩니다.
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input className="input" type="number" step="0.01" min={1} max={9} placeholder="내신 평균등급 (예: 2.3)" value={myGrade} onChange={(e) => setMyGrade(e.target.value)} style={{ maxWidth: 200 }} />
+            <span style={{ fontSize: 12, color: 'var(--muted)' }}>전 과목 평균 등급(1~9)을 입력하세요</span>
           </div>
         )}
       </div>
@@ -126,7 +152,7 @@ export function GapReportPage() {
       {/* 목표 설정 — 데이터 있으면 배치표 목표컷 검색(N29), 없으면 수동 입력 */}
       <div style={card}>
         <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12 }}>목표 설정</div>
-        {tMode === 'search' ? (
+        {tMode === 'search' && mode === 'jeongsi' ? (
           <div style={{ position: 'relative' }}>
             <input className="input" placeholder="목표 대학·학과 검색 (예: 서울대 컴퓨터)" value={tq}
               onChange={(e) => { setTq(e.target.value); setPicked(false); }} />
@@ -153,13 +179,13 @@ export function GapReportPage() {
               <input className="input" placeholder="학과 (예: 컴퓨터공학)" value={dept} onChange={(e) => setDept(e.target.value)} />
             </div>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-              <input className="input" type="number" step="0.01" placeholder="목표 전국누백 (예: 1.5)" value={cutNb} onChange={(e) => setCutNb(e.target.value)} style={{ maxWidth: 220 }} />
-              <span style={{ fontSize: 12, color: 'var(--muted)' }}>배치표의 목표 학과 지원가능선(70%컷)을 넣으세요</span>
+              <input className="input" type="number" step="0.01" placeholder={mode === 'susi' ? '목표 내신 등급 (예: 1.8)' : '목표 전국누백 (예: 1.5)'} value={cutNb} onChange={(e) => setCutNb(e.target.value)} style={{ maxWidth: 220 }} />
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>{mode === 'susi' ? '목표 학과의 수시 지원가능선(내신 등급)' : '배치표의 목표 학과 지원가능선(70%컷)'}을 넣으세요</span>
             </div>
           </>
         )}
         {err && <p style={{ color: '#a64b37', fontSize: 12.5, marginTop: 10 }}>{err}</p>}
-        <button className="btn gold" onClick={submit} disabled={busy || scoreState !== 'ready'} style={{ marginTop: 14 }}>
+        <button className="btn gold" onClick={submit} disabled={busy || (mode === 'jeongsi' && scoreState !== 'ready')} style={{ marginTop: 14 }}>
           {busy ? '분석 중…' : '격차 리포트 생성 →'}
         </button>
       </div>

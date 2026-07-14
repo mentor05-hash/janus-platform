@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, Post, Put, Query, Res, UploadedFile, UseI
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsBoolean, IsNumber, IsOptional, IsString, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsNumber, IsOptional, IsString, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -26,9 +26,11 @@ class ManualScoreDto {
 }
 class OcrDto { @IsString() fileId!: string; }
 class GapReportDto {
+  @IsOptional() @IsIn(['jeongsi', 'susi']) mode?: 'jeongsi' | 'susi'; // 기본 jeongsi
   @IsString() @MaxLength(60) univ!: string;
   @IsString() @MaxLength(60) dept!: string;
-  @IsNumber() @Min(0.01) @Max(99.99) cutNb!: number; // 목표 70%컷/지원가능선(전국누백)
+  @IsNumber() @Min(0.01) @Max(99.99) cutNb!: number; // 목표 컷 — 정시=전국누백, 수시=내신등급
+  @IsOptional() @IsNumber() @Min(1) @Max(9) myGrade?: number; // 수시: 내신 평균등급
   @IsOptional() @IsString() @MaxLength(20) track?: string;
   @IsOptional() @IsString() studentId?: string; // 학부모용
 }
@@ -186,7 +188,11 @@ export class ScoresMeController {
   @Post('scores/gap-report')
   @Roles('student', 'guardian')
   gapReport(@CurrentUser() user: AuthUser, @Body() dto: GapReportDto) {
-    return this.scores.gapReport(user, { univ: dto.univ, dept: dto.dept, cutNb: dto.cutNb, track: dto.track }, dto.studentId);
+    return this.scores.gapReport(user, {
+      mode: dto.mode ?? 'jeongsi',
+      univ: dto.univ, dept: dto.dept, cut: dto.cutNb, track: dto.track,
+      myGrade: dto.myGrade, studentId: dto.studentId,
+    });
   }
 
   /** GET /guardian/scores/trend?studentId= — 학부모 자녀 성적·배치 추이. */
