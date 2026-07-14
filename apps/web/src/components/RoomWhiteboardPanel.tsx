@@ -44,6 +44,7 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
   // 내 룸 참가자 id(토큰에서 디코드) — lecture:role 이 나를 가리키는지 판단.
   const myPid = useMemo(() => { try { return JSON.parse(atob(rs.token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))).participantId as string; } catch { return ''; } }, [rs.token]);
   const [status, setStatus] = useState<'connecting' | 'ready' | 'off'>('connecting');
+  const [connErr, setConnErr] = useState<string | null>(null); // 소켓 연결/인증 실패 사유(무한 "연결 중" 방지)
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved'>('idle');
   const [live, setLive] = useState<SessionInfo>(rs.session);
   const [camOn, setCamOn] = useState(false);
@@ -131,12 +132,15 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
   useEffect(() => {
     const s = io(rs.url, { path: '/api/rt/v1/socket.io', auth: { token: rs.token }, transports: ['websocket'] });
     sockRef.current = s;
-    s.on('connect', () => s.emit('wb:join', {}, (r: { ok: boolean; strokes?: Stroke[]; backgroundUrl?: string | null; session?: SessionInfo; mode?: 'session' | 'lecture'; role?: string; roster?: Array<{ participantId: string; name?: string; role?: string }> }) => {
-      if (!r?.ok) { setStatus('off'); return; }
+    // 연결/인증 실패를 눈에 보이게 — 안 그러면 "연결 중"에서 무한 대기(원인: 룸 서버 미접속·토큰 오류).
+    s.on('connect_error', (e) => { setConnErr(`룸 서버(${rs.url}) 연결 실패: ${e?.message ?? '알 수 없음'}`); });
+    s.on('error', (e: { message?: string } | string) => setConnErr(typeof e === 'string' ? e : (e?.message ?? '룸 오류')));
+    s.on('connect', () => { setConnErr(null); s.emit('wb:join', {}, (r: { ok: boolean; error?: string; strokes?: Stroke[]; backgroundUrl?: string | null; session?: SessionInfo; mode?: 'session' | 'lecture'; role?: string; roster?: Array<{ participantId: string; name?: string; role?: string }> }) => {
+      if (!r?.ok) { setStatus('off'); setConnErr(r?.error ?? '화이트보드에 입장할 수 없습니다.'); return; }
       strokesRef.current = Array.isArray(r.strokes) ? r.strokes : []; if (r.session) setLive(r.session); setStatus('ready'); redraw();
       if (r.mode) setMode(r.mode); if (r.role) setRole(r.role); if (Array.isArray(r.roster)) setRoster(r.roster);
       if (r.backgroundUrl) loadBg(r.backgroundUrl);
-    }));
+    }); });
     s.on('wb:stroke:partial', ({ sid, meta, points }: { sid: string; meta: Partial<Stroke>; points: Pt[] }) => {
       let st = liveRef.current.get(sid);
       if (!st) { st = { color: meta.color ?? '#1E3550', width: meta.width ?? 3, erase: meta.erase, highlight: meta.highlight, points: [] }; liveRef.current.set(sid, st); }
@@ -263,7 +267,9 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
           </div>
         </div>
         {status === 'off' ? (
-          <p style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center', padding: 40 }}>화이트보드 세션이 종료되었어요.</p>
+          <p style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center', padding: 40 }}>{connErr ?? '화이트보드 세션이 종료되었어요.'}</p>
+        ) : status === 'connecting' && connErr ? (
+          <p style={{ color: '#a64b37', fontSize: 13, textAlign: 'center', padding: 40, lineHeight: 1.6 }}>⚠ {connErr}<br /><span style={{ color: 'var(--muted)', fontSize: 12 }}>같은 기기의 localhost:8080 접속인지, realtime-rooms 컨테이너 상태를 확인하세요.</span></p>
         ) : (
           <>
             {!rw && <div style={{ padding: '8px 14px', background: phase === 'closed' ? 'var(--line-soft,#eef2f7)' : 'var(--teal-50,#E8F0F9)', color: 'var(--muted)', fontSize: 12.5, textAlign: 'center', borderBottom: '1px solid var(--line)' }}>{phase === 'closed' ? '🔒 ' : '⏳ '}{notice} 필기는 예약 시간대에만 가능하고, 지금은 열람만 됩니다.</div>}

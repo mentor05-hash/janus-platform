@@ -38,6 +38,7 @@ import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
 import { AdminAssignmentPage } from './pages/AdminAssignmentPage';
 import { EmbedSessionPage } from './pages/EmbedSessionPage';
 import { RoomStandalonePage } from './pages/RoomStandalonePage';
+import { RoomDemoLauncherPage } from './pages/RoomDemoLauncherPage';
 import { JanusLandingPage } from './pages/JanusLandingPage';
 import { PlacementPage } from './pages/PlacementPage';
 import { StudentHomePage } from './pages/StudentHomePage';
@@ -102,6 +103,7 @@ export function App() {
       <Route path="/privacy" element={<LegalDocPage which="privacy" />} />
       <Route path="/embed/session" element={<EmbedSessionPage />} />
       <Route path="/room" element={<RoomStandalonePage />} />
+      <Route path="/room/demo" element={<RoomDemoLauncherPage />} />
 
       <Route
         path="/app"

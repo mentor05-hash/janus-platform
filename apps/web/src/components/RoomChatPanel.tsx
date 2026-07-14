@@ -30,6 +30,7 @@ export function RoomChatPanel({ session: rs, title, onClose }: { bookingId: stri
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState('');
   const [status, setStatus] = useState<'connecting' | 'ready' | 'off'>('connecting');
+  const [connErr, setConnErr] = useState<string | null>(null); // 소켓 연결/인증 실패 사유(무한 "연결 중" 방지)
   const [peerOnline, setPeerOnline] = useState(false);
   const [peerTyping, setPeerTyping] = useState(false);
   const [reply, setReply] = useState<Msg | null>(null);
@@ -45,9 +46,13 @@ export function RoomChatPanel({ session: rs, title, onClose }: { bookingId: stri
   useEffect(() => {
     const s = io(rs.url, { path: '/api/rt/v1/socket.io', auth: { token: rs.token }, transports: ['websocket'] });
     sockRef.current = s;
+    // 연결/인증 실패를 눈에 보이게 — 안 그러면 "연결 중"에서 무한 대기(원인: 룸 서버 미접속·토큰 오류).
+    s.on('connect_error', (e) => setConnErr(`룸 서버(${rs.url}) 연결 실패: ${e?.message ?? '알 수 없음'}`));
+    s.on('error', (e: { message?: string } | string) => setConnErr(typeof e === 'string' ? e : (e?.message ?? '룸 오류')));
     s.on('connect', () => {
-      s.emit('join', {}, (r: { ok: boolean; messages?: Msg[]; session?: SessionInfo }) => {
-        if (!r?.ok) { setStatus('off'); return; }
+      setConnErr(null);
+      s.emit('join', {}, (r: { ok: boolean; error?: string; messages?: Msg[]; session?: SessionInfo }) => {
+        if (!r?.ok) { setStatus('off'); setConnErr(r?.error ?? '채팅에 입장할 수 없습니다.'); return; }
         setMsgs(r.messages ?? []); if (r.session) setLive(r.session); setStatus('ready');
       });
     });
@@ -99,8 +104,8 @@ export function RoomChatPanel({ session: rs, title, onClose }: { bookingId: stri
           <button onClick={onClose} aria-label="닫기" style={{ border: 'none', background: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--muted)' }}>✕</button>
         </div>
         <div style={{ flex: 1, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 4, background: 'var(--surface-2,#f4f7fb)' }}>
-          {status === 'off' ? <p style={{ color: 'var(--muted)', fontSize: 13, textAlign: 'center', marginTop: 20 }}>채팅 세션이 종료되었어요.</p>
-            : status === 'connecting' ? <p style={{ color: 'var(--caption)', fontSize: 13, textAlign: 'center' }}>연결 중…</p>
+          {status === 'off' ? <p style={{ color: connErr ? '#a64b37' : 'var(--muted)', fontSize: 13, textAlign: 'center', marginTop: 20 }}>{connErr ?? '채팅 세션이 종료되었어요.'}</p>
+            : status === 'connecting' ? <p style={{ color: connErr ? '#a64b37' : 'var(--caption)', fontSize: 13, textAlign: 'center', lineHeight: 1.6 }}>{connErr ? `⚠ ${connErr}` : '연결 중…'}</p>
             : msgs.length === 0 ? <p style={{ color: 'var(--caption)', fontSize: 13, textAlign: 'center', marginTop: 20 }}>첫 메시지를 보내보세요.</p>
             : msgs.map((m, idx) => {
               const showDay = idx === 0 || dayKey(m.createdAt) !== dayKey(msgs[idx - 1].createdAt);
