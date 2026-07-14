@@ -15,10 +15,10 @@ export function RoomDemoLauncherPage() {
   const [health, setHealth] = useState<'checking' | 'ok' | 'down'>('checking');
   const [busy, setBusy] = useState(false);
 
-  async function provision() {
+  async function provision(fresh = false) {
     setBusy(true); setErr(null);
     try {
-      const d = await api.post<Demo>('/rooms-bridge/demo');
+      const d = await api.post<Demo>('/rooms-bridge/demo', { fresh });
       setDemo(d);
       // 룸 서비스 접속 가능 여부(브라우저→룸 URL) 즉시 점검 — 여기서 down 이면 /room 도 연결 안 됨.
       try {
@@ -79,7 +79,7 @@ export function RoomDemoLauncherPage() {
           <p style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 }}>
             룸 상태: {health === 'ok' ? '✅ 접속 가능' : health === 'checking' ? '확인 중…' : '❌ 접속 불가'} ·
             roomId <code>{demo.roomId.slice(0, 8)}…</code> · 토큰 만료 12시간.
-            <button onClick={() => void provision()} style={{ marginLeft: 6, textDecoration: 'underline', border: 'none', background: 'none', color: 'inherit', cursor: 'pointer' }}>새 룸 만들기</button>
+            <button onClick={() => void provision(true)} style={{ marginLeft: 6, textDecoration: 'underline', border: 'none', background: 'none', color: 'inherit', cursor: 'pointer' }}>새 룸 만들기</button>
           </p>
         </>
       )}

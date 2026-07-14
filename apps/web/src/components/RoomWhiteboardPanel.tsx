@@ -89,10 +89,11 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
     if (cache.width !== cv.width || cache.height !== cv.height) { cache.width = cv.width; cache.height = cv.height; }
     const cctx = cache.getContext('2d'); if (!cctx) return;
     const v = viewRef.current;
-    cctx.setTransform(1, 0, 0, 1, 0, 0); cctx.clearRect(0, 0, cache.width, cache.height);
+    cctx.setTransform(1, 0, 0, 1, 0, 0); cctx.globalCompositeOperation = 'source-over'; cctx.globalAlpha = 1; cctx.clearRect(0, 0, cache.width, cache.height);
     cctx.setTransform(v.scale, 0, 0, v.scale, v.tx, v.ty);
     cctx.lineCap = 'round'; cctx.lineJoin = 'round';
     for (const s of strokesRef.current) paintStroke(cctx, s);
+    cctx.globalCompositeOperation = 'source-over'; cctx.globalAlpha = 1; // paintStroke 잔여 상태 초기화(다음 프레임 오염 방지)
   }
 
   // 한 프레임 합성: 배경 + (확정 캐시 복사 + 라이브/진행 획). 확정 획 수와 무관하게 O(1) 복원.
@@ -113,12 +114,16 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
     const ink = (inkRef.current ??= document.createElement('canvas'));
     if (ink.width !== cv.width || ink.height !== cv.height) { ink.width = cv.width; ink.height = cv.height; }
     const ictx = ink.getContext('2d'); if (!ictx) return;
-    ictx.setTransform(1, 0, 0, 1, 0, 0); ictx.clearRect(0, 0, ink.width, ink.height);
+    // ⚠ ictx 는 프레임 간 재사용되는 영속 컨텍스트 — paintStroke 가 남긴 destination-out/알파가
+    //    다음 프레임의 drawImage(cache) 를 오염시켜 "전체 획 사라짐→재등장" 버그를 유발한다.
+    //    캐시 복사 전에 합성 상태를 반드시 기본값으로 되돌린다.
+    ictx.setTransform(1, 0, 0, 1, 0, 0); ictx.globalCompositeOperation = 'source-over'; ictx.globalAlpha = 1; ictx.clearRect(0, 0, ink.width, ink.height);
     if (cacheRef.current) ictx.drawImage(cacheRef.current, 0, 0);
     ictx.setTransform(v.scale, 0, 0, v.scale, v.tx, v.ty);
     ictx.lineCap = 'round'; ictx.lineJoin = 'round';
     for (const s of [...liveRef.current.values(), ...(drawingRef.current ? [drawingRef.current] : [])]) paintStroke(ictx, s);
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ictx.globalCompositeOperation = 'source-over'; ictx.globalAlpha = 1; // 잔여 상태 초기화
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
     ctx.drawImage(ink, 0, 0);
     // 레이저 궤적 — 잉크 위에 얹어 그리고, 남아있으면 다음 프레임을 스스로 예약(페이드 애니메이션).
     const laserAlive = paintLasers(ctx, v);

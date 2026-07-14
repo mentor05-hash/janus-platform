@@ -158,7 +158,7 @@ export function RoomChatPanel({ session: rs, title, onClose }: { bookingId: stri
         )}
         {status !== 'off' && rw && (
           <div style={{ display: 'flex', gap: 6, padding: 10, borderTop: '1px solid var(--line)', alignItems: 'center' }}>
-            <input className="input" value={text} onChange={(e) => onType(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && send()} placeholder={reply ? '답장 입력…' : '메시지 입력…'} aria-label="메시지 입력" />
+            <input className="input" value={text} onChange={(e) => onType(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) send(); }} placeholder={reply ? '답장 입력…' : '메시지 입력…'} aria-label="메시지 입력" />
             <button className="btn sm" onClick={send} disabled={!text.trim()}>전송</button>
           </div>
         )}
