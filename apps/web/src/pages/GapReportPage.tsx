@@ -31,8 +31,38 @@ export function GapReportPage() {
   const [report, setReport] = useState<GapReport | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // 목표컷 실연동(N29) — 배치표 targets.json 서빙 가능하면 검색, 아니면 수동 입력 폴백.
+  const [tMode, setTMode] = useState<'unknown' | 'search' | 'manual'>('unknown');
+  const [tq, setTq] = useState('');
+  const [tResults, setTResults] = useState<Array<{ univ: string; dept: string; track?: string; cutNb: number }>>([]);
+  const [picked, setPicked] = useState(false);
 
   useEffect(() => { track('baechi', 'view', undefined, { view: 'gap' }); }, []);
+
+  // 목표컷 데이터 배치 여부 프로브
+  useEffect(() => {
+    if (!user) return;
+    api.get<{ available: boolean }>('/placement-hub/targets?q=')
+      .then((r) => setTMode(r.available ? 'search' : 'manual'))
+      .catch(() => setTMode('manual'));
+  }, [user]);
+
+  // 목표 검색(디바운스)
+  useEffect(() => {
+    if (tMode !== 'search') return;
+    const term = tq.trim();
+    if (!term || picked) { setTResults([]); return; }
+    const id = setTimeout(() => {
+      api.get<{ targets: typeof tResults }>(`/placement-hub/targets?q=${encodeURIComponent(term)}`)
+        .then((r) => setTResults(r.targets)).catch(() => setTResults([]));
+    }, 250);
+    return () => clearTimeout(id);
+  }, [tq, tMode, picked]);
+
+  function pickTarget(t: { univ: string; dept: string; cutNb: number }) {
+    setUniv(t.univ); setDept(t.dept); setCutNb(String(t.cutNb));
+    setPicked(true); setTResults([]); setTq(`${t.univ} ${t.dept}`);
+  }
 
   useEffect(() => {
     if (!user) return;
@@ -93,17 +123,41 @@ export function GapReportPage() {
         )}
       </div>
 
-      {/* 목표 입력 */}
+      {/* 목표 설정 — 데이터 있으면 배치표 목표컷 검색(N29), 없으면 수동 입력 */}
       <div style={card}>
         <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12 }}>목표 설정</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-          <input className="input" placeholder="대학 (예: 서울대)" value={univ} onChange={(e) => setUniv(e.target.value)} />
-          <input className="input" placeholder="학과 (예: 컴퓨터공학)" value={dept} onChange={(e) => setDept(e.target.value)} />
-        </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <input className="input" type="number" step="0.01" placeholder="목표 전국누백 (예: 1.5)" value={cutNb} onChange={(e) => setCutNb(e.target.value)} style={{ maxWidth: 220 }} />
-          <span style={{ fontSize: 12, color: 'var(--muted)' }}>배치표의 목표 학과 지원가능선(70%컷)을 넣으세요</span>
-        </div>
+        {tMode === 'search' ? (
+          <div style={{ position: 'relative' }}>
+            <input className="input" placeholder="목표 대학·학과 검색 (예: 서울대 컴퓨터)" value={tq}
+              onChange={(e) => { setTq(e.target.value); setPicked(false); }} />
+            {picked && cutNb && (
+              <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 6 }}>
+                선택: <b style={{ color: 'var(--ink)' }}>{univ} {dept}</b> · 지원가능선 전국누백 <b>{cutNb}%</b>
+              </div>
+            )}
+            {tResults.length > 0 && (
+              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 5, marginTop: 4, background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 10, boxShadow: '0 6px 20px rgba(0,0,0,.1)', maxHeight: 260, overflowY: 'auto' }}>
+                {tResults.map((t, i) => (
+                  <button key={i} onClick={() => pickTarget(t)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', border: 'none', borderTop: i ? '1px solid var(--line)' : 'none', background: 'none', cursor: 'pointer', fontSize: 13.5 }}>
+                    <b>{t.univ} {t.dept}</b>{t.track ? <span style={{ color: 'var(--muted)' }}> · {t.track}</span> : null}
+                    <span style={{ float: 'right', fontFamily: 'ui-monospace,monospace', color: 'var(--teal)' }}>{t.cutNb}%</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+              <input className="input" placeholder="대학 (예: 서울대)" value={univ} onChange={(e) => setUniv(e.target.value)} />
+              <input className="input" placeholder="학과 (예: 컴퓨터공학)" value={dept} onChange={(e) => setDept(e.target.value)} />
+            </div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input className="input" type="number" step="0.01" placeholder="목표 전국누백 (예: 1.5)" value={cutNb} onChange={(e) => setCutNb(e.target.value)} style={{ maxWidth: 220 }} />
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>배치표의 목표 학과 지원가능선(70%컷)을 넣으세요</span>
+            </div>
+          </>
+        )}
         {err && <p style={{ color: '#a64b37', fontSize: 12.5, marginTop: 10 }}>{err}</p>}
         <button className="btn gold" onClick={submit} disabled={busy || scoreState !== 'ready'} style={{ marginTop: 14 }}>
           {busy ? '분석 중…' : '격차 리포트 생성 →'}

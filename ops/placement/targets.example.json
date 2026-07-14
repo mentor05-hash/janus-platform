@@ -1,0 +1,9 @@
+{
+  "_comment": "격차 리포트 목표컷 소스(N29). JANUS_DATA_DIR/placement-hub/targets.json 으로 복사해 사용. cutNb=지원가능선(70%컷) 전국누백(%). 저작권 데이터라 repo 무반입 — 아래는 합성 예시(가짜 수치). 회원+ 로그인에게만 검색 제공(GET /placement-hub/targets).",
+  "targets": [
+    { "univ": "예시대학교", "dept": "컴퓨터공학과", "track": "이과", "cutNb": 1.5, "source": "sample" },
+    { "univ": "예시대학교", "dept": "전기전자공학부", "track": "이과", "cutNb": 1.9, "source": "sample" },
+    { "univ": "표본대학교", "dept": "경영학과", "track": "문과", "cutNb": 2.3, "source": "sample" },
+    { "univ": "표본대학교", "dept": "국어국문학과", "track": "문과", "cutNb": 3.1, "source": "sample" }
+  ]
+}

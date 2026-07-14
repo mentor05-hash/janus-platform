@@ -29,6 +29,16 @@
 - **마스터 준비(권장)**: 상위-티어 전용 데이터/UI 를 `<!--JANUS-TIER:LEVEL-->…<!--/JANUS-TIER-->`(LEVEL=member|paid|consultant)로 감싸 두면 티어 분리가 깔끔하다. 대형 데이터 배열은 `const __JANUS_CUTS__=…`처럼 이름을 `strip_assignments`에 등록하면 무료판에서 값이 `[]`/`{}`로 비워진다.
 - **합성 테스트**: `ops/placement/fixtures/master_sample.html`(가짜 데이터·저작권 없음)로 빌드→검증 E2E 가 통과한다(무료판 통과·회원판은 데이터 보유로 검증 실패=공개 불가 확인). 실제 마스터는 이 픽스처 자리에 로컬 경로만 바꿔 물린다.
 
+## 2-2. 격차 리포트 목표컷 실연동 (N29)
+
+웹 `/placement/gap`(격차 리포트)이 목표 학과의 지원가능선(70%컷)을 **수동 입력 대신 검색**으로 채우게 하려면:
+
+1. `targets.example.json` 을 `JANUS_DATA_DIR/placement-hub/targets.json` 으로 복사.
+2. `targets[].cutNb`(전국누백 %)를 배치표 지원가능선으로 채운다(저작권 데이터 → repo 무반입, 로컬만).
+3. 확인: 회원+ 로그인 상태에서 `GET /api/v1/placement-hub/targets?q=서울대` → 격차 페이지 검색창에 후보가 뜬다. 선택 시 대학·학과·컷이 자동 입력된다.
+
+파일이 없으면(개발·CI) 격차 페이지는 **수동 입력 폴백**으로 동작한다. 컷 수치는 회원 티어 게이트 뒤에서만 검색된다(비로그인·free 는 빈 결과).
+
 ## 3. 티어 게이트 (접합계약 C2 — 토큰 없으면 무료판만)
 
 - `tier: free`(또는 미지정)만 비로그인 공개. `member|paid|consultant` 는 로그인 사용자가

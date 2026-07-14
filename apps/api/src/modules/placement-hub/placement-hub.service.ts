@@ -59,6 +59,32 @@ export class PlacementHubService {
     return { available: tables.length > 0, tables };
   }
 
+  /**
+   * 격차 리포트 목표컷 실연동(N29) — 배치표 지원가능선(70%컷)을 `JANUS_DATA_DIR/placement-hub/targets.json`
+   * 에서 검색해 제공. 컷 수치는 저작권 데이터라 repo 무반입(C6), 회원+ 로그인에게만(C2 — 컨트롤러 인증).
+   * 데이터 미배치(개발·CI)면 available:false → 격차 페이지는 수동 입력 폴백.
+   */
+  searchTargets(user: AuthUser, q: string, limit = 20): { available: boolean; targets: Array<{ univ: string; dept: string; track?: string; cutNb: number }> } {
+    if (!tierAtLeast(tierForRole(user.role), 'member')) return { available: false, targets: [] };
+    const base = this.baseDir();
+    if (!base) return { available: false, targets: [] };
+    let all: Array<{ univ?: string; dept?: string; track?: string; cutNb?: unknown }> = [];
+    try {
+      const raw = fs.readFileSync(path.join(base, 'targets.json'), 'utf8');
+      const j = JSON.parse(raw) as { targets?: typeof all };
+      all = j.targets ?? [];
+    } catch {
+      return { available: false, targets: [] };
+    }
+    const term = (q ?? '').trim();
+    const valid = all
+      .filter((t) => t && typeof t.univ === 'string' && typeof t.dept === 'string' && Number.isFinite(Number(t.cutNb)))
+      .filter((t) => !term || `${t.univ} ${t.dept} ${t.track ?? ''}`.includes(term))
+      .slice(0, Math.min(50, Math.max(1, limit)))
+      .map((t) => ({ univ: t.univ as string, dept: t.dept as string, track: t.track, cutNb: Math.round(Number(t.cutNb) * 100) / 100 }));
+    return { available: true, targets: valid };
+  }
+
   /** 표별 요구 티어(미지정=free). */
   private tierOf(entry: HubTable): SsoTier {
     const t = entry.tier;

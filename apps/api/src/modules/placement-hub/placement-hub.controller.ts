@@ -18,6 +18,13 @@ export class PlacementHubController {
     return this.hub.list();
   }
 
+  /** 격차 리포트 목표컷 검색(N29) — 로그인(회원+) 필수. JANUS_DATA_DIR/targets.json 서빙(C6). */
+  @Get('placement-hub/targets')
+  @RateLimit({ limit: 40, windowSec: 60 })
+  targets(@CurrentUser() user: AuthUser, @Query('q') q?: string) {
+    return this.hub.searchTargets(user, q ?? '');
+  }
+
   /** 회원급 파일 열람 티켓 — 로그인 필수 + 티어 검증(C2: 사용자 티어 ≥ 표 요구 티어). */
   @Post('placement-hub/ticket')
   @RateLimit({ limit: 30, windowSec: 60 })
