@@ -45,6 +45,7 @@ import { StudentHomePage } from './pages/StudentHomePage';
 import { ServicesPage, ServiceDetailPage } from './pages/ServicesPage';
 import { PlacementHubPage } from './pages/PlacementHubPage';
 import { GapReportPage } from './pages/GapReportPage';
+import { GuardianReportPage } from './pages/GuardianReportPage';
 import { AdminAuditPage } from './pages/AdminAuditPage';
 import { AdminPayrollPage } from './pages/AdminPayrollPage';
 import { AdminScoresPage } from './pages/AdminScoresPage';
@@ -91,6 +92,7 @@ export function App() {
       <Route path="/placement" element={<PlacementPage />} />
       <Route path="/placement/hub" element={<PlacementHubPage />} />
       <Route path="/placement/gap" element={<GapReportPage />} />
+      <Route path="/guardian/report" element={<GuardianReportPage />} />
       <Route path="/services" element={<ServicesPage />} />
       <Route path="/services/:slug" element={<ServiceDetailPage />} />
       {/* 구 잇올 랜딩·연계서비스는 신규 야누스 페이지로 대체 완료 → 리다이렉트(잇올 노출 차단) */}
