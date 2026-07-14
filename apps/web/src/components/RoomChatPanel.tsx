@@ -111,9 +111,9 @@ export function RoomChatPanel({ session: rs, title, onClose }: { bookingId: stri
               const showDay = idx === 0 || dayKey(m.createdAt) !== dayKey(msgs[idx - 1].createdAt);
               const rx = m.reactions ?? {}; const rxKeys = Object.keys(rx).filter((k) => (rx[k] ?? []).length > 0);
               return (
-                <div key={m.id}>
-                  {showDay && <div style={{ textAlign: 'center', margin: '10px 0 6px' }}><span style={{ fontSize: 11, color: 'var(--muted)', background: 'var(--line-soft,#e4eaf1)', borderRadius: 999, padding: '3px 10px' }}>{dayLabel(m.createdAt)}</span></div>}
-                  <div onMouseEnter={() => setHover(m.id)} onMouseLeave={() => setHover((h) => (h === m.id ? null : h))} style={{ alignSelf: m.mine ? 'flex-end' : 'flex-start', maxWidth: '82%', marginLeft: m.mine ? 'auto' : 0, marginTop: 4, position: 'relative' }}>
+                <div key={m.id} style={{ display: 'flex', flexDirection: 'column', alignItems: m.mine ? 'flex-end' : 'flex-start' }}>
+                  {showDay && <div style={{ alignSelf: 'stretch', textAlign: 'center', margin: '10px 0 6px' }}><span style={{ fontSize: 11, color: 'var(--muted)', background: 'var(--line-soft,#e4eaf1)', borderRadius: 999, padding: '3px 10px' }}>{dayLabel(m.createdAt)}</span></div>}
+                  <div onMouseEnter={() => setHover(m.id)} onMouseLeave={() => setHover((h) => (h === m.id ? null : h))} style={{ maxWidth: '82%', marginTop: 4, position: 'relative' }}>
                     {m.replyTo && <div style={{ fontSize: 11, color: 'var(--muted)', borderLeft: '3px solid var(--teal)', padding: '2px 8px', background: 'var(--line-soft,#eef2f7)', borderRadius: 6, marginBottom: 3, maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>↩ {m.replyTo.senderId === myPid ? '나' : '상대'}: {snippet(m.replyTo)}</div>}
                     <div style={{ background: m.mine ? 'var(--teal)' : 'var(--surface)', color: m.mine ? '#fff' : 'var(--ink)', border: m.mine ? 'none' : '1px solid var(--line)', borderRadius: 12, padding: '8px 12px', fontSize: 14, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                       {linkify(m.body ?? '', m.mine)}
