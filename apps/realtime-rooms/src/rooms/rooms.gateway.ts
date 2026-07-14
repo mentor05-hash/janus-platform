@@ -250,6 +250,23 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.to(this.room(client)).emit('wb:clear', {});
     return { ok: true };
   }
+  // 전체 스트로크 재동기화(되돌리기·필기만 지우기 등 벌크 변경) — 발신자가 계산한 최종 집합을 방에 반영.
+  @SubscribeMessage('wb:sync')
+  wbSync(@ConnectedSocket() client: Socket, @MessageBody() { strokes }: { strokes: unknown }) {
+    const c = this.ctx(client);
+    if (!this.featureOn(c.roomId, 'whiteboard') || !this.openNow(c.roomId)) return { ok: false, closed: true };
+    if (!this.canDraw(client)) return { ok: false, role: 'viewer' };
+    client.to(this.room(client)).emit('wb:sync', { strokes });
+    return { ok: true };
+  }
+  // 레이저 포인터 — 비영구(저장 안 함). 잠깐 보여주고 사라지는 궤적만 중계.
+  @SubscribeMessage('wb:laser')
+  wbLaser(@ConnectedSocket() client: Socket, @MessageBody() { sid, points }: { sid: string; points: unknown }) {
+    const c = this.ctx(client);
+    if (!this.featureOn(c.roomId, 'whiteboard') || !this.openNow(c.roomId)) return;
+    if (!this.canDraw(client)) return; // 강의 모드: 학생 레이저 무시
+    client.to(this.room(client)).emit('wb:laser', { participantId: c.participantId, sid, points });
+  }
   @SubscribeMessage('wb:save')
   async wbSave(@ConnectedSocket() client: Socket, @MessageBody() { strokes, backgroundUrl }: { strokes: unknown; backgroundUrl?: string | null }) {
     const c = this.ctx(client);

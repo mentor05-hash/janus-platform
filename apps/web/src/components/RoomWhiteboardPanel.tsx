@@ -9,6 +9,8 @@ type Pt = { x: number; y: number; p?: number };
 type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean; highlight?: boolean };
 const COLORS = ['#1E3550', '#2F6FB3', '#E5484D', '#2A8A5F', '#CF9A3A'];
 const W = 900, H = 620;
+const LASER_TTL = 900;        // 레이저 점 하나가 남아있는 시간(ms) — 이후 연해지며 사라짐
+const LASER_COLOR = '#F5333F';
 
 /** 룸 서비스 기반 공유 화이트보드(이관 경로). 이미지 배경 + 필기 + 음성. PDF 배경은 이음새로 보류. */
 export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaPublish }: { bookingId: string; title?: string; onClose: () => void; session: RoomSession; media?: { provider: string; url: string | null; token: string | null; note?: string } | null; mediaPublish?: boolean }) {
@@ -18,6 +20,10 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
   const strokesRef = useRef<Stroke[]>([]);
   const drawingRef = useRef<Stroke | null>(null);
   const liveRef = useRef<Map<string, Stroke>>(new Map());
+  // 레이저 궤적(비영구) — 참가자별 최근 점(월드 좌표 + 타임스탬프). 오래된 점은 페이드 후 제거.
+  const laserRef = useRef<Map<string, { pts: Array<{ x: number; y: number; t: number }>; color: string }>>(new Map());
+  const laserFlushRef = useRef(0);
+  const laserPendingRef = useRef<Pt[]>([]); // 전송 대기 레이저 점(50ms 배치)
   const sidRef = useRef('');
   const pendingRef = useRef<Pt[]>([]);
   const lastFlushRef = useRef(0);
@@ -32,7 +38,8 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
   const bgUrlRef = useRef<string | null>(null); // 현재 배경 fileUrl(룸 서비스)
   const [color, setColor] = useState(COLORS[0]);
   const [width, setWidth] = useState(3);
-  const [tool, setTool] = useState<'pen' | 'eraser' | 'highlighter'>('pen');
+  const [tool, setTool] = useState<'pen' | 'eraser' | 'highlighter' | 'laser'>('pen');
+  const [canUndo, setCanUndo] = useState(false); // 되돌리기 가능(확정 스트로크 존재) — 버튼 활성화용
   // 강의(1:다) 모드: 서버가 wb:join 으로 role·mode·roster 를 알려준다. viewer=학생(열람 전용).
   const [mode, setMode] = useState<'session' | 'lecture'>('session');
   const [role, setRole] = useState<string>('viewer');
@@ -64,7 +71,7 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
   function paintStroke(ictx: CanvasRenderingContext2D, s: Stroke) {
     if (s.points.length < 1) return;
     ictx.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over';
-    ictx.globalAlpha = s.highlight ? 0.32 : 1; ictx.strokeStyle = s.color;
+    ictx.globalAlpha = s.highlight ? 0.42 : 1; ictx.strokeStyle = s.color;
     if (s.erase || s.highlight || s.points.length === 1 || s.points.every((q) => q.p == null)) {
       ictx.lineWidth = s.width; ictx.beginPath(); ictx.moveTo(s.points[0].x, s.points[0].y);
       for (const p of s.points.slice(1)) ictx.lineTo(p.x, p.y);
@@ -113,6 +120,44 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
     for (const s of [...liveRef.current.values(), ...(drawingRef.current ? [drawingRef.current] : [])]) paintStroke(ictx, s);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.drawImage(ink, 0, 0);
+    // 레이저 궤적 — 잉크 위에 얹어 그리고, 남아있으면 다음 프레임을 스스로 예약(페이드 애니메이션).
+    const laserAlive = paintLasers(ctx, v);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (laserAlive) rafRef.current = requestAnimationFrame(drawFrame);
+  }
+
+  // 레이저 궤적을 페이드 렌더 + 만료 점 제거. 살아있는 궤적이 있으면 true.
+  function paintLasers(ctx: CanvasRenderingContext2D, v: { scale: number; tx: number; ty: number }): boolean {
+    if (laserRef.current.size === 0) return false;
+    const now = Date.now();
+    let alive = false;
+    ctx.setTransform(v.scale, 0, 0, v.scale, v.tx, v.ty);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (const [id, tr] of laserRef.current) {
+      tr.pts = tr.pts.filter((p) => now - p.t < LASER_TTL);
+      if (tr.pts.length === 0) { laserRef.current.delete(id); continue; }
+      alive = true;
+      for (let i = 1; i < tr.pts.length; i++) {
+        const a = tr.pts[i - 1], b = tr.pts[i];
+        const k = Math.max(0, 1 - (now - b.t) / LASER_TTL);
+        ctx.globalAlpha = 0.12 + 0.78 * k; ctx.strokeStyle = tr.color; ctx.lineWidth = 3 + 5 * k;
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      }
+      const head = tr.pts[tr.pts.length - 1], hk = Math.max(0, 1 - (now - head.t) / LASER_TTL);
+      if (hk > 0) { ctx.globalAlpha = 0.9 * hk; ctx.fillStyle = tr.color; ctx.beginPath(); ctx.arc(head.x, head.y, 4 + 4 * hk, 0, Math.PI * 2); ctx.fill(); }
+    }
+    ctx.globalAlpha = 1;
+    return alive;
+  }
+  function addLaser(key: string, x: number, y: number) {
+    let tr = laserRef.current.get(key);
+    if (!tr) { tr = { pts: [], color: LASER_COLOR }; laserRef.current.set(key, tr); }
+    tr.pts.push({ x, y, t: Date.now() });
+  }
+  function flushLaser() {
+    if (laserPendingRef.current.length === 0) return;
+    sockRef.current?.emit('wb:laser', { sid: sidRef.current, points: laserPendingRef.current.map((p) => ({ x: p.x, y: p.y })) });
+    laserPendingRef.current = [];
   }
 
   // rAF 코얼레싱: 프레임당 최대 1회 합성.
@@ -137,7 +182,7 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
     s.on('error', (e: { message?: string } | string) => setConnErr(typeof e === 'string' ? e : (e?.message ?? '룸 오류')));
     s.on('connect', () => { setConnErr(null); s.emit('wb:join', {}, (r: { ok: boolean; error?: string; strokes?: Stroke[]; backgroundUrl?: string | null; session?: SessionInfo; mode?: 'session' | 'lecture'; role?: string; roster?: Array<{ participantId: string; name?: string; role?: string }> }) => {
       if (!r?.ok) { setStatus('off'); setConnErr(r?.error ?? '화이트보드에 입장할 수 없습니다.'); return; }
-      strokesRef.current = Array.isArray(r.strokes) ? r.strokes : []; if (r.session) setLive(r.session); setStatus('ready'); redraw();
+      strokesRef.current = Array.isArray(r.strokes) ? r.strokes : []; if (r.session) setLive(r.session); setStatus('ready'); redraw(); setCanUndo(strokesRef.current.length > 0);
       if (r.mode) setMode(r.mode); if (r.role) setRole(r.role); if (Array.isArray(r.roster)) setRoster(r.roster);
       if (r.backgroundUrl) loadBg(r.backgroundUrl);
     }); });
@@ -146,8 +191,12 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
       if (!st) { st = { color: meta.color ?? '#1E3550', width: meta.width ?? 3, erase: meta.erase, highlight: meta.highlight, points: [] }; liveRef.current.set(sid, st); }
       st.points.push(...points); requestPaint();
     });
-    s.on('wb:stroke', ({ stroke, sid }: { stroke: Stroke; sid?: string }) => { if (sid) liveRef.current.delete(sid); strokesRef.current.push(stroke); redraw(); });
-    s.on('wb:clear', () => { strokesRef.current = []; liveRef.current.clear(); redraw(); });
+    s.on('wb:stroke', ({ stroke, sid }: { stroke: Stroke; sid?: string }) => { if (sid) liveRef.current.delete(sid); strokesRef.current.push(stroke); redraw(); setCanUndo(true); });
+    s.on('wb:clear', () => { strokesRef.current = []; liveRef.current.clear(); redraw(); setCanUndo(false); });
+    // 상대가 되돌리기·필기지우기 등 벌크 변경 → 전체 스트로크 교체.
+    s.on('wb:sync', ({ strokes }: { strokes: Stroke[] }) => { strokesRef.current = Array.isArray(strokes) ? strokes : []; liveRef.current.clear(); redraw(); setCanUndo(strokesRef.current.length > 0); });
+    // 상대 레이저 궤적 — 참가자·제스처별로 모아 페이드 렌더(비영구).
+    s.on('wb:laser', ({ sid, points }: { participantId?: string; sid?: string; points: Array<{ x: number; y: number }> }) => { if (!Array.isArray(points)) return; const key = `peer:${sid ?? ''}`; for (const p of points) addLaser(key, p.x, p.y); requestPaint(); });
     s.on('roster:join', (p: { participantId: string; name?: string; role?: string }) => setRoster((prev) => prev.some((x) => x.participantId === p.participantId) ? prev : [...prev, p]));
     s.on('roster:leave', ({ participantId }: { participantId: string }) => { setRoster((prev) => prev.filter((x) => x.participantId !== participantId)); setRaised((prev) => { const m = new Map(prev); m.delete(participantId); return m; }); });
     // 발표권 변경: roster 역할 갱신 + 내가 대상이면 역할 반영하고 서버 ctx 재동기화(그래야 판서 허용).
@@ -190,7 +239,7 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
   function finalizeStroke() {
     const st = drawingRef.current; drawingRef.current = null;
     if (!st || st.points.length === 0) { pendingRef.current = []; return; }
-    strokesRef.current.push(st); redraw();
+    strokesRef.current.push(st); redraw(); setCanUndo(true);
     sockRef.current?.emit('wb:stroke', { stroke: st, sid: sidRef.current }); pendingRef.current = []; scheduleAutosave();
   }
   function rejected(e: React.PointerEvent) { if (e.pointerType === 'pen') penSeenRef.current = true; return penSeenRef.current && e.pointerType === 'touch'; }
@@ -205,10 +254,14 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
     if (isViewer) return; // 강의 모드 학생 → 열람 전용(줌/팬은 위 2손가락 분기에서 허용)
     if (rejected(e)) return;
     const p0 = pt(e);
+    sidRef.current = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+    if (tool === 'laser') { // 레이저는 확정 스트로크가 아님 — 궤적만 그리고 방송(저장·되돌리기 대상 아님).
+      laserPendingRef.current = []; laserFlushRef.current = 0; addLaser('me', p0.x, p0.y); laserPendingRef.current.push(p0); flushLaser(); requestPaint(); return;
+    }
     drawingRef.current = tool === 'eraser' ? { points: [p0], color: '#000', width: Math.max(16, width * 4), erase: true }
       : tool === 'highlighter' ? { points: [p0], color, width: Math.max(14, width * 4), highlight: true }
         : { points: [p0], color, width };
-    sidRef.current = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`; pendingRef.current = [p0]; lastFlushRef.current = 0; requestPaint();
+    pendingRef.current = [p0]; lastFlushRef.current = 0; requestPaint();
   }
   function move(e: React.PointerEvent) {
     if (pointersRef.current.has(e.pointerId)) pointersRef.current.set(e.pointerId, canvasSpace(e));
@@ -219,6 +272,12 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
       v.scale = pin.view.scale * k; v.tx = midCx - (pin.midCx - pin.view.tx) * k; v.ty = midCy - (pin.midCy - pin.view.ty) * k;
       clampView(); setZoomPct(Math.round(v.scale * 100)); redraw(); return;
     }
+    if (tool === 'laser') {
+      if (!sidRef.current || pointersRef.current.size >= 2 || status !== 'ready' || !rw || isViewer) return;
+      const p = pt(e); addLaser('me', p.x, p.y); laserPendingRef.current.push(p); requestPaint();
+      const nowL = Date.now(); if (nowL - laserFlushRef.current >= 50) { laserFlushRef.current = nowL; flushLaser(); }
+      return;
+    }
     if (!drawingRef.current || rejected(e)) return;
     const ne = e.nativeEvent;
     const coalesced = typeof ne.getCoalescedEvents === 'function' ? ne.getCoalescedEvents() : [];
@@ -227,8 +286,21 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
     requestPaint();
     const now = Date.now(); if (now - lastFlushRef.current >= 50) { lastFlushRef.current = now; flushPartial(); }
   }
-  function up(e: React.PointerEvent) { pointersRef.current.delete(e.pointerId); if (pointersRef.current.size < 2) pinchRef.current = null; finalizeStroke(); }
-  function clear() { strokesRef.current = []; loadBg(null); redraw(); sockRef.current?.emit('wb:clear'); sockRef.current?.emit('wb:image', { fileUrl: null }); scheduleAutosave(); }
+  function up(e: React.PointerEvent) {
+    pointersRef.current.delete(e.pointerId); if (pointersRef.current.size < 2) pinchRef.current = null;
+    if (tool === 'laser') { flushLaser(); sidRef.current = ''; return; }
+    finalizeStroke();
+  }
+  // 되돌리기 — 마지막 확정 스트로크 제거 후 전체 집합 재동기화(순서 무관, 상대와 일치 보장).
+  function undo() {
+    if (strokesRef.current.length === 0) return;
+    strokesRef.current = strokesRef.current.slice(0, -1); liveRef.current.clear(); redraw(); setCanUndo(strokesRef.current.length > 0);
+    sockRef.current?.emit('wb:sync', { strokes: strokesRef.current }); scheduleAutosave();
+  }
+  // 필기만 지우기 — 배경 이미지는 유지.
+  function clearInk() { strokesRef.current = []; liveRef.current.clear(); redraw(); setCanUndo(false); sockRef.current?.emit('wb:clear'); scheduleAutosave(); }
+  // 배경까지 모두 지우기 — 필기 + 배경 이미지 제거.
+  function clearAll() { strokesRef.current = []; liveRef.current.clear(); loadBg(null); redraw(); setCanUndo(false); sockRef.current?.emit('wb:clear'); sockRef.current?.emit('wb:image', { fileUrl: null }); scheduleAutosave(); }
   function save() { if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; } setSaveState('saving'); sockRef.current?.emit('wb:save', { strokes: strokesRef.current, backgroundUrl: bgUrlRef.current }, () => setSaveState('saved')); }
 
   /** 이미지 → 룸 서비스 업로드 → fileUrl 배경. */
@@ -280,13 +352,15 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
                 </span>
               )}
               {!isViewer && (<>
-                {COLORS.map((c) => (
-                  <button key={c} onClick={() => { setColor(c); setTool((t) => (t === 'eraser' ? 'pen' : t)); }} title={c} aria-label={`색상 ${c}`} aria-pressed={color === c && tool !== 'eraser'} style={{ width: 24, height: 24, borderRadius: '50%', background: c, cursor: 'pointer', border: color === c && tool !== 'eraser' ? '3px solid var(--teal)' : '2px solid var(--line)' }} />
-                ))}
+                {COLORS.map((c) => {
+                  const active = color === c && (tool === 'pen' || tool === 'highlighter');
+                  return <button key={c} onClick={() => { setColor(c); setTool((t) => (t === 'pen' || t === 'highlighter' ? t : 'pen')); }} title={c} aria-label={`색상 ${c}`} aria-pressed={active} style={{ width: 24, height: 24, borderRadius: '50%', background: c, cursor: 'pointer', border: active ? '3px solid var(--teal)' : '2px solid var(--line)' }} />;
+                })}
                 {[2, 3, 6, 10].map((w) => (<button key={w} onClick={() => setWidth(w)} style={{ width: 28, height: 26, borderRadius: 6, cursor: 'pointer', border: width === w ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontWeight: 700, fontSize: 12 }}>{w}</button>))}
                 <button onClick={() => setTool('pen')} aria-pressed={tool === 'pen'} title="펜" style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'pen' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>✏️</button>
                 <button onClick={() => setTool('highlighter')} aria-pressed={tool === 'highlighter'} title="형광펜" style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'highlighter' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>🖍</button>
-                <button onClick={() => setTool('eraser')} aria-pressed={tool === 'eraser'} title="지우개" style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'eraser' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>🧽</button>
+                <button onClick={() => setTool('eraser')} aria-pressed={tool === 'eraser'} title="지우개(영역만큼 지움)" style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'eraser' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>🧽</button>
+                <button onClick={() => setTool('laser')} aria-pressed={tool === 'laser'} title="레이저 포인터(잠시 후 사라짐)" style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'laser' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>🔦</button>
                 <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
                 <input ref={fileRef} type="file" accept="application/pdf,image/*" hidden onChange={onAttach} />
                 <button className="btn ghost sm" disabled={!rw} onClick={() => fileRef.current?.click()}>🖼 이미지</button>
@@ -303,7 +377,9 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
                 <span style={{ fontSize: 12, color: 'var(--muted)' }}>👁 선생님 판서를 실시간으로 봅니다</span>
               </>) : (<>
                 <span style={{ fontSize: 11, color: 'var(--muted)' }}>{saveState === 'saving' ? '저장 중…' : saveState === 'saved' ? '자동 저장됨 ✓' : saveState === 'dirty' ? '변경됨' : ''}</span>
-                <button className="btn ghost sm" disabled={!rw} onClick={clear}>전체 지우기</button>
+                <button className="btn ghost sm" disabled={!rw || !canUndo} onClick={undo} title="마지막 필기 되돌리기">↶ 되돌리기</button>
+                <button className="btn ghost sm" disabled={!rw} onClick={clearInk} title="필기만 지우기(배경 유지)">필기 지우기</button>
+                <button className="btn ghost sm" disabled={!rw} onClick={clearAll} title="배경까지 모두 지우기">배경까지</button>
                 <button className="btn sm" disabled={!rw} onClick={save}>저장</button>
               </>)}
             </div>
