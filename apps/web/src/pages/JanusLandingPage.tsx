@@ -111,6 +111,15 @@ export function JanusLandingPage() {
   const nSlides = 3;
   const nav = (d: number) => setSlide((s) => (s + d + nSlides) % nSlides);
 
+  // 히어로 자동 전환(6초) — 입력·검색 중이거나 모션 최소화 설정이면 정지.
+  //  slide 를 deps 에 넣어 수동 이동 직후에도 6초 뒤부터 다시 흐르게 한다.
+  useEffect(() => {
+    if (q || result || busy) return; // 사용자가 입력/검색 중이면 자동전환 멈춤(방해 금지)
+    if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    const t = setInterval(() => setSlide((s) => (s + 1) % nSlides), 6000);
+    return () => clearInterval(t);
+  }, [q, result, busy, slide]);
+
   const gnbLink = (label: string, to: string, bold = false) => (
     <Link to={to} style={{ display: 'inline-flex', alignItems: 'center', fontSize: 15.5, fontWeight: bold ? 700 : 600, color: bold ? 'var(--ink)' : 'var(--ink-body)', padding: '8px 12px', borderRadius: 8, whiteSpace: 'nowrap', textDecoration: 'none' }}>{label}</Link>
   );
