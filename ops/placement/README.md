@@ -23,8 +23,11 @@
 
 - **빌드**: `python3 ops/placement/tier_build.py --src <마스터.html> --all --out dist-tier`
   - `--tier free` 로 무료판만도 가능. 산출은 `dist-tier/{tier}/` (전부 gitignore — 무료판은 janus-public `/baechi/` 로 배포, repo 커밋 금지).
-- **무료판 검증(배포 전 필수)**: `python3 ops/placement/tier_verify.py dist-tier/free`
-  - `tiers.config.json`의 `verify.forbidden`(원천 파일명·컷 스키마/수치) 검출 시 **비-0 종료** → 배포 차단. 워터마크·티어 플래그 존재도 확인. **실행계획서 W2 D1 ✅기준(원본 컷·표본 데이터 물리적 부재 grep 증빙) 자동화.**
+- **티어별 검증**: `python3 ops/placement/tier_verify.py dist-tier/<tier> --tier <tier>`
+  - `tiers.config.json`의 `verify.tiers[tier].forbidden` 검출 시 **비-0 종료**. 워터마크·티어 플래그 존재도 확인.
+  - **무료판**(`--tier free`): 저작권 원천·컷 + 상위(회원/유료/컨설턴트) 전용 **전부 부재** → 공개 배포 가능(W2 D1 ✅기준 자동화, janus-public `/baechi/`).
+  - **회원판**(`--tier member`): 상위(유료/컨설턴트) 전용만 부재 — **회원 데이터는 정상 보유**. 회원판은 **공개 배포 대상이 아님**(무료 기준으로 검증하면 실패=정상). `JANUS_DATA_DIR/placement-hub/` 에 두고 **허브 티켓 게이트(C2·회원 티어)** 뒤에서만 서빙한다.
+  - 합성 픽스처 4종 전부 자기 티어 검증 통과 + 회원판을 free 기준으로 보면 실패(공개불가 확인) — E2E 실증됨.
 - **파이프라인이 하는 일**: ①티어 게이트 영역 마스킹(마스터가 `<!--JANUS-TIER:member-->…<!--/JANUS-TIER-->` 로 감싼 상위-티어 데이터를 하위 판에서 물리 제거) ②지정 페이로드 제거(`tiers.config.json`의 `strip_assignments` — 센티넬 없는 기존 마스터용 폴백) ③FLAGS 주입(`window.__JANUS_FLAGS` — 마스터 JS 가 전체표·필터·고급·수치노출 게이팅) ④워터마크+면책 배너 전 화면 ⑤무료판 접속 로그 비콘(page `baechi`, C3).
 - **마스터 준비(권장)**: 상위-티어 전용 데이터/UI 를 `<!--JANUS-TIER:LEVEL-->…<!--/JANUS-TIER-->`(LEVEL=member|paid|consultant)로 감싸 두면 티어 분리가 깔끔하다. 대형 데이터 배열은 `const __JANUS_CUTS__=…`처럼 이름을 `strip_assignments`에 등록하면 무료판에서 값이 `[]`/`{}`로 비워진다.
 - **합성 테스트**: `ops/placement/fixtures/master_sample.html`(가짜 데이터·저작권 없음)로 빌드→검증 E2E 가 통과한다(무료판 통과·회원판은 데이터 보유로 검증 실패=공개 불가 확인). 실제 마스터는 이 픽스처 자리에 로컬 경로만 바꿔 물린다.

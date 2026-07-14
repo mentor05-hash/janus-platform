@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
-"""무료판 배포 전 검증 — 저작권 원천·컷 수치가 물리적으로 부재함을 grep 으로 증빙(접합계약 C4/C6, 실행계획서 W2 D1 ✅기준).
+"""티어별 산출 검증 — 티어에 맞지 않는 데이터가 물리적으로 부재함을 grep 으로 증빙(접합계약 C4/C6).
 
-검사:
-  1) config.verify.forbidden 패턴이 하나라도 있으면 실패(저작권 페이로드·컷·내부표식 노출).
-  2) config.verify.required_free 표식(워터마크·티어 플래그)이 모두 있어야 통과(면책·게이트 고지).
+검사(config.verify.tiers[tier]):
+  1) forbidden 패턴이 하나라도 있으면 실패.
+     · free : 저작권 원천·컷 수치 + 상위(회원/유료/컨설턴트) 전용 전부 부재(공개판·W2 D1 ✅기준).
+     · member: 상위(유료/컨설턴트) 전용만 부재 — 회원 데이터는 정상 보유(비공개 게이트 뒤).
+  2) required 표식(워터마크·티어 플래그)이 모두 있어야 통과.
 하나라도 실패하면 비-0 종료 → 배포 파이프라인/CI 에서 자동 차단.
 
-사용: python3 ops/placement/tier_verify.py <파일 또는 디렉토리> [--tier free] [--config ...]
+사용: python3 ops/placement/tier_verify.py <파일 또는 디렉토리> [--tier free|member|paid|consultant] [--config ...]
 """
 import argparse, json, os, sys
 
@@ -32,8 +34,17 @@ def main():
     with open(a.config, encoding='utf-8') as f:
         cfg = json.load(f)
     vcfg = cfg['verify']
-    forbidden = vcfg['forbidden']
-    required = vcfg.get('required_free', []) if a.tier == 'free' else []
+    tiers = vcfg.get('tiers')
+    if tiers is not None:
+        tconf = tiers.get(a.tier)
+        if tconf is None:
+            print('!! 알 수 없는 티어:', a.tier, file=sys.stderr)
+            sys.exit(2)
+        forbidden = tconf.get('forbidden', [])
+        required = tconf.get('required', [])
+    else:  # 구 스키마 호환
+        forbidden = vcfg.get('forbidden', [])
+        required = vcfg.get('required_free', []) if a.tier == 'free' else []
 
     files = list(iter_html(a.target))
     if not files:
@@ -59,7 +70,8 @@ def main():
                 print('  ❌ 필수 표식 누락: "%s"' % req)
                 ok = False
 
-    print('\n결과:', '✅ 통과 — 배포 가능(저작권 부재·면책 고지 확인)' if ok else '❌ 실패 — 배포 금지')
+    ptext = '공개 배포 가능(저작권·상위티어 부재)' if a.tier == 'free' else f'{a.tier} 판 정합(상위티어 데이터 부재)'
+    print('\n결과:', f'✅ 통과 — {ptext}' if ok else '❌ 실패 — 부적합')
     sys.exit(0 if ok else 1)
 
 
