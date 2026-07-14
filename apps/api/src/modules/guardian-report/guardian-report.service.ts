@@ -13,19 +13,6 @@ import { buildParentReport, type ParentReport, type ParentReportConsult, type Pa
 export class GuardianReportService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** 연결된 자녀 목록(선택 UI 용). */
-  async children(guardian: AuthUser) {
-    if (guardian.role !== AccountRole.GUARDIAN) throw new ForbiddenException('학부모만 사용할 수 있습니다.');
-    const links = await this.prisma.guardian_student_link.findMany({ where: { guardian_id: guardian.id } });
-    if (links.length === 0) return { children: [] as Array<{ id: string; name: string }> };
-    const accounts = await this.prisma.account.findMany({
-      where: { id: { in: links.map((l) => l.student_id) } },
-      select: { id: true, name: true },
-    });
-    const nameOf = new Map(accounts.map((a) => [a.id, a.name]));
-    return { children: links.map((l) => ({ id: l.student_id, name: nameOf.get(l.student_id) ?? '자녀' })) };
-  }
-
   private async assertLinked(guardian: AuthUser, studentId: string) {
     if (guardian.role !== AccountRole.GUARDIAN) throw new ForbiddenException('학부모만 사용할 수 있습니다.');
     const link = await this.prisma.guardian_student_link.findFirst({ where: { guardian_id: guardian.id, student_id: studentId } });

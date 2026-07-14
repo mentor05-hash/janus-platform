@@ -5,7 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import { JanusLogo } from '../components/JanusLogo';
 
 /** 학부모 주간 통합 리포트 — 자녀 성적·출석·상담·Q&A 요약(야누스에서만 생성). */
-type Child = { id: string; name: string };
+type Child = { studentId: string; name: string }; // GET /guardian/children(people) 형태의 부분집합
 type Report = {
   kind: string; version: string;
   student: { name: string };
@@ -31,8 +31,8 @@ export function GuardianReportPage() {
 
   useEffect(() => {
     if (!user || user.role !== 'guardian') return;
-    api.get<{ children: Child[] }>('/guardian/children')
-      .then((r) => { setChildren(r.children); if (r.children[0]) setSel(r.children[0].id); })
+    api.get<Child[]>('/guardian/children')
+      .then((cs) => { setChildren(cs); if (cs[0]) setSel(cs[0].studentId); })
       .catch(() => setChildren([]));
   }, [user]);
 
@@ -71,7 +71,7 @@ export function GuardianReportPage() {
       {children && children.length > 1 && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
           {children.map((c) => (
-            <button key={c.id} onClick={() => setSel(c.id)} className={sel === c.id ? 'btn sm' : 'btn ghost sm'}>{c.name}</button>
+            <button key={c.studentId} onClick={() => setSel(c.studentId)} className={sel === c.studentId ? 'btn sm' : 'btn ghost sm'}>{c.name}</button>
           ))}
         </div>
       )}

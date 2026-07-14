@@ -11,6 +11,17 @@ const DKST = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString('k
 
 type Props = { children: Child[]; activeId: string | null; setActiveId: (id: string) => void; goTab?: (t: string) => void };
 
+/** 학부모 주간 통합 리포트(GET /guardian/report) — 성적·출석·상담·Q&A 요약. */
+type WeeklyReport = {
+  headline: string;
+  sections: {
+    score: { nb?: number; label: string } | null;
+    attendance: { done: number; upcoming: number; noshow: number; cancelled: number; rate: number | null; label: string };
+    consultation: { count: number };
+    qna: { count: number };
+  };
+};
+
 function KidSwitcher({ children, activeId, setActiveId }: Props) {
   const { C } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
@@ -44,10 +55,15 @@ export function GuardianHome({ children, activeId, setActiveId, goTab }: Props) 
   useEffect(() => { api.get<PaymentRequest[]>('/payment-requests').then((r) => setReqs(Array.isArray(r) ? r : [])).catch(() => {}); }, []);
   useEffect(() => { api.get<{ showTrend: boolean; showPlacement: boolean }>('/me/scores/access').then(setAccess).catch(() => setAccess({ showTrend: false, showPlacement: false })); }, []);
   const child0 = activeId ?? children[0]?.studentId ?? null;
+  const [report, setReport] = useState<WeeklyReport | null>(null);
   useEffect(() => {
     if (!access?.showTrend || !child0) { setTrend(null); return; }
     api.get<Trend>(`/guardian/scores/trend?studentId=${child0}`).then(setTrend).catch(() => setTrend(null));
   }, [access, child0]);
+  useEffect(() => {
+    if (!child0) { setReport(null); return; }
+    api.get<WeeklyReport>(`/guardian/report?studentId=${child0}`).then(setReport).catch(() => setReport(null));
+  }, [child0]);
   const open = reqs.filter((r) => r.status === 'open');
   const nameOf = (sid: string) => children.find((c) => c.studentId === sid)?.name ?? '자녀';
 
@@ -61,6 +77,21 @@ export function GuardianHome({ children, activeId, setActiveId, goTab }: Props) 
           <Text style={s.reqT}>💳 결제요청 {open.length}건</Text>
           <Text style={s.sub}>{nameOf(open[0].student_id)} · 크레딧이 부족해요 · 탭하여 응답</Text>
         </TouchableOpacity>
+      )}
+
+      {/* 주간 통합 리포트 요약 */}
+      {report && (
+        <View style={[ui.card, { marginBottom: 8 }]}>
+          <Text style={s.sec}>이번 주 요약</Text>
+          <Text style={{ color: C.ink, fontWeight: '700', fontSize: 14, lineHeight: 20, marginBottom: 10 }}>{report.headline}</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+            {report.sections.attendance.rate != null && <View style={s.rChip}><Text style={s.rChipT}>출석 {report.sections.attendance.rate}%</Text></View>}
+            <View style={s.rChip}><Text style={s.rChipT}>세션 {report.sections.attendance.done}회</Text></View>
+            <View style={s.rChip}><Text style={s.rChipT}>상담 {report.sections.consultation.count}건</Text></View>
+            <View style={s.rChip}><Text style={s.rChipT}>Q&A {report.sections.qna.count}건</Text></View>
+            {report.sections.score?.nb != null && <View style={s.rChip}><Text style={s.rChipT}>누백 {report.sections.score.nb}%</Text></View>}
+          </View>
+        </View>
       )}
 
       {/* 멤버십 업셀 배너 */}
@@ -384,6 +415,8 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   badgeT: { color: C.white, fontSize: 10, fontWeight: '800' },
   bal: { fontSize: 22, fontWeight: '800', color: C.ink, fontVariant: ['tabular-nums'] },
   statusChip: { fontSize: 11, fontWeight: '700', color: C.confirmed, backgroundColor: C.confirmedBg, borderRadius: R.sm, paddingHorizontal: 8, paddingVertical: 3 },
+  rChip: { backgroundColor: C.fill, borderRadius: R.sm, paddingHorizontal: 10, paddingVertical: 5 },
+  rChipT: { fontSize: 12, fontWeight: '700', color: C.ink },
   policy: { fontSize: 12, color: C.muted, backgroundColor: C.lineSoft, borderRadius: 10, padding: 10, lineHeight: 17, marginBottom: 4 },
   tl: { borderLeftWidth: 2, borderLeftColor: C.line, marginLeft: 6, paddingLeft: 16, paddingBottom: 16, position: 'relative' },
   tlDot: { position: 'absolute', left: -6, top: 3, width: 10, height: 10, borderRadius: 5, backgroundColor: C.teal500 },

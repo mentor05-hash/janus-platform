@@ -38,5 +38,10 @@ INSERT INTO public.subscription_plan (id, name, price, billing_cycle, payer, gra
 INSERT INTO public.subscription_plan (id, name, price, billing_cycle, payer, grade_id) VALUES ('00000000-0000-4000-8000-0000000000b3', 'Premium 월간', 89000, 'monthly', 'guardian', '00000000-0000-4000-8000-0000000000f3');
 INSERT INTO public.subscription_plan (id, name, price, billing_cycle, payer, grade_id) VALUES ('00000000-0000-4000-8000-0000000000b4', 'VIP 월간', 149000, 'monthly', 'guardian', '00000000-0000-4000-8000-0000000000f4');
 INSERT INTO public.work_schedule (id, teacher_id, recurring_template, weekly_overrides, week_plans, pre_book_horizon_days) VALUES ('549ebdf4-70b5-4835-89d1-c786ee3b4d9b', '00000000-0000-4000-8000-0000000000a2', '{"0": [{"end": "18:00", "start": "09:00"}], "1": [{"end": "18:00", "start": "09:00"}], "2": [{"end": "18:00", "start": "09:00"}], "3": [{"end": "18:00", "start": "09:00"}], "4": [{"end": "18:00", "start": "09:00"}], "5": [{"end": "18:00", "start": "09:00"}], "6": [{"end": "18:00", "start": "09:00"}]}', '[]', '[]', 30);
+-- 데모: 학부모(guardian01) ↔ 자녀(student01) 연결 — 학부모 화면/리포트에 데이터가 보이도록.
+INSERT INTO public.guardian_student_link (id, guardian_id, student_id, relation, status, link_method)
+VALUES ('00000000-0000-4000-8000-0000000000e1', '00000000-0000-4000-8000-0000000000a5', '00000000-0000-4000-8000-0000000000a1', '부모', 'approved', 'seed')
+ON CONFLICT (guardian_id, student_id) DO NOTHING;
+
 SET session_replication_role = origin;
 COMMIT;
