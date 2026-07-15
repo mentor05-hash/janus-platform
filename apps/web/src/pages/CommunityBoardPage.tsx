@@ -18,8 +18,16 @@ type Detail = {
   isOwner: boolean; aiDraft: string | null; createdAt: string; answers: Answer[];
 };
 
+type TierRule = { minAuthored: number; minAccepted: number; minRate: number };
+type MyLeague = {
+  tier: number; label: string; authored: number; accepted: number; acceptRate: number;
+  next: { tier: number; label: string; rule: TierRule } | null;
+};
+type LeaderRow = { tier: number; label: string; name: string; role: string | null; accepted: number; authored: number; acceptRate: number };
+
 const fmtDate = (s: string) => { const d = new Date(s); return `${d.getMonth() + 1}/${d.getDate()}`; };
 const DIFFS = ['', '하', '중', '상', '최상'];
+const tierColor = (t: number) => (t === 1 ? '#d97706' : t === 2 ? '#2563eb' : 'var(--muted)');
 const roleLabel = (r: string | null) => (r === 'teacher' ? '선생님' : r === 'student' ? '학생' : r === 'guardian' ? '학부모' : r ?? '');
 
 export function CommunityBoardPage() {
@@ -72,6 +80,7 @@ export function CommunityBoardPage() {
       <PageHeader title="커뮤니티 게시판" sub="무료 공개 질문 — 누구나(학생 포함) 답변할 수 있어요. AI 1차 초안이 함께 제공돼요." />
       <ErrorText>{error}</ErrorText>
       {msg && <div style={{ fontSize: 13, color: 'var(--brand)', marginBottom: 8 }}>{msg}</div>}
+      <LeaguePanel />
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
         {user?.role === 'student' && (
@@ -213,5 +222,56 @@ function CommunityDetail({ postId, onBack, onReport }: {
       )}
       {d.isOwner && !closed && <div style={{ fontSize: 13, color: 'var(--caption)', marginTop: 12 }}>본인 질문에는 답변할 수 없어요. 마음에 드는 답변을 채택해 주세요.</div>}
     </div>
+  );
+}
+
+// 리그(3부→2부→1부) — 내 등급·진행도 + 상위 리더보드.
+function LeaguePanel() {
+  const [me, setMe] = useState<MyLeague | null>(null);
+  const [board, setBoard] = useState<LeaderRow[] | null>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    api.get<MyLeague>('/qna/league/me').then(setMe).catch(() => { /* 무시 */ });
+    api.get<LeaderRow[]>('/qna/league/leaderboard').then(setBoard).catch(() => { /* 무시 */ });
+  }, []);
+
+  if (!me) return null;
+  const need = me.next?.rule;
+  return (
+    <Card style={{ marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 15, fontWeight: 800, color: tierColor(me.tier) }}>🏅 {me.label}</span>
+        <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>답변 {me.authored} · 채택 {me.accepted} · 채택률 {me.acceptRate}%</span>
+        <button onClick={() => setOpen((v) => !v)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--brand)', cursor: 'pointer', fontSize: 12.5 }}>
+          리더보드 {open ? '접기' : '보기'}
+        </button>
+      </div>
+      {me.next && need && (
+        <div style={{ marginTop: 8, fontSize: 12.5, color: 'var(--muted)' }}>
+          다음 <b style={{ color: tierColor(me.next.tier) }}>{me.next.label}</b>까지 —
+          채택 <b>{me.accepted}/{need.minAccepted}</b> · 답변 <b>{me.authored}/{need.minAuthored}</b> · 채택률 <b>{me.acceptRate}/{need.minRate}%</b>
+        </div>
+      )}
+      {!me.next && <div style={{ marginTop: 8, fontSize: 12.5, color: 'var(--muted)' }}>최고 등급이에요. 커뮤니티의 든든한 답변자!</div>}
+      {open && (
+        <div style={{ marginTop: 12, borderTop: '1px solid var(--line-soft)', paddingTop: 10 }}>
+          {board === null || board.length === 0 ? (
+            <div style={{ fontSize: 12.5, color: 'var(--caption)' }}>아직 승급자가 없어요. 답변으로 첫 승급을 노려보세요.</div>
+          ) : (
+            <div style={{ display: 'grid', gap: 6 }}>
+              {board.map((r, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                  <span style={{ width: 20, color: 'var(--caption)', fontFamily: 'var(--j-font-mono)' }}>{i + 1}</span>
+                  <span style={{ fontWeight: 700, color: 'var(--ink)' }}>{r.name}</span>
+                  <Badge kind="soft">{r.label}</Badge>
+                  <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--muted)' }}>채택 {r.accepted} · {r.acceptRate}%</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
   );
 }

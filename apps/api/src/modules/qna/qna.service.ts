@@ -26,6 +26,7 @@ import { canAnswerQuestion, QnaScope } from './domain/qna';
 import { computeSla } from './domain/qna-sla';
 import { pickAssignee } from './domain/qna-assign';
 import { COMMUNITY_DAILY_LIMIT, aiUnlabeled, canAnswerCommunity, shouldHide, withinDailyLimit } from './domain/qna-community';
+import { DEFAULT_LEAGUE_POLICY, TIER_LABEL, evaluateLeague, nextTierNeed, type LeaguePolicy } from './domain/qna-league';
 import { CreateAnswerDto, CreateQuestionDto } from './dto/qna.dto';
 import { Inject } from '@nestjs/common';
 import { LLM_PROVIDER } from '../llm/llm.types';
@@ -643,7 +644,8 @@ export class QnaService {
       if (upd.count !== 1) throw new ConflictException('이미 채택/마감된 질문입니다.');
       await tx.qna_community_answer.update({ where: { id: answerId }, data: { accepted: true } });
     });
-    return { id: answerId, accepted: true };
+    const league = await this.evaluateLeagueFor(ans.author_id); // 채택 → 답변자 리그 재평가(승급)
+    return { id: answerId, accepted: true, authorLeague: league.tier, promoted: league.promoted };
   }
 
   /** 신고(로그인 전원) — 대상별 1회, 누적 3건 시 자동 숨김. */
@@ -672,6 +674,78 @@ export class QnaService {
       this.prisma.qna_community_answer.count({ where: { author_id: id, accepted: true } }),
     ]);
     return { authored, accepted, acceptRate: authored ? Math.round((accepted / authored) * 100) : 0 };
+  }
+
+  // ── Q3 리그(3부→2부→1부) ─────────────────────────────────────────────
+  private static readonly LEAGUE_POLICY_KEY = 'qna_league_policy';
+
+  /** 승급 정책값 — system_setting override + 코드 기본값(N27 확정 전). */
+  async getLeaguePolicy(): Promise<LeaguePolicy> {
+    const row = await this.prisma.system_setting.findUnique({ where: { key: QnaService.LEAGUE_POLICY_KEY } });
+    const v = (row?.value ?? null) as Partial<LeaguePolicy> | null;
+    return {
+      promote2: { ...DEFAULT_LEAGUE_POLICY.promote2, ...(v?.promote2 ?? {}) },
+      promote1: { ...DEFAULT_LEAGUE_POLICY.promote1, ...(v?.promote1 ?? {}) },
+    };
+  }
+
+  /** 승급 정책 설정(admin/hr). */
+  async setLeaguePolicy(policy: LeaguePolicy) {
+    await this.prisma.system_setting.upsert({
+      where: { key: QnaService.LEAGUE_POLICY_KEY },
+      create: { key: QnaService.LEAGUE_POLICY_KEY, value: policy as unknown as Prisma.InputJsonValue },
+      update: { value: policy as unknown as Prisma.InputJsonValue },
+    });
+    return this.getLeaguePolicy();
+  }
+
+  /** 한 계정의 실적을 재평가해 qna_league 갱신(승급 시 promoted_at·플래그). */
+  async evaluateLeagueFor(accountId: string): Promise<{ tier: number; promoted: boolean; authored: number; accepted: number; acceptRate: number }> {
+    const stats = await this.communityStatsRaw(accountId);
+    const policy = await this.getLeaguePolicy();
+    const tier = evaluateLeague(stats, policy);
+    const prev = await this.prisma.qna_league.findUnique({ where: { account_id: accountId } });
+    const promoted = tier < (prev?.tier ?? 3); // 낮을수록 상위
+    await this.prisma.qna_league.upsert({
+      where: { account_id: accountId },
+      create: { account_id: accountId, tier, authored: stats.authored, accepted: stats.accepted, accept_rate: stats.acceptRate, promoted_at: tier < 3 ? new Date() : null },
+      update: { tier, authored: stats.authored, accepted: stats.accepted, accept_rate: stats.acceptRate, evaluated_at: new Date(), ...(promoted ? { promoted_at: new Date() } : {}) },
+    });
+    return { tier, promoted, ...stats };
+  }
+
+  /** 실적 집계(내부) — communityStats 재사용용. */
+  private async communityStatsRaw(accountId: string): Promise<{ authored: number; accepted: number; acceptRate: number }> {
+    const [authored, accepted] = await Promise.all([
+      this.prisma.qna_community_answer.count({ where: { author_id: accountId, hidden: false } }),
+      this.prisma.qna_community_answer.count({ where: { author_id: accountId, accepted: true } }),
+    ]);
+    return { authored, accepted, acceptRate: authored ? Math.round((accepted / authored) * 100) : 0 };
+  }
+
+  /** 내 리그 현황 — 등급·라벨·다음 등급 요건·진행도(로그인 전원). */
+  async myLeague(user: AuthUser) {
+    const cur = await this.evaluateLeagueFor(user.id);
+    const policy = await this.getLeaguePolicy();
+    const next = nextTierNeed(cur.tier, policy);
+    return {
+      tier: cur.tier, label: TIER_LABEL[cur.tier], authored: cur.authored, accepted: cur.accepted, acceptRate: cur.acceptRate,
+      next: next ? { tier: next.tier, label: TIER_LABEL[next.tier], rule: next.rule } : null,
+    };
+  }
+
+  /** 리그 리더보드 — 상위 등급·채택수 순(로그인 전원). */
+  async leaderboard(limit = 20) {
+    const rows = await this.prisma.qna_league.findMany({
+      where: { tier: { lt: 3 } }, orderBy: [{ tier: 'asc' }, { accepted: 'desc' }], take: Math.min(50, Math.max(1, limit)),
+    });
+    const ids = rows.map((r) => r.account_id);
+    const accounts = ids.length ? await this.prisma.account.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, role: true } }) : [];
+    const info = new Map(accounts.map((a) => [a.id, a]));
+    return rows.map((r) => ({
+      tier: r.tier, label: TIER_LABEL[r.tier], name: info.get(r.account_id)?.name ?? '익명',
+      role: info.get(r.account_id)?.role ?? null, accepted: r.accepted, authored: r.authored, acceptRate: r.accept_rate,
+    }));
   }
 
   /** Q3 AI 1차 초안 생성(비동기·일일 비용상한·실패 무해) → qna_post.ai_draft 저장. */

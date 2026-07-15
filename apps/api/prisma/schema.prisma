@@ -690,6 +690,19 @@ model qna_report {
   @@unique([target_type, target_id, reporter_id])
 }
 
+/** Q3 리그 — 커뮤니티 답변 실적 기반 답변자 등급(3부 기본→2부→1부). 임계값은 system_setting. */
+model qna_league {
+  account_id   String   @id @db.Uuid
+  tier         Int      @default(3) @db.SmallInt
+  authored     Int      @default(0)
+  accepted     Int      @default(0)
+  accept_rate  Int      @default(0)
+  promoted_at  DateTime? @db.Timestamptz(6)
+  evaluated_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([tier, accepted(sort: Desc)])
+}
+
 /** Q1 소프트 블록 — 학생이 특정 선생님에게 질문을 노출/배정하지 않음(선생님 비공지, 학생 해제 가능). */
 model qna_relation_block {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid

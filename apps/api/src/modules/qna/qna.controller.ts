@@ -6,9 +6,11 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
-import { IsBoolean, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsBoolean, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -38,6 +40,15 @@ class QnaReportDto {
   @IsString() targetType!: 'post' | 'answer';
   @IsUUID() targetId!: string;
   @IsOptional() @IsString() @MaxLength(300) reason?: string;
+}
+class TierRuleDto {
+  @IsInt() @Min(0) minAuthored!: number;
+  @IsInt() @Min(0) minAccepted!: number;
+  @IsInt() @Min(0) @Max(100) minRate!: number;
+}
+class LeaguePolicyDto {
+  @ValidateNested() @Type(() => TierRuleDto) promote2!: TierRuleDto;
+  @ValidateNested() @Type(() => TierRuleDto) promote1!: TierRuleDto;
 }
 
 @Controller('qna')
@@ -187,5 +198,32 @@ export class QnaController {
   @Post('report')
   report(@Body() dto: QnaReportDto, @CurrentUser() user: AuthUser) {
     return this.qna.reportContent(user, dto);
+  }
+
+  // ── Q3 리그(3부→2부→1부) ─────────────────────────────────────────────
+  /** GET /qna/league/me — 내 리그 등급·진행도(로그인 전원). */
+  @Get('league/me')
+  leagueMe(@CurrentUser() user: AuthUser) {
+    return this.qna.myLeague(user);
+  }
+
+  /** GET /qna/league/leaderboard — 상위 리그 리더보드(로그인 전원). */
+  @Get('league/leaderboard')
+  leaderboard() {
+    return this.qna.leaderboard();
+  }
+
+  /** GET /qna/league/policy — 승급 정책값(admin/hr). */
+  @Get('league/policy')
+  @Roles('admin', 'hr')
+  leaguePolicy() {
+    return this.qna.getLeaguePolicy();
+  }
+
+  /** PUT /qna/league/policy — 승급 정책 설정(admin/hr·N27 조정). */
+  @Put('league/policy')
+  @Roles('admin', 'hr')
+  setLeaguePolicy(@Body() dto: LeaguePolicyDto) {
+    return this.qna.setLeaguePolicy(dto);
   }
 }
