@@ -41,6 +41,10 @@
 | O67 | 2026-07-15 | **학습 플랜 + 강좌 v1 + 워딩/IA**: (플랜) GET /curriculum/me — 진단 약점+성적 → 우선순위 처방 카드. (강좌) mig 0058 lecture/enrollment + 데모 5강, /lectures·enroll·me, 웹 카탈로그(전체/내 수강·과목필터). (연결) 진단 처방·플랜 → 질문(?subject 프리필)·자료(?subject 필터)·강좌(?subject). (IA) 수준진단→**실력진단**·수능성적입력→**성적진단** 대구, 사이드바 섹션화(진단/배치·성적/학습·상담/내 계정). 배치표 허브·격차를 레이아웃 안(embedded)에서 열어 사이드바 유지 | 사용자 지시(1~8 순차). tsc/build clean |
 | O68 | 2026-07-15 | **알림·검색·모바일·상담 UX**: (알림) 커뮤니티 답변/채택/리그 승급 시 notify(템플릿 3종)→기존 outbox+실시간 토스트, 웹 사이드바 미읽음 뱃지(학생·교사). (검색) 커뮤니티 과목·키워드 검색(listCommunity subject·q). (모바일) 학부모 자녀 상세 리포트(주간요약+성적추이+상담기록 드릴다운). (상담) 신청 완료 화면 막다른길 제거·다음단계 안내·역할별 분기 | API tsc clean(기존5)·web/mobile clean. 실측은 사용자 스택 |
 
+| O69 | 2026-07-15 | **강좌 심화 + 리그 페이지**: 교사 강좌 등록/관리(POST /lectures·mine·active), 강좌 상세/진도(mig 0059 video_url·progress, GET/:id·PATCH/:id/progress, 영상 슬롯+진도바), 리그 리더보드 독립 페이지(/student/league) | tsc/build clean |
+| O70 | 2026-07-15 | **관리자 통계 + 진단 문항 관리 + 검색**: admin-stats(GET /admin/stats/overview — 진단·강좌·커뮤니티 지표), 진단 문항 관리자 CRUD(/admin/diagnostics/questions), 강좌 검색(catalog q), 자료실 검색(기존) | tsc/build clean |
+| O71 | 2026-07-15 | **모바일·UX·품질**: 학부모 모바일 알림 뱃지+최근알림+자녀 컨텍스트, 상담 예약 슬롯 UX(오늘/내일 라벨·미선택 안내), 학생 홈 위젯 집약(진단·플랜·알림 동적), 반응형(<768px 사이드바 가로네비)·접근성(focus-visible·클릭카드 키보드), 학습흐름 통합 E2E | web tsc0·mobile tsc0 |
+
 
 ## 미결 (N) — 결정 대기
 
