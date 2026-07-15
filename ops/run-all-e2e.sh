@@ -22,6 +22,8 @@ SCRIPTS=(
   qna-league-e2e.sh
   score-input-e2e.sh
   diagnostic-e2e.sh
+  clinic-e2e.sh
+  search-e2e.sh
   learning-flow-e2e.sh
 )
 
