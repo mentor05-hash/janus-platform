@@ -20,6 +20,7 @@ const NAV: NavItem[] = [
   { to: '/student/placement/gap', label: '격차 리포트' },
   { to: '/student/scores', label: '내 성적·배치', flag: 'scores', end: true },
   { section: '학습·상담' },
+  { to: '/student/lectures', label: '강좌' },
   { to: '/student/search', label: '선생님 찾기' },
   { to: '/student/bookings', label: '내 예약·상담' },
   { to: '/student/materials', label: '자료실' },

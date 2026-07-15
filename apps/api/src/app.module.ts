@@ -49,6 +49,7 @@ import { SsoModule } from './modules/sso/sso.module';
 import { GuardianReportModule } from './modules/guardian-report/guardian-report.module';
 import { DiagnosticModule } from './modules/diagnostic/diagnostic.module';
 import { CurriculumModule } from './modules/curriculum/curriculum.module';
+import { LectureModule } from './modules/lecture/lecture.module';
 
 @Module({
   imports: [
@@ -99,6 +100,7 @@ import { CurriculumModule } from './modules/curriculum/curriculum.module';
     GuardianReportModule, // 학부모 주간 통합 리포트(W8) — 자녀 성적·출석·상담·Q&A 요약
     DiagnosticModule, // 수준진단(진단 관문) — 문항 풀이→채점→약점→처방(문제은행 데모+후속 kice)
     CurriculumModule, // 주간 학습 플랜 — 진단 약점+성적 → 우선순위 처방 카드
+    LectureModule, // 강좌 v1 — 카탈로그·수강신청(데모 강좌+후속 교사 등록)
   ],
   providers: [
     // 전역 가드: rate limit(§10) → 인증 → 인가 순. @Public() 은 인증 통과, @Roles() 로 역할 제한.

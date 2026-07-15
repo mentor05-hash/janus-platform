@@ -184,11 +184,10 @@ export function DiagnosticPage() {
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       <Link to={`/student/community/board?subject=${encodeURIComponent(p.subject)}`} className="btn sm outline" style={{ textDecoration: 'none' }}>이 과목 질문하기</Link>
                       <Link to={`/student/materials?subject=${encodeURIComponent(p.subject)}`} className="btn sm outline" style={{ textDecoration: 'none' }}>자료 찾기</Link>
-                      <Link to="/student/placement/gap" className="btn sm outline" style={{ textDecoration: 'none' }}>격차 리포트</Link>
+                      <Link to={`/student/lectures?subject=${encodeURIComponent(p.subject)}`} className="btn sm outline" style={{ textDecoration: 'none' }}>강좌 보기</Link>
                     </div>
                   </Card>
                 ))}
-                <p style={{ fontSize: 12, color: 'var(--caption)', marginTop: 2 }}>※ 과목별 강좌·약점 클리닉 연결은 준비 중이에요.</p>
               </div>
             </>
           )}

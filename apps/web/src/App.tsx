@@ -64,6 +64,7 @@ import { StudentScoresPage } from './pages/StudentScoresPage';
 import { StudentScoreInputPage } from './pages/StudentScoreInputPage';
 import { DiagnosticPage } from './pages/DiagnosticPage';
 import { CurriculumPage } from './pages/CurriculumPage';
+import { LecturePage } from './pages/LecturePage';
 import { LegalDocPage } from './pages/LegalDocPage';
 import { LegalPage } from './pages/LegalPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
@@ -196,6 +197,7 @@ export function App() {
         <Route path="scores/input" element={<StudentScoreInputPage />} />
         <Route path="diagnostic" element={<DiagnosticPage />} />
         <Route path="curriculum" element={<CurriculumPage />} />
+        <Route path="lectures" element={<LecturePage />} />
         <Route path="placement/hub" element={<PlacementHubPage embedded />} />
         <Route path="placement/gap" element={<GapReportPage />} />
         <Route path="membership" element={<StudentMembershipPage />} />

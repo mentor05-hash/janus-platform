@@ -1309,3 +1309,30 @@ model diagnostic_response {
 
   @@index([attempt_id])
 }
+
+/** 강좌 v1 — 카탈로그(데모 합성 + 후속 교사 등록). */
+model lecture {
+  id         String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teacher_id String?              @db.Uuid
+  subject    String
+  unit       String?
+  title      String
+  summary    String?
+  level      String?
+  minutes    Int?
+  active     Boolean              @default(true)
+  created_at DateTime             @default(now()) @db.Timestamptz(6)
+  enrollments lecture_enrollment[]
+}
+
+/** 강좌 수강신청 — 학생별 강좌 1회. */
+model lecture_enrollment {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lecture_id String   @db.Uuid
+  student_id String   @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  lecture    lecture  @relation(fields: [lecture_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([lecture_id, student_id])
+  @@index([student_id])
+}

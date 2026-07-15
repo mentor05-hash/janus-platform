@@ -56,7 +56,7 @@ export function CurriculumPage() {
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <Link to={`/student/community/board?subject=${encodeURIComponent(it.subject)}`} className="btn sm outline" style={{ textDecoration: 'none' }}>이 과목 질문하기</Link>
                 <Link to={`/student/materials?subject=${encodeURIComponent(it.subject)}`} className="btn sm outline" style={{ textDecoration: 'none' }}>자료 찾기</Link>
-                <Link to="/student/diagnostic" className="btn sm outline" style={{ textDecoration: 'none' }}>약점 클리닉</Link>
+                <Link to={`/student/lectures?subject=${encodeURIComponent(it.subject)}`} className="btn sm outline" style={{ textDecoration: 'none' }}>강좌 보기</Link>
               </div>
             </Card>
           ))}
