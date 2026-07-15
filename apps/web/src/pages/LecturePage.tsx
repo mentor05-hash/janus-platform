@@ -8,6 +8,7 @@ type Lecture = { id: string; subject: string; unit: string | null; title: string
 const SUBJECTS = ['', '국어', '수학', '영어'];
 
 export function LecturePage() {
+  const [openId, setOpenId] = useState<string | null>(null);
   const [params] = useSearchParams();
   const [subject, setSubject] = useState(() => {
     const s = params.get('subject');
@@ -30,6 +31,8 @@ export function LecturePage() {
     try { await api.post(`/lectures/${id}/enroll`, {}); setMsg('수강신청 완료!'); load(); }
     catch (e) { setError(e instanceof ApiError ? e.message : '신청 실패'); }
   }
+
+  if (openId) return <LectureDetail id={openId} onBack={() => { setOpenId(null); load(); }} />;
 
   return (
     <div>
@@ -59,26 +62,102 @@ export function LecturePage() {
       ) : (
         <div style={{ display: 'grid', gap: 10 }}>
           {list.map((l) => (
-            <Card key={l.id}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
-                <Badge kind="new">{l.subject}</Badge>
-                {l.unit && <Badge kind="soft">{l.unit}</Badge>}
-                {l.level && <Badge kind="soft">{l.level}</Badge>}
-                {l.minutes != null && <span style={{ fontSize: 12, color: 'var(--caption)' }}>{l.minutes}분</span>}
-                {(l.enrolled || tab === 'mine') && <Badge kind="done">수강중</Badge>}
-              </div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)' }}>{l.title}</div>
-              {l.summary && <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4, lineHeight: 1.5 }}>{l.summary}</div>}
-              {tab === 'catalog' && (
-                <div style={{ marginTop: 10 }}>
-                  {l.enrolled
-                    ? <span style={{ fontSize: 13, color: 'var(--brand)' }}>✓ 수강 중</span>
-                    : <Button onClick={() => enroll(l.id)}>수강신청</Button>}
+            <div key={l.id} onClick={() => setOpenId(l.id)} style={{ cursor: 'pointer' }}>
+              <Card>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
+                  <Badge kind="new">{l.subject}</Badge>
+                  {l.unit && <Badge kind="soft">{l.unit}</Badge>}
+                  {l.level && <Badge kind="soft">{l.level}</Badge>}
+                  {l.minutes != null && <span style={{ fontSize: 12, color: 'var(--caption)' }}>{l.minutes}분</span>}
+                  {(l.enrolled || tab === 'mine') && <Badge kind="done">수강중</Badge>}
                 </div>
-              )}
-            </Card>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)' }}>{l.title}</div>
+                {l.summary && <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4, lineHeight: 1.5 }}>{l.summary}</div>}
+                {tab === 'catalog' && (
+                  <div style={{ marginTop: 10 }}>
+                    {l.enrolled
+                      ? <span style={{ fontSize: 13, color: 'var(--brand)' }}>✓ 수강 중 · 눌러서 보기</span>
+                      : <Button onClick={(e) => { e.stopPropagation(); enroll(l.id); }}>수강신청</Button>}
+                  </div>
+                )}
+              </Card>
+            </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+// 강좌 상세 — 영상 슬롯 + 진도(수강 시). 영상 URL 없으면 준비중 플레이스홀더.
+type Detail = { id: string; subject: string; unit: string | null; title: string; summary: string | null; level: string | null; minutes: number | null; videoUrl: string | null; enrolled: boolean; progress: number };
+
+function LectureDetail({ id, onBack }: { id: string; onBack: () => void }) {
+  const [d, setD] = useState<Detail | null>(null);
+  const [error, setError] = useState('');
+  const [msg, setMsg] = useState('');
+
+  const load = useCallback(() => {
+    setD(null);
+    api.get<Detail>(`/lectures/${id}`).then(setD).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
+  }, [id]);
+  useEffect(() => { load(); }, [load]);
+
+  async function enroll() {
+    try { await api.post(`/lectures/${id}/enroll`, {}); setMsg('수강신청 완료!'); load(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : '신청 실패'); }
+  }
+  async function setProgress(p: number) {
+    setError('');
+    try { await api.patch(`/lectures/${id}/progress`, { progress: p }); setMsg(p >= 100 ? '수강 완료!' : '진도 저장됨'); load(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : '진도 저장 실패'); }
+  }
+
+  if (d === null) return <Spinner />;
+
+  return (
+    <div>
+      <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', padding: 0, marginBottom: 12, fontSize: 13 }}>← 강좌 목록</button>
+      <ErrorText>{error}</ErrorText>
+      {msg && <div style={{ fontSize: 13, color: 'var(--brand)', marginBottom: 8 }}>{msg}</div>}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
+        <Badge kind="new">{d.subject}</Badge>
+        {d.unit && <Badge kind="soft">{d.unit}</Badge>}
+        {d.level && <Badge kind="soft">{d.level}</Badge>}
+        {d.minutes != null && <span style={{ fontSize: 12, color: 'var(--caption)' }}>{d.minutes}분</span>}
+      </div>
+      <h2 style={{ fontSize: 20, margin: '0 0 6px', color: 'var(--ink)' }}>{d.title}</h2>
+      {d.summary && <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.6, marginTop: 0 }}>{d.summary}</p>}
+
+      {/* 영상 슬롯 */}
+      <div style={{ aspectRatio: '16 / 9', width: '100%', borderRadius: 12, background: '#0d1626', display: 'grid', placeItems: 'center', color: '#8fb8de', margin: '10px 0 14px' }}>
+        {d.videoUrl
+          ? <video src={d.videoUrl} controls style={{ width: '100%', height: '100%', borderRadius: 12, background: '#000' }} />
+          : <div style={{ textAlign: 'center' }}><div style={{ fontSize: 34 }}>▶</div><div style={{ fontSize: 13, marginTop: 6 }}>영상 준비 중 (데모 강좌)</div></div>}
+      </div>
+
+      {!d.enrolled ? (
+        <Card><div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}><span style={{ fontSize: 14, color: 'var(--ink)' }}>수강신청하면 진도가 저장돼요.</span><Button onClick={enroll}>수강신청</Button></div></Card>
+      ) : (
+        <Card>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>내 진도</span>
+            <span style={{ fontSize: 13, color: d.progress >= 100 ? 'var(--brand)' : 'var(--muted)', marginLeft: 'auto' }}>{d.progress}%{d.progress >= 100 ? ' · 완료' : ''}</span>
+          </div>
+          <div style={{ height: 8, borderRadius: 5, background: 'var(--line-soft)', overflow: 'hidden', marginBottom: 12 }}>
+            <div style={{ width: `${d.progress}%`, height: '100%', background: d.progress >= 100 ? 'var(--brand, #16a34a)' : 'var(--j-blue)' }} />
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {[25, 50, 75, 100].map((p) => (
+              <button key={p} onClick={() => setProgress(p)} style={{
+                fontSize: 12.5, fontWeight: 700, padding: '7px 13px', borderRadius: 8, cursor: 'pointer',
+                border: `1px solid ${d.progress >= p ? 'var(--j-blue)' : 'var(--line-soft)'}`,
+                background: d.progress >= p ? 'var(--j-blue-soft)' : 'transparent', color: d.progress >= p ? 'var(--j-blue)' : 'var(--muted)',
+              }}>{p === 100 ? '완료 표시' : `${p}%`}</button>
+            ))}
+          </div>
+        </Card>
       )}
     </div>
   );

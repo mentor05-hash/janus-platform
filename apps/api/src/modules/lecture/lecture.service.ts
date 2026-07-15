@@ -71,6 +71,26 @@ export class LectureService {
     return { id: lectureId, active };
   }
 
+  /** 강좌 상세 + 내 수강/진도(학생). */
+  async detail(user: AuthUser, lectureId: string) {
+    const l = await this.prisma.lecture.findUnique({ where: { id: lectureId } });
+    if (!l || !l.active) throw new NotFoundException('강좌를 찾을 수 없습니다.');
+    const enr = await this.prisma.lecture_enrollment.findUnique({ where: { lecture_id_student_id: { lecture_id: lectureId, student_id: user.id } } });
+    return {
+      id: l.id, subject: l.subject, unit: l.unit, title: l.title, summary: l.summary, level: l.level, minutes: l.minutes,
+      videoUrl: l.video_url, enrolled: !!enr, progress: enr?.progress ?? 0,
+    };
+  }
+
+  /** 수강 진도 업데이트(학생·수강 중). 0~100. */
+  async updateProgress(user: AuthUser, lectureId: string, progress: number) {
+    const enr = await this.prisma.lecture_enrollment.findUnique({ where: { lecture_id_student_id: { lecture_id: lectureId, student_id: user.id } } });
+    if (!enr) throw new NotFoundException('수강 중인 강좌가 아닙니다.');
+    const p = Math.max(0, Math.min(100, Math.round(progress)));
+    await this.prisma.lecture_enrollment.update({ where: { id: enr.id }, data: { progress: p, last_at: new Date() } });
+    return { id: lectureId, progress: p };
+  }
+
   /** 내 수강 목록(학생). */
   async myEnrollments(user: AuthUser) {
     const rows = await this.prisma.lecture_enrollment.findMany({

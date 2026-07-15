@@ -14,6 +14,7 @@ class CreateLectureDto {
   @IsOptional() @IsInt() @Min(1) @Max(1000) minutes?: number;
 }
 class ActiveDto { @IsBoolean() active!: boolean; }
+class ProgressDto { @IsInt() @Min(0) @Max(100) progress!: number; }
 
 @Controller('lectures')
 export class LectureController {
@@ -59,5 +60,19 @@ export class LectureController {
   @Roles('student')
   enroll(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
     return this.lectures.enroll(user, id);
+  }
+
+  /** PATCH /lectures/:id/progress — 수강 진도 저장(학생). */
+  @Patch(':id/progress')
+  @Roles('student')
+  progress(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ProgressDto, @CurrentUser() user: AuthUser) {
+    return this.lectures.updateProgress(user, id, dto.progress);
+  }
+
+  /** GET /lectures/:id — 강좌 상세+내 진도(학생). 정적 라우트 뒤에 선언. */
+  @Get(':id')
+  @Roles('student')
+  detail(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.lectures.detail(user, id);
   }
 }
