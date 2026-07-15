@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccountRole } from '../../config/enums';
@@ -75,15 +75,44 @@ export class LectureService {
     return { id: lectureId, active };
   }
 
-  /** 강좌 상세 + 내 수강/진도(학생). */
+  /** 강좌 상세 + 내 수강/진도 + 평점(학생). */
   async detail(user: AuthUser, lectureId: string) {
     const l = await this.prisma.lecture.findUnique({ where: { id: lectureId } });
     if (!l || !l.active) throw new NotFoundException('강좌를 찾을 수 없습니다.');
-    const enr = await this.prisma.lecture_enrollment.findUnique({ where: { lecture_id_student_id: { lecture_id: lectureId, student_id: user.id } } });
+    const [enr, ragg, myReview] = await Promise.all([
+      this.prisma.lecture_enrollment.findUnique({ where: { lecture_id_student_id: { lecture_id: lectureId, student_id: user.id } } }),
+      this.prisma.lecture_review.aggregate({ where: { lecture_id: lectureId }, _avg: { rating: true }, _count: { _all: true } }),
+      this.prisma.lecture_review.findUnique({ where: { lecture_id_student_id: { lecture_id: lectureId, student_id: user.id } } }),
+    ]);
     return {
       id: l.id, subject: l.subject, unit: l.unit, title: l.title, summary: l.summary, level: l.level, minutes: l.minutes,
       videoUrl: l.video_url, enrolled: !!enr, progress: enr?.progress ?? 0,
+      rating: ragg._avg.rating ? Math.round(ragg._avg.rating * 10) / 10 : null, reviewCount: ragg._count._all,
+      myRating: myReview?.rating ?? null,
     };
+  }
+
+  /** 후기 목록(공개). */
+  async reviews(lectureId: string) {
+    const rows = await this.prisma.lecture_review.findMany({ where: { lecture_id: lectureId }, orderBy: { created_at: 'desc' }, take: 50 });
+    const ids = [...new Set(rows.map((r) => r.student_id))];
+    const accs = ids.length ? await this.prisma.account.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } }) : [];
+    const nm = new Map(accs.map((a) => [a.id, a.name]));
+    return rows.map((r) => ({ id: r.id, rating: r.rating, text: r.text, name: nm.get(r.student_id) ?? '익명', createdAt: r.created_at }));
+  }
+
+  /** 후기 작성(수강생·진도 있는·강좌별 1회, 재작성 시 갱신). */
+  async review(user: AuthUser, lectureId: string, rating: number, text?: string) {
+    if (user.role !== AccountRole.STUDENT) throw new ForbiddenException('학생만 후기를 남길 수 있습니다.');
+    const enr = await this.prisma.lecture_enrollment.findUnique({ where: { lecture_id_student_id: { lecture_id: lectureId, student_id: user.id } } });
+    if (!enr) throw new ForbiddenException('수강한 강좌만 후기를 남길 수 있습니다.');
+    if (rating < 1 || rating > 5) throw new BadRequestException('평점은 1~5 입니다.');
+    await this.prisma.lecture_review.upsert({
+      where: { lecture_id_student_id: { lecture_id: lectureId, student_id: user.id } },
+      create: { lecture_id: lectureId, student_id: user.id, rating, text: text ?? null },
+      update: { rating, text: text ?? null },
+    });
+    return { ok: true };
   }
 
   /** 수강 진도 업데이트(학생·수강 중). 0~100. */

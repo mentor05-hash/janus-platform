@@ -15,6 +15,7 @@ class CreateLectureDto {
 }
 class ActiveDto { @IsBoolean() active!: boolean; }
 class ProgressDto { @IsInt() @Min(0) @Max(100) progress!: number; }
+class ReviewDto { @IsInt() @Min(1) @Max(5) rating!: number; @IsOptional() @IsString() @MaxLength(500) text?: string; }
 
 @Controller('lectures')
 export class LectureController {
@@ -67,6 +68,20 @@ export class LectureController {
   @Roles('student')
   progress(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ProgressDto, @CurrentUser() user: AuthUser) {
     return this.lectures.updateProgress(user, id, dto.progress);
+  }
+
+  /** GET /lectures/:id/reviews — 후기 목록(학생). */
+  @Get(':id/reviews')
+  @Roles('student')
+  reviews(@Param('id', ParseUUIDPipe) id: string) {
+    return this.lectures.reviews(id);
+  }
+
+  /** POST /lectures/:id/reviews — 후기 작성(수강생). */
+  @Post(':id/reviews')
+  @Roles('student')
+  review(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ReviewDto, @CurrentUser() user: AuthUser) {
+    return this.lectures.review(user, id, dto.rating, dto.text);
   }
 
   /** GET /lectures/:id — 강좌 상세+내 진도(학생). 정적 라우트 뒤에 선언. */

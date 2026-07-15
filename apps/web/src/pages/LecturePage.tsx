@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
-import { PageHeader, Card, Button, Badge, ErrorText, Spinner, EmptyState, SelectField } from '../components/ui';
+import { PageHeader, Card, Button, Badge, ErrorText, Spinner, EmptyState, SelectField, TextareaField } from '../components/ui';
 
 // 강좌 v1 — 카탈로그(과목 필터) + 수강신청 + 내 수강. 데모 강좌(합성).
 type Lecture = { id: string; subject: string; unit: string | null; title: string; summary: string | null; level: string | null; minutes: number | null; enrolled?: boolean };
@@ -105,18 +105,30 @@ export function LecturePage() {
 }
 
 // 강좌 상세 — 영상 슬롯 + 진도(수강 시). 영상 URL 없으면 준비중 플레이스홀더.
-type Detail = { id: string; subject: string; unit: string | null; title: string; summary: string | null; level: string | null; minutes: number | null; videoUrl: string | null; enrolled: boolean; progress: number };
+type Detail = { id: string; subject: string; unit: string | null; title: string; summary: string | null; level: string | null; minutes: number | null; videoUrl: string | null; enrolled: boolean; progress: number; rating: number | null; reviewCount: number; myRating: number | null };
+type Review = { id: string; rating: number; text: string | null; name: string; createdAt: string };
+const Stars = ({ n }: { n: number }) => <span style={{ color: '#f59e0b', letterSpacing: 1 }}>{'★'.repeat(n)}<span style={{ color: 'var(--line-soft)' }}>{'★'.repeat(5 - n)}</span></span>;
 
 function LectureDetail({ id, onBack }: { id: string; onBack: () => void }) {
   const [d, setD] = useState<Detail | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
+  const [rating, setRating] = useState(5);
+  const [rtext, setRtext] = useState('');
 
   const load = useCallback(() => {
     setD(null);
-    api.get<Detail>(`/lectures/${id}`).then(setD).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
+    api.get<Detail>(`/lectures/${id}`).then((x) => { setD(x); setRating(x.myRating ?? 5); }).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
+    api.get<Review[]>(`/lectures/${id}/reviews`).then(setReviews).catch(() => { /* 무시 */ });
   }, [id]);
   useEffect(() => { load(); }, [load]);
+
+  async function submitReview() {
+    setError(''); setMsg('');
+    try { await api.post(`/lectures/${id}/reviews`, { rating, text: rtext || undefined }); setMsg('후기를 등록했어요.'); setRtext(''); load(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : '후기 실패'); }
+  }
 
   async function enroll() {
     try { await api.post(`/lectures/${id}/enroll`, {}); setMsg('수강신청 완료!'); load(); }
@@ -143,6 +155,7 @@ function LectureDetail({ id, onBack }: { id: string; onBack: () => void }) {
         {d.minutes != null && <span style={{ fontSize: 12, color: 'var(--caption)' }}>{d.minutes}분</span>}
       </div>
       <h2 style={{ fontSize: 20, margin: '0 0 6px', color: 'var(--ink)' }}>{d.title}</h2>
+      {d.rating != null && <div style={{ fontSize: 13, marginBottom: 4 }}><Stars n={Math.round(d.rating)} /> <b style={{ color: 'var(--ink)' }}>{d.rating}</b> <span style={{ color: 'var(--muted)' }}>· 후기 {d.reviewCount}</span></div>}
       {d.summary && <p style={{ fontSize: 14, color: 'var(--muted)', lineHeight: 1.6, marginTop: 0 }}>{d.summary}</p>}
 
       {/* 영상 슬롯 */}
@@ -173,6 +186,36 @@ function LectureDetail({ id, onBack }: { id: string; onBack: () => void }) {
             ))}
           </div>
         </Card>
+      )}
+
+      {/* 후기 */}
+      <h3 style={{ fontSize: 15, margin: '18px 0 8px' }}>후기 {d.reviewCount > 0 ? `(${d.reviewCount})` : ''}</h3>
+      {d.enrolled && (
+        <Card style={{ marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>{d.myRating ? '내 후기 수정' : '후기 남기기'}</span>
+            <div style={{ display: 'flex', gap: 2 }}>
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button key={n} onClick={() => setRating(n)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, padding: 0, color: n <= rating ? '#f59e0b' : 'var(--line-soft)' }}>★</button>
+              ))}
+            </div>
+          </div>
+          <TextareaField label="" value={rtext} onChange={(e) => setRtext(e.target.value)} rows={2} placeholder="이 강좌 어땠나요? (선택)" />
+          <div style={{ marginTop: 6 }}><Button onClick={submitReview}>{d.myRating ? '수정' : '등록'}</Button></div>
+        </Card>
+      )}
+      {reviews.length === 0 ? <EmptyState>아직 후기가 없어요.</EmptyState> : (
+        <div style={{ display: 'grid', gap: 8 }}>
+          {reviews.map((rv) => (
+            <Card key={rv.id}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>{rv.name}</span>
+                <Stars n={rv.rating} />
+              </div>
+              {rv.text && <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.5 }}>{rv.text}</div>}
+            </Card>
+          ))}
+        </div>
       )}
     </div>
   );
