@@ -8,19 +8,24 @@ import { ThemeToggle } from './ThemeToggle';
 
 const navCls = ({ isActive }: { isActive: boolean }) => (isActive ? 'nav-item active' : 'nav-item');
 
-const NAV = [
+type NavItem = { to: string; label: string; end?: boolean; flag?: 'scores' } | { section: string };
+const NAV: NavItem[] = [
   { to: '/student', label: '나의 관문', end: true },
-  { to: '/student/diagnostic', label: '수준진단' },
-  { to: '/student/search', label: '선생님 찾기' },
-  { to: '/student/bookings', label: '내 예약·상담' },
-  { to: '/student/scores', label: '내 성적·배치', flag: 'scores' as const, end: true },
-  { to: '/student/scores/input', label: '수능 성적 입력' },
+  { section: '진단' },
+  { to: '/student/diagnostic', label: '실력진단' },
+  { to: '/student/scores/input', label: '성적진단' },
+  { section: '배치·성적' },
   { to: '/placement/hub', label: '배치표 허브' },
   { to: '/placement/gap', label: '격차 리포트' },
+  { to: '/student/scores', label: '내 성적·배치', flag: 'scores', end: true },
+  { section: '학습·상담' },
+  { to: '/student/search', label: '선생님 찾기' },
+  { to: '/student/bookings', label: '내 예약·상담' },
   { to: '/student/materials', label: '자료실' },
   { to: '/student/qna', label: '질문 게시판' },
   { to: '/student/community', label: '커뮤니티', end: true },
   { to: '/student/community/board', label: '커뮤니티 Q&A' },
+  { section: '내 계정' },
   { to: '/student/membership', label: '멤버십·결제' },
   { to: '/student/credits', label: '크레딧' },
   { to: '/student/notifications', label: '알림' },
@@ -34,7 +39,7 @@ export function StudentLayout() {
   const initial = (user?.name ?? '학').slice(0, 1);
   const [showScores, setShowScores] = useState(false);
   useEffect(() => { api.get<{ showTrend: boolean }>('/me/scores/access').then((a) => setShowScores(!!a.showTrend)).catch(() => setShowScores(false)); }, []);
-  const nav = NAV.filter((n) => n.flag !== 'scores' || showScores);
+  const nav = NAV.filter((n) => !('flag' in n) || n.flag !== 'scores' || showScores);
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -46,11 +51,15 @@ export function StudentLayout() {
           </div>
         </Link>
         <nav className="sidebar-nav">
-          {nav.map((n) => (
+          {nav.map((n) => ('section' in n ? (
+            <div key={`sec-${n.section}`} style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.04em', color: 'var(--caption)', padding: '14px 16px 4px', textTransform: 'none' }}>
+              {n.section}
+            </div>
+          ) : (
             <NavLink key={n.to} to={n.to} className={navCls} end={'end' in n && n.end}>
               {n.label}
             </NavLink>
-          ))}
+          )))}
         </nav>
         <div className="sidebar-foot">
           <span className="avatar">{initial}</span>

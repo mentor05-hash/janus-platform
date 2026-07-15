@@ -50,7 +50,7 @@ export function DiagnosticPage() {
 
   return (
     <div>
-      <PageHeader title="수준진단" sub="문항을 풀면 유형별 약점을 진단하고, 무엇을 보완할지 처방해줘요. (현재 문항은 데모 샘플)" />
+      <PageHeader title="실력진단" sub="문항을 풀면 유형별 약점을 진단하고, 무엇을 보완할지 처방해줘요. (현재 문항은 데모 샘플)" />
       <ErrorText>{error}</ErrorText>
 
       {phase === 'intro' && (

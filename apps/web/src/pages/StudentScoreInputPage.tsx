@@ -101,7 +101,7 @@ export function StudentScoreInputPage() {
 
   return (
     <div>
-      <PageHeader title="수능 성적 입력" sub="한 번 입력하면 배치표·격차 리포트에 자동 반영돼요. 세부과목·제2외국어는 참고용으로 저장돼요." />
+      <PageHeader title="성적진단" sub="수능 성적을 한 번 입력하면 배치표·격차 리포트에 자동 반영돼요. 세부과목·제2외국어는 참고용으로 저장돼요." />
       <ErrorText>{error}</ErrorText>
       {msg && (
         <div style={{ fontSize: 13.5, color: linkable ? 'var(--brand)' : 'var(--muted)', marginBottom: 10, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
