@@ -24,6 +24,22 @@ class ManualScoreDto {
   @IsOptional() @IsString() reportFileId?: string;
   @IsArray() @ArrayMaxSize(30) @ValidateNested({ each: true }) @Type(() => ScoreItemDto) items!: ScoreItemDto[];
 }
+class MyScoreItemDto {
+  @IsString() subject!: string;
+  @IsOptional() @IsNumber() score?: number | null;
+  @IsOptional() @IsNumber() maxScore?: number | null;
+  @IsOptional() @IsString() grade?: string | null;
+  @IsOptional() @IsString() @MaxLength(30) subSubject?: string | null;
+}
+class MyScoreDto {
+  @IsString() @MaxLength(40) period!: string;
+  @IsOptional() @IsString() @MaxLength(20) examType?: string;
+  @IsOptional() @IsString() @MaxLength(200) note?: string;
+  @IsIn(['std', 'nb']) mode!: 'std' | 'nb';
+  @IsOptional() @IsIn(['문과', '이과']) gye?: '문과' | '이과' | null;
+  @IsOptional() @IsNumber() @Min(0.01) @Max(99.99) nb?: number | null;
+  @IsArray() @ArrayMaxSize(10) @ValidateNested({ each: true }) @Type(() => MyScoreItemDto) items!: MyScoreItemDto[];
+}
 class OcrDto { @IsString() fileId!: string; }
 class GapReportDto {
   @IsOptional() @IsIn(['jeongsi', 'susi']) mode?: 'jeongsi' | 'susi'; // 기본 jeongsi
@@ -175,6 +191,23 @@ export class ScoresMeController {
   @Roles('student')
   selfTrend(@CurrentUser() user: AuthUser) {
     return this.scores.selfTrend(user);
+  }
+
+  /** GET /scores/me — 내 수능 성적 자가 입력 프리필(학생). */
+  @Get('scores/me')
+  @Roles('student')
+  myScore(@CurrentUser() user: AuthUser) {
+    return this.scores.myScore(user);
+  }
+
+  /** POST /scores/me — 내 수능 성적 자가 입력·저장(학생) → 배치표·격차 자동 반영(C1 단일소스). */
+  @Post('scores/me')
+  @Roles('student')
+  saveMyScore(@CurrentUser() user: AuthUser, @Body() dto: MyScoreDto) {
+    return this.scores.saveMyScore(user, {
+      period: dto.period, examType: dto.examType, note: dto.note,
+      mode: dto.mode, gye: dto.gye ?? null, nb: dto.nb ?? null, items: dto.items,
+    });
   }
 
   /** GET /scores/janus-score — 배치표 자동연동 export(O43·접합계약 C1). guardian 은 ?studentId=. */

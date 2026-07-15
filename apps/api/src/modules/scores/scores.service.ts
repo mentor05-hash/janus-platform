@@ -10,8 +10,9 @@ import type { LlmProvider, ScoreOcrResult } from '../llm/llm.types';
 import { toJanusScore } from './domain/janus-score';
 import { buildGapReport, type GapMode, type JanusReport } from './domain/gap-report';
 
-type ItemInput = { subject: string; score?: number | null; maxScore?: number | null; grade?: string | null };
-type ManualInput = { studentId?: string; studentLoginId?: string; period: string; examType?: string; note?: string; reportFileId?: string; items: ItemInput[] };
+type ItemInput = { subject: string; score?: number | null; maxScore?: number | null; grade?: string | null; subSubject?: string | null };
+type ManualInput = { studentId?: string; studentLoginId?: string; period: string; examType?: string; note?: string; reportFileId?: string; items: ItemInput[]; placement?: Record<string, unknown> | null };
+type MyScoreInput = { period: string; examType?: string; note?: string; mode: 'std' | 'nb'; gye?: '문과' | '이과' | null; nb?: number | null; items: ItemInput[] };
 
 const META_KEYS = ['아이디', '학생아이디', '로그인아이디', '이름', '학생', '기간', '시험', '시험유형', '메모', 'note', 'id', 'loginid'];
 
@@ -42,15 +43,15 @@ export class ScoresService {
       const report = existing
         ? await tx.score_report.update({
             where: { id: existing.id },
-            data: { exam_type: input.examType ?? null, note: input.note ?? null, source, report_file_id: input.reportFileId ?? existing.report_file_id, updated_at: new Date() },
+            data: { exam_type: input.examType ?? null, note: input.note ?? null, source, report_file_id: input.reportFileId ?? existing.report_file_id, updated_at: new Date(), ...(input.placement ? { placement: input.placement as object } : {}) },
           })
         : await tx.score_report.create({
-            data: { student_id: studentAccountId, center_id: centerId, period: input.period, exam_type: input.examType ?? null, note: input.note ?? null, source, report_file_id: input.reportFileId ?? null, created_by: actor.id },
+            data: { student_id: studentAccountId, center_id: centerId, period: input.period, exam_type: input.examType ?? null, note: input.note ?? null, source, report_file_id: input.reportFileId ?? null, created_by: actor.id, ...(input.placement ? { placement: input.placement as object } : {}) },
           });
       await tx.score_item.deleteMany({ where: { report_id: report.id } });
       if (items.length) {
         await tx.score_item.createMany({
-          data: items.map((i) => ({ report_id: report.id, subject: i.subject.trim(), score: i.score ?? null, max_score: i.maxScore ?? 100, grade: i.grade ?? null })),
+          data: items.map((i) => ({ report_id: report.id, subject: i.subject.trim(), score: i.score ?? null, max_score: i.maxScore ?? 100, grade: i.grade ?? null, sub_subject: i.subSubject ?? null })),
         });
       }
       return report;
@@ -63,6 +64,46 @@ export class ScoresService {
     const sp = await this.resolveStudent(actor, dto.studentId, dto.studentLoginId);
     const report = await this.upsertReport(actor, sp.account_id, sp.center_id, dto, 'manual');
     return { ok: true, reportId: report.id };
+  }
+
+  /**
+   * 학생 자가 성적 입력(수능) → 배치표·격차 자동 반영(C1 단일 소스).
+   * 표점 모드(std): 국어·수학·탐구1·탐구2 표점 + 영어·한국사 등급. 누백 모드(nb): 전국누백 + 영어·한국사 등급.
+   * 세부과목·제2외국어는 메타 저장(브리지 무시). 계열(gye)·nb 는 placement 에.
+   */
+  async saveMyScore(user: AuthUser, dto: MyScoreInput) {
+    if (user.role !== AccountRole.STUDENT) throw new ForbiddenException('학생만 자가 입력할 수 있습니다.');
+    if (!dto.period?.trim()) throw new BadRequestException('기간을 입력하세요(예: 2026-9월 모의고사).');
+    const placement: Record<string, unknown> = { gye: dto.gye ?? null, source: 'self' };
+    if (dto.mode === 'nb' && dto.nb != null) placement.nb = dto.nb;
+    const report = await this.upsertReport(
+      user, user.id, user.centerId ?? null,
+      { period: dto.period, examType: dto.examType ?? '수능/모의', note: dto.note, items: dto.items, placement },
+      'self',
+    );
+    // 저장 즉시 배치표 연동 가능 여부 확인(표점 4종 또는 nb + 필수 충족).
+    let linkable = false;
+    try { await this.janusScore(user); linkable = true; } catch { linkable = false; }
+    return { ok: true, reportId: report.id, linkable };
+  }
+
+  /** 학생 자가 입력 프리필 — 최신 자가 리포트(모드·계열·과목·세부과목). */
+  async myScore(user: AuthUser) {
+    if (user.role !== AccountRole.STUDENT) throw new ForbiddenException('학생만 사용할 수 있습니다.');
+    const report = await this.prisma.score_report.findFirst({
+      where: { student_id: user.id }, orderBy: { period: 'desc' }, include: { items: true },
+    });
+    if (!report) return { exists: false };
+    const pl = (report.placement as Record<string, unknown> | null) ?? {};
+    const nb = pl.nb;
+    return {
+      exists: true,
+      period: report.period,
+      mode: typeof nb === 'number' ? 'nb' : 'std',
+      gye: (pl.gye as string | null) ?? null,
+      nb: typeof nb === 'number' ? nb : null,
+      items: report.items.map((i) => ({ subject: i.subject, subSubject: i.sub_subject, score: i.score == null ? null : Number(i.score), grade: i.grade })),
+    };
   }
 
   private async resolveStudent(actor: AuthUser, studentId?: string, loginId?: string) {
