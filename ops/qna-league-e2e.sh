@@ -48,4 +48,9 @@ TIER=$(echo "$ME" | jq -r '.data.tier // .tier')
 echo "▶ 6) 리더보드(상위 등급)"
 auth "$S1" "$API/qna/league/leaderboard" | jq -c '(.data // .) | map({name,label,accepted,acceptRate})'
 
+echo "▶ 7) 정책 기본값 원복(테스트 값 잔존 방지)"
+auth "$AD" -X PUT "$API/qna/league/policy" -H 'Content-Type: application/json' \
+  -d '{"promote2":{"minAuthored":5,"minAccepted":3,"minRate":50},"promote1":{"minAuthored":15,"minAccepted":10,"minRate":70}}' >/dev/null \
+  && echo "  ✓ 기본 정책 복원(2부: 답변5·채택3·률50 / 1부: 답변15·채택10·률70)"
+
 echo "✅ 리그 E2E 완료"
