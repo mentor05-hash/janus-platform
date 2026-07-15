@@ -10,6 +10,10 @@ import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { JanusLogo } from '../components/JanusLogo';
 import { track } from '../utils/track';
+import { GapReportPage } from './GapReportPage';
+
+// 허브 안에서 iframe 대신 네이티브 React로 렌더하는 탭(시안: 격차 리포트는 앱 내부 화면).
+const isNativeTab = (t: { kind?: string }) => t.kind === 'gap';
 
 interface HubMeta { slug: string; title: string; short?: string; icon?: string; kind?: string; updated?: string; badge?: string; tier?: string }
 interface HubList { available: boolean; tables: HubMeta[] }
@@ -70,7 +74,7 @@ export function PlacementHubPage({ embedded = false }: { embedded?: boolean } = 
 
   async function open(t: HubMeta) {
     setActive(t.slug);
-    if (srcs[t.slug]) return;
+    if (isNativeTab(t) || srcs[t.slug]) return; // 네이티브 탭(격차)은 iframe 로드 안 함
     const src = await srcFor(t);
     if (src) setSrcs((m) => ({ ...m, [t.slug]: src }));
   }
@@ -85,11 +89,13 @@ export function PlacementHubPage({ embedded = false }: { embedded?: boolean } = 
         const first = tables[0];
         if (first) {
           setActive(first.slug);
-          const src = await srcFor(first);
-          if (src) setSrcs((m) => ({ ...m, [first.slug]: src }));
+          if (!isNativeTab(first)) {
+            const src = await srcFor(first);
+            if (src) setSrcs((m) => ({ ...m, [first.slug]: src }));
+          }
           // 첫 그림이 뜬 뒤 나머지 "열람 가능한" 탭을 뒤에서 프리로드(시안: 기다림 없음)
           setTimeout(() => {
-            tables.slice(1).forEach(async (t) => {
+            tables.slice(1).filter((t) => !isNativeTab(t)).forEach(async (t) => {
               const s = await srcFor(t);
               if (s) setSrcs((m) => (m[t.slug] ? m : { ...m, [t.slug]: s }));
             });
@@ -139,22 +145,22 @@ export function PlacementHubPage({ embedded = false }: { embedded?: boolean } = 
           <Link id="consult-reserve" to="/consulting/apply" className="btn gold sm" style={{ textDecoration: 'none' }}
             onClick={() => track('baechi', 'cta', 'consult-reserve', { view: 'hub' })}>1:1 상담 예약</Link>
         </div>
-        {/* 탭 — 그림만 바꾼다 */}
+        {/* 탭 — 그림만 바꾼다(시안: underline) */}
         {tables.length > 0 && (
-          <div style={{ maxWidth: 1380, margin: '0 auto', padding: '0 16px 10px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <div style={{ maxWidth: 1380, margin: '0 auto', padding: '0 16px', display: 'flex', gap: 2, flexWrap: 'wrap', borderTop: '1px solid var(--line-soft)' }}>
             {tables.map((t) => {
               const on = t.slug === active;
               const locked = !canOpen(t);
               return (
                 <button key={t.slug} type="button" onClick={() => void open(t)} style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 15px', borderRadius: 999,
-                  border: on ? '1px solid var(--j-blue)' : '1px solid var(--j-ghost-border)',
-                  background: on ? 'var(--j-blue)' : 'var(--j-ghost-bg)',
-                  color: on ? '#fff' : 'var(--ink-body)', fontSize: 13, fontWeight: on ? 800 : 600,
-                  whiteSpace: 'nowrap', cursor: 'pointer',
+                  display: 'inline-flex', alignItems: 'center', gap: 6, padding: '10px 15px', borderRadius: 0,
+                  border: 'none', background: 'none',
+                  borderBottom: on ? '2.5px solid var(--j-blue)' : '2.5px solid transparent',
+                  color: on ? 'var(--j-blue)' : 'var(--muted)', fontSize: 14, fontWeight: on ? 800 : 600,
+                  whiteSpace: 'nowrap', cursor: 'pointer', marginBottom: -1,
                 }}>
                   <span>{locked ? '🔒' : t.icon ?? '▦'}</span>{t.short ?? t.title}
-                  {t.badge && <span style={{ fontSize: 10, fontWeight: 700, color: on ? '#fff' : 'var(--j-gold-ink)', background: on ? 'rgba(255,255,255,.18)' : 'var(--j-gold-soft)', borderRadius: 999, padding: '2px 7px' }}>{t.badge}</span>}
+                  {t.badge && <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--j-gold-ink)', background: 'var(--j-gold-soft)', borderRadius: 999, padding: '2px 7px' }}>{t.badge}</span>}
                 </button>
               );
             })}
@@ -212,6 +218,13 @@ export function PlacementHubPage({ embedded = false }: { embedded?: boolean } = 
                 </>
               )}
             </div>
+          </div>
+        )}
+
+        {/* 격차 리포트 — 네이티브 탭(시안: 허브 안 앱 화면) */}
+        {activeMeta && isNativeTab(activeMeta) && !activeLocked && (
+          <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', background: 'var(--bg)' }}>
+            <GapReportPage />
           </div>
         )}
 

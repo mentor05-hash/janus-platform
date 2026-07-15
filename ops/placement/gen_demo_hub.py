@@ -100,6 +100,13 @@ def main() -> int:
     try:
         manifest = json.load(open(man_path, encoding="utf-8"))
         tables = manifest.get("tables", [])
+        # 시안 리스킨: 지원 포트폴리오(◫) 탭이 없으면 데모 항목 추가(실데이터=엔진 HTML로 교체).
+        if not any((t.get("kind") == "portfolio") for t in tables):
+            tables.append({"slug": "portfolio", "title": "지원 포트폴리오(데모)", "short": "지원 포트폴리오",
+                           "icon": "◫", "kind": "portfolio", "tier": "paid", "file": "portfolio-demo.html"})
+            manifest["tables"] = tables
+            json.dump(manifest, open(man_path, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+            print("  · manifest에 데모 포트폴리오 탭 추가")
     except Exception:
         print(f"· manifest.json 없음/파손 — 데모 manifest 생성: {man_path}")
         tables = [
