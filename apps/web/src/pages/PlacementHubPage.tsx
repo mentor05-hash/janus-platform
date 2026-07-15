@@ -103,7 +103,9 @@ export function PlacementHubPage({ embedded = false }: { embedded?: boolean } = 
         const dataTables = l.tables.filter((t) => !(seasonOff && t.kind === 'kairos')).filter((t) => !calcSlugs.has(t.slug));
         const tables = [...dataTables, ...calcTabs];
         setList({ available: l.available || calcTabs.length > 0, tables });
-        const first = tables[0];
+        // 허브 얼굴 = 대표 배치표(정시) 우선 → 없으면 첫 비-네이티브(배치표/계산기) → 최후 tables[0].
+        // (격차 리포트는 kind='gap' 네이티브 탭이라 기본에서 제외 — 전용 메뉴와 첫화면 중복 방지)
+        const first = tables.find((t) => t.kind === 'jeongsi') ?? tables.find((t) => !isNativeTab(t)) ?? tables[0];
         if (first) {
           setActive(first.slug);
           if (!isNativeTab(first)) {
@@ -112,7 +114,7 @@ export function PlacementHubPage({ embedded = false }: { embedded?: boolean } = 
           }
           // 첫 그림이 뜬 뒤 나머지 "열람 가능한" 탭을 뒤에서 프리로드(시안: 기다림 없음)
           setTimeout(() => {
-            tables.slice(1).filter((t) => !isNativeTab(t)).forEach(async (t) => {
+            tables.filter((t) => !isNativeTab(t) && t.slug !== first.slug).forEach(async (t) => {
               const s = await srcFor(t);
               if (s) setSrcs((m) => (m[t.slug] ? m : { ...m, [t.slug]: s }));
             });
