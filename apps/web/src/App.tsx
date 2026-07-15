@@ -66,6 +66,7 @@ import { StudentScoreInputPage } from './pages/StudentScoreInputPage';
 import { DiagnosticPage } from './pages/DiagnosticPage';
 import { CurriculumPage } from './pages/CurriculumPage';
 import { LecturePage } from './pages/LecturePage';
+import { LeaderboardPage } from './pages/LeaderboardPage';
 import { LegalDocPage } from './pages/LegalDocPage';
 import { LegalPage } from './pages/LegalPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
@@ -195,6 +196,7 @@ export function App() {
         <Route path="qna" element={<StudentQnaPage />} />
         <Route path="community" element={<StudentCommunityPage />} />
         <Route path="community/board" element={<CommunityBoardPage />} />
+        <Route path="league" element={<LeaderboardPage />} />
         <Route path="scores" element={<StudentScoresPage />} />
         <Route path="scores/input" element={<StudentScoreInputPage />} />
         <Route path="diagnostic" element={<DiagnosticPage />} />
