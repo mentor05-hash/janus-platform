@@ -64,11 +64,11 @@ export class PlacementHubService {
    * 에서 검색해 제공. 컷 수치는 저작권 데이터라 repo 무반입(C6), 회원+ 로그인에게만(C2 — 컨트롤러 인증).
    * 데이터 미배치(개발·CI)면 available:false → 격차 페이지는 수동 입력 폴백.
    */
-  searchTargets(user: AuthUser, q: string, limit = 20): { available: boolean; targets: Array<{ univ: string; dept: string; track?: string; cutNb: number }> } {
+  searchTargets(user: AuthUser, q: string, mode: 'jeongsi' | 'susi' = 'jeongsi', limit = 20): { available: boolean; targets: Array<{ univ: string; dept: string; track?: string; cut: number }> } {
     if (!tierAtLeast(tierForRole(user.role), 'member')) return { available: false, targets: [] };
     const base = this.baseDir();
     if (!base) return { available: false, targets: [] };
-    let all: Array<{ univ?: string; dept?: string; track?: string; cutNb?: unknown }> = [];
+    let all: Array<{ univ?: string; dept?: string; track?: string; mode?: string; cut?: unknown; cutNb?: unknown; cutGrade?: unknown }> = [];
     try {
       const raw = fs.readFileSync(path.join(base, 'targets.json'), 'utf8');
       const j = JSON.parse(raw) as { targets?: typeof all };
@@ -77,11 +77,15 @@ export class PlacementHubService {
       return { available: false, targets: [] };
     }
     const term = (q ?? '').trim();
+    // 컷 값: mode 별 필드(정시=cut/cutNb, 수시=cut/cutGrade). mode 미지정 항목은 정시로 간주.
+    const cutOf = (t: (typeof all)[number]): number => Number(t.cut ?? (mode === 'susi' ? t.cutGrade : t.cutNb));
     const valid = all
-      .filter((t) => t && typeof t.univ === 'string' && typeof t.dept === 'string' && Number.isFinite(Number(t.cutNb)))
+      .filter((t) => t && typeof t.univ === 'string' && typeof t.dept === 'string')
+      .filter((t) => (t.mode ?? 'jeongsi') === mode)
+      .filter((t) => Number.isFinite(cutOf(t)))
       .filter((t) => !term || `${t.univ} ${t.dept} ${t.track ?? ''}`.includes(term))
       .slice(0, Math.min(50, Math.max(1, limit)))
-      .map((t) => ({ univ: t.univ as string, dept: t.dept as string, track: t.track, cutNb: Math.round(Number(t.cutNb) * 100) / 100 }));
+      .map((t) => ({ univ: t.univ as string, dept: t.dept as string, track: t.track, cut: Math.round(cutOf(t) * 100) / 100 }));
     return { available: true, targets: valid };
   }
 

@@ -36,33 +36,34 @@ export function GapReportPage() {
   // 목표컷 실연동(N29) — 배치표 targets.json 서빙 가능하면 검색, 아니면 수동 입력 폴백.
   const [tMode, setTMode] = useState<'unknown' | 'search' | 'manual'>('unknown');
   const [tq, setTq] = useState('');
-  const [tResults, setTResults] = useState<Array<{ univ: string; dept: string; track?: string; cutNb: number }>>([]);
+  const [tResults, setTResults] = useState<Array<{ univ: string; dept: string; track?: string; cut: number }>>([]);
   const [picked, setPicked] = useState(false);
+  const cutSuffix = mode === 'susi' ? '등급' : '%';
 
   useEffect(() => { track('baechi', 'view', undefined, { view: 'gap' }); }, []);
 
-  // 목표컷 데이터 배치 여부 프로브
+  // 목표컷 데이터 배치 여부 프로브(모드별 — 정시/수시 각각 targets 유무 다름)
   useEffect(() => {
     if (!user) return;
-    api.get<{ available: boolean }>('/placement-hub/targets?q=')
+    api.get<{ available: boolean }>(`/placement-hub/targets?q=&mode=${mode}`)
       .then((r) => setTMode(r.available ? 'search' : 'manual'))
       .catch(() => setTMode('manual'));
-  }, [user]);
+  }, [user, mode]);
 
-  // 목표 검색(디바운스)
+  // 목표 검색(디바운스, 모드별)
   useEffect(() => {
     if (tMode !== 'search') return;
     const term = tq.trim();
     if (!term || picked) { setTResults([]); return; }
     const id = setTimeout(() => {
-      api.get<{ targets: typeof tResults }>(`/placement-hub/targets?q=${encodeURIComponent(term)}`)
+      api.get<{ targets: typeof tResults }>(`/placement-hub/targets?q=${encodeURIComponent(term)}&mode=${mode}`)
         .then((r) => setTResults(r.targets)).catch(() => setTResults([]));
     }, 250);
     return () => clearTimeout(id);
-  }, [tq, tMode, picked]);
+  }, [tq, tMode, picked, mode]);
 
-  function pickTarget(t: { univ: string; dept: string; cutNb: number }) {
-    setUniv(t.univ); setDept(t.dept); setCutNb(String(t.cutNb));
+  function pickTarget(t: { univ: string; dept: string; cut: number }) {
+    setUniv(t.univ); setDept(t.dept); setCutNb(String(t.cut));
     setPicked(true); setTResults([]); setTq(`${t.univ} ${t.dept}`);
   }
 
@@ -116,7 +117,7 @@ export function GapReportPage() {
       {/* 모드 토글 — 정시(수능 누백) / 수시(내신 등급) */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
         {(['jeongsi', 'susi'] as Mode[]).map((m) => (
-          <button key={m} onClick={() => { setMode(m); setReport(null); }}
+          <button key={m} onClick={() => { setMode(m); setReport(null); setTq(''); setPicked(false); setTResults([]); setUniv(''); setDept(''); setCutNb(''); }}
             className={mode === m ? 'btn sm' : 'btn ghost sm'} style={{ minWidth: 96 }}>
             {m === 'jeongsi' ? '정시 (수능)' : '수시 (내신)'}
           </button>
@@ -152,13 +153,13 @@ export function GapReportPage() {
       {/* 목표 설정 — 데이터 있으면 배치표 목표컷 검색(N29), 없으면 수동 입력 */}
       <div style={card}>
         <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12 }}>목표 설정</div>
-        {tMode === 'search' && mode === 'jeongsi' ? (
+        {tMode === 'search' ? (
           <div style={{ position: 'relative' }}>
             <input className="input" placeholder="목표 대학·학과 검색 (예: 서울대 컴퓨터)" value={tq}
               onChange={(e) => { setTq(e.target.value); setPicked(false); }} />
             {picked && cutNb && (
               <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 6 }}>
-                선택: <b style={{ color: 'var(--ink)' }}>{univ} {dept}</b> · 지원가능선 전국누백 <b>{cutNb}%</b>
+                선택: <b style={{ color: 'var(--ink)' }}>{univ} {dept}</b> · 지원가능선 <b>{cutNb}{cutSuffix}</b>
               </div>
             )}
             {tResults.length > 0 && (
@@ -166,7 +167,7 @@ export function GapReportPage() {
                 {tResults.map((t, i) => (
                   <button key={i} onClick={() => pickTarget(t)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', border: 'none', borderTop: i ? '1px solid var(--line)' : 'none', background: 'none', cursor: 'pointer', fontSize: 13.5 }}>
                     <b>{t.univ} {t.dept}</b>{t.track ? <span style={{ color: 'var(--muted)' }}> · {t.track}</span> : null}
-                    <span style={{ float: 'right', fontFamily: 'ui-monospace,monospace', color: 'var(--teal)' }}>{t.cutNb}%</span>
+                    <span style={{ float: 'right', fontFamily: 'ui-monospace,monospace', color: 'var(--teal)' }}>{t.cut}{cutSuffix}</span>
                   </button>
                 ))}
               </div>
