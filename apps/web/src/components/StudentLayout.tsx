@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { APP_NAME } from '../branding.generated';
 import { JanusLogo } from './JanusLogo';
-import { Link, NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { ThemeToggle } from './ThemeToggle';
@@ -39,6 +39,14 @@ export function StudentLayout() {
   const initial = (user?.name ?? '학').slice(0, 1);
   const [showScores, setShowScores] = useState(false);
   useEffect(() => { api.get<{ showTrend: boolean }>('/me/scores/access').then((a) => setShowScores(!!a.showTrend)).catch(() => setShowScores(false)); }, []);
+  // 알림 미읽음 뱃지 — 마운트 + 라우트 이동 시 갱신(읽고 나오면 줄어듦).
+  const loc = useLocation();
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    api.get<Array<{ read_at: string | null }>>('/notifications')
+      .then((r) => setUnread((Array.isArray(r) ? r : []).filter((n) => !n.read_at).length))
+      .catch(() => { /* 무시 */ });
+  }, [loc.pathname]);
   const nav = NAV.filter((n) => !('flag' in n) || n.flag !== 'scores' || showScores);
   return (
     <div className="shell">
@@ -57,7 +65,14 @@ export function StudentLayout() {
             </div>
           ) : (
             <NavLink key={n.to} to={n.to} className={navCls} end={'end' in n && n.end}>
-              {n.label}
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {n.label}
+                {n.to === '/student/notifications' && unread > 0 && (
+                  <span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: 'var(--danger, #dc2626)', color: '#fff', fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {unread > 99 ? '99+' : unread}
+                  </span>
+                )}
+              </span>
             </NavLink>
           )))}
         </nav>

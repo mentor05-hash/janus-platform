@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { PageHeader, Card, Button, Badge, ErrorText, Spinner, EmptyState } from '../components/ui';
@@ -48,9 +49,11 @@ export function CommunityBoardPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // ── 질문 등록(학생) ──
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ subject: '', difficulty: '', body: '' });
+  // ── 질문 등록(학생) ── (실력진단 처방 등에서 ?subject= 로 프리필)
+  const [params] = useSearchParams();
+  const paramSubject = params.get('subject') ?? '';
+  const [showForm, setShowForm] = useState(!!paramSubject && user?.role === 'student');
+  const [form, setForm] = useState({ subject: paramSubject, difficulty: '', body: '' });
   const [posting, setPosting] = useState(false);
   async function submitQuestion() {
     if (!form.body.trim()) { setError('질문 내용을 입력해 주세요.'); return; }

@@ -1,6 +1,8 @@
-import { Link, NavLink, Outlet } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { APP_NAME } from '../branding.generated';
 import { JanusLogo } from './JanusLogo';
+import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -28,6 +30,13 @@ const NAV = [
 export function AppLayout() {
   const { user, logout } = useAuth();
   const initial = (user?.name ?? '선').slice(0, 1);
+  const loc = useLocation();
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    api.get<Array<{ read_at: string | null }>>('/notifications')
+      .then((r) => setUnread((Array.isArray(r) ? r : []).filter((n) => !n.read_at).length))
+      .catch(() => { /* 무시 */ });
+  }, [loc.pathname]);
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -41,7 +50,14 @@ export function AppLayout() {
         <nav className="sidebar-nav">
           {NAV.map((n) => (
             <NavLink key={n.to} to={n.to} className={navCls}>
-              {n.label}
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {n.label}
+                {n.to === '/app/notifications' && unread > 0 && (
+                  <span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: 'var(--danger, #dc2626)', color: '#fff', fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {unread > 99 ? '99+' : unread}
+                  </span>
+                )}
+              </span>
             </NavLink>
           ))}
         </nav>

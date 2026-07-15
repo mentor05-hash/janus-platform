@@ -151,13 +151,19 @@ export function DiagnosticPage() {
               <div style={{ display: 'grid', gap: 8 }}>
                 {result.prescriptions.map((p, i) => (
                   <Card key={i} style={{ borderLeft: '3px solid var(--j-blue)' }}>
-                    <div style={{ fontSize: 14, color: 'var(--ink)' }}>{p.action}</div>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                      <Link to="/student/community/board" className="btn sm outline" style={{ textDecoration: 'none' }}>질문하기</Link>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
+                      <Badge kind="new">{p.subject}</Badge><Badge kind="soft">{p.unit}</Badge>
+                      <span style={{ fontSize: 12, color: 'var(--danger, #dc2626)' }}>정답률 {p.rate}%</span>
+                    </div>
+                    <div style={{ fontSize: 13.5, color: 'var(--ink)', marginBottom: 8 }}>{p.action}</div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <Link to={`/student/community/board?subject=${encodeURIComponent(p.subject)}`} className="btn sm outline" style={{ textDecoration: 'none' }}>이 과목 질문하기</Link>
+                      <Link to={`/student/materials?subject=${encodeURIComponent(p.subject)}`} className="btn sm outline" style={{ textDecoration: 'none' }}>자료 찾기</Link>
                       <Link to="/student/placement/gap" className="btn sm outline" style={{ textDecoration: 'none' }}>격차 리포트</Link>
                     </div>
                   </Card>
                 ))}
+                <p style={{ fontSize: 12, color: 'var(--caption)', marginTop: 2 }}>※ 과목별 강좌·약점 클리닉 연결은 준비 중이에요.</p>
               </div>
             </>
           )}
