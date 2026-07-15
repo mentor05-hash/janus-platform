@@ -59,6 +59,7 @@ import { StudentReversePage } from './pages/StudentReversePage';
 import { StudentAutoAssignPage } from './pages/StudentAutoAssignPage';
 import { StudentQnaPage } from './pages/StudentQnaPage';
 import { StudentCommunityPage } from './pages/StudentCommunityPage';
+import { CommunityBoardPage } from './pages/CommunityBoardPage';
 import { StudentScoresPage } from './pages/StudentScoresPage';
 import { LegalDocPage } from './pages/LegalDocPage';
 import { LegalPage } from './pages/LegalPage';
@@ -126,6 +127,7 @@ export function App() {
         <Route path="evaluations" element={<TeacherEvalPage />} />
         <Route path="reverse" element={<ReverseProposePage />} />
         <Route path="qna" element={<TeacherQnaPage />} />
+        <Route path="community" element={<CommunityBoardPage />} />
         <Route path="payroll" element={<PayrollPage />} />
         <Route path="materials" element={<TeacherMaterialsPage />} />
         <Route path="records" element={<TeacherRecordsPage />} />
@@ -184,6 +186,7 @@ export function App() {
         <Route path="materials" element={<StudentMaterialsPage />} />
         <Route path="qna" element={<StudentQnaPage />} />
         <Route path="community" element={<StudentCommunityPage />} />
+        <Route path="community/board" element={<CommunityBoardPage />} />
         <Route path="scores" element={<StudentScoresPage />} />
         <Route path="membership" element={<StudentMembershipPage />} />
         <Route path="credits" element={<StudentCreditsPage />} />

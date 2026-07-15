@@ -6,6 +6,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { IsBoolean, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -23,6 +24,19 @@ class QnaBlockDto {
   @IsBoolean() blocked!: boolean;
 }
 class QnaReanswerDto {
+  @IsOptional() @IsString() @MaxLength(300) reason?: string;
+}
+class CommunityQuestionDto {
+  @IsOptional() @IsString() @MaxLength(60) subject?: string;
+  @IsOptional() @IsString() @MaxLength(20) difficulty?: string;
+  @IsString() @MaxLength(4000) body!: string;
+}
+class CommunityAnswerDto {
+  @IsString() @MaxLength(4000) body!: string;
+}
+class QnaReportDto {
+  @IsString() targetType!: 'post' | 'answer';
+  @IsUUID() targetId!: string;
   @IsOptional() @IsString() @MaxLength(300) reason?: string;
 }
 
@@ -128,5 +142,50 @@ export class QnaController {
   @Roles('admin', 'hr')
   sweep() {
     return this.qna.sweep();
+  }
+
+  // ── Q3 커뮤니티(3부 공개 게시판) ───────────────────────────────────────
+  /** POST /qna/community — 커뮤니티 질문 등록(학생·무료·일 3건). */
+  @Post('community')
+  @Roles('student')
+  communityCreate(@Body() dto: CommunityQuestionDto, @CurrentUser() user: AuthUser) {
+    return this.qna.createCommunityQuestion(user, dto);
+  }
+
+  /** GET /qna/community — 커뮤니티 목록(로그인 전원). ?filter=unanswered 미답변만. */
+  @Get('community')
+  communityList(@CurrentUser() user: AuthUser, @Query('filter') filter?: string) {
+    return this.qna.listCommunity(user, filter === 'unanswered' ? 'unanswered' : undefined);
+  }
+
+  /** GET /qna/community/stats — 내 커뮤니티 실적(답변·채택·채택률). */
+  @Get('community/stats')
+  communityStats(@CurrentUser() user: AuthUser) {
+    return this.qna.communityStats(user);
+  }
+
+  /** GET /qna/community/{id} — 커뮤니티 상세(질문·AI 초안·답변). */
+  @Get('community/:id')
+  communityGet(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.qna.getCommunity(user, id);
+  }
+
+  /** POST /qna/community/{id}/answers — 커뮤니티 답변(로그인 전원·무정산). */
+  @Post('community/:id/answers')
+  communityAnswer(@Param('id', ParseUUIDPipe) id: string, @Body() dto: CommunityAnswerDto, @CurrentUser() user: AuthUser) {
+    return this.qna.answerCommunity(user, id, dto.body);
+  }
+
+  /** PATCH /qna/community/answers/{id}/accept — 커뮤니티 답변 채택(질문 학생·단일). */
+  @Patch('community/answers/:id/accept')
+  @Roles('student')
+  communityAccept(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.qna.acceptCommunityAnswer(user, id);
+  }
+
+  /** POST /qna/report — 신고(로그인 전원·대상별 1회·누적 3건 숨김). */
+  @Post('report')
+  report(@Body() dto: QnaReportDto, @CurrentUser() user: AuthUser) {
+    return this.qna.reportContent(user, dto);
   }
 }

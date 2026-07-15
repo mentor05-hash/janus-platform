@@ -15,6 +15,7 @@ const NAV = [
   { to: '/app/evaluations', label: '받은 평가' },
   { to: '/app/reverse', label: '역상담 제안' },
   { to: '/app/qna', label: '질문 답변' },
+  { to: '/app/community', label: '커뮤니티 Q&A' },
   { to: '/app/payroll', label: '예상급여' },
   { to: '/app/materials', label: '자료실' },
   { to: '/app/classes', label: '강의실' },

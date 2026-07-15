@@ -25,6 +25,7 @@ import { PricingService } from '../pricing-policy/pricing.service';
 import { canAnswerQuestion, QnaScope } from './domain/qna';
 import { computeSla } from './domain/qna-sla';
 import { pickAssignee } from './domain/qna-assign';
+import { COMMUNITY_DAILY_LIMIT, aiUnlabeled, canAnswerCommunity, shouldHide, withinDailyLimit } from './domain/qna-community';
 import { CreateAnswerDto, CreateQuestionDto } from './dto/qna.dto';
 import { Inject } from '@nestjs/common';
 import { LLM_PROVIDER } from '../llm/llm.types';
@@ -559,6 +560,118 @@ export class QnaService {
       }
     }
     return { ok: false, reason: 'no_slot', message: '가까운 빈 시간을 찾지 못했어요. 상담 예약에서 직접 시간을 골라주세요.' };
+  }
+
+  // ── Q3 커뮤니티(3부 공개 게시판) ───────────────────────────────────────
+  /** 커뮤니티 질문 등록(무료·일 3건) — 등록 즉시 AI 초안. */
+  async createCommunityQuestion(user: AuthUser, dto: { subject?: string; difficulty?: string; body: string }) {
+    if (user.role !== AccountRole.STUDENT) throw new ForbiddenException('학생만 커뮤니티 질문을 등록할 수 있습니다.');
+    const key = `qna:comm:${user.id}:${new Date().toISOString().slice(0, 10)}`;
+    const used = Number((await this.cache.get<number>(key)) ?? 0);
+    if (!withinDailyLimit(used)) throw new BadRequestException(`커뮤니티 질문은 하루 ${COMMUNITY_DAILY_LIMIT}건까지 등록할 수 있어요.`);
+    const post = await this.prisma.qna_post.create({
+      data: { student_id: user.id, subject: dto.subject ?? null, difficulty: dto.difficulty ?? null, scope: 'open', status: 'open', community: true, body: dto.body },
+    });
+    await this.cache.incr(key, 26 * 3600);
+    void this.generateAiDraft(post.id, { subject: dto.subject ?? null, difficulty: dto.difficulty ?? null, body: dto.body });
+    return { id: post.id, community: true };
+  }
+
+  /** 커뮤니티 목록(로그인 전원) — 미답변 필터·숨김 제외. */
+  async listCommunity(_user: AuthUser, filter?: 'unanswered') {
+    const posts = await this.prisma.qna_post.findMany({
+      where: { community: true, hidden: false }, orderBy: { created_at: 'desc' }, take: 100,
+      select: { id: true, subject: true, difficulty: true, body: true, status: true, created_at: true, ai_draft: true },
+    });
+    const ids = posts.map((p) => p.id);
+    const counts = ids.length ? await this.prisma.qna_community_answer.groupBy({ by: ['post_id'], where: { post_id: { in: ids }, hidden: false }, _count: { _all: true } }) : [];
+    const cmap = new Map(counts.map((c) => [c.post_id, c._count._all]));
+    let list = posts.map((p) => ({
+      id: p.id, subject: p.subject, difficulty: p.difficulty, body: p.body ?? '', status: p.status ?? 'open',
+      createdAt: p.created_at, answerCount: cmap.get(p.id) ?? 0, hasAiDraft: !!p.ai_draft,
+    }));
+    if (filter === 'unanswered') list = list.filter((p) => p.answerCount === 0);
+    return list;
+  }
+
+  /** 커뮤니티 상세 — 질문 + AI 초안 + (숨김 제외) 답변 목록(작성자명·채택). */
+  async getCommunity(user: AuthUser, postId: string) {
+    const post = await this.prisma.qna_post.findUnique({ where: { id: postId } });
+    if (!post || !post.community || post.hidden) throw new NotFoundException('질문을 찾을 수 없습니다.');
+    const answers = await this.prisma.qna_community_answer.findMany({ where: { post_id: postId, hidden: false }, orderBy: [{ accepted: 'desc' }, { created_at: 'asc' }] });
+    const authorIds = [...new Set(answers.map((a) => a.author_id))];
+    const accounts = authorIds.length ? await this.prisma.account.findMany({ where: { id: { in: authorIds } }, select: { id: true, name: true, role: true } }) : [];
+    const info = new Map(accounts.map((a) => [a.id, a]));
+    return {
+      id: post.id, subject: post.subject, difficulty: post.difficulty, body: post.body ?? '', status: post.status ?? 'open',
+      isOwner: post.student_id === user.id, aiDraft: post.ai_draft ?? null, createdAt: post.created_at,
+      answers: answers.map((a) => ({
+        id: a.id, body: a.body ?? '', accepted: a.accepted, aiSimilar: a.ai_similar,
+        authorName: info.get(a.author_id)?.name ?? '익명', authorRole: info.get(a.author_id)?.role ?? null,
+        mine: a.author_id === user.id, createdAt: a.created_at,
+      })),
+    };
+  }
+
+  /** 커뮤니티 답변(전원·무정산) — AI 초안 유사 시 미표기 경고. */
+  async answerCommunity(user: AuthUser, postId: string, body: string) {
+    const post = await this.prisma.qna_post.findUnique({ where: { id: postId } });
+    if (!post) throw new NotFoundException('질문을 찾을 수 없습니다.');
+    const gate = canAnswerCommunity({ community: post.community, hidden: post.hidden, status: post.status ?? 'open', ownerId: post.student_id, userId: user.id });
+    if (!gate.allowed) {
+      const msg = gate.reason === 'owner' ? '본인 질문에는 답변할 수 없습니다.' : gate.reason === 'resolved' ? '이미 채택/마감된 질문입니다.' : gate.reason === 'hidden' ? '숨김 처리된 질문입니다.' : '커뮤니티 질문이 아닙니다.';
+      throw new ForbiddenException(msg);
+    }
+    let similarity = 0; let aiSim = false;
+    if (post.ai_draft) {
+      const sim = await this.llm.checkAnswerSimilarity({ body, priors: [{ id: 'ai', body: post.ai_draft }] });
+      similarity = sim.maxSimilarity; aiSim = aiUnlabeled(sim.maxSimilarity);
+    }
+    const ans = await this.prisma.qna_community_answer.create({ data: { post_id: postId, author_id: user.id, body, similarity, ai_similar: aiSim } });
+    if (post.first_reply_at == null) await this.prisma.qna_post.update({ where: { id: postId }, data: { first_reply_at: new Date() } });
+    return { id: ans.id, aiSimilar: aiSim, similarity, warning: aiSim ? 'AI 초안과 매우 유사합니다 — AI 도움을 받았다면 "AI 참고"로 표기해 주세요.' : null };
+  }
+
+  /** 커뮤니티 답변 채택(질문 학생, 단일) — 답변 accepted + 질문 resolved. */
+  async acceptCommunityAnswer(user: AuthUser, answerId: string) {
+    const ans = await this.prisma.qna_community_answer.findUnique({ where: { id: answerId } });
+    if (!ans) throw new NotFoundException('답변을 찾을 수 없습니다.');
+    const post = await this.prisma.qna_post.findUnique({ where: { id: ans.post_id } });
+    if (!post || post.student_id !== user.id) throw new ForbiddenException('본인 질문의 답변만 채택할 수 있습니다.');
+    await this.prisma.$transaction(async (tx) => {
+      const upd = await tx.qna_post.updateMany({ where: { id: ans.post_id, status: 'open' }, data: { status: 'resolved', resolved_at: new Date() } });
+      if (upd.count !== 1) throw new ConflictException('이미 채택/마감된 질문입니다.');
+      await tx.qna_community_answer.update({ where: { id: answerId }, data: { accepted: true } });
+    });
+    return { id: answerId, accepted: true };
+  }
+
+  /** 신고(로그인 전원) — 대상별 1회, 누적 3건 시 자동 숨김. */
+  async reportContent(user: AuthUser, dto: { targetType: 'post' | 'answer'; targetId: string; reason?: string }) {
+    try {
+      await this.prisma.qna_report.create({ data: { target_type: dto.targetType, target_id: dto.targetId, reporter_id: user.id, reason: dto.reason ?? null } });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') throw new ConflictException('이미 신고한 대상입니다.');
+      throw e;
+    }
+    if (dto.targetType === 'post') {
+      const u = await this.prisma.qna_post.update({ where: { id: dto.targetId }, data: { report_count: { increment: 1 } }, select: { report_count: true } });
+      if (shouldHide(u.report_count)) await this.prisma.qna_post.update({ where: { id: dto.targetId }, data: { hidden: true } });
+    } else {
+      const u = await this.prisma.qna_community_answer.update({ where: { id: dto.targetId }, data: { report_count: { increment: 1 } }, select: { report_count: true } });
+      if (shouldHide(u.report_count)) await this.prisma.qna_community_answer.update({ where: { id: dto.targetId }, data: { hidden: true } });
+    }
+    return { ok: true };
+  }
+
+  /** 커뮤니티 실적(본인 또는 지정) — 답변 수·채택 수·채택률(리그 승급 기반). */
+  async communityStats(user: AuthUser, authorId?: string) {
+    const id = authorId ?? user.id;
+    const [authored, accepted] = await Promise.all([
+      this.prisma.qna_community_answer.count({ where: { author_id: id, hidden: false } }),
+      this.prisma.qna_community_answer.count({ where: { author_id: id, accepted: true } }),
+    ]);
+    return { authored, accepted, acceptRate: authored ? Math.round((accepted / authored) * 100) : 0 };
   }
 
   /** Q3 AI 1차 초안 생성(비동기·일일 비용상한·실패 무해) → qna_post.ai_draft 저장. */
