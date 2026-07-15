@@ -45,6 +45,13 @@ export class DiagnosticController {
     return this.diag.myHistory(user);
   }
 
+  /** GET /diagnostics/clinics — 약점 클리닉 결과 추이(학생). :id 보다 먼저 선언. */
+  @Get('clinics')
+  @Roles('student')
+  clinicHistory(@CurrentUser() user: AuthUser) {
+    return this.diag.clinicHistory(user);
+  }
+
   /** GET /diagnostics/:id — 시도 상세·약점·처방(학생). */
   @Get(':id')
   @Roles('student')

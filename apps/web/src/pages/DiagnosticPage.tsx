@@ -8,7 +8,9 @@ type Question = { id: string; subject: string; unit: string; difficulty: string 
 type UnitStat = { subject: string; unit: string; total: number; correct: number; rate: number; weak: boolean };
 type Prescription = { subject: string; unit: string; rate: number; action: string };
 type Result = { attemptId: string; total: number; correct: number; score: number; units: UnitStat[]; prescriptions: Prescription[] };
-type HistoryRow = { id: string; subject: string | null; total: number; correct: number; score: number; submitted_at: string };
+type HistoryRow = { id: string; subject: string | null; total: number; correct: number; score: number; submitted_at: string; is_clinic?: boolean };
+type ClinicAttempt = { id: string; total: number; correct: number; score: number; submittedAt: string; parentAttemptId: string | null };
+type ClinicSummary = { attempts: ClinicAttempt[]; count: number; avgScore: number | null; bestScore: number | null; improvement: number | null };
 
 const SUBJECTS = ['', '국어', '수학', '영어'];
 const fmtDate = (s: string) => { const d = new Date(s); return `${d.getMonth() + 1}/${d.getDate()}`; };
@@ -21,6 +23,7 @@ export function DiagnosticPage() {
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [result, setResult] = useState<Result | null>(null);
   const [history, setHistory] = useState<HistoryRow[]>([]);
+  const [clinic, setClinic] = useState<ClinicSummary | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -49,7 +52,10 @@ export function DiagnosticPage() {
     } catch { /* 취소·미지원 무시 */ }
   }
 
-  const loadHistory = () => api.get<{ attempts: HistoryRow[] }>('/diagnostics/me').then((r) => setHistory(r.attempts)).catch(() => { /* 무시 */ });
+  const loadHistory = () => {
+    api.get<{ attempts: HistoryRow[] }>('/diagnostics/me').then((r) => setHistory(r.attempts)).catch(() => { /* 무시 */ });
+    api.get<ClinicSummary>('/diagnostics/clinics').then(setClinic).catch(() => { /* 무시 */ });
+  };
   useEffect(() => { loadHistory(); }, []);
 
   async function start() {
@@ -116,13 +122,43 @@ export function DiagnosticPage() {
             </Card>
           )}
 
+          {clinic && clinic.count >= 1 && (
+            <Card style={{ marginTop: 18, borderLeft: '3px solid var(--j-blue)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--ink)' }}>🎯 약점 클리닉 추이</span>
+                <Badge kind="soft">{clinic.count}회</Badge>
+                {clinic.improvement != null && clinic.count >= 2 && (
+                  <span style={{ marginLeft: 'auto', fontSize: 12.5, fontWeight: 700, color: clinic.improvement > 0 ? '#2A8A5F' : clinic.improvement < 0 ? 'var(--danger, #dc2626)' : 'var(--muted)' }}>
+                    {clinic.improvement > 0 ? `▲ +${clinic.improvement}점 향상` : clinic.improvement < 0 ? `▼ ${clinic.improvement}점` : '변화 없음'}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
+                <div><div style={{ fontSize: 11, color: 'var(--caption)' }}>평균</div><div style={{ fontSize: 18, fontWeight: 800, color: 'var(--j-blue)' }}>{clinic.avgScore ?? '—'}점</div></div>
+                <div><div style={{ fontSize: 11, color: 'var(--caption)' }}>최고</div><div style={{ fontSize: 18, fontWeight: 800, color: 'var(--ink)' }}>{clinic.bestScore ?? '—'}점</div></div>
+              </div>
+              {clinic.attempts.length >= 2 && (
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 84 }}>
+                  {clinic.attempts.slice(-10).map((a) => (
+                    <div key={a.id} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }} title={`${a.score}점 (${a.correct}/${a.total}) · ${fmtDate(a.submittedAt)}`}>
+                      <span style={{ fontSize: 10, color: 'var(--muted)' }}>{a.score}</span>
+                      <div style={{ width: '100%', maxWidth: 30, height: `${Math.max(4, a.score * 0.62)}px`, borderRadius: 4, background: a.score >= 60 ? 'var(--j-blue)' : 'var(--danger, #dc2626)' }} />
+                      <span style={{ fontSize: 9.5, color: 'var(--caption)' }}>{fmtDate(a.submittedAt)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {clinic.attempts.length < 2 && <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: 0 }}>클리닉을 반복하면 점수 변화를 추적해드려요.</p>}
+            </Card>
+          )}
+
           <h3 style={{ fontSize: 15, margin: '18px 0 8px' }}>이전 진단</h3>
           {history.length === 0 ? <EmptyState>아직 진단 기록이 없어요. 첫 진단을 시작해보세요.</EmptyState> : (
             <div style={{ display: 'grid', gap: 8 }}>
               {history.map((h) => (
                 <Card key={h.id}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <Badge kind="soft">{h.subject ?? '전과목'}</Badge>
+                    <Badge kind={h.is_clinic ? 'new' : 'soft'}>{h.is_clinic ? '🎯 클리닉' : (h.subject ?? '전과목')}</Badge>
                     <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>{h.score}점</span>
                     <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>정답 {h.correct}/{h.total}</span>
                     <span style={{ fontSize: 12, color: 'var(--caption)', marginLeft: 'auto' }}>{fmtDate(h.submitted_at)}</span>

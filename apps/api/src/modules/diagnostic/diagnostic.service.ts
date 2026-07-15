@@ -69,7 +69,7 @@ export class DiagnosticService {
       where: { active: true, unit: { in: units } }, take: Math.min(30, Math.max(1, count)),
     });
     if (pool.length === 0) throw new NotFoundException('해당 유형 문항이 없습니다.');
-    const attempt = await this.prisma.diagnostic_attempt.create({ data: { student_id: user.id, subject: '약점클리닉', total: pool.length } });
+    const attempt = await this.prisma.diagnostic_attempt.create({ data: { student_id: user.id, subject: '약점클리닉', total: pool.length, is_clinic: true, parent_attempt_id: attemptId } });
     return {
       attemptId: attempt.id, subject: '약점클리닉', clinic: true, weakUnits: units,
       questions: pool.map((q) => ({ id: q.id, subject: q.subject, unit: q.unit, difficulty: q.difficulty, stem: q.stem, choices: q.choices as string[] })),
@@ -108,15 +108,38 @@ export class DiagnosticService {
     return { attemptId, total, correct, score, units: stats, prescriptions: prescribe(stats) };
   }
 
-  /** 내 진단 이력(최근순) + 최근 결과 요약. */
+  /** 내 진단 이력(최근순) + 최근 결과 요약. 클리닉 시도는 별도 표기. */
   async myHistory(user: AuthUser) {
     this.assertStudent(user);
     const attempts = await this.prisma.diagnostic_attempt.findMany({
       where: { student_id: user.id, submitted_at: { not: null } },
       orderBy: { started_at: 'desc' }, take: 20,
-      select: { id: true, subject: true, total: true, correct: true, score: true, submitted_at: true },
+      select: { id: true, subject: true, total: true, correct: true, score: true, submitted_at: true, is_clinic: true },
     });
     return { attempts };
+  }
+
+  /** 약점 클리닉 결과 추적·추이 — 클리닉 시도만(오래된→최근). 반복 훈련 효과 확인용. */
+  async clinicHistory(user: AuthUser) {
+    this.assertStudent(user);
+    const rows = await this.prisma.diagnostic_attempt.findMany({
+      where: { student_id: user.id, is_clinic: true, submitted_at: { not: null } },
+      orderBy: { submitted_at: 'asc' }, take: 30,
+      select: { id: true, total: true, correct: true, score: true, submitted_at: true, parent_attempt_id: true },
+    });
+    const attempts = rows.map((r) => ({
+      id: r.id, total: r.total, correct: r.correct, score: r.score, submittedAt: r.submitted_at, parentAttemptId: r.parent_attempt_id,
+    }));
+    const scores = attempts.map((a) => a.score);
+    const first = scores[0] ?? null;
+    const last = scores.length ? scores[scores.length - 1] : null;
+    return {
+      attempts,
+      count: attempts.length,
+      avgScore: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null,
+      bestScore: scores.length ? Math.max(...scores) : null,
+      improvement: first != null && last != null ? last - first : null, // 최초 대비 최근 점수 변화
+    };
   }
 
   /** 특정 시도 상세(약점·처방 재계산). */

@@ -1293,9 +1293,12 @@ model diagnostic_attempt {
   score        Int                    @default(0)
   started_at   DateTime               @default(now()) @db.Timestamptz(6)
   submitted_at DateTime?              @db.Timestamptz(6)
+  is_clinic    Boolean                @default(false)
+  parent_attempt_id String?           @db.Uuid
   responses    diagnostic_response[]
 
   @@index([student_id, started_at(sort: Desc)])
+  @@index([student_id, is_clinic, started_at(sort: Desc)])
 }
 
 /** 수준진단 응답 — 문항별 선택·정오. */
