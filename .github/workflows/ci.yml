@@ -78,6 +78,67 @@ jobs:
       - name: E2E tests
         run: npm run test:e2e
 
+  smoke-e2e:
+    name: Smoke E2E (ops curl 스크립트)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: itall
+          POSTGRES_PASSWORD: itall_local_pw
+          POSTGRES_DB: itall
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U itall -d itall"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://itall:itall_local_pw@localhost:5432/itall
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: ci_test_secret
+      JWT_REFRESH_SECRET: ci_test_refresh_secret
+      PORT: '3000'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install
+        run: npm ci
+        working-directory: .
+      - name: Prisma generate
+        run: npm run prisma:generate
+      - name: Apply migrations (fresh DB)
+        run: npm run migrate:all
+      - name: Seed (base 계정)
+        run: npm run seed
+      - name: Build
+        run: npm run build
+      - name: Start API (background)
+        run: |
+          node dist/main &
+          echo $! > /tmp/api.pid
+      - name: Run ops smoke E2E
+        run: bash ../../ops/run-all-e2e.sh
+        env:
+          API: http://localhost:3000/api/v1
+      - name: Stop API
+        if: always()
+        run: kill "$(cat /tmp/api.pid)" 2>/dev/null || true
+
   web:
     name: Web (typecheck · unit)
     runs-on: ubuntu-latest
