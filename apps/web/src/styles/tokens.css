@@ -44,6 +44,7 @@
   --chip-done: var(--j-stable);     --chip-done-dot: var(--j-stable);      --chip-done-bg: var(--j-stable-soft);
   --chip-muted: var(--j-ink2);      --chip-muted-dot: var(--j-ink3);       --chip-muted-bg: var(--j-hair2);
   --chip-danger: var(--j-high);     --chip-danger-bg: var(--j-high-soft);  --chip-danger-border: #efc7bd;
+  --danger: var(--j-high);          /* 위험·약점·경고 강조(다크 대응 토큰) */
 
   /* 등급: S 골드 그라데이션 / A 블루 / B 실버그레이 */
   --grade-s: linear-gradient(135deg, #e3b862, #cc963a);
@@ -79,6 +80,7 @@
   --white: var(--j-surface);
   --admin-navy: #091120;
   --chip-danger-border: #5c3a33;
+  --danger: #f0736b; /* 다크: 밝은 적색(대비 확보) */
   --grade-b: #8496ab;
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
