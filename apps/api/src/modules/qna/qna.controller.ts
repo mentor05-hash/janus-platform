@@ -163,10 +163,10 @@ export class QnaController {
     return this.qna.createCommunityQuestion(user, dto);
   }
 
-  /** GET /qna/community — 커뮤니티 목록(로그인 전원). ?filter=unanswered 미답변만. */
+  /** GET /qna/community — 커뮤니티 목록(로그인 전원). ?filter=unanswered·?subject=·?q= */
   @Get('community')
-  communityList(@CurrentUser() user: AuthUser, @Query('filter') filter?: string) {
-    return this.qna.listCommunity(user, filter === 'unanswered' ? 'unanswered' : undefined);
+  communityList(@CurrentUser() user: AuthUser, @Query('filter') filter?: string, @Query('subject') subject?: string, @Query('q') q?: string) {
+    return this.qna.listCommunity(user, { filter: filter === 'unanswered' ? 'unanswered' : undefined, subject: subject || undefined, q: q || undefined });
   }
 
   /** GET /qna/community/stats — 내 커뮤니티 실적(답변·채택·채택률). */

@@ -580,10 +580,16 @@ export class QnaService {
     return { id: post.id, community: true };
   }
 
-  /** 커뮤니티 목록(로그인 전원) — 미답변 필터·숨김 제외. */
-  async listCommunity(_user: AuthUser, filter?: 'unanswered') {
+  /** 커뮤니티 목록(로그인 전원) — 미답변 필터·과목·검색·숨김 제외. */
+  async listCommunity(_user: AuthUser, opts?: { filter?: 'unanswered'; subject?: string; q?: string }) {
+    const term = (opts?.q ?? '').trim();
     const posts = await this.prisma.qna_post.findMany({
-      where: { community: true, hidden: false }, orderBy: { created_at: 'desc' }, take: 100,
+      where: {
+        community: true, hidden: false,
+        ...(opts?.subject ? { subject: opts.subject } : {}),
+        ...(term ? { OR: [{ subject: { contains: term, mode: 'insensitive' } }, { body: { contains: term, mode: 'insensitive' } }] } : {}),
+      },
+      orderBy: { created_at: 'desc' }, take: 100,
       select: { id: true, subject: true, difficulty: true, body: true, status: true, created_at: true, ai_draft: true },
     });
     const ids = posts.map((p) => p.id);
@@ -593,7 +599,7 @@ export class QnaService {
       id: p.id, subject: p.subject, difficulty: p.difficulty, body: p.body ?? '', status: p.status ?? 'open',
       createdAt: p.created_at, answerCount: cmap.get(p.id) ?? 0, hasAiDraft: !!p.ai_draft,
     }));
-    if (filter === 'unanswered') list = list.filter((p) => p.answerCount === 0);
+    if (opts?.filter === 'unanswered') list = list.filter((p) => p.answerCount === 0);
     return list;
   }
 

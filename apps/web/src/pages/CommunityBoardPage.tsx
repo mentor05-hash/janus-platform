@@ -39,13 +39,20 @@ export function CommunityBoardPage() {
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
 
+  const [subjectFilter, setSubjectFilter] = useState('');
+  const [searchQ, setSearchQ] = useState('');
+  const [searchApplied, setSearchApplied] = useState('');
   const load = useCallback(() => {
     setList(null);
-    const q = unansweredOnly ? '?filter=unanswered' : '';
+    const qs = new URLSearchParams();
+    if (unansweredOnly) qs.set('filter', 'unanswered');
+    if (subjectFilter) qs.set('subject', subjectFilter);
+    if (searchApplied.trim()) qs.set('q', searchApplied.trim());
+    const q = qs.toString() ? `?${qs.toString()}` : '';
     api.get<ListItem[]>(`/qna/community${q}`)
       .then(setList)
       .catch((e) => setError(e instanceof ApiError ? e.message : '커뮤니티 조회 실패'));
-  }, [unansweredOnly]);
+  }, [unansweredOnly, subjectFilter, searchApplied]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -85,13 +92,30 @@ export function CommunityBoardPage() {
       {msg && <div style={{ fontSize: 13, color: 'var(--brand)', marginBottom: 8 }}>{msg}</div>}
       <LeaguePanel />
 
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
         {user?.role === 'student' && (
           <Button onClick={() => setShowForm((v) => !v)}>{showForm ? '닫기' : '＋ 질문하기'}</Button>
         )}
         <label style={{ fontSize: 13, color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
           <input type="checkbox" checked={unansweredOnly} onChange={(e) => setUnansweredOnly(e.target.checked)} /> 미답변만
         </label>
+      </div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
+        <form onSubmit={(e) => { e.preventDefault(); setSearchApplied(searchQ); }} style={{ display: 'flex', gap: 6, flex: 1, minWidth: 200 }}>
+          <input value={searchQ} onChange={(e) => setSearchQ(e.target.value)} placeholder="검색 (과목·내용)" className="input" style={{ flex: 1 }} />
+          <Button onClick={() => setSearchApplied(searchQ)}>검색</Button>
+          {searchApplied && <button type="button" onClick={() => { setSearchQ(''); setSearchApplied(''); }} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}>✕</button>}
+        </form>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {['', '국어', '수학', '영어', '탐구'].map((sub) => (
+            <button key={sub || 'all'} type="button" onClick={() => setSubjectFilter(sub)} style={{
+              fontSize: 12.5, fontWeight: 700, padding: '6px 11px', borderRadius: 999, cursor: 'pointer',
+              border: `1px solid ${subjectFilter === sub ? 'var(--j-blue)' : 'var(--line-soft)'}`,
+              background: subjectFilter === sub ? 'var(--j-blue)' : 'transparent',
+              color: subjectFilter === sub ? '#fff' : 'var(--muted)',
+            }}>{sub || '전체'}</button>
+          ))}
+        </div>
       </div>
 
       {showForm && user?.role === 'student' && (
