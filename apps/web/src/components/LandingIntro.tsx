@@ -6,7 +6,7 @@ import type { Me } from '../api/types';
 export type IntroKey = 'baechi' | 'qna' | 'lecture' | 'consult' | 'services';
 
 interface Feature { icon: string; title: string; desc: string }
-interface Cta { label: string; to: string; gold?: boolean; memberOnly?: boolean }
+interface Cta { label: string; to: string; toAuth?: string; gold?: boolean; memberOnly?: boolean }
 interface Section {
   eyebrow: string;
   title: string;
@@ -29,7 +29,7 @@ const SECTIONS: Record<IntroKey, Section> = {
     ],
     ctas: [
       { label: '무료 미리보기 열기 →', to: '/placement', gold: true },
-      { label: '전체 배치표 허브', to: '/placement/hub', memberOnly: true },
+      { label: '전체 배치표 허브', to: '/placement/hub', toAuth: '/student/placement/hub', memberOnly: true },
     ],
     note: '구간별 대표 학과는 무료 · 실측 컷·검색·전체 학과는 회원부터.',
   },
@@ -45,6 +45,7 @@ const SECTIONS: Record<IntroKey, Section> = {
     ],
     ctas: [
       { label: '질문·답변 살펴보기 →', to: '/services/qna', gold: true },
+      { label: '커뮤니티 바로가기', to: '/login', toAuth: '/student/community/board', memberOnly: true },
     ],
   },
   lecture: {
@@ -53,11 +54,11 @@ const SECTIONS: Record<IntroKey, Section> = {
     lead: '전 범위를 훑는 강의가 아니라, 지금 막힌 개념·유형을 겨냥한 강좌. 진단에서 드러난 약점과 연결해 무엇을 들을지까지 안내합니다.',
     features: [
       { icon: '◧', title: '지점 강의', desc: '개념·유형 단위로 쪼갠 강의 — 필요한 곳만 골라 듣기.' },
-      { icon: '◱', title: '진단 연계', desc: '수준진단·격차 리포트가 가리키는 약점과 강좌를 연결.' },
+      { icon: '◱', title: '진단 연계', desc: '실력진단·격차 리포트가 가리키는 약점과 강좌를 연결.' },
       { icon: '▷', title: '검증 강사', desc: '검증 배지 강사의 강의 — 후기·채택 실적으로 투명 공개.' },
     ],
     ctas: [
-      { label: '강좌 둘러보기 →', to: '/services/lecture', gold: true },
+      { label: '강좌 둘러보기 →', to: '/services/lecture', toAuth: '/student/lectures', gold: true },
     ],
   },
   consult: {
@@ -76,14 +77,15 @@ const SECTIONS: Record<IntroKey, Section> = {
   services: {
     eyebrow: '서비스 전체 · JANUS',
     title: '진단에서 통과까지, 하나의 관문',
-    lead: '수준진단·배치표·질문답변·강좌·상담·클리닉이 따로 놀지 않고 한 흐름으로 이어집니다. 지금 어디에 있든, 다음 한 걸음을 야누스가 안내합니다.',
+    lead: '실력진단·배치표·질문답변·강좌·상담·클리닉이 따로 놀지 않고 한 흐름으로 이어집니다. 지금 어디에 있든, 다음 한 걸음을 야누스가 안내합니다.',
     features: [
-      { icon: '◱', title: '진단·배치', desc: '수준진단 → 배치표 → 격차 리포트로 위치와 목표를 정렬.' },
+      { icon: '◱', title: '진단·배치', desc: '실력진단 → 배치표 → 격차 리포트로 위치와 목표를 정렬.' },
       { icon: '◎', title: '실행', desc: '질문답변·강좌·1:1 상담·클리닉으로 약점을 실제로 메움.' },
       { icon: '⧉', title: '연결', desc: '각 단계 결과가 다음 단계 입력이 되는 끊김 없는 흐름.' },
     ],
     ctas: [
       { label: '서비스 전체 보기 →', to: '/services', gold: true },
+      { label: '내 관문으로', to: '/login', toAuth: '/student', memberOnly: true },
     ],
   },
 };
@@ -103,7 +105,7 @@ export function LandingIntro({ sec, user }: { sec: IntroKey; user: Me | null }) 
             {s.ctas
               .filter((c) => !c.memberOnly || user)
               .map((c) => (
-                <Link key={c.to} to={c.to}
+                <Link key={c.to} to={user && c.toAuth ? c.toAuth : c.to}
                   className={c.gold ? 'btn gold' : 'btn'}
                   style={{ textDecoration: 'none', padding: '13px 28px', fontSize: 15, ...(c.gold ? {} : { background: 'rgba(255,255,255,.1)', color: '#fff', border: '1px solid rgba(255,255,255,.2)' }) }}>
                   {c.label}
@@ -118,10 +120,10 @@ export function LandingIntro({ sec, user }: { sec: IntroKey; user: Me | null }) 
       <section style={{ maxWidth: 1180, margin: '0 auto', padding: '34px 20px 12px', width: '100%' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 14 }}>
           {s.features.map((f) => (
-            <div key={f.title} className="card" style={{ padding: '18px 18px 20px' }}>
-              <div style={{ fontSize: 22, marginBottom: 8, color: 'var(--j-blue)' }}>{f.icon}</div>
+            <div key={f.title} className="card" style={{ padding: '20px 18px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <span style={{ width: 40, height: 40, borderRadius: 11, background: 'var(--j-blue-soft)', color: 'var(--j-blue)', fontSize: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{f.icon}</span>
               <div style={{ fontSize: 15.5, fontWeight: 800, color: 'var(--ink)', letterSpacing: '-.01em' }}>{f.title}</div>
-              <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6, marginTop: 6 }}>{f.desc}</div>
+              <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6 }}>{f.desc}</div>
             </div>
           ))}
         </div>
