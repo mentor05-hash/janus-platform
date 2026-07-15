@@ -31,6 +31,13 @@ export class SsoController {
     return this.sso.issue(user, dto.service);
   }
 
+  /** GET /sso/entitlements — 내 진입/해제 가능 서비스 목록(웹이 janus_sso 세팅에 사용, C2). */
+  @Get('sso/entitlements')
+  @RateLimit({ limit: 60, windowSec: 60 })
+  entitlements(@CurrentUser() user: AuthUser) {
+    return this.sso.entitlements(user);
+  }
+
   /** GET /sso/verify?token=&service= — 정적 페이지 위임 검증(공개, 설계 §4). */
   @Public()
   @RateLimit({ limit: 120, windowSec: 60 })

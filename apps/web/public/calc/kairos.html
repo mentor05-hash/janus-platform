@@ -1,0 +1,248 @@
+<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>야누스 카이로스 v2 — 성향 모드 · 정밀도 가중 · 로짓 앙상블</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+:root{--bg:#f4f6fa;--navy:#1e3550;--blue:#2f6fb3;--gold:#bc8a28;--bd:#dde3ec;--mut:#8695a8;--g:#1f8a4c;--o:#cf9a3a;--r:#c05252}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Pretendard Variable',Pretendard,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;background:var(--bg);color:#1b2330;font-size:14px;line-height:1.6}
+header{background:#fff;border-bottom:1px solid #e4eaf1}
+.hbar{max-width:1120px;margin:0 auto;height:58px;padding:0 20px;display:flex;align-items:center;gap:10px}
+.brand{font-size:20px;font-weight:800;color:var(--navy);letter-spacing:-.02em}
+.tag{font-size:11.5px;font-weight:700;color:var(--blue);background:rgba(47,111,179,.1);border-radius:6px;padding:3px 8px}
+.sub{font-size:12px;color:var(--mut)}
+.wrap{max-width:1120px;margin:0 auto;padding:18px 20px}
+.grid{display:grid;grid-template-columns:1fr 1.02fr;gap:15px;margin-bottom:15px}
+.dark{background:#1e3550;border-radius:16px;padding:22px 25px;color:#e8eef7}
+.dark .ttl{display:flex;align-items:center;font-size:13.5px;font-weight:700}
+.pill{margin-left:auto;font-size:11.5px;background:#2a476b;border-radius:8px;padding:3px 10px;color:#b9c9de}
+.big{font-size:40px;font-weight:800;margin:16px 0 4px;font-family:'IBM Plex Mono',Consolas,monospace;color:#5c7392;letter-spacing:.02em}
+.big.on{color:#e8eef7}
+.dark .line{font-size:12.5px;color:#8fa3bc}
+.white{background:#fff;border:1px solid #e4eaf1;border-radius:16px;padding:20px 24px}
+.white h3{margin:0 0 10px;font-size:15px;color:var(--navy)}
+.imp{font-size:12.8px;color:#3d4f66;margin:6px 0}
+.imp b{color:var(--navy)}
+.modes{display:flex;gap:9px;margin-bottom:15px}
+.mode{flex:1;background:#fff;border:2px solid var(--bd);border-radius:14px;padding:13px 15px;cursor:pointer;transition:border .15s}
+.mode:hover{border-color:#b9c9de}
+.mode.sel{border-color:var(--navy);background:#f3f7fc}
+.mode.sel.alea{border-color:var(--gold);background:#fdf9ef}
+.mode .mn{font-size:14.5px;font-weight:800;color:var(--navy)}
+.mode .md{font-size:11.8px;color:var(--mut);margin-top:2px}
+.card{background:#fff;border:1px solid var(--bd);border-radius:14px;padding:16px 18px;margin-bottom:14px}
+h2{font-size:15px;margin:0 0 4px;color:var(--navy)}
+.hint{font-size:12px;color:var(--mut)}
+table{border-collapse:collapse;margin-top:10px;width:100%}
+th,td{border:1px solid var(--bd);padding:6px 9px;font-size:13px;text-align:center}
+th{background:var(--navy);color:#fff;font-size:12px;font-weight:700}
+input{width:76px;padding:5px;border:1px solid var(--bd);border-radius:6px;text-align:center;font-size:13px}
+.out{font-weight:800;color:var(--navy)}
+.bigc{font-size:16px;font-weight:800}
+.chip{display:inline-block;font-size:11.5px;font-weight:800;border-radius:7px;padding:2px 9px}
+.c-an{background:#e3f2e9;color:var(--g)}.c-jk{background:#eaf2fb;color:var(--blue)}.c-so{background:#f7edd2;color:#8a6d1f}.c-sh{background:#fbeaea;color:var(--r)}
+.wbadge{font-size:11px;color:var(--mut)}
+.warn{display:inline-block;font-size:11px;font-weight:700;color:#8a6d1f;background:#f7edd2;border-radius:6px;padding:1px 7px;margin-left:4px}
+.note{background:#fdf6e7;border:1px solid #eedfba;border-radius:10px;padding:10px 14px;font-size:12.5px;margin-top:10px;color:#5a4708}
+.foot{text-align:center;font-size:11.5px;color:var(--mut);padding:6px 0 26px}
+@media(max-width:760px){.grid{grid-template-columns:1fr}.modes{flex-direction:column}}
+</style><style>
+.jns-lock{transition:filter .18s}
+html[data-tier="free"][data-gate="on"] .jns-lock{filter:blur(8px);pointer-events:none;user-select:none}
+.jns-paywall{display:none}
+html[data-tier="free"][data-gate="on"] .jns-paywall{display:flex;align-items:center;gap:12px;justify-content:center;flex-wrap:wrap;background:linear-gradient(135deg,#1e3550,#2f6fb3);color:#fff;border-radius:12px;padding:14px 18px;margin:14px auto;max-width:1000px;font-size:13.5px;font-weight:600}
+.jns-paywall button{background:#f2d98a;color:#3a2d05;border:none;border-radius:8px;padding:8px 16px;font-weight:800;cursor:pointer;font-family:inherit}
+</style>
+</head><body>
+<header><div class="hbar">
+<svg width="26" height="26" viewBox="0 0 96 96" fill="none" role="img" aria-label="야누스"><defs><linearGradient id="k2A" gradientUnits="userSpaceOnUse" x1="18" y1="0" x2="78" y2="0"><stop offset="50%" stop-color="#2F6FB3"/><stop offset="50%" stop-color="#BC8A28"/></linearGradient><linearGradient id="k2B" gradientUnits="userSpaceOnUse" x1="14" y1="0" x2="82" y2="0"><stop offset="50%" stop-color="#2F6FB3"/><stop offset="50%" stop-color="#BC8A28"/></linearGradient></defs><g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="10"><path d="M18 74V43C18 27.5 30.2 15 48 15C65.8 15 78 27.5 78 43V52" stroke="url(#k2A)"/><path d="M14 79H82" stroke="url(#k2B)"/></g></svg>
+<span class="brand">야누스</span><span class="tag">카이로스 v2</span>
+<span class="sub">결정적 순간의 판단 — 성향 모드 · 정밀도 가중 · 로짓 앙상블 · 마감 투영</span>
+<span style="flex:1"></span><span class="sub" style="font-family:monospace">janus.app/kairos</span>
+</div></header>
+
+<div class="wrap">
+<div class="grid">
+ <div class="dark">
+  <div class="ttl"><span>트리비움 — 최소 한 곳 합격</span><span class="pill" id="kzPill">입력 대기</span></div>
+  <div class="big" id="kzBig">——.—— <span style="font-size:19px">%</span></div>
+  <div class="line" id="kzLine">수치를 입력하면 성향 모드에 맞는 헤드라인이 표시됩니다</div>
+  <div style="border-top:1px solid #2a476b;margin-top:18px;padding-top:12px;display:flex;gap:38px">
+   <span><div style="font-size:11.5px;color:#8fa3bc">엔진</div><div style="font-size:14px;font-weight:700">테르미누스 · 그라두스</div></span>
+   <span><div style="font-size:11.5px;color:#8fa3bc">v2 결합</div><div style="font-size:14px;font-weight:700">로짓 앙상블 + 정밀도 가중</div></span>
+  </div>
+ </div>
+ <div class="white">
+  <h3>v2에서 좋아진 것 — 확률은 하나, 성향은 판정을 바꿉니다</h3>
+  <div class="imp">▸ <b>정밀도 가중</b> — 0.3:0.7 고정 가중을 표본 크기 비례로 일반화(전형 상태에서 0.3:0.7 재현). 표본이 두꺼우면 분석대상을 더 믿습니다.</div>
+  <div class="imp">▸ <b>로짓 앙상블</b> — 두 추정(테르미누스·그라두스)의 산술평균 대신 로짓 평균. 극단 괴리 시 낙관 왜곡을 막고, 괴리가 크면 경고 배지.</div>
+  <div class="imp">▸ <b>마감 투영(간이 모멘텀)</b> — N시간 전 등수를 넣으면 유입 속도로 마감 시점의 나를 평가(감쇠 0.7 — 막판 유입은 하위권 비중↑).</div>
+  <div class="imp">▸ <b>덴시타스 축소</b> — 표본이 희석되면(예/실&lt;1) 확률을 공칭(칸수 곡선) 쪽으로 당깁니다. 소규모·신설 학과 급등락 처방.</div>
+ </div>
+</div>
+
+<div class="modes">
+ <div class="mode sel" id="md0" onclick="setMode(0)"><div class="mn">🛡 프루덴티아 <span class="wbadge">보수형</span></div><div class="md">문턱을 살짝 높인 상황을 가정하여 제안 · 트리비움 최소치 기준 · 판정 문턱 상향(안정 85%)</div></div>
+ <div class="mode" id="md1" onclick="setMode(1)"><div class="mn">⚖ 리브라 <span class="wbadge">균형형</span></div><div class="md">현행 카이로스 기준 · 트리비움 구간(최소~최대) · 판정 문턱 표준(안정 80%)</div></div>
+ <div class="mode" id="md2" onclick="setMode(2)"><div class="mn">🎲 알레아 <span class="wbadge">배팅형</span></div><div class="md">상방 시나리오 헤드라인 · 판정 문턱 완화 · 지름 후보는 알레아 이벤트 계산기로 연계</div></div>
+</div>
+
+<div class="card"><h2>① 테르미누스 라인 <span class="hint">— "지원자가 이만큼 몰려도 나는 버틴다"의 상한 · v2: 정밀도 가중 + 마감 투영</span></h2>
+<table><tr><th style="text-align:left"></th><th>가군</th><th>나군</th><th>다군</th></tr>
+<tr><td style="text-align:left">모집인원 <span class="hint">(v2·축소용)</span></td><td><input id="a9"></td><td><input id="b9"></td><td><input id="c9"></td></tr>
+<tr><td style="text-align:left">모의지원자수</td><td><input id="a0"></td><td><input id="b0"></td><td><input id="c0"></td></tr>
+<tr><td style="text-align:left">내 모의지원등수</td><td><input id="a1"></td><td><input id="b1"></td><td><input id="c1"></td></tr>
+<tr><td style="text-align:left">N시간 전 내 등수 <span class="hint">(v2·선택)</span></td><td><input id="aM"></td><td><input id="bM"></td><td><input id="cM"></td></tr>
+<tr><td style="text-align:left">분석대상자수</td><td><input id="a2"></td><td><input id="b2"></td><td><input id="c2"></td></tr>
+<tr><td style="text-align:left">합격예측등수</td><td><input id="a3"></td><td><input id="b3"></td><td><input id="c3"></td></tr>
+<tr><td style="text-align:left">모의지원합격자수</td><td><input id="a4"></td><td><input id="b4"></td><td><input id="c4"></td></tr>
+<tr><td style="text-align:left">예상추합률 <span class="hint">(예: 0.72)</span></td><td><input id="a5"></td><td><input id="b5"></td><td><input id="c5"></td></tr>
+<tr style="background:#f7fafc"><td style="text-align:left"><b>가중 w₁:w₂</b> <span class="hint">(v2)</span></td><td class="out" id="aW">-</td><td class="out" id="bW">-</td><td class="out" id="cW">-</td></tr>
+<tr style="background:#f7fafc"><td style="text-align:left"><b>예상경쟁률 / 테르미누스</b></td><td class="out" id="aL">-</td><td class="out" id="bL">-</td><td class="out" id="cL">-</td></tr>
+<tr><td style="text-align:left"><b>예상합격률 ①</b> <span class="hint">(마감 투영 시 투영값)</span></td><td class="out bigc" id="aP">-</td><td class="out bigc" id="bP">-</td><td class="out bigc" id="cP">-</td></tr></table>
+<div style="margin-top:8px" class="hint">시간 입력(마감 투영 공통): 몇 시간 전 등수인가 <input id="hAgo" style="width:56px"> h · 마감까지 남은 시간 <input id="hLeft" style="width:56px"> h — 넣으면 ①이 마감 시점 투영으로 계산됩니다 <span class="warn" id="momB" style="display:none">마감 투영 적용</span></div></div>
+
+<div class="card"><h2>② 그라두스 보정 <span class="hint">— 칸 안의 내 위치까지 반영한 연속 칸수 (3개년 실측 피팅)</span></h2>
+<table><tr><th style="text-align:left"></th><th>가군</th><th>나군</th><th>다군</th></tr>
+<tr><td style="text-align:left">진학사 칸수</td><td><input id="a6"></td><td><input id="b6"></td><td><input id="c6"></td></tr>
+<tr><td style="text-align:left">칸수 내 인원</td><td><input id="a7"></td><td><input id="b7"></td><td><input id="c7"></td></tr>
+<tr><td style="text-align:left">칸수 내 등수</td><td><input id="a8"></td><td><input id="b8"></td><td><input id="c8"></td></tr>
+<tr style="background:#f7fafc"><td style="text-align:left"><b>보정 칸수</b></td><td class="out" id="aK">-</td><td class="out" id="bK">-</td><td class="out" id="cK">-</td></tr>
+<tr><td style="text-align:left"><b>예상합격률 ②</b></td><td class="out bigc" id="aQ">-</td><td class="out bigc" id="bQ">-</td><td class="out bigc" id="cQ">-</td></tr></table></div>
+
+<div class="card"><h2>③ 종합 판정 <span class="hint">— v2: 로짓 앙상블 · 덴시타스 축소 · 성향별 판정</span></h2>
+<table><tr><th style="text-align:left"></th><th>가군</th><th>나군</th><th>다군</th><th>트리비움(최소)</th><th>트리비움(최대)</th></tr>
+<tr><td style="text-align:left"><b>최종 예상합격률 (v2)</b></td><td class="out bigc" id="aF">-</td><td class="out bigc" id="bF">-</td><td class="out bigc" id="cF">-</td><td class="out bigc" style="color:var(--g)" id="tMin">-</td><td class="out bigc" style="color:var(--g)" id="tMax">-</td></tr>
+<tr><td style="text-align:left">구식 산술평균 <span class="hint">(비교용)</span></td><td class="hint" id="aO">-</td><td class="hint" id="bO">-</td><td class="hint" id="cO">-</td><td colspan="2" class="hint">로짓 앙상블은 괴리 시 보수 쪽으로</td></tr>
+<tr><td style="text-align:left"><b>성향 판정</b></td><td id="aJ">-</td><td id="bJ">-</td><td id="cJ">-</td><td colspan="2" id="jMsg" class="hint">-</td></tr></table>
+<div class="note"><b>마감 직전 판단 수칙</b> · 마감직전 경쟁률은 최종까지 <b>평균 +1.7배수</b> 상승(R²=0.50). 저경쟁 ≠ 빵꾸 신호 · 경쟁률 폭등 ≠ 컷 폭등. 구간 평균 통계 — 개별 학과 단정 금지. <span id="aleaCTA" style="display:none">🎲 배팅형 판단(빵꾸 기대값·켈리 기준)은 <b>야누스 알레아 이벤트 계산기</b>에서.</span></div></div>
+
+<div class="card"><h2>④ 노르마 · 포르타 · 덴시타스 지수 <span class="hint">— 문턱이 실제보다 높아/낮아 보이는가 · v2: 덴시타스가 ③ 확률에 개입</span></h2>
+<table><tr><th>항목</th><th>입력</th><th>지수</th><th style="text-align:left">해석</th></tr>
+<tr><td>5칸 기준등수 / 실제컷등수</td><td><input id="s5a" placeholder="5칸기준"> / <input id="s5b" placeholder="컷등수"></td><td class="out" id="ix1">-</td><td class="hint" style="text-align:left">&lt;1 문턱이 높아 보임 → <b style="color:var(--g)">기회</b> · &gt;1 낮아 보임 → <b style="color:var(--r)">함정</b></td></tr>
+<tr><td>3칸 기준등수 / 실제컷등수</td><td><input id="s3a" placeholder="3칸기준"> / <input id="s3b" placeholder="컷등수"></td><td class="out" id="ix2">-</td><td class="hint" style="text-align:left">&gt;1 문턱이 낮아질 조짐(포르타 열림) — 빵꾸 여지</td></tr>
+<tr><td>예상지원자 / 실지원자</td><td><input id="sea" placeholder="예상"> / <input id="seb" placeholder="실제"></td><td class="out" id="ix3">-</td><td class="hint" style="text-align:left">&lt;1 표본 희석(덴시타스) — v2는 이때 ③ 확률을 공칭 쪽으로 축소 <span class="warn" id="shrB" style="display:none">축소 적용</span></td></tr></table></div>
+
+<div class="hint">ⓘ 입력값은 진학사 화면에서 수집한 개인 수치입니다. 야누스 배치표(데이터 자동)와 병행 사용. v2 개선(정밀도 가중·로짓 앙상블·마감 투영·축소)은 카이로스 계열 한정 — 배치표 예측선(아우구르)과는 독립.</div>
+<div class="foot">야누스 입시연구소 · 개인 진학지도용 한정 · 외부 공개/재배포 금지</div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const V=id=>{const v=parseFloat($(id).value);return isNaN(v)?null:v;};
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const fmt=p=>p==null?'-':(p*100).toFixed(1)+'%';
+const logit=p=>Math.log(clamp(p,.005,.995)/(1-clamp(p,.005,.995)));
+const sig=x=>1/(1+Math.exp(-x));
+const Qf=K=>clamp(K<=5.5?(10*Math.pow(2,K-2.5))/100:(100-Math.pow(4.5,7.5-K))/100,.005,.995);
+let MODE=0;
+const TH=[{an:.85,jk:.60,so:.30,nm:'프루덴티아',ms:'문턱을 살짝 높인 상황을 가정하여 제안합니다 — 헤드라인은 트리비움 최소치'},
+          {an:.80,jk:.50,so:.20,nm:'리브라',ms:'표준 문턱 — 헤드라인은 트리비움 구간(최소~최대)'},
+          {an:.75,jk:.40,so:.15,nm:'알레아',ms:'상방 시나리오 헤드라인 — 지름 후보는 이벤트 계산기에서 기대값 확인'}];
+function setMode(m){MODE=m;
+ for(let i=0;i<3;i++){const el=$('md'+i);el.className='mode'+(i===m?' sel':'')+(i===2&&i===m?' alea':'');}
+ $('aleaCTA').style.display=m===2?'':'none';
+ calc();}
+function judge(F){if(F==null)return '-';
+ const t=TH[MODE];
+ if(F>=t.an)return '<span class="chip c-an">안정</span>';
+ if(F>=t.jk)return '<span class="chip c-jk">적정</span>';
+ if(F>=t.so)return '<span class="chip c-so">소신</span>';
+ return '<span class="chip c-sh">상향</span>';}
+function calc(){
+ const res={};const hA=V('hAgo'),hL=V('hLeft');let anyMom=false,anyShr=false;
+ const sea=V('sea'),seb=V('seb');const D=(sea&&seb)?sea/seb:null;
+ for(const g of ['a','b','c']){
+  const m0=V(g+'0'),m1=V(g+'1'),m2=V(g+'2'),m3=V(g+'3'),m4=V(g+'4'),m5=V(g+'5'),M=V(g+'9'),rP=V(g+'M');
+  let E=null,L=null,P=null,w2=0.7;
+  if(m0&&m2)w2=m2/(m2+0.214*m0);
+  if(m2!=null&&m4!=null&&m5!=null&&m4>0)E=m2*(1+m5)/m4;
+  let r1=m1;
+  if(rP!=null&&m1!=null&&hA&&hL&&hA>0){const v=(m1-rP)/hA;if(v>0){r1=m1+v*hL*0.7;anyMom=true;}}
+  if(m0&&r1&&m2&&m3&&m5!=null)L=(1+m5)*((m0/r1)*(1-w2)+(m2/m3)*w2);
+  if(E!=null&&L!=null)P=(L>=E)?Math.min(.99,.56+.44*Math.sqrt((L-E)/L)):Math.max(.01,.56-.56*Math.sqrt((E-L)/E));
+  $(g+'W').textContent=(m0&&m2)?((1-w2).toFixed(2)+' : '+w2.toFixed(2)):'0.30 : 0.70';
+  $(g+'L').textContent=(E==null?'-':E.toFixed(2))+' / '+(L==null?'-':L.toFixed(2));
+  $(g+'P').textContent=fmt(P);
+  const k6=V(g+'6'),k7=V(g+'7'),k8=V(g+'8');let K=null,Q=null;
+  if(k6!=null&&k7&&k8!=null){K=k6+1-(k8/k7);Q=Qf(K);}
+  $(g+'K').textContent=K==null?'-':K.toFixed(2);
+  $(g+'Q').textContent=fmt(Q);
+  let F=null,Fold=null;
+  if(P!=null&&Q!=null){F=sig((logit(P)+logit(Q))/2);Fold=(P+Q)/2;
+   if(Math.abs(logit(P)-logit(Q))>1.5)F=F; }
+  else F=(P!=null?P:Q);
+  if(F!=null&&D!=null&&D<1&&M&&m2&&Q!=null){const ne=m2*D,w=ne/(ne+2*M);F=w*F+(1-w)*Q;anyShr=true;}
+  const gap=(P!=null&&Q!=null)?Math.abs(logit(P)-logit(Q)):0;
+  $(g+'F').innerHTML=F==null?'-':fmt(F)+(gap>1.5?' <span class="warn">괴리</span>':'');
+  $(g+'O').textContent=Fold==null?'-':fmt(Fold);
+  $(g+'J').innerHTML=judge(F);
+  res[g]={P,Q,F};
+ }
+ $('momB').style.display=anyMom?'':'none';
+ $('shrB').style.display=anyShr?'':'none';
+ const mins=[],maxs=[];
+ for(const g of ['a','b','c']){const r=res[g];
+  if(r.P!=null&&r.Q!=null){mins.push(Math.min(r.P,r.Q));maxs.push(Math.max(r.P,r.Q));}
+  else if(r.F!=null){mins.push(r.F);maxs.push(r.F);}}
+ const tmin=mins.length?1-mins.reduce((a,p)=>a*(1-p),1):null;
+ const tmax=maxs.length?1-maxs.reduce((a,p)=>a*(1-p),1):null;
+ $('tMin').textContent=fmt(tmin);$('tMax').textContent=fmt(tmax);
+ $('jMsg').textContent=TH[MODE].ms;
+ const big=$('kzBig'),pill=$('kzPill'),line=$('kzLine');
+ if(tmin!=null){big.className='big on';
+  const head=MODE===0?fmt(tmin):MODE===1?(fmt(tmin)+(tmax!=tmin?' ~ '+fmt(tmax):'')):fmt(tmax);
+  big.innerHTML=head;pill.textContent=TH[MODE].nm+' 모드';pill.style.background=MODE===2?'#8a6d1f':'#1f8a4c';pill.style.color='#fff';
+  line.textContent=MODE===0?'보수 헤드라인 — 두 추정 중 낮은 쪽 기반 최소치':MODE===1?'균형 구간 — 최소~최대':'상방 헤드라인 — 높은 쪽 기반. 공식 판단은 리브라 기준을 병기하세요';}
+ else{big.className='big';big.innerHTML='——.—— <span style="font-size:19px">%</span>';pill.textContent='입력 대기';pill.style.background='#2a476b';pill.style.color='#b9c9de';}
+ const p=(a,b,el)=>{const x=V(a),y=V(b);$(el).textContent=(x&&y)?(x/y).toFixed(2):'-';};
+ p('s5a','s5b','ix1');p('s3a','s3b','ix2');p('sea','seb','ix3');
+}
+document.querySelectorAll('input').forEach(i=>i.addEventListener('input',calc));
+calc();
+</script>
+<!-- ▼ 야누스 접합계약 배선 (C2·C3·C5) + free 가드 — 플랫폼 이식용 2026-07-15 -->
+<div style="max-width:1060px;margin:0 auto 22px;padding:0 20px;text-align:center">
+  <a id="consult-reserve" data-janus-page="kairos" href="#" style="display:inline-block;font-size:13.5px;font-weight:700;color:#fff;background:#1e3550;border-radius:10px;padding:11px 22px;text-decoration:none">🗓 정시 상담 예약</a>
+</div>
+<script>
+(function(){
+  var PAGE='kairos', SVC='kairos';
+  // 게이트 활성: iframe 임베드 or ?gate=1 (standalone 테스트는 무잠금)
+  var GATE=(window.self!==window.top)||/[?&]gate=1/.test(location.search);
+  document.documentElement.dataset.gate=GATE?'on':'off';
+  // C2 · janus:sso 게이트 → data-tier(paid|free)
+  function applySSO(tok){
+    var paid=!!(tok&&tok.services&&tok.services.indexOf(SVC)>=0);
+    document.documentElement.dataset.tier=paid?'paid':'free';
+  }
+  try{applySSO(JSON.parse(localStorage.getItem('janus_sso')||'null'));}catch(e){}
+  window.addEventListener('janus:sso',function(e){applySSO(e.detail);});
+  // free 가드: 결과 요소에 jns-lock 부여 + 페이월 배너
+  function lock(){ var ids=['kzBig','tMin','tMax','aF','bF','cF','aJ','bJ','cJ']; ids.forEach(function(id){var el=document.getElementById(id); if(el)el.classList.add('jns-lock');}); }
+  lock();
+  var wrap=document.querySelector('.wrap');
+  if(wrap){ var pw=document.createElement('div'); pw.className='jns-paywall';
+    pw.innerHTML='🔒 유료 콘텐츠 — 야누스에서 잠금 해제하고 전체 결과를 확인하세요 <button id="jns-unlock">잠금 해제</button>';
+    wrap.insertBefore(pw, wrap.firstChild);
+    var ub=document.getElementById('jns-unlock'); if(ub)ub.addEventListener('click',function(){track('unlock');});
+  }
+  // C3 · 계측
+  function track(ev){try{window.dispatchEvent(new CustomEvent('janus:track',{detail:{page:PAGE,ev:ev}}));}catch(e){}}
+  track('view');
+  // C5 · janus_report (relTier 필수)
+  function readResult(){ var mn=document.getElementById('tMin'),mx=document.getElementById('tMax');
+    if(!mn||mn.textContent.indexOf('%')<0)return null;
+    var mode=(document.querySelector('.mode.sel .mn')||{}).textContent||'';
+    return {key:mode+mn.textContent+'/'+mx.textContent,
+      result:{trivium_min:mn.textContent,trivium_max:mx.textContent,mode:mode.trim()},
+      evidence:{relTier:'C',basis:'진학사 수동입력 · 테르미누스/그라두스 · 로짓 앙상블 · 3개년 실측'}}; }
+  var last='',t;
+  function report(){var r=readResult(); if(!r||r.key===last)return; last=r.key;
+    try{window.dispatchEvent(new CustomEvent('janus_report',{detail:{page:PAGE,result:r.result,evidence:r.evidence}}));}catch(e){}}
+  document.addEventListener('input',function(){clearTimeout(t);t=setTimeout(report,300);},true);
+  var cta=document.getElementById('consult-reserve');
+  if(cta)cta.addEventListener('click',function(ev){ev.preventDefault();track('consult');report();});
+})();
+</script>
+<!-- ▲ 배선 끝 -->
+</body></html>

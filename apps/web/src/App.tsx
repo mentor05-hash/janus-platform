@@ -49,6 +49,8 @@ const StudentHomePage = lazy(() => import('./pages/StudentHomePage').then((m) =>
 const ServicesPage = lazy(() => import('./pages/ServicesPage').then((m) => ({ default: m.ServicesPage })));
 const ServiceDetailPage = lazy(() => import('./pages/ServicesPage').then((m) => ({ default: m.ServiceDetailPage })));
 const PlacementHubPage = lazy(() => import('./pages/PlacementHubPage').then((m) => ({ default: m.PlacementHubPage })));
+const KairosPage = lazy(() => import('./pages/CalculatorPage').then((m) => ({ default: m.KairosPage })));
+const AleaPage = lazy(() => import('./pages/CalculatorPage').then((m) => ({ default: m.AleaPage })));
 const GapReportPage = lazy(() => import('./pages/GapReportPage').then((m) => ({ default: m.GapReportPage })));
 const GuardianReportPage = lazy(() => import('./pages/GuardianReportPage').then((m) => ({ default: m.GuardianReportPage })));
 const AdminAuditPage = lazy(() => import('./pages/AdminAuditPage').then((m) => ({ default: m.AdminAuditPage })));
@@ -104,6 +106,9 @@ export function App() {
       <Route path="/" element={<JanusLandingPage />} />
       <Route path="/placement" element={<PlacementPage />} />
       <Route path="/placement/hub" element={<PlacementHubPage />} />
+      {/* 계산기 이식(동일 출처 라우트) — 비로그인도 진입(free 티저), 로그인 시 janus_sso 로 해제 */}
+      <Route path="/kairos" element={<KairosPage />} />
+      <Route path="/alea" element={<AleaPage />} />
       <Route path="/placement/gap" element={<GapReportPage />} />
       <Route path="/guardian/report" element={<GuardianReportPage />} />
       <Route path="/services" element={<ServicesPage />} />

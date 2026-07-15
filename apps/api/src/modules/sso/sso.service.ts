@@ -28,6 +28,17 @@ export class SsoService {
     return tierForRole(user.role);
   }
 
+  /**
+   * 접합계약 C2 — 로그인 사용자가 진입/해제 가능한 서비스 목록(등록 서비스 중 티어 충족분).
+   * 웹이 이 결과로 localStorage.janus_sso = {tier, services} 를 세팅 → 계산기 iframe 이 읽어 잠금 해제.
+   */
+  async entitlements(user: AuthUser): Promise<{ tier: SsoTier; services: string[] }> {
+    const tier = this.tierOf(user);
+    const all = await this.prisma.sso_service.findMany({ select: { id: true, min_tier: true } });
+    const services = all.filter((s) => tierAtLeast(tier, s.min_tier as SsoTier)).map((s) => s.id);
+    return { tier, services };
+  }
+
   async issue(user: AuthUser, serviceId: string) {
     const svc = await this.prisma.sso_service.findUnique({ where: { id: serviceId } });
     if (!svc) throw new NotFoundException({ code: 'SSO_SERVICE_NOT_FOUND', message: '등록되지 않은 서비스입니다.' });
