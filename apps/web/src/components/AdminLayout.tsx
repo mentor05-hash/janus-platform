@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet } from 'react-router-dom';
 import { APP_NAME } from '../branding.generated';
 import { JanusLogo } from './JanusLogo';
 import { useAuth } from '../auth/AuthContext';
@@ -19,13 +19,13 @@ export function AdminLayout() {
   return (
     <div className="shell">
       <aside className="sidebar navy">
-        <div className="sidebar-logo">
+        <Link to="/" className="sidebar-logo" style={{ textDecoration: 'none', color: 'inherit' }} title="홈(메인)으로">
           <span className="mark"><JanusLogo size={30} /></span>
           <div>
             <div className="title">{APP_NAME}</div>
             <div className="center">{isMaster ? '마스터' : hq ? '본사' : '관리자'} · {scopeLabel}</div>
           </div>
-        </div>
+        </Link>
         <nav className="sidebar-nav">
           <NavLink to="/admin/dashboard" className={navCls}>대시보드</NavLink>
           <NavLink to="/admin/students" className={navCls}>학생 등록·관리</NavLink>
@@ -33,6 +33,7 @@ export function AdminLayout() {
           <NavLink to="/admin/hr-teachers" className={navCls}>선생님 등록·관리</NavLink>
           <NavLink to="/admin/hr-staff" className={navCls}>직원·권한</NavLink>
           <NavLink to="/admin/membership" className={navCls}>회원 등급·구독</NavLink>
+          <NavLink to="/placement/hub" className={navCls}>배치표 허브</NavLink>
           {isAdmin && (
             <>
               {!hq && <NavLink to="/admin/reverse" className={navCls}>역상담 대상</NavLink>}

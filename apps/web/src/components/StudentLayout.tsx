@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { APP_NAME } from '../branding.generated';
 import { JanusLogo } from './JanusLogo';
-import { NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { ThemeToggle } from './ThemeToggle';
@@ -13,6 +13,8 @@ const NAV = [
   { to: '/student/search', label: '선생님 찾기' },
   { to: '/student/bookings', label: '내 예약·상담' },
   { to: '/student/scores', label: '내 성적·배치', flag: 'scores' as const },
+  { to: '/placement/hub', label: '배치표 허브' },
+  { to: '/placement/gap', label: '격차 리포트' },
   { to: '/student/materials', label: '자료실' },
   { to: '/student/qna', label: '질문 게시판' },
   { to: '/student/community', label: '커뮤니티', end: true },
@@ -34,13 +36,13 @@ export function StudentLayout() {
   return (
     <div className="shell">
       <aside className="sidebar">
-        <div className="sidebar-logo">
+        <Link to="/" className="sidebar-logo" style={{ textDecoration: 'none', color: 'inherit' }} title="홈(메인)으로">
           <span className="mark"><JanusLogo size={30} /></span>
           <div>
             <div className="title">{APP_NAME}</div>
             <div className="center">학생</div>
           </div>
-        </div>
+        </Link>
         <nav className="sidebar-nav">
           {nav.map((n) => (
             <NavLink key={n.to} to={n.to} className={navCls} end={'end' in n && n.end}>

@@ -7,6 +7,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
+import { roleHome } from '../auth/roleHome';
 import { JanusLogo } from '../components/JanusLogo';
 
 /* ── 길 찾기(관문 해석) ── */
@@ -79,6 +81,7 @@ const NOTICES: Record<string, { tag: string; title: string; date: string }[]> = 
 };
 
 export function JanusLandingPage() {
+  const { user } = useAuth();
   const [params] = useSearchParams();
   const [q, setQ] = useState(() => params.get('q') ?? '');
   const [busy, setBusy] = useState(false);
@@ -135,8 +138,14 @@ export function JanusLandingPage() {
           <span style={{ width: 1, height: 11, background: '#24405f' }} />
           <span style={{ fontSize: 12, color: '#7d92ac', whiteSpace: 'nowrap' }}>기업·학원 B2B</span>
           <span style={{ width: 1, height: 11, background: '#24405f' }} />
-          <Link to="/login" style={{ fontSize: 12, color: '#aab8ca', whiteSpace: 'nowrap', textDecoration: 'none' }}>로그인</Link>
-          <Link to="/signup" style={{ fontSize: 12, fontWeight: 700, color: '#e3b45c', whiteSpace: 'nowrap', textDecoration: 'none' }}>시작하기</Link>
+          {user ? (
+            <Link to={roleHome(user.role)} style={{ fontSize: 12, fontWeight: 700, color: '#e3b45c', whiteSpace: 'nowrap', textDecoration: 'none' }}>내 관문으로 →</Link>
+          ) : (
+            <>
+              <Link to="/login" style={{ fontSize: 12, color: '#aab8ca', whiteSpace: 'nowrap', textDecoration: 'none' }}>로그인</Link>
+              <Link to="/signup" style={{ fontSize: 12, fontWeight: 700, color: '#e3b45c', whiteSpace: 'nowrap', textDecoration: 'none' }}>시작하기</Link>
+            </>
+          )}
         </div>
       </div>
 

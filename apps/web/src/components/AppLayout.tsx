@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet } from 'react-router-dom';
 import { APP_NAME } from '../branding.generated';
 import { JanusLogo } from './JanusLogo';
 import { useAuth } from '../auth/AuthContext';
@@ -16,6 +16,7 @@ const NAV = [
   { to: '/app/reverse', label: '역상담 제안' },
   { to: '/app/qna', label: '질문 답변' },
   { to: '/app/community', label: '커뮤니티 Q&A' },
+  { to: '/placement/hub', label: '배치표 허브' },
   { to: '/app/payroll', label: '예상급여' },
   { to: '/app/materials', label: '자료실' },
   { to: '/app/classes', label: '강의실' },
@@ -30,13 +31,13 @@ export function AppLayout() {
   return (
     <div className="shell">
       <aside className="sidebar">
-        <div className="sidebar-logo">
+        <Link to="/" className="sidebar-logo" style={{ textDecoration: 'none', color: 'inherit' }} title="홈(메인)으로">
           <span className="mark"><JanusLogo size={30} /></span>
           <div>
             <div className="title">{APP_NAME}</div>
             <div className="center">선생님 콘솔</div>
           </div>
-        </div>
+        </Link>
         <nav className="sidebar-nav">
           {NAV.map((n) => (
             <NavLink key={n.to} to={n.to} className={navCls}>
