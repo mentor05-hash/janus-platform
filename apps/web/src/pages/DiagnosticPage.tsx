@@ -128,7 +128,7 @@ export function DiagnosticPage() {
                 <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--ink)' }}>🎯 약점 클리닉 추이</span>
                 <Badge kind="soft">{clinic.count}회</Badge>
                 {clinic.improvement != null && clinic.count >= 2 && (
-                  <span style={{ marginLeft: 'auto', fontSize: 12.5, fontWeight: 700, color: clinic.improvement > 0 ? '#2A8A5F' : clinic.improvement < 0 ? 'var(--danger, #dc2626)' : 'var(--muted)' }}>
+                  <span style={{ marginLeft: 'auto', fontSize: 12.5, fontWeight: 700, color: clinic.improvement > 0 ? 'var(--j-stable)' : clinic.improvement < 0 ? 'var(--danger)' : 'var(--muted)' }}>
                     {clinic.improvement > 0 ? `▲ +${clinic.improvement}점 향상` : clinic.improvement < 0 ? `▼ ${clinic.improvement}점` : '변화 없음'}
                   </span>
                 )}

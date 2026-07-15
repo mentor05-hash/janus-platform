@@ -55,7 +55,7 @@ export class SearchService {
     }));
     const teacherRows = (teachers as { data?: Array<{ id: string; name: string; subjects?: string[]; grade?: string }> }).data ?? [];
     const teacherHits: SearchHit[] = teacherRows.slice(0, N).map((t) => ({
-      type: 'teacher', id: t.id, title: t.name, subtitle: (t.subjects ?? []).join('·') || null, subject: (t.subjects ?? [])[0] ?? null, href: '/student/teachers',
+      type: 'teacher', id: t.id, title: t.name, subtitle: (t.subjects ?? []).join('·') || null, subject: (t.subjects ?? [])[0] ?? null, href: '/student/search',
     }));
 
     if (lectureHits.length) groups.lecture = lectureHits;
