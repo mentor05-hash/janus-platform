@@ -3,6 +3,10 @@ import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { JanusLogo } from '../components/JanusLogo';
+import { ScoreTrend, type Trend } from '../components/ScoreTrend';
+
+// 상담 기록 상세(학부모에게 final·공개분만) — GET /students/{id}/notes
+type Note = { bookingId: string; teacherId: string; consultType: string | null; coreSummary: string | null; homework: string | null; futureDir: string | null; teacherName?: string | null; createdAt: string };
 
 /** 학부모 주간 통합 리포트 — 자녀 성적·출석·상담·Q&A 요약(야누스에서만 생성). */
 type Child = { studentId: string; name: string }; // GET /guardian/children(people) 형태의 부분집합
@@ -27,6 +31,9 @@ export function GuardianReportPage() {
   const [children, setChildren] = useState<Child[] | null>(null);
   const [sel, setSel] = useState<string>('');
   const [report, setReport] = useState<Report | null>(null);
+  const [trend, setTrend] = useState<Trend | null>(null);
+  const [access, setAccess] = useState<{ showTrend: boolean; showPlacement: boolean } | null>(null);
+  const [notes, setNotes] = useState<Note[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -34,15 +41,25 @@ export function GuardianReportPage() {
     api.get<Child[]>('/guardian/children')
       .then((cs) => { setChildren(cs); if (cs[0]) setSel(cs[0].studentId); })
       .catch(() => setChildren([]));
+    api.get<{ showTrend: boolean; showPlacement: boolean }>('/me/scores/access')
+      .then(setAccess).catch(() => setAccess({ showTrend: false, showPlacement: false }));
   }, [user]);
 
   useEffect(() => {
     if (!sel) return;
-    setReport(null); setErr(null);
+    setReport(null); setTrend(null); setNotes(null); setErr(null);
     api.get<Report>(`/guardian/report?studentId=${encodeURIComponent(sel)}`)
       .then(setReport)
       .catch((e) => setErr(e?.message ?? '리포트를 불러오지 못했습니다.'));
+    api.get<Note[]>(`/students/${encodeURIComponent(sel)}/notes`)
+      .then((ns) => setNotes(Array.isArray(ns) ? ns : [])).catch(() => setNotes([]));
   }, [sel]);
+
+  useEffect(() => {
+    if (!sel || !access?.showTrend) { setTrend(null); return; }
+    api.get<Trend>(`/guardian/scores/trend?studentId=${encodeURIComponent(sel)}`)
+      .then(setTrend).catch(() => setTrend(null));
+  }, [sel, access?.showTrend]);
 
   const wrap: React.CSSProperties = { maxWidth: 720, margin: '0 auto', padding: '24px 18px 60px', fontFamily: 'system-ui, sans-serif', color: 'var(--ink,#16233a)' };
   const card: React.CSSProperties = { background: 'var(--surface,#fff)', border: '1px solid var(--line,#e4eaf1)', borderRadius: 14, padding: 18, marginBottom: 14 };
@@ -97,6 +114,14 @@ export function GuardianReportPage() {
             ) : <div style={{ color: 'var(--muted)', fontSize: 13 }}>연동된 성적이 없습니다.</div>}
           </div>
 
+          {/* 성적·배치 추이 — 노출 정책(showTrend) 게이팅 */}
+          {access?.showTrend && trend && trend.points.length > 0 && (
+            <div style={card}>
+              <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--muted)', marginBottom: 10 }}>성적·배치 추이</div>
+              <ScoreTrend trend={trend} showPlacement={!!access.showPlacement} />
+            </div>
+          )}
+
           {/* 출석 */}
           <div style={card}>
             <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--muted)', marginBottom: 10 }}>세션 · 출석</div>
@@ -115,15 +140,24 @@ export function GuardianReportPage() {
             </div>
           </div>
 
-          {/* 상담 */}
+          {/* 상담 기록 상세 — 공개(final·보호자 공개) 노트의 핵심요약·과제·방향 */}
           <div style={card}>
-            <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--muted)', marginBottom: 10 }}>상담 기록 · {report.sections.consultation.count}건</div>
-            {report.sections.consultation.recent.length === 0 ? (
-              <div style={{ color: 'var(--muted)', fontSize: 13 }}>이번 주 상담 기록이 없습니다.</div>
-            ) : report.sections.consultation.recent.map((n, i) => (
-              <div key={i} style={{ padding: '8px 0', borderTop: i ? '1px solid var(--line)' : 'none' }}>
-                <div style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 2 }}>{KST(n.at)}{n.teacher ? ` · ${n.teacher} 선생님` : ''}</div>
-                <div style={{ fontSize: 13.5 }}>{n.summary ?? '요약 없음'}</div>
+            <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--muted)', marginBottom: 10 }}>
+              상담 기록{notes != null ? ` · ${notes.length}건` : report.sections.consultation.count ? ` · ${report.sections.consultation.count}건` : ''}
+            </div>
+            {notes === null ? (
+              <div style={{ color: 'var(--muted)', fontSize: 13 }}>불러오는 중…</div>
+            ) : notes.length === 0 ? (
+              <div style={{ color: 'var(--muted)', fontSize: 13 }}>공개된 상담 기록이 없습니다.</div>
+            ) : notes.slice(0, 6).map((n, i) => (
+              <div key={n.bookingId} style={{ padding: '10px 0', borderTop: i ? '1px solid var(--line)' : 'none' }}>
+                <div style={{ fontSize: 11.5, color: 'var(--muted)', marginBottom: 4 }}>
+                  {KST(n.createdAt)}{n.teacherName ? ` · ${n.teacherName} 선생님` : ''}{n.consultType ? ` · ${n.consultType}` : ''}
+                </div>
+                {n.coreSummary && <div style={{ fontSize: 13.5, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{n.coreSummary}</div>}
+                {n.homework && <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 4 }}><b style={{ color: 'var(--ink)' }}>과제</b> · {n.homework}</div>}
+                {n.futureDir && <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 2 }}><b style={{ color: 'var(--ink)' }}>방향</b> · {n.futureDir}</div>}
+                {!n.coreSummary && !n.homework && !n.futureDir && <div style={{ fontSize: 13, color: 'var(--muted)' }}>요약 없음</div>}
               </div>
             ))}
           </div>
