@@ -3,6 +3,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccountRole } from '../../config/enums';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { prescribe, weaknessByUnit, scorePct, type Graded } from './domain/diagnostic';
+import { summarizeClinic } from './domain/clinic';
 
 /**
  * 수준진단 v1 — 문항 풀이 → 채점 → 유형별 약점 → 처방.
@@ -130,16 +131,7 @@ export class DiagnosticService {
     const attempts = rows.map((r) => ({
       id: r.id, total: r.total, correct: r.correct, score: r.score, submittedAt: r.submitted_at, parentAttemptId: r.parent_attempt_id,
     }));
-    const scores = attempts.map((a) => a.score);
-    const first = scores[0] ?? null;
-    const last = scores.length ? scores[scores.length - 1] : null;
-    return {
-      attempts,
-      count: attempts.length,
-      avgScore: scores.length ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : null,
-      bestScore: scores.length ? Math.max(...scores) : null,
-      improvement: first != null && last != null ? last - first : null, // 최초 대비 최근 점수 변화
-    };
+    return { attempts, ...summarizeClinic(attempts.map((a) => a.score)) };
   }
 
   /** 특정 시도 상세(약점·처방 재계산). */
