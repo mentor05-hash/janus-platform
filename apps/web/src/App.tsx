@@ -57,6 +57,7 @@ import { TeacherDashboardPage } from './pages/TeacherDashboardPage';
 import { StudentLayout } from './components/StudentLayout';
 import { StudentBookingsPage } from './pages/StudentBookingsPage';
 import { StudentSearchPage } from './pages/StudentSearchPage';
+import { GlobalSearchPage } from './pages/GlobalSearchPage';
 import { StudentCreditsPage } from './pages/StudentCreditsPage';
 import { StudentReversePage } from './pages/StudentReversePage';
 import { StudentAutoAssignPage } from './pages/StudentAutoAssignPage';
@@ -194,6 +195,7 @@ export function App() {
         }
       >
         <Route index element={<StudentHomePage />} />
+        <Route path="search-all" element={<GlobalSearchPage />} />
         <Route path="search" element={<StudentSearchPage />} />
         <Route path="bookings" element={<StudentBookingsPage />} />
         <Route path="materials" element={<StudentMaterialsPage />} />

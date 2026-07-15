@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { APP_NAME } from '../branding.generated';
 import { JanusLogo } from './JanusLogo';
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { ThemeToggle } from './ThemeToggle';
@@ -51,6 +51,9 @@ export function StudentLayout() {
       .catch(() => { /* 무시 */ });
   }, [loc.pathname]);
   const nav = NAV.filter((n) => !('flag' in n) || n.flag !== 'scores' || showScores);
+  const navigate = useNavigate();
+  const [gq, setGq] = useState('');
+  function submitSearch(e: React.FormEvent) { e.preventDefault(); const q = gq.trim(); if (q) { navigate(`/student/search-all?q=${encodeURIComponent(q)}`); setGq(''); } }
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -61,6 +64,16 @@ export function StudentLayout() {
             <div className="center">학생</div>
           </div>
         </Link>
+        <form onSubmit={submitSearch} style={{ padding: '10px 12px 4px' }}>
+          <input
+            className="input"
+            value={gq}
+            onChange={(e) => setGq(e.target.value)}
+            placeholder="🔍 통합검색 (강좌·자료·Q&A·선생님)"
+            aria-label="통합검색"
+            style={{ fontSize: 12.5, padding: '8px 10px' }}
+          />
+        </form>
         <nav className="sidebar-nav">
           {nav.map((n) => ('section' in n ? (
             <div key={`sec-${n.section}`} className="nav-section" style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.04em', color: 'var(--caption)', padding: '14px 16px 4px', textTransform: 'none' }}>
