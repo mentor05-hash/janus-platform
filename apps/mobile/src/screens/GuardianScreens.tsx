@@ -53,7 +53,9 @@ export function GuardianHome({ children, activeId, setActiveId, goTab }: Props) 
   const [reqs, setReqs] = useState<PaymentRequest[]>([]);
   const [access, setAccess] = useState<{ showTrend: boolean; showPlacement: boolean } | null>(null);
   const [trend, setTrend] = useState<Trend | null>(null);
+  const [notifs, setNotifs] = useState<{ title?: string; body?: string; read_at: string | null; created_at?: string }[]>([]);
   useEffect(() => { api.get<PaymentRequest[]>('/payment-requests').then((r) => setReqs(Array.isArray(r) ? r : [])).catch(() => {}); }, []);
+  useEffect(() => { api.get<typeof notifs>('/notifications').then((r) => setNotifs(Array.isArray(r) ? r : [])).catch(() => {}); }, []);
   useEffect(() => { api.get<{ showTrend: boolean; showPlacement: boolean }>('/me/scores/access').then(setAccess).catch(() => setAccess({ showTrend: false, showPlacement: false })); }, []);
   const child0 = activeId ?? children[0]?.studentId ?? null;
   const [report, setReport] = useState<WeeklyReport | null>(null);
@@ -67,11 +69,35 @@ export function GuardianHome({ children, activeId, setActiveId, goTab }: Props) 
   }, [child0]);
   const open = reqs.filter((r) => r.status === 'open');
   const nameOf = (sid: string) => children.find((c) => c.studentId === sid)?.name ?? '자녀';
+  const unread = notifs.filter((n) => !n.read_at).length;
+  const activeName = child0 ? nameOf(child0) : null;
 
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
-      <Text style={ui.h}>학부모님 👋</Text>
-      <Text style={[ui.sub, { marginBottom: SP.md }]}>자녀의 상담과 크레딧을 한눈에 확인하세요.</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <Text style={[ui.h, { flex: 1 }]}>학부모님 👋</Text>
+        {unread > 0 && (
+          <View style={s.notifBadge}><Text style={s.notifBadgeT}>🔔 {unread > 99 ? '99+' : unread}</Text></View>
+        )}
+      </View>
+      <Text style={[ui.sub, { marginBottom: SP.md }]}>
+        {activeName ? `${activeName} 학생의 상담·크레딧을 한눈에.` : '자녀의 상담과 크레딧을 한눈에 확인하세요.'}
+      </Text>
+
+      {/* 최근 알림 */}
+      {notifs.length > 0 && (
+        <View style={[ui.card, { marginBottom: 8 }]}>
+          <Text style={s.sec}>최근 알림</Text>
+          {notifs.slice(0, 3).map((n, i) => (
+            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 }}>
+              {!n.read_at && <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: C.confirmed }} />}
+              <Text style={{ flex: 1, fontSize: 13, color: n.read_at ? C.muted : C.ink, fontWeight: n.read_at ? '400' : '700' }} numberOfLines={1}>
+                {n.title ? `${n.title} · ` : ''}{n.body ?? ''}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
 
       {open.length > 0 && (
         <TouchableOpacity style={[ui.card, s.reqBanner]} onPress={() => { setActiveId(open[0].student_id); goTab?.('d'); }}>
@@ -486,6 +512,8 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   repLabel: { fontSize: 12.5, fontWeight: '700', color: C.muted, width: 44 },
   repVal: { fontSize: 13, color: C.ink, flex: 1, lineHeight: 19 },
   consItem: { backgroundColor: C.fill, borderRadius: R.sm, padding: 10, marginBottom: 6 },
+  notifBadge: { backgroundColor: C.confirmed, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 },
+  notifBadgeT: { color: C.white, fontSize: 12, fontWeight: '800' },
   policy: { fontSize: 12, color: C.muted, backgroundColor: C.lineSoft, borderRadius: 10, padding: 10, lineHeight: 17, marginBottom: 4 },
   tl: { borderLeftWidth: 2, borderLeftColor: C.line, marginLeft: 6, paddingLeft: 16, paddingBottom: 16, position: 'relative' },
   tlDot: { position: 'absolute', left: -6, top: 3, width: 10, height: 10, borderRadius: 5, backgroundColor: C.teal500 },
