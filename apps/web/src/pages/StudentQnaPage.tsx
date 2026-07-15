@@ -16,6 +16,7 @@ type Post = {
   created_at: string;
   rating?: number | null;
   continuePref?: boolean | null;
+  aiDraft?: string | null;
   attachments?: Attachment[];
   answers?: Answer[];
 };
@@ -206,6 +207,13 @@ export function StudentQnaPage() {
             {(p.attachments?.filter(isImage).length ?? 0) > 0 && (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
                 {p.attachments!.filter(isImage).map((a) => <AuthImage key={a.id} fileId={a.id} alt={a.name} size={92} />)}
+              </div>
+            )}
+            {p.aiDraft && (
+              <div style={{ background: 'var(--teal-50,#EEF4FB)', border: '1px solid var(--input-border)', borderRadius: 8, padding: 10, marginBottom: 8 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--teal)', marginBottom: 4 }}>✦ AI 초안 <span style={{ fontWeight: 500, color: 'var(--muted)' }}>· 참고용, 선생님 검토 후 확정</span></div>
+                <div style={{ fontSize: 13.5, whiteSpace: 'pre-wrap' }}>{p.aiDraft}</div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>AI가 생성한 초안입니다 — 심리·건강 관련은 전문가 상담을 권합니다.</div>
               </div>
             )}
             {(p.answers?.length ?? 0) > 0 && (

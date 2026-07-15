@@ -7,6 +7,8 @@ import {
   GatewayInterpretInput,
   GatewayLlmResult,
   LlmProvider,
+  QnaDraftInput,
+  QnaDraftResult,
   ReportReviewInput,
   ReportReviewResult,
   ScoreOcrInput,
@@ -68,6 +70,18 @@ export class MockLlmProvider implements LlmProvider {
       summary: flagged
         ? `기존 답변과 ${Math.round(best * 100)}% 유사 — 중복/표절 여부 확인 권장`
         : '유사 답변 없음',
+    };
+  }
+
+  async draftAnswer(input: QnaDraftInput): Promise<QnaDraftResult> {
+    const subj = input.subject ? `[${input.subject}] ` : '';
+    const q = (input.body ?? '').trim().slice(0, 60);
+    this.logger.log('[stub] draftAnswer');
+    return {
+      body:
+        `${subj}질문 요지: ${q}${q.length >= 60 ? '…' : ''}\n\n` +
+        '① 먼저 개념/정의를 확인해 보세요. ② 문제의 조건을 하나씩 대입해 단계적으로 풀어보고, ③ 막히는 지점을 구체적으로 남겨 주시면 선생님이 이어서 보완해 드립니다.\n' +
+        '(이 초안은 AI가 생성한 참고용이며, 선생님 검토 후 정답이 확정됩니다.)',
     };
   }
 

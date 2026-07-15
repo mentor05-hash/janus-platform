@@ -80,9 +80,20 @@ export interface GatewayLlmResult {
   cards: GatewayLlmCard[];
 }
 
+export interface QnaDraftInput {
+  subject?: string | null;
+  difficulty?: string | null;
+  body: string;
+}
+export interface QnaDraftResult {
+  body: string; // AI 초안 본문("AI 생성" 라벨과 함께 노출)
+}
+
 export interface LlmProvider {
   reviewReport(input: ReportReviewInput): Promise<ReportReviewResult>;
   checkAnswerSimilarity(input: AnswerSimilarityInput): Promise<AnswerSimilarityResult>;
+  /** Q&A 질문 → AI 1차 초안(Q3). 미구성/실패 시 예외 → 호출측에서 초안 생략(무해). */
+  draftAnswer(input: QnaDraftInput): Promise<QnaDraftResult>;
   extractScoreReport(input: ScoreOcrInput): Promise<ScoreOcrResult>;
   analyzeConsulting(input: ConsultingAnalysisInput): Promise<ConsultingAnalysisResult>;
   /** 관문 자유서술 해석. 미구성/실패 시 예외 → 호출측(gateway)이 규칙 폴백. */

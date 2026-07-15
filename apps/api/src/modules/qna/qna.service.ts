@@ -52,6 +52,7 @@ interface QnaRow {
   id: string; subject: string | null; difficulty: string | null; scope: string | null;
   body: string | null; status: string | null; created_at: Date; assigned_teacher_id?: string | null;
   attachments?: unknown; rating?: number | null; continue_pref?: boolean | null;
+  ai_draft?: string | null; ai_draft_at?: Date | null;
   qna_answer?: { id: string; body: string | null; accepted: boolean | null; created_at: Date; teacher_id?: string | null; teacher_profile?: { account?: { name?: string } } }[];
 }
 
@@ -138,6 +139,8 @@ export class QnaService {
         }
         return p;
       });
+      // Q3: 질문 등록 즉시 AI 1차 초안 자동 생성(비동기·비용상한·실패 무해).
+      void this.generateAiDraft(post.id, { subject: dto.subject ?? null, difficulty: dto.difficulty ?? null, body: dto.body });
       return {
         id: post.id,
         scope: post.scope,
@@ -178,6 +181,8 @@ export class QnaService {
         created_at: p.created_at,
         rating: p.rating ?? null,
         continuePref: p.continue_pref ?? null,
+        aiDraft: p.ai_draft ?? null,
+        aiDraftAt: p.ai_draft_at ?? null,
         attachments: Array.isArray(p.attachments)
           ? (p.attachments as { id: string; name: string; type?: string }[])
           : [],
@@ -554,5 +559,22 @@ export class QnaService {
       }
     }
     return { ok: false, reason: 'no_slot', message: '가까운 빈 시간을 찾지 못했어요. 상담 예약에서 직접 시간을 골라주세요.' };
+  }
+
+  /** Q3 AI 1차 초안 생성(비동기·일일 비용상한·실패 무해) → qna_post.ai_draft 저장. */
+  private async generateAiDraft(postId: string, q: { subject: string | null; difficulty: string | null; body: string }) {
+    try {
+      const limit = Number(process.env.QNA_AI_DAILY_LIMIT ?? 200);
+      const key = `qna:aidraft:${new Date().toISOString().slice(0, 10)}`; // 일자 러프 상한
+      const used = Number((await this.cache.get<number>(key)) ?? 0);
+      if (used >= limit) return;
+      await this.cache.incr(key, 26 * 3600);
+      const draft = await this.llm.draftAnswer({ subject: q.subject, difficulty: q.difficulty, body: q.body });
+      if (draft?.body?.trim()) {
+        await this.prisma.qna_post.update({ where: { id: postId }, data: { ai_draft: draft.body.trim(), ai_draft_at: new Date() } });
+      }
+    } catch (e) {
+      this.logger.warn(`AI 초안 생성 실패(무해): ${(e as Error).message}`);
+    }
   }
 }

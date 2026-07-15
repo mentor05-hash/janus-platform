@@ -7,6 +7,8 @@ import {
   GatewayInterpretInput,
   GatewayLlmResult,
   LlmProvider,
+  QnaDraftInput,
+  QnaDraftResult,
   ReportReviewInput,
   ReportReviewResult,
   ScoreOcrInput,
@@ -89,6 +91,18 @@ export class ClaudeLlmProvider implements LlmProvider {
       this.logger.warn(`유사도 검사 실패: ${(e as Error).message}`);
       return { flagged: false, maxSimilarity: 0, summary: '자동 유사도 검사 실패' };
     }
+  }
+
+  async draftAnswer(input: QnaDraftInput): Promise<QnaDraftResult> {
+    const prompt =
+      '너는 입시 학습 Q&A 의 조교다. 아래 학생 질문에 대한 **1차 초안 답변**을 한국어로 작성하되, ' +
+      '단정적 정답 대신 풀이 방향·단계·확인 포인트 중심으로 쓰고, 심리·건강 관련이면 전문가 상담을 권하는 문장을 포함한다. ' +
+      '**JSON만** 출력: {"body":"초안(400자 이내)"}\n' +
+      `과목: ${input.subject ?? '미지정'} · 난이도: ${input.difficulty ?? '미지정'}\n질문: ${input.body.slice(0, 1200)}`;
+    const r = await this.completeJson<{ body?: string }>(prompt, 600);
+    const body = (r.body ?? '').trim();
+    if (!body) throw new Error('빈 초안');
+    return { body };
   }
 
   /** 성적표 이미지 → Claude 비전으로 과목·점수를 구조화 추출. */

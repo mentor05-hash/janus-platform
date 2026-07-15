@@ -6,7 +6,7 @@ import { AuthImage } from '../components/AuthImage';
 
 type Attachment = { id: string; name: string; type?: string };
 type Answer = { id: string; body: string; accepted: boolean; teacherName: string; createdAt: string };
-type Post = { id: string; subject: string | null; difficulty: string | null; scope: string; assignedTeacherId: string | null; body: string; status: string; created_at: string; attachments?: Attachment[]; answers: Answer[] };
+type Post = { id: string; subject: string | null; difficulty: string | null; scope: string; assignedTeacherId: string | null; body: string; status: string; created_at: string; aiDraft?: string | null; attachments?: Attachment[]; answers: Answer[] };
 
 const isImage = (a: Attachment) => (a.type ?? '').startsWith('image/') || /\.(png|jpe?g|gif|webp|heic)$/i.test(a.name);
 /** 학생이 첨부한 문제 이미지 — 클릭 시 확대(라이트박스). */
@@ -111,6 +111,15 @@ export function TeacherQnaPage() {
             <p style={{ fontSize: 14, whiteSpace: 'pre-wrap', margin: '0 0 10px' }}>{p.body}</p>
             <QImages atts={p.attachments} />
             <AnswerList answers={p.answers} />
+            {p.aiDraft && (
+              <div style={{ background: 'var(--teal-50,#EEF4FB)', border: '1px solid var(--input-border)', borderRadius: 8, padding: 10, margin: '4px 0 8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <b style={{ fontSize: 12, color: 'var(--teal)' }}>✦ AI 초안 <span style={{ fontWeight: 400, color: 'var(--muted)' }}>· 검토 후 보완/수정</span></b>
+                  <Button size="sm" onClick={() => setDraft((d) => ({ ...d, [p.id]: p.aiDraft ?? '' }))}>이 초안으로 시작</Button>
+                </div>
+                <div style={{ fontSize: 13, whiteSpace: 'pre-wrap', color: 'var(--ink)' }}>{p.aiDraft}</div>
+              </div>
+            )}
             <TextareaField label="답변 작성" rows={3} value={draft[p.id] ?? ''} onChange={(e) => setDraft((d) => ({ ...d, [p.id]: e.target.value }))} placeholder="풀이·설명을 작성하세요." />
             <Button onClick={() => answer(p.id)} disabled={busy === p.id || !(draft[p.id] ?? '').trim()}>답변 등록</Button>
           </Card>
