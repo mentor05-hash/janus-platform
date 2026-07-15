@@ -23,6 +23,31 @@ export function DiagnosticPage() {
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  // 결과 텍스트 요약(공유·복사용) — 점수·유형별 정답률·처방.
+  function resultSummary(r: Result): string {
+    const lines = [
+      `[야누스 수준진단 결과]`,
+      `점수 ${r.score}점 · 정답 ${r.correct}/${r.total}`,
+      ``,
+      `▪ 유형별 정답률`,
+      ...r.units.map((u) => `  - ${u.subject} ${u.unit}: ${u.rate}% (${u.correct}/${u.total})${u.weak ? ' ⚠약점' : ''}`),
+    ];
+    if (r.prescriptions.length) {
+      lines.push(``, `▪ 처방(우선 보완)`);
+      for (const p of r.prescriptions) lines.push(`  - ${p.subject} ${p.unit}(${p.rate}%): ${p.action}`);
+    }
+    return lines.join('\n');
+  }
+  async function shareResult(r: Result) {
+    const text = resultSummary(r);
+    try {
+      if (navigator.share) { await navigator.share({ title: '야누스 수준진단 결과', text }); return; }
+      await navigator.clipboard.writeText(text);
+      setCopied(true); setTimeout(() => setCopied(false), 2000);
+    } catch { /* 취소·미지원 무시 */ }
+  }
 
   const loadHistory = () => api.get<{ attempts: HistoryRow[] }>('/diagnostics/me').then((r) => setHistory(r.attempts)).catch(() => { /* 무시 */ });
   useEffect(() => { loadHistory(); }, []);
@@ -145,7 +170,7 @@ export function DiagnosticPage() {
       )}
 
       {phase === 'result' && result && (
-        <>
+        <div className="diag-report">
           <Card style={{ marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 30, fontWeight: 800, color: 'var(--j-blue)' }}>{result.score}점</span>
@@ -193,11 +218,13 @@ export function DiagnosticPage() {
           )}
           {result.prescriptions.length === 0 && <p style={{ fontSize: 13.5, color: 'var(--brand)', marginTop: 14 }}>약점 유형이 없어요 — 훌륭해요! 다른 과목도 진단해보세요.</p>}
 
-          <div style={{ marginTop: 18, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div className="no-print" style={{ marginTop: 18, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {result.prescriptions.length > 0 && <Button onClick={startClinic} disabled={busy}>{busy ? '준비 중…' : '🎯 약점만 다시 풀기'}</Button>}
+            <button onClick={() => shareResult(result)} style={{ background: 'none', border: '1px solid var(--line-soft)', borderRadius: 8, padding: '9px 16px', color: 'var(--ink)', cursor: 'pointer' }}>{copied ? '복사됨 ✓' : '결과 공유'}</button>
+            <button onClick={() => window.print()} style={{ background: 'none', border: '1px solid var(--line-soft)', borderRadius: 8, padding: '9px 16px', color: 'var(--ink)', cursor: 'pointer' }}>PDF 저장·인쇄</button>
             <button onClick={() => { setPhase('intro'); setResult(null); }} style={{ background: 'none', border: '1px solid var(--line-soft)', borderRadius: 8, padding: '9px 16px', color: 'var(--muted)', cursor: 'pointer' }}>다시 진단하기</button>
           </div>
-        </>
+        </div>
       )}
     </div>
   );

@@ -127,3 +127,12 @@
 .nav-item:focus-visible, .btn:focus-visible, a:focus-visible, button:focus-visible {
   outline: 2px solid var(--blue); outline-offset: 2px;
 }
+
+/* 인쇄(PDF 저장) — 진단 결과만 인쇄, 사이드바·버튼 숨김 */
+@media print {
+  .sidebar, .no-print, nav, header { display: none !important; }
+  .shell-main { padding: 0 !important; margin: 0 !important; }
+  body { background: #fff !important; }
+  .diag-report { margin: 0 !important; }
+  .diag-report .card { break-inside: avoid; box-shadow: none !important; }
+}
