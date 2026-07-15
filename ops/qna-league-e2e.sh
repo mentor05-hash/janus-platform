@@ -7,6 +7,9 @@ PW="${PW:-dev-password!}"
 login() { curl -s -X POST "$API/auth/login" -H 'Content-Type: application/json' -d "{\"loginId\":\"$1\",\"password\":\"$PW\"}" | jq -r '.data.accessToken // .accessToken // empty'; }
 auth() { local t="$1"; shift; curl -s -H "Authorization: Bearer $t" "$@"; }
 
+echo "▶ api 헬스 대기(재빌드 직후 워밍업)…"
+for i in $(seq 1 40); do curl -sf "$API/health" >/dev/null 2>&1 && { echo "  ✓ ready"; break; }; sleep 1; done
+
 echo "▶ 0) 로그인(student01·teacher01·admin01)"
 S1=$(login student01); T1=$(login teacher01); AD=$(login admin01)
 for v in S1 T1 AD; do [ -n "${!v}" ] || { echo "  ✗ $v 로그인 실패"; exit 1; }; done
