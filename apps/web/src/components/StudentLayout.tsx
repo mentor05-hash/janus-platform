@@ -10,6 +10,7 @@ const navCls = ({ isActive }: { isActive: boolean }) => (isActive ? 'nav-item ac
 
 const NAV = [
   { to: '/student', label: '나의 관문', end: true },
+  { to: '/student/diagnostic', label: '수준진단' },
   { to: '/student/search', label: '선생님 찾기' },
   { to: '/student/bookings', label: '내 예약·상담' },
   { to: '/student/scores', label: '내 성적·배치', flag: 'scores' as const, end: true },

@@ -1,0 +1,171 @@
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { api, ApiError } from '../api/client';
+import { PageHeader, Card, Button, Badge, ErrorText, EmptyState, SelectField } from '../components/ui';
+
+// 수준진단 v1 — 시작 → 문항 풀이 → 채점 → 유형별 약점 → 처방. 문항은 데모(합성).
+type Question = { id: string; subject: string; unit: string; difficulty: string | null; stem: string; choices: string[] };
+type UnitStat = { subject: string; unit: string; total: number; correct: number; rate: number; weak: boolean };
+type Prescription = { subject: string; unit: string; rate: number; action: string };
+type Result = { attemptId: string; total: number; correct: number; score: number; units: UnitStat[]; prescriptions: Prescription[] };
+type HistoryRow = { id: string; subject: string | null; total: number; correct: number; score: number; submitted_at: string };
+
+const SUBJECTS = ['', '국어', '수학', '영어'];
+const fmtDate = (s: string) => { const d = new Date(s); return `${d.getMonth() + 1}/${d.getDate()}`; };
+
+export function DiagnosticPage() {
+  const [phase, setPhase] = useState<'intro' | 'quiz' | 'result'>('intro');
+  const [subject, setSubject] = useState('');
+  const [attemptId, setAttemptId] = useState('');
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [answers, setAnswers] = useState<Record<string, number>>({});
+  const [result, setResult] = useState<Result | null>(null);
+  const [history, setHistory] = useState<HistoryRow[]>([]);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const loadHistory = () => api.get<{ attempts: HistoryRow[] }>('/diagnostics/me').then((r) => setHistory(r.attempts)).catch(() => { /* 무시 */ });
+  useEffect(() => { loadHistory(); }, []);
+
+  async function start() {
+    setError(''); setBusy(true);
+    try {
+      const r = await api.post<{ attemptId: string; questions: Question[] }>('/diagnostics/start', { subject: subject || undefined });
+      setAttemptId(r.attemptId); setQuestions(r.questions); setAnswers({}); setPhase('quiz');
+    } catch (e) { setError(e instanceof ApiError ? e.message : '시작 실패'); }
+    finally { setBusy(false); }
+  }
+
+  async function submit() {
+    setError(''); setBusy(true);
+    try {
+      const payload = { answers: questions.map((q) => ({ questionId: q.id, chosen: answers[q.id] ?? null })) };
+      const r = await api.post<Result>(`/diagnostics/${attemptId}/submit`, payload);
+      setResult(r); setPhase('result'); loadHistory();
+    } catch (e) { setError(e instanceof ApiError ? e.message : '제출 실패'); }
+    finally { setBusy(false); }
+  }
+
+  const answered = questions.filter((q) => answers[q.id] != null).length;
+
+  return (
+    <div>
+      <PageHeader title="수준진단" sub="문항을 풀면 유형별 약점을 진단하고, 무엇을 보완할지 처방해줘요. (현재 문항은 데모 샘플)" />
+      <ErrorText>{error}</ErrorText>
+
+      {phase === 'intro' && (
+        <>
+          <Card style={{ marginBottom: 14 }}>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div style={{ minWidth: 160 }}>
+                <SelectField label="과목" value={subject} onChange={(e) => setSubject(e.target.value)}
+                  options={SUBJECTS.map((s) => ({ value: s, label: s || '전과목' }))} />
+              </div>
+              <Button onClick={start} disabled={busy}>{busy ? '준비 중…' : '진단 시작'}</Button>
+            </div>
+            <p style={{ fontSize: 12.5, color: 'var(--caption)', marginTop: 10 }}>⚠ 데모 문항(합성)으로 동작해요. 실제 수능 문항은 후속 반영됩니다.</p>
+          </Card>
+
+          <h3 style={{ fontSize: 15, margin: '18px 0 8px' }}>이전 진단</h3>
+          {history.length === 0 ? <EmptyState>아직 진단 기록이 없어요. 첫 진단을 시작해보세요.</EmptyState> : (
+            <div style={{ display: 'grid', gap: 8 }}>
+              {history.map((h) => (
+                <Card key={h.id}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <Badge kind="soft">{h.subject ?? '전과목'}</Badge>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>{h.score}점</span>
+                    <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>정답 {h.correct}/{h.total}</span>
+                    <span style={{ fontSize: 12, color: 'var(--caption)', marginLeft: 'auto' }}>{fmtDate(h.submitted_at)}</span>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {phase === 'quiz' && (
+        <>
+          <div style={{ position: 'sticky', top: 0, background: 'var(--bg)', padding: '6px 0 10px', zIndex: 5, fontSize: 13, color: 'var(--muted)' }}>
+            진행 {answered}/{questions.length}
+          </div>
+          <div style={{ display: 'grid', gap: 12 }}>
+            {questions.map((q, i) => (
+              <Card key={q.id}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
+                  <Badge kind="new">{q.subject}</Badge><Badge kind="soft">{q.unit}</Badge>
+                  {q.difficulty && <Badge kind="soft">{q.difficulty}</Badge>}
+                </div>
+                <div style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--ink)', marginBottom: 10 }}>{i + 1}. {q.stem}</div>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  {q.choices.map((c, idx) => (
+                    <label key={idx} style={{
+                      display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 14,
+                      border: `1px solid ${answers[q.id] === idx ? 'var(--j-blue)' : 'var(--line-soft)'}`,
+                      background: answers[q.id] === idx ? 'var(--j-blue-soft)' : 'transparent',
+                    }}>
+                      <input type="radio" name={q.id} checked={answers[q.id] === idx} onChange={() => setAnswers((a) => ({ ...a, [q.id]: idx }))} />
+                      {c}
+                    </label>
+                  ))}
+                </div>
+              </Card>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+            <Button onClick={submit} disabled={busy || answered === 0}>{busy ? '채점 중…' : `제출하고 진단받기 (${answered}/${questions.length})`}</Button>
+            <button onClick={() => setPhase('intro')} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}>취소</button>
+          </div>
+        </>
+      )}
+
+      {phase === 'result' && result && (
+        <>
+          <Card style={{ marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 30, fontWeight: 800, color: 'var(--j-blue)' }}>{result.score}점</span>
+              <span style={{ fontSize: 14, color: 'var(--muted)' }}>정답 {result.correct} / {result.total}</span>
+            </div>
+          </Card>
+
+          <h3 style={{ fontSize: 15, margin: '14px 0 8px' }}>유형별 정답률</h3>
+          <div style={{ display: 'grid', gap: 8 }}>
+            {result.units.map((u) => (
+              <Card key={`${u.subject}-${u.unit}`}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <Badge kind="soft">{u.subject}</Badge>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>{u.unit}</span>
+                  {u.weak && <Badge kind="danger">약점</Badge>}
+                  <span style={{ marginLeft: 'auto', fontSize: 13, color: u.weak ? 'var(--danger, #dc2626)' : 'var(--muted)' }}>{u.rate}% ({u.correct}/{u.total})</span>
+                </div>
+                <div style={{ height: 6, borderRadius: 4, background: 'var(--line-soft)', marginTop: 8, overflow: 'hidden' }}>
+                  <div style={{ width: `${u.rate}%`, height: '100%', background: u.weak ? 'var(--danger, #dc2626)' : 'var(--j-blue)' }} />
+                </div>
+              </Card>
+            ))}
+          </div>
+
+          {result.prescriptions.length > 0 && (
+            <>
+              <h3 style={{ fontSize: 15, margin: '18px 0 8px' }}>처방 — 이걸 먼저 보완하세요</h3>
+              <div style={{ display: 'grid', gap: 8 }}>
+                {result.prescriptions.map((p, i) => (
+                  <Card key={i} style={{ borderLeft: '3px solid var(--j-blue)' }}>
+                    <div style={{ fontSize: 14, color: 'var(--ink)' }}>{p.action}</div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                      <Link to="/student/community/board" className="btn sm outline" style={{ textDecoration: 'none' }}>질문하기</Link>
+                      <Link to="/placement/gap" className="btn sm outline" style={{ textDecoration: 'none' }}>격차 리포트</Link>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </>
+          )}
+          {result.prescriptions.length === 0 && <p style={{ fontSize: 13.5, color: 'var(--brand)', marginTop: 14 }}>약점 유형이 없어요 — 훌륭해요! 다른 과목도 진단해보세요.</p>}
+
+          <div style={{ marginTop: 18 }}><Button onClick={() => { setPhase('intro'); setResult(null); }}>다시 진단하기</Button></div>
+        </>
+      )}
+    </div>
+  );
+}

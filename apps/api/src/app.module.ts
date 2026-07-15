@@ -47,6 +47,7 @@ import { PlacementHubModule } from './modules/placement-hub/placement-hub.module
 import { FunnelModule } from './modules/funnel/funnel.module';
 import { SsoModule } from './modules/sso/sso.module';
 import { GuardianReportModule } from './modules/guardian-report/guardian-report.module';
+import { DiagnosticModule } from './modules/diagnostic/diagnostic.module';
 
 @Module({
   imports: [
@@ -95,6 +96,7 @@ import { GuardianReportModule } from './modules/guardian-report/guardian-report.
     FunnelModule, // 간이 전환 계측(W3·C3) — baechi→consult-reserve 전환율
     SsoModule, // 크로스서비스 SSO(O42·W3) — HS256+epoch·레지스트리·verify 위임
     GuardianReportModule, // 학부모 주간 통합 리포트(W8) — 자녀 성적·출석·상담·Q&A 요약
+    DiagnosticModule, // 수준진단(진단 관문) — 문항 풀이→채점→약점→처방(문제은행 데모+후속 kice)
   ],
   providers: [
     // 전역 가드: rate limit(§10) → 인증 → 인가 순. @Public() 은 인증 통과, @Roles() 로 역할 제한.

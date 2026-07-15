@@ -1267,3 +1267,45 @@ model sso_service {
   created_at       DateTime @default(now()) @db.Timestamptz(6)
   updated_at       DateTime @default(now()) @db.Timestamptz(6)
 }
+
+/** 수준진단 문제은행 — 데모(합성) + 후속 kice 주입. */
+model diagnostic_question {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  subject     String
+  unit        String
+  difficulty  String?
+  stem        String
+  choices     Json
+  answer      Int      @db.SmallInt
+  explanation String?
+  source      String   @default("demo")
+  active      Boolean  @default(true)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+}
+
+/** 수준진단 시도 — 학생별 채점 결과(정답률). */
+model diagnostic_attempt {
+  id           String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  student_id   String                 @db.Uuid
+  subject      String?
+  total        Int                    @default(0)
+  correct      Int                    @default(0)
+  score        Int                    @default(0)
+  started_at   DateTime               @default(now()) @db.Timestamptz(6)
+  submitted_at DateTime?              @db.Timestamptz(6)
+  responses    diagnostic_response[]
+
+  @@index([student_id, started_at(sort: Desc)])
+}
+
+/** 수준진단 응답 — 문항별 선택·정오. */
+model diagnostic_response {
+  id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attempt_id  String             @db.Uuid
+  question_id String             @db.Uuid
+  chosen      Int?               @db.SmallInt
+  is_correct  Boolean            @default(false)
+  attempt     diagnostic_attempt @relation(fields: [attempt_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([attempt_id])
+}
