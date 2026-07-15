@@ -45,7 +45,7 @@ done
 [ -n "$DRAFT" ] && echo "  ✓ AI 초안: ${DRAFT:0:44}…" || echo "  ⚠ AI 초안 미생성(LLM mock/키 미설정 시 정상) — 계속"
 
 echo "▶ 3) 목록(미답변 필터)에 노출"
-CNT=$(auth "$TX" "$API/qna/community?filter=unanswered" | jq '[.[] | select(.id=="'"$PID"'")] | length')
+CNT=$(auth "$TX" "$API/qna/community?filter=unanswered" | jq '[(.data // .)[] | select(.id=="'"$PID"'")] | length')
 [ "$CNT" = "1" ] && echo "  ✓ 미답변 목록 노출" || echo "  ⚠ 미답변 목록 없음(count=$CNT)"
 
 echo "▶ 4) $ANS_T(교사) 답변"
