@@ -45,6 +45,12 @@ echo "  me=$(echo "$ME" | jq -c '{tier:(.data.tier//.tier),label:(.data.label//.
 TIER=$(echo "$ME" | jq -r '.data.tier // .tier')
 [ "$TIER" = "1" ] && echo "  ✓ 1부 승급 확인" || echo "  ⚠ 기대 1부, 실제 tier=$TIER"
 
+echo "▶ 5.5) 알림 확인(teacher01 — 채택·승급 알림)"
+NT=$(auth "$T1" "$API/notifications")
+echo "  타입=$(echo "$NT" | jq -c '[(.data // .)[] | .type] | unique')"
+echo "$NT" | jq -e '[(.data // .)[] | select(.type=="qna_community_accepted")] | length > 0' >/dev/null && echo "  ✓ 채택 알림 있음" || echo "  ⚠ 채택 알림 없음(비동기 지연 가능)"
+echo "$NT" | jq -e '[(.data // .)[] | select(.type=="qna_league_promoted")] | length > 0' >/dev/null && echo "  ✓ 승급 알림 있음" || echo "  ⚠ 승급 알림 없음(비동기 지연 가능)"
+
 echo "▶ 6) 리더보드(상위 등급)"
 auth "$S1" "$API/qna/league/leaderboard" | jq -c '(.data // .) | map({name,label,accepted,acceptRate})'
 

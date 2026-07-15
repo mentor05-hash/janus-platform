@@ -48,6 +48,10 @@ const TEMPLATES: Record<string, Tmpl> = {
   note_shared: { title: '상담 기록 공개', body: '상담 기록(핵심요약·숙제·향후방향)이 공개되었어요.' },
   score_uploaded: { title: '성적 업데이트', body: '성적이 업데이트되었어요. 성적·배치에서 확인하세요.' },
   qna_answered: { title: '질문 답변', body: '등록한 질문에 답변이 달렸어요.' },
+  // ── 커뮤니티·리그(Q3) ──
+  qna_community_answer: { title: '커뮤니티 새 답변', body: '내 커뮤니티 질문에 새 답변이 달렸어요. 확인하고 채택해 보세요.' },
+  qna_community_accepted: { title: '답변 채택 🎉', body: '내 커뮤니티 답변이 채택됐어요! 리그 실적에 반영됩니다.' },
+  qna_league_promoted: { title: '리그 승급 🏅', body: '{label}(으)로 승급했어요! 커뮤니티 기여 고마워요.' },
   qna_assigned: { title: '질문 배정', body: '새 질문이 배정되었어요. 답변을 작성해 주세요.' },
   // ── 공지·기타 ──
   announcement: { title: '{title}', body: '{body}' },

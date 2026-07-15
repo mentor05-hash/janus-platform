@@ -27,6 +27,7 @@ import { computeSla } from './domain/qna-sla';
 import { pickAssignee } from './domain/qna-assign';
 import { COMMUNITY_DAILY_LIMIT, aiUnlabeled, canAnswerCommunity, shouldHide, withinDailyLimit } from './domain/qna-community';
 import { DEFAULT_LEAGUE_POLICY, TIER_LABEL, evaluateLeague, nextTierNeed, type LeaguePolicy } from './domain/qna-league';
+import { NotifyService } from '../notification/notify.service';
 import { CreateAnswerDto, CreateQuestionDto } from './dto/qna.dto';
 import { Inject } from '@nestjs/common';
 import { LLM_PROVIDER } from '../llm/llm.types';
@@ -74,6 +75,7 @@ export class QnaService {
     @Inject(CACHE_PROVIDER) private readonly cache: CacheProvider,
     private readonly booking: BookingService,
     private readonly availability: AvailabilityService,
+    private readonly notify: NotifyService,
   ) {}
 
   /** 질문 요금 안내(학생) — 문항형/일반형 건당 크레딧. 센터별 정책 반영. */
@@ -630,6 +632,7 @@ export class QnaService {
     }
     const ans = await this.prisma.qna_community_answer.create({ data: { post_id: postId, author_id: user.id, body, similarity, ai_similar: aiSim } });
     if (post.first_reply_at == null) await this.prisma.qna_post.update({ where: { id: postId }, data: { first_reply_at: new Date() } });
+    void this.notify.notify(post.student_id, 'qna_community_answer', { postId }); // 질문자에게 새 답변 알림
     return { id: ans.id, aiSimilar: aiSim, similarity, warning: aiSim ? 'AI 초안과 매우 유사합니다 — AI 도움을 받았다면 "AI 참고"로 표기해 주세요.' : null };
   }
 
@@ -644,7 +647,8 @@ export class QnaService {
       if (upd.count !== 1) throw new ConflictException('이미 채택/마감된 질문입니다.');
       await tx.qna_community_answer.update({ where: { id: answerId }, data: { accepted: true } });
     });
-    const league = await this.evaluateLeagueFor(ans.author_id); // 채택 → 답변자 리그 재평가(승급)
+    void this.notify.notify(ans.author_id, 'qna_community_accepted', { answerId }); // 답변자에게 채택 알림
+    const league = await this.evaluateLeagueFor(ans.author_id); // 채택 → 답변자 리그 재평가(승급·승급 시 알림)
     return { id: answerId, accepted: true, authorLeague: league.tier, promoted: league.promoted };
   }
 
@@ -711,6 +715,7 @@ export class QnaService {
       create: { account_id: accountId, tier, authored: stats.authored, accepted: stats.accepted, accept_rate: stats.acceptRate, promoted_at: tier < 3 ? new Date() : null },
       update: { tier, authored: stats.authored, accepted: stats.accepted, accept_rate: stats.acceptRate, evaluated_at: new Date(), ...(promoted ? { promoted_at: new Date() } : {}) },
     });
+    if (promoted) void this.notify.notify(accountId, 'qna_league_promoted', { tier, label: TIER_LABEL[tier] }); // 승급 알림
     return { tier, promoted, ...stats };
   }
 

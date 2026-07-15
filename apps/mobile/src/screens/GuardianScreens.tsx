@@ -14,10 +14,11 @@ type Props = { children: Child[]; activeId: string | null; setActiveId: (id: str
 /** 학부모 주간 통합 리포트(GET /guardian/report) — 성적·출석·상담·Q&A 요약. */
 type WeeklyReport = {
   headline: string;
+  period?: { days: number };
   sections: {
     score: { nb?: number; label: string } | null;
     attendance: { done: number; upcoming: number; noshow: number; cancelled: number; rate: number | null; label: string };
-    consultation: { count: number };
+    consultation: { count: number; recent?: { at: string; teacher?: string; summary: string | null }[] };
     qna: { count: number };
   };
 };
@@ -79,18 +80,52 @@ export function GuardianHome({ children, activeId, setActiveId, goTab }: Props) 
         </TouchableOpacity>
       )}
 
-      {/* 주간 통합 리포트 요약 */}
+      {/* 주간 통합 리포트 */}
       {report && (
         <View style={[ui.card, { marginBottom: 8 }]}>
-          <Text style={s.sec}>이번 주 요약</Text>
-          <Text style={{ color: C.ink, fontWeight: '700', fontSize: 14, lineHeight: 20, marginBottom: 10 }}>{report.headline}</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-            {report.sections.attendance.rate != null && <View style={s.rChip}><Text style={s.rChipT}>출석 {report.sections.attendance.rate}%</Text></View>}
-            <View style={s.rChip}><Text style={s.rChipT}>세션 {report.sections.attendance.done}회</Text></View>
-            <View style={s.rChip}><Text style={s.rChipT}>상담 {report.sections.consultation.count}건</Text></View>
-            <View style={s.rChip}><Text style={s.rChipT}>Q&A {report.sections.qna.count}건</Text></View>
-            {report.sections.score?.nb != null && <View style={s.rChip}><Text style={s.rChipT}>누백 {report.sections.score.nb}%</Text></View>}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+            <Text style={[s.sec, { flex: 1, marginBottom: 0 }]}>주간 통합 리포트</Text>
+            <Text style={{ fontSize: 11, color: C.muted }}>최근 {report.period?.days ?? 7}일</Text>
           </View>
+          <Text style={{ color: C.ink, fontWeight: '700', fontSize: 14, lineHeight: 20, marginBottom: 12 }}>{report.headline}</Text>
+
+          {/* 성적 */}
+          {report.sections.score && (
+            <View style={s.repRow}>
+              <Text style={s.repLabel}>성적</Text>
+              <Text style={s.repVal}>{report.sections.score.label}</Text>
+            </View>
+          )}
+          {/* 출석 상세 */}
+          <View style={s.repRow}>
+            <Text style={s.repLabel}>출석</Text>
+            <Text style={s.repVal}>
+              {report.sections.attendance.rate != null ? `${report.sections.attendance.rate}% · ` : ''}
+              완료 {report.sections.attendance.done} · 예정 {report.sections.attendance.upcoming}
+              {report.sections.attendance.noshow > 0 ? ` · 노쇼 ${report.sections.attendance.noshow}` : ''}
+            </Text>
+          </View>
+          {/* Q&A */}
+          <View style={s.repRow}>
+            <Text style={s.repLabel}>Q&A</Text>
+            <Text style={s.repVal}>{report.sections.qna.count}건</Text>
+          </View>
+
+          {/* 최근 상담 */}
+          <Text style={[s.repLabel, { marginTop: 10, marginBottom: 6 }]}>최근 상담 {report.sections.consultation.count}건</Text>
+          {(report.sections.consultation.recent ?? []).length === 0 ? (
+            <Text style={{ fontSize: 12.5, color: C.muted }}>최근 상담 기록이 없어요.</Text>
+          ) : (
+            (report.sections.consultation.recent ?? []).map((rc, i) => (
+              <View key={i} style={s.consItem}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: C.ink }}>{rc.teacher ?? '상담'}</Text>
+                  <Text style={{ fontSize: 11, color: C.muted }}>{DKST(rc.at)}</Text>
+                </View>
+                {rc.summary ? <Text style={{ fontSize: 12.5, color: C.muted, lineHeight: 18 }} numberOfLines={2}>{rc.summary}</Text> : null}
+              </View>
+            ))
+          )}
         </View>
       )}
 
@@ -417,6 +452,10 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   statusChip: { fontSize: 11, fontWeight: '700', color: C.confirmed, backgroundColor: C.confirmedBg, borderRadius: R.sm, paddingHorizontal: 8, paddingVertical: 3 },
   rChip: { backgroundColor: C.fill, borderRadius: R.sm, paddingHorizontal: 10, paddingVertical: 5 },
   rChipT: { fontSize: 12, fontWeight: '700', color: C.ink },
+  repRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 5, borderTopWidth: 1, borderTopColor: C.line, gap: 10 },
+  repLabel: { fontSize: 12.5, fontWeight: '700', color: C.muted, width: 44 },
+  repVal: { fontSize: 13, color: C.ink, flex: 1, lineHeight: 19 },
+  consItem: { backgroundColor: C.fill, borderRadius: R.sm, padding: 10, marginBottom: 6 },
   policy: { fontSize: 12, color: C.muted, backgroundColor: C.lineSoft, borderRadius: 10, padding: 10, lineHeight: 17, marginBottom: 4 },
   tl: { borderLeftWidth: 2, borderLeftColor: C.line, marginLeft: 6, paddingLeft: 16, paddingBottom: 16, position: 'relative' },
   tlDot: { position: 'absolute', left: -6, top: 3, width: 10, height: 10, borderRadius: 5, backgroundColor: C.teal500 },
