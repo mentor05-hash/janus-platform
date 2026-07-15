@@ -53,9 +53,12 @@ export function GuardianHome({ children, activeId, setActiveId, goTab }: Props) 
   const [reqs, setReqs] = useState<PaymentRequest[]>([]);
   const [access, setAccess] = useState<{ showTrend: boolean; showPlacement: boolean } | null>(null);
   const [trend, setTrend] = useState<Trend | null>(null);
-  const [notifs, setNotifs] = useState<{ title?: string; body?: string; read_at: string | null; created_at?: string }[]>([]);
+  const [notifs, setNotifs] = useState<{ id: string; title?: string; body?: string; read_at: string | null; created_at?: string }[]>([]);
+  const loadNotifs = () => api.get<typeof notifs>('/notifications').then((r) => setNotifs(Array.isArray(r) ? r : [])).catch(() => {});
   useEffect(() => { api.get<PaymentRequest[]>('/payment-requests').then((r) => setReqs(Array.isArray(r) ? r : [])).catch(() => {}); }, []);
-  useEffect(() => { api.get<typeof notifs>('/notifications').then((r) => setNotifs(Array.isArray(r) ? r : [])).catch(() => {}); }, []);
+  useEffect(() => { loadNotifs(); }, []);
+  const readNotif = (id: string) => { api.patch(`/notifications/${id}/read`, {}).then(loadNotifs).catch(() => {}); };
+  const readAllNotifs = () => { api.patch('/notifications/read-all', {}).then(loadNotifs).catch(() => {}); };
   useEffect(() => { api.get<{ showTrend: boolean; showPlacement: boolean }>('/me/scores/access').then(setAccess).catch(() => setAccess({ showTrend: false, showPlacement: false })); }, []);
   const child0 = activeId ?? children[0]?.studentId ?? null;
   const [report, setReport] = useState<WeeklyReport | null>(null);
@@ -87,14 +90,17 @@ export function GuardianHome({ children, activeId, setActiveId, goTab }: Props) 
       {/* 최근 알림 */}
       {notifs.length > 0 && (
         <View style={[ui.card, { marginBottom: 8 }]}>
-          <Text style={s.sec}>최근 알림</Text>
-          {notifs.slice(0, 3).map((n, i) => (
-            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={[s.sec, { flex: 1 }]}>최근 알림</Text>
+            {unread > 0 && <TouchableOpacity onPress={readAllNotifs}><Text style={{ fontSize: 12, color: C.confirmed, fontWeight: '700' }}>모두 읽음</Text></TouchableOpacity>}
+          </View>
+          {notifs.slice(0, 4).map((n) => (
+            <TouchableOpacity key={n.id} onPress={() => readNotif(n.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 5 }}>
               {!n.read_at && <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: C.confirmed }} />}
               <Text style={{ flex: 1, fontSize: 13, color: n.read_at ? C.muted : C.ink, fontWeight: n.read_at ? '400' : '700' }} numberOfLines={1}>
                 {n.title ? `${n.title} · ` : ''}{n.body ?? ''}
               </Text>
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
       )}
