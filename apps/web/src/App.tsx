@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
 import { RealtimeNotifier } from './components/RealtimeNotifier';
@@ -5,80 +6,81 @@ import { roleHome } from './auth/roleHome';
 import { AppLayout } from './components/AppLayout';
 import { AdminLayout } from './components/AdminLayout';
 import { LoginPage } from './pages/LoginPage';
-import { SignupPage } from './pages/SignupPage';
-import { ConsultingApplyPage } from './pages/ConsultingApplyPage';
-import { TeacherBookingsPage } from './pages/TeacherBookingsPage';
-import { TeacherInboxPage } from './pages/TeacherInboxPage';
-import { NotePage } from './pages/NotePage';
-import { SchedulePage } from './pages/SchedulePage';
-import { TeacherEvalPage } from './pages/TeacherEvalPage';
-import { PayrollPage } from './pages/PayrollPage';
-import { ReverseProposePage } from './pages/ReverseProposePage';
-import { NotificationsPage } from './pages/NotificationsPage';
-import { StudentNotesPage } from './pages/StudentNotesPage';
-import { TeacherMaterialsPage } from './pages/TeacherMaterialsPage';
-import { TeacherLecturesPage } from './pages/TeacherLecturesPage';
-import { TeacherQnaPage } from './pages/TeacherQnaPage';
-import { TeacherRecordsPage } from './pages/TeacherRecordsPage';
-import { TeacherProfilePage } from './pages/TeacherProfilePage';
-import { ClassroomPage } from './pages/ClassroomPage';
-import { AdminDashboardPage } from './pages/AdminDashboardPage';
-import { AdminPolicyPage } from './pages/AdminPolicyPage';
-import { HrStudentsPage } from './pages/HrStudentsPage';
-import { HrTeachersPage } from './pages/HrTeachersPage';
-import { HrStaffPage } from './pages/HrStaffPage';
-import { AdminInfraPage } from './pages/AdminInfraPage';
-import { AdminRoomsPage } from './pages/AdminRoomsPage';
-import { AdminBlockPage } from './pages/AdminBlockPage';
-import { AdminReportsPage } from './pages/AdminReportsPage';
-import { AnnouncementsPage } from './pages/AnnouncementsPage';
-import { AdminOrgPage } from './pages/AdminOrgPage';
-import { AdminMemberTypesPage } from './pages/AdminMemberTypesPage';
-import { AdminEvaluationPage } from './pages/AdminEvaluationPage';
-import { AdminAnalyticsPage } from './pages/AdminAnalyticsPage';
-import { AdminStatsPage } from './pages/AdminStatsPage';
-import { AdminDiagnosticPage } from './pages/AdminDiagnosticPage';
-import { AdminAssignmentPage } from './pages/AdminAssignmentPage';
-import { EmbedSessionPage } from './pages/EmbedSessionPage';
-import { RoomStandalonePage } from './pages/RoomStandalonePage';
-import { RoomDemoLauncherPage } from './pages/RoomDemoLauncherPage';
+const SignupPage = lazy(() => import('./pages/SignupPage').then((m) => ({ default: m.SignupPage })));
+const ConsultingApplyPage = lazy(() => import('./pages/ConsultingApplyPage').then((m) => ({ default: m.ConsultingApplyPage })));
+const TeacherBookingsPage = lazy(() => import('./pages/TeacherBookingsPage').then((m) => ({ default: m.TeacherBookingsPage })));
+const TeacherInboxPage = lazy(() => import('./pages/TeacherInboxPage').then((m) => ({ default: m.TeacherInboxPage })));
+const NotePage = lazy(() => import('./pages/NotePage').then((m) => ({ default: m.NotePage })));
+const SchedulePage = lazy(() => import('./pages/SchedulePage').then((m) => ({ default: m.SchedulePage })));
+const TeacherEvalPage = lazy(() => import('./pages/TeacherEvalPage').then((m) => ({ default: m.TeacherEvalPage })));
+const PayrollPage = lazy(() => import('./pages/PayrollPage').then((m) => ({ default: m.PayrollPage })));
+const ReverseProposePage = lazy(() => import('./pages/ReverseProposePage').then((m) => ({ default: m.ReverseProposePage })));
+const NotificationsPage = lazy(() => import('./pages/NotificationsPage').then((m) => ({ default: m.NotificationsPage })));
+const StudentNotesPage = lazy(() => import('./pages/StudentNotesPage').then((m) => ({ default: m.StudentNotesPage })));
+const TeacherMaterialsPage = lazy(() => import('./pages/TeacherMaterialsPage').then((m) => ({ default: m.TeacherMaterialsPage })));
+const TeacherLecturesPage = lazy(() => import('./pages/TeacherLecturesPage').then((m) => ({ default: m.TeacherLecturesPage })));
+const TeacherQnaPage = lazy(() => import('./pages/TeacherQnaPage').then((m) => ({ default: m.TeacherQnaPage })));
+const TeacherRecordsPage = lazy(() => import('./pages/TeacherRecordsPage').then((m) => ({ default: m.TeacherRecordsPage })));
+const TeacherProfilePage = lazy(() => import('./pages/TeacherProfilePage').then((m) => ({ default: m.TeacherProfilePage })));
+const ClassroomPage = lazy(() => import('./pages/ClassroomPage').then((m) => ({ default: m.ClassroomPage })));
+const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage').then((m) => ({ default: m.AdminDashboardPage })));
+const AdminPolicyPage = lazy(() => import('./pages/AdminPolicyPage').then((m) => ({ default: m.AdminPolicyPage })));
+const HrStudentsPage = lazy(() => import('./pages/HrStudentsPage').then((m) => ({ default: m.HrStudentsPage })));
+const HrTeachersPage = lazy(() => import('./pages/HrTeachersPage').then((m) => ({ default: m.HrTeachersPage })));
+const HrStaffPage = lazy(() => import('./pages/HrStaffPage').then((m) => ({ default: m.HrStaffPage })));
+const AdminInfraPage = lazy(() => import('./pages/AdminInfraPage').then((m) => ({ default: m.AdminInfraPage })));
+const AdminRoomsPage = lazy(() => import('./pages/AdminRoomsPage').then((m) => ({ default: m.AdminRoomsPage })));
+const AdminBlockPage = lazy(() => import('./pages/AdminBlockPage').then((m) => ({ default: m.AdminBlockPage })));
+const AdminReportsPage = lazy(() => import('./pages/AdminReportsPage').then((m) => ({ default: m.AdminReportsPage })));
+const AnnouncementsPage = lazy(() => import('./pages/AnnouncementsPage').then((m) => ({ default: m.AnnouncementsPage })));
+const AdminOrgPage = lazy(() => import('./pages/AdminOrgPage').then((m) => ({ default: m.AdminOrgPage })));
+const AdminMemberTypesPage = lazy(() => import('./pages/AdminMemberTypesPage').then((m) => ({ default: m.AdminMemberTypesPage })));
+const AdminEvaluationPage = lazy(() => import('./pages/AdminEvaluationPage').then((m) => ({ default: m.AdminEvaluationPage })));
+const AdminAnalyticsPage = lazy(() => import('./pages/AdminAnalyticsPage').then((m) => ({ default: m.AdminAnalyticsPage })));
+const AdminStatsPage = lazy(() => import('./pages/AdminStatsPage').then((m) => ({ default: m.AdminStatsPage })));
+const AdminDiagnosticPage = lazy(() => import('./pages/AdminDiagnosticPage').then((m) => ({ default: m.AdminDiagnosticPage })));
+const AdminAssignmentPage = lazy(() => import('./pages/AdminAssignmentPage').then((m) => ({ default: m.AdminAssignmentPage })));
+const EmbedSessionPage = lazy(() => import('./pages/EmbedSessionPage').then((m) => ({ default: m.EmbedSessionPage })));
+const RoomStandalonePage = lazy(() => import('./pages/RoomStandalonePage').then((m) => ({ default: m.RoomStandalonePage })));
+const RoomDemoLauncherPage = lazy(() => import('./pages/RoomDemoLauncherPage').then((m) => ({ default: m.RoomDemoLauncherPage })));
 import { JanusLandingPage } from './pages/JanusLandingPage';
-import { PlacementPage } from './pages/PlacementPage';
-import { StudentHomePage } from './pages/StudentHomePage';
-import { ServicesPage, ServiceDetailPage } from './pages/ServicesPage';
-import { PlacementHubPage } from './pages/PlacementHubPage';
-import { GapReportPage } from './pages/GapReportPage';
-import { GuardianReportPage } from './pages/GuardianReportPage';
-import { AdminAuditPage } from './pages/AdminAuditPage';
-import { AdminPayrollPage } from './pages/AdminPayrollPage';
-import { AdminScoresPage } from './pages/AdminScoresPage';
-import { AdminReversePage } from './pages/AdminReversePage';
-import { TeacherDashboardPage } from './pages/TeacherDashboardPage';
+const PlacementPage = lazy(() => import('./pages/PlacementPage').then((m) => ({ default: m.PlacementPage })));
+const StudentHomePage = lazy(() => import('./pages/StudentHomePage').then((m) => ({ default: m.StudentHomePage })));
+const ServicesPage = lazy(() => import('./pages/ServicesPage').then((m) => ({ default: m.ServicesPage })));
+const ServiceDetailPage = lazy(() => import('./pages/ServicesPage').then((m) => ({ default: m.ServiceDetailPage })));
+const PlacementHubPage = lazy(() => import('./pages/PlacementHubPage').then((m) => ({ default: m.PlacementHubPage })));
+const GapReportPage = lazy(() => import('./pages/GapReportPage').then((m) => ({ default: m.GapReportPage })));
+const GuardianReportPage = lazy(() => import('./pages/GuardianReportPage').then((m) => ({ default: m.GuardianReportPage })));
+const AdminAuditPage = lazy(() => import('./pages/AdminAuditPage').then((m) => ({ default: m.AdminAuditPage })));
+const AdminPayrollPage = lazy(() => import('./pages/AdminPayrollPage').then((m) => ({ default: m.AdminPayrollPage })));
+const AdminScoresPage = lazy(() => import('./pages/AdminScoresPage').then((m) => ({ default: m.AdminScoresPage })));
+const AdminReversePage = lazy(() => import('./pages/AdminReversePage').then((m) => ({ default: m.AdminReversePage })));
+const TeacherDashboardPage = lazy(() => import('./pages/TeacherDashboardPage').then((m) => ({ default: m.TeacherDashboardPage })));
 import { StudentLayout } from './components/StudentLayout';
-import { StudentBookingsPage } from './pages/StudentBookingsPage';
-import { StudentSearchPage } from './pages/StudentSearchPage';
-import { GlobalSearchPage } from './pages/GlobalSearchPage';
-import { StudentCreditsPage } from './pages/StudentCreditsPage';
-import { StudentReversePage } from './pages/StudentReversePage';
-import { StudentAutoAssignPage } from './pages/StudentAutoAssignPage';
-import { StudentQnaPage } from './pages/StudentQnaPage';
-import { StudentCommunityPage } from './pages/StudentCommunityPage';
-import { CommunityBoardPage } from './pages/CommunityBoardPage';
-import { StudentScoresPage } from './pages/StudentScoresPage';
-import { StudentScoreInputPage } from './pages/StudentScoreInputPage';
-import { DiagnosticPage } from './pages/DiagnosticPage';
-import { CurriculumPage } from './pages/CurriculumPage';
-import { LecturePage } from './pages/LecturePage';
-import { LeaderboardPage } from './pages/LeaderboardPage';
-import { LegalDocPage } from './pages/LegalDocPage';
-import { LegalPage } from './pages/LegalPage';
-import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
-import { StudentMembershipPage } from './pages/StudentMembershipPage';
-import { StudentNotificationsPage } from './pages/StudentNotificationsPage';
-import { StudentMaterialsPage } from './pages/StudentMaterialsPage';
-import { AdminCategoriesPage } from './pages/AdminCategoriesPage';
-import { AdminMembershipPage } from './pages/AdminMembershipPage';
-import { AdminSchedulesPage } from './pages/AdminSchedulesPage';
+const StudentBookingsPage = lazy(() => import('./pages/StudentBookingsPage').then((m) => ({ default: m.StudentBookingsPage })));
+const StudentSearchPage = lazy(() => import('./pages/StudentSearchPage').then((m) => ({ default: m.StudentSearchPage })));
+const GlobalSearchPage = lazy(() => import('./pages/GlobalSearchPage').then((m) => ({ default: m.GlobalSearchPage })));
+const StudentCreditsPage = lazy(() => import('./pages/StudentCreditsPage').then((m) => ({ default: m.StudentCreditsPage })));
+const StudentReversePage = lazy(() => import('./pages/StudentReversePage').then((m) => ({ default: m.StudentReversePage })));
+const StudentAutoAssignPage = lazy(() => import('./pages/StudentAutoAssignPage').then((m) => ({ default: m.StudentAutoAssignPage })));
+const StudentQnaPage = lazy(() => import('./pages/StudentQnaPage').then((m) => ({ default: m.StudentQnaPage })));
+const StudentCommunityPage = lazy(() => import('./pages/StudentCommunityPage').then((m) => ({ default: m.StudentCommunityPage })));
+const CommunityBoardPage = lazy(() => import('./pages/CommunityBoardPage').then((m) => ({ default: m.CommunityBoardPage })));
+const StudentScoresPage = lazy(() => import('./pages/StudentScoresPage').then((m) => ({ default: m.StudentScoresPage })));
+const StudentScoreInputPage = lazy(() => import('./pages/StudentScoreInputPage').then((m) => ({ default: m.StudentScoreInputPage })));
+const DiagnosticPage = lazy(() => import('./pages/DiagnosticPage').then((m) => ({ default: m.DiagnosticPage })));
+const CurriculumPage = lazy(() => import('./pages/CurriculumPage').then((m) => ({ default: m.CurriculumPage })));
+const LecturePage = lazy(() => import('./pages/LecturePage').then((m) => ({ default: m.LecturePage })));
+const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage').then((m) => ({ default: m.LeaderboardPage })));
+const LegalDocPage = lazy(() => import('./pages/LegalDocPage').then((m) => ({ default: m.LegalDocPage })));
+const LegalPage = lazy(() => import('./pages/LegalPage').then((m) => ({ default: m.LegalPage })));
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })));
+const StudentMembershipPage = lazy(() => import('./pages/StudentMembershipPage').then((m) => ({ default: m.StudentMembershipPage })));
+const StudentNotificationsPage = lazy(() => import('./pages/StudentNotificationsPage').then((m) => ({ default: m.StudentNotificationsPage })));
+const StudentMaterialsPage = lazy(() => import('./pages/StudentMaterialsPage').then((m) => ({ default: m.StudentMaterialsPage })));
+const AdminCategoriesPage = lazy(() => import('./pages/AdminCategoriesPage').then((m) => ({ default: m.AdminCategoriesPage })));
+const AdminMembershipPage = lazy(() => import('./pages/AdminMembershipPage').then((m) => ({ default: m.AdminMembershipPage })));
+const AdminSchedulesPage = lazy(() => import('./pages/AdminSchedulesPage').then((m) => ({ default: m.AdminSchedulesPage })));
 
 function Protected({ roles, children }: { roles?: string[]; children: JSX.Element }) {
   const { user, loading } = useAuth();
@@ -97,6 +99,7 @@ export function App() {
   return (
     <>
     <RealtimeNotifier />
+    <Suspense fallback={<div style={{ padding: 40, color: 'var(--muted)' }}>불러오는 중…</div>}>
     <Routes>
       <Route path="/" element={<JanusLandingPage />} />
       <Route path="/placement" element={<PlacementPage />} />
@@ -220,6 +223,7 @@ export function App() {
 
       <Route path="*" element={<HomeRedirect />} />
     </Routes>
+    </Suspense>
     </>
   );
 }
