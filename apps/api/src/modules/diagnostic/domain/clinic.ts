@@ -11,7 +11,8 @@ export type ClinicSummaryStats = {
 
 export function summarizeClinic(scores: number[]): ClinicSummaryStats {
   const n = scores.length;
-  if (n === 0) return { count: 0, avgScore: null, bestScore: null, improvement: null };
+  if (n === 0)
+    return { count: 0, avgScore: null, bestScore: null, improvement: null };
   const sum = scores.reduce((a, b) => a + b, 0);
   return {
     count: n,
