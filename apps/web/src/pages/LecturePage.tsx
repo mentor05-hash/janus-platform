@@ -77,7 +77,7 @@ export function LecturePage() {
       ) : (
         <div style={{ display: 'grid', gap: 10 }}>
           {list.map((l) => (
-            <div key={l.id} onClick={() => setOpenId(l.id)} style={{ cursor: 'pointer' }}>
+            <div key={l.id} role="button" tabIndex={0} onClick={() => setOpenId(l.id)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpenId(l.id); } }} style={{ cursor: 'pointer' }}>
               <Card>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
                   <Badge kind="new">{l.subject}</Badge>

@@ -63,7 +63,7 @@ export function StudentLayout() {
         </Link>
         <nav className="sidebar-nav">
           {nav.map((n) => ('section' in n ? (
-            <div key={`sec-${n.section}`} style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.04em', color: 'var(--caption)', padding: '14px 16px 4px', textTransform: 'none' }}>
+            <div key={`sec-${n.section}`} className="nav-section" style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.04em', color: 'var(--caption)', padding: '14px 16px 4px', textTransform: 'none' }}>
               {n.section}
             </div>
           ) : (

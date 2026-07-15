@@ -138,7 +138,7 @@ export function CommunityBoardPage() {
       ) : (
         <div style={{ display: 'grid', gap: 10 }}>
           {list.map((q) => (
-            <div key={q.id} onClick={() => setOpenId(q.id)} style={{ cursor: 'pointer' }}>
+            <div key={q.id} role="button" tabIndex={0} onClick={() => setOpenId(q.id)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpenId(q.id); } }} style={{ cursor: 'pointer' }}>
               <Card>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
                   {q.subject && <Badge kind="new">{q.subject}</Badge>}

@@ -108,3 +108,22 @@
 .sidebar-foot .logout { margin-left: auto; }
 .shell-main { flex: 1; overflow: auto; padding: 24px 26px; min-width: 0; }
 .shell-main .inner { max-width: 1180px; margin: 0 auto; }
+
+/* ── 반응형: 모바일 웹뷰(<768px) — 사이드바를 상단 가로 네비로 ── */
+@media (max-width: 768px) {
+  .shell { flex-direction: column; }
+  .sidebar {
+    width: 100%; height: auto; position: sticky; top: 0; z-index: 30;
+    border-right: none; border-bottom: 1px solid var(--line);
+  }
+  .sidebar-logo { padding: 12px 16px 8px; }
+  .sidebar-nav { flex-direction: row; overflow-x: auto; gap: 4px; padding: 6px 12px 10px; flex: none; -webkit-overflow-scrolling: touch; }
+  .sidebar-nav .nav-item { white-space: nowrap; }
+  .sidebar-nav .nav-section { display: none; }   /* 섹션 헤더는 모바일에서 숨김 */
+  .sidebar-foot { display: none; }
+  .shell-main { padding: 16px 14px; }
+}
+/* 키보드 포커스 가시성(접근성) */
+.nav-item:focus-visible, .btn:focus-visible, a:focus-visible, button:focus-visible {
+  outline: 2px solid var(--blue); outline-offset: 2px;
+}
