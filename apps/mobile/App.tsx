@@ -6,6 +6,7 @@ import { backStack } from './src/webBack';
 import { registerPushToken } from './src/push';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { SearchScreen } from './src/screens/SearchScreen';
+import { GlobalSearchScreen } from './src/screens/GlobalSearchScreen';
 import { TeacherDetailScreen } from './src/screens/TeacherDetailScreen';
 import { SlotsScreen } from './src/screens/SlotsScreen';
 import { BookingsScreen } from './src/screens/BookingsScreen';
@@ -40,6 +41,7 @@ function AppInner() {
   const [bookSub, setBookSub] = useState<string | undefined>(undefined); // 세부 유형(과목 등)
   const [children, setChildren] = useState<Child[]>([]);
   const [activeChild, setActiveChild] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false); // 전역 통합검색 오버레이(학생)
   const [exitHint, setExitHint] = useState(false); // 홈에서 '한 번 더 누르면 종료' 토스트
   const exitArmed = useRef(false);
   const exitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -161,6 +163,11 @@ function AppInner() {
       <View style={styles.header}>
         <Text style={styles.brand}>{APP_NAME} · {isGuardian ? '학부모' : isTeacher ? '선생님' : '학생'}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+          {isStudent && (
+            <TouchableOpacity onPress={() => setSearchOpen(true)}>
+              <Text style={styles.logout}>🔍 검색</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity onPress={toggle}>
             <Text style={styles.logout}>{dark ? '☀️ 라이트' : '🌙 다크'}</Text>
           </TouchableOpacity>
@@ -176,6 +183,11 @@ function AppInner() {
       </View>
 
       <View style={styles.body}>
+        {searchOpen && isStudent && (
+          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20 }}>
+            <GlobalSearchScreen onClose={() => setSearchOpen(false)} goTab={(t) => { setTeacher(null); setBooking(false); goTab(t); }} />
+          </View>
+        )}
         {!isStudent && !isGuardian && !isTeacher && <Text style={styles.notice}>이 역할은 웹(apps/web)을 이용하세요.</Text>}
 
         {isTeacher && (tTab === 'ti' ? <TeacherInbox /> : tTab === 'to' ? <TeacherToday myId={me.id} /> : tTab === 'ts' ? <TeacherSessions myId={me.id} /> : tTab === 'tr' ? <TeacherRecords /> : <TeacherMy myId={me.id} />)}
