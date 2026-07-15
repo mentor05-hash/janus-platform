@@ -74,7 +74,7 @@ function BookingForm({ teacher, onDone, onBack, initialMode, consultType, initia
     return Array.from({ length: 14 }, (_, i) => {
       const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
       const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      return { iso, md: `${d.getMonth() + 1}/${d.getDate()}`, wd: WD[d.getDay()], dow: d.getDay() };
+      return { iso, md: `${d.getMonth() + 1}/${d.getDate()}`, wd: i === 0 ? '오늘' : i === 1 ? '내일' : WD[d.getDay()], dow: d.getDay() };
     });
   }, []);
   const byHour = useMemo(() => {
@@ -192,6 +192,10 @@ function BookingForm({ teacher, onDone, onBack, initialMode, consultType, initia
                   </span>
                 ))}
               </div>
+              {selStart === null && availSet.size > 0 && (
+                <div style={{ marginTop: 8, fontSize: 12, color: 'var(--muted)' }}>👆 예약할 시작 시간을 눌러주세요. 이어서 끝 시간을 누르면 구간이 선택돼요.</div>
+              )}
+              {availSet.size === 0 && <div style={{ marginTop: 8, fontSize: 12, color: 'var(--muted)' }}>이 날짜엔 예약 가능한 시간이 없어요. 다른 날짜를 골라보세요.</div>}
               {notice && <div style={{ marginTop: 8, background: '#FAF1E2', border: '1px solid #EDDCB8', borderRadius: 8, padding: 8, fontSize: 12, color: '#A97D24' }}>ⓘ {notice}</div>}
               {quote && !quote.valid && quote.message && (
                 <div style={{ marginTop: 8, background: 'var(--danger-bg,#F9E8E4)', border: '1px solid var(--danger-border,#EFC7BD)', borderRadius: 8, padding: 8, fontSize: 12.5, color: 'var(--danger,#c25a43)' }}>⚠ {quote.message}</div>
