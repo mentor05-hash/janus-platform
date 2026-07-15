@@ -5,11 +5,21 @@
 
 ## 1. 배치 방법
 
-1. 서버(.env)에 `JANUS_DATA_DIR=/path/to/janus-data` 설정 (경로 하드코딩 금지 — ENV 로만).
-2. `JANUS_DATA_DIR/placement-hub/` 폴더를 만들고 배치표 HTML(영문 파일명)을 넣는다.
-3. `manifest.example.json` 을 `JANUS_DATA_DIR/placement-hub/manifest.json` 으로 복사해 목록을 맞춘다.
+1. `JANUS_DATA_DIR/placement-hub/` 폴더에 배치표 HTML(영문 파일명)을 넣는다.
+2. `manifest.example.json` 을 `JANUS_DATA_DIR/placement-hub/manifest.json` 으로 복사해 목록을 맞춘다.
    - manifest 는 **허용목록**이다 — 목록에 없는 파일은 어떤 경로로도 서빙되지 않는다.
-4. 확인: `GET /api/v1/placement-hub/list` → 웹 `/placement/hub` 에 탭으로 나타난다.
+3. **docker 실행 시(권장)** — full 스택은 호스트 데이터 폴더를 컨테이너에 읽기전용 마운트한다.
+   `JANUS_DATA_DIR_HOST` 에 **placement-hub 를 담은 상위 폴더**(예: `20_data`) 경로를 준다:
+   ```
+   JANUS_DATA_DIR_HOST=/절대경로/janus/20_data \
+     docker compose -f docker-compose.full.yml up -d --build api web
+   ```
+   컨테이너 안에선 `JANUS_DATA_DIR=/data/janus` 로 고정(compose 에 내장) → `/data/janus/placement-hub/` 를 읽는다.
+   미설정 시 `./janus-data`(gitignore) 로 폴백 → 없으면 빈 폴더 → 허브는 '준비 중'(+계산기 탭만).
+   **로컬 node 실행 시**는 `.env` 의 `JANUS_DATA_DIR=` 를 실제 경로로 두면 된다.
+4. 확인: `GET /api/v1/placement-hub/list` → `available:true` → 웹 `/placement/hub` 에 탭으로 나타난다.
+
+> ⚠ 이전에 `docker-compose.full.yml up` 만 하면 허브가 계속 '준비 중' 이던 이유 = compose 에 데이터 마운트가 없었기 때문(수정됨). 이제 `JANUS_DATA_DIR_HOST` 만 주면 된다. `-f docker-compose.full.yml` 은 `docker-compose.override.yml` 을 자동 병합하지 않으므로 setup-demo-hub.sh 의 override 대신 위 방식을 쓴다.
 
 ## 2. 파일 생성(야누스판)
 
