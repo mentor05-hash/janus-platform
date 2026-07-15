@@ -28,6 +28,8 @@ jobs:
         working-directory: .
       - name: Prisma generate
         run: npm run prisma:generate
+      - name: Migration 순번 검사(갭·중복)
+        run: npm run migrate:check
       - name: Lint (비차단 — 빌드/tsc 가 게이트)
         run: npx eslint "src/**/*.ts"
         continue-on-error: true
