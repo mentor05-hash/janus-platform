@@ -75,7 +75,7 @@ SC=$(auth "$TT" -o /dev/null -w '%{http_code}' -X POST "$API/qna/community/$PID/
   -H 'Content-Type: application/json' -d '{"body":"뒤늦은 답변"}')
 [ "$SC" = "403" ] && echo "  ✓ 403(이미 마감)" || echo "  ⚠ 예상 403, 실제 $SC"
 
-echo "▶ 9) 신고 3인($OWNER·$ANS_T·$REP_A) → $ANS_X 답변 자동 숨김"
+echo "▶ 9) 신고 3인(${OWNER}, ${ANS_T}, ${REP_A}) → ${ANS_X} 답변 자동 숨김"
 for t in "$TO" "$TT" "$TA"; do
   auth "$t" -X POST "$API/qna/report" -H 'Content-Type: application/json' \
     -d "{\"targetType\":\"answer\",\"targetId\":\"$AID2\"}" >/dev/null || true
