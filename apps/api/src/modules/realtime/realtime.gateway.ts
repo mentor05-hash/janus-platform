@@ -203,8 +203,27 @@ export class RealtimeGateway implements OnGatewayConnection {
     return { ok: true };
   }
 
+  // ── 커뮤니티 게시글 실시간(답변·채택 반영) — 로그인 사용자면 열람 가능(공개 Q&A) ──
+  @SubscribeMessage('community:join')
+  communityJoin(@ConnectedSocket() client: Socket, @MessageBody() { postId }: { postId: string }) {
+    if (!postId) return { ok: false };
+    client.join(`community:${postId}`);
+    return { ok: true };
+  }
+
+  @SubscribeMessage('community:leave')
+  communityLeave(@ConnectedSocket() client: Socket, @MessageBody() { postId }: { postId: string }) {
+    if (postId) client.leave(`community:${postId}`);
+    return { ok: true };
+  }
+
   /** 외부(알림 등)에서 특정 유저에게 실시간 이벤트 전송. */
   emitToUser(userId: string, event: string, payload: unknown) {
     this.server?.to(`user:${userId}`).emit(event, payload);
+  }
+
+  /** 커뮤니티 게시글 방에 실시간 이벤트 전송(답변·채택 갱신). */
+  emitToCommunity(postId: string, event: string, payload: unknown) {
+    this.server?.to(`community:${postId}`).emit(event, payload);
   }
 }

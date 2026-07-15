@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { io, type Socket } from 'socket.io-client';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { PageHeader, Card, Button, Badge, ErrorText, Spinner, EmptyState } from '../components/ui';
@@ -174,7 +175,25 @@ function CommunityDetail({ postId, onBack, onReport }: {
       .then(setD)
       .catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
   }, [postId]);
+  // 실시간 갱신용 무깜빡임 재조회(스피너 없이 답변 목록만 교체).
+  const refresh = useCallback(() => {
+    api.get<Detail>(`/qna/community/${postId}`).then(setD).catch(() => { /* 무시 */ });
+  }, [postId]);
   useEffect(() => { load(); }, [load]);
+
+  // 이 게시글 방 실시간 구독 — 다른 사용자의 답변·채택이 즉시 반영.
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+  useEffect(() => {
+    const token = localStorage.getItem('mp_access') ?? '';
+    if (!token) return;
+    const s: Socket = io(window.location.origin, { path: '/api/v1/socket.io', auth: { token }, transports: ['websocket'] });
+    const onUpdate = () => refreshRef.current();
+    s.on('connect', () => s.emit('community:join', { postId }));
+    s.on('community:answer', onUpdate);
+    s.on('community:accepted', onUpdate);
+    return () => { s.emit('community:leave', { postId }); s.disconnect(); };
+  }, [postId]);
 
   async function submitAnswer() {
     if (!body.trim()) return;
