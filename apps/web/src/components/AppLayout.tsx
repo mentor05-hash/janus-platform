@@ -21,6 +21,7 @@ const NAV = [
   { to: '/app/placement/hub', label: '배치표 허브' },
   { to: '/app/payroll', label: '예상급여' },
   { to: '/app/materials', label: '자료실' },
+  { to: '/app/lectures', label: '내 강좌' },
   { to: '/app/classes', label: '강의실' },
   { to: '/app/records', label: '상담 기록' },
   { to: '/app/notifications', label: '알림' },

@@ -17,6 +17,7 @@ import { ReverseProposePage } from './pages/ReverseProposePage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { StudentNotesPage } from './pages/StudentNotesPage';
 import { TeacherMaterialsPage } from './pages/TeacherMaterialsPage';
+import { TeacherLecturesPage } from './pages/TeacherLecturesPage';
 import { TeacherQnaPage } from './pages/TeacherQnaPage';
 import { TeacherRecordsPage } from './pages/TeacherRecordsPage';
 import { TeacherProfilePage } from './pages/TeacherProfilePage';
@@ -135,6 +136,7 @@ export function App() {
         <Route path="placement/hub" element={<PlacementHubPage embedded />} />
         <Route path="payroll" element={<PayrollPage />} />
         <Route path="materials" element={<TeacherMaterialsPage />} />
+        <Route path="lectures" element={<TeacherLecturesPage />} />
         <Route path="records" element={<TeacherRecordsPage />} />
         <Route path="profile" element={<TeacherProfilePage />} />
         <Route path="classes" element={<ClassroomPage />} />

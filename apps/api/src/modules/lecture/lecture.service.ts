@@ -38,6 +38,39 @@ export class LectureService {
     return { ok: true, lectureId };
   }
 
+  /** 강좌 등록(교사). */
+  async create(user: AuthUser, dto: { subject: string; unit?: string; title: string; summary?: string; level?: string; minutes?: number }) {
+    if (user.role !== AccountRole.TEACHER) throw new ForbiddenException('선생님만 강좌를 등록할 수 있습니다.');
+    const l = await this.prisma.lecture.create({
+      data: {
+        teacher_id: user.id, subject: dto.subject, unit: dto.unit ?? null, title: dto.title,
+        summary: dto.summary ?? null, level: dto.level ?? null, minutes: dto.minutes ?? null,
+      },
+    });
+    return { id: l.id };
+  }
+
+  /** 내가 등록한 강좌(교사) — 수강 인원 포함. */
+  async teacherLectures(user: AuthUser) {
+    if (user.role !== AccountRole.TEACHER) throw new ForbiddenException('선생님만 조회할 수 있습니다.');
+    const rows = await this.prisma.lecture.findMany({ where: { teacher_id: user.id }, orderBy: { created_at: 'desc' } });
+    const ids = rows.map((r) => r.id);
+    const counts = ids.length ? await this.prisma.lecture_enrollment.groupBy({ by: ['lecture_id'], where: { lecture_id: { in: ids } }, _count: { _all: true } }) : [];
+    const cmap = new Map(counts.map((c) => [c.lecture_id, c._count._all]));
+    return rows.map((l) => ({
+      id: l.id, subject: l.subject, unit: l.unit, title: l.title, summary: l.summary, level: l.level, minutes: l.minutes,
+      active: l.active, enrolled: cmap.get(l.id) ?? 0, createdAt: l.created_at,
+    }));
+  }
+
+  /** 강좌 활성/비활성 토글(교사·본인 강좌). */
+  async setActive(user: AuthUser, lectureId: string, active: boolean) {
+    const l = await this.prisma.lecture.findUnique({ where: { id: lectureId } });
+    if (!l || l.teacher_id !== user.id) throw new ForbiddenException('본인 강좌만 수정할 수 있습니다.');
+    await this.prisma.lecture.update({ where: { id: lectureId }, data: { active } });
+    return { id: lectureId, active };
+  }
+
   /** 내 수강 목록(학생). */
   async myEnrollments(user: AuthUser) {
     const rows = await this.prisma.lecture_enrollment.findMany({
