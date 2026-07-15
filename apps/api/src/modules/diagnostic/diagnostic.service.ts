@@ -34,6 +34,30 @@ export class DiagnosticService {
     };
   }
 
+  // ── 관리자 문항 관리 ─────────────────────────────────────────────
+  /** 문항 등록(admin). */
+  async adminCreateQuestion(dto: { subject: string; unit: string; difficulty?: string; stem: string; choices: string[]; answer: number; explanation?: string }) {
+    if (dto.answer < 0 || dto.answer >= dto.choices.length) throw new BadRequestException('정답 인덱스가 보기 범위를 벗어났습니다.');
+    const q = await this.prisma.diagnostic_question.create({
+      data: { subject: dto.subject, unit: dto.unit, difficulty: dto.difficulty ?? null, stem: dto.stem, choices: dto.choices, answer: dto.answer, explanation: dto.explanation ?? null, source: 'admin' },
+    });
+    return { id: q.id };
+  }
+
+  /** 문항 목록(admin) — 과목 필터. 정답 포함(관리용). */
+  async adminListQuestions(subject?: string) {
+    const rows = await this.prisma.diagnostic_question.findMany({
+      where: { ...(subject ? { subject } : {}) }, orderBy: { created_at: 'desc' }, take: 200,
+    });
+    return rows.map((q) => ({ id: q.id, subject: q.subject, unit: q.unit, difficulty: q.difficulty, stem: q.stem, choices: q.choices as string[], answer: q.answer, explanation: q.explanation, source: q.source, active: q.active }));
+  }
+
+  /** 문항 활성 토글(admin). */
+  async adminSetActive(id: string, active: boolean) {
+    await this.prisma.diagnostic_question.update({ where: { id }, data: { active } });
+    return { id, active };
+  }
+
   /** 약점 클리닉 — 지정 시도의 약점 유형만 재출제(반복 훈련). 약점 없으면 응시 유형 전체. */
   async startClinic(user: AuthUser, attemptId: string, count = DiagnosticService.DEFAULT_COUNT) {
     this.assertStudent(user);
