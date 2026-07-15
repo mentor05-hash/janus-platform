@@ -36,6 +36,16 @@ export function DiagnosticPage() {
     finally { setBusy(false); }
   }
 
+  async function startClinic() {
+    if (!result) return;
+    setError(''); setBusy(true);
+    try {
+      const r = await api.post<{ attemptId: string; questions: Question[] }>('/diagnostics/clinic', { attemptId: result.attemptId });
+      setAttemptId(r.attemptId); setQuestions(r.questions); setAnswers({}); setResult(null); setPhase('quiz');
+    } catch (e) { setError(e instanceof ApiError ? e.message : '클리닉 시작 실패'); }
+    finally { setBusy(false); }
+  }
+
   async function submit() {
     setError(''); setBusy(true);
     try {
@@ -65,6 +75,21 @@ export function DiagnosticPage() {
             </div>
             <p style={{ fontSize: 12.5, color: 'var(--caption)', marginTop: 10 }}>⚠ 데모 문항(합성)으로 동작해요. 실제 수능 문항은 후속 반영됩니다.</p>
           </Card>
+
+          {history.length >= 2 && (
+            <Card style={{ marginTop: 18 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--ink)', marginBottom: 12 }}>점수 추이 <span style={{ fontSize: 12, color: 'var(--caption)', fontWeight: 400 }}>(최근 {Math.min(10, history.length)}회)</span></div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 96 }}>
+                {[...history].reverse().slice(-10).map((h) => (
+                  <div key={h.id} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }} title={`${h.subject ?? '전과목'} ${h.score}점 · ${fmtDate(h.submitted_at)}`}>
+                    <span style={{ fontSize: 10, color: 'var(--muted)' }}>{h.score}</span>
+                    <div style={{ width: '100%', maxWidth: 34, height: `${Math.max(4, h.score * 0.72)}px`, borderRadius: 4, background: h.score >= 60 ? 'var(--j-blue)' : 'var(--danger, #dc2626)' }} />
+                    <span style={{ fontSize: 9.5, color: 'var(--caption)' }}>{fmtDate(h.submitted_at)}</span>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
 
           <h3 style={{ fontSize: 15, margin: '18px 0 8px' }}>이전 진단</h3>
           {history.length === 0 ? <EmptyState>아직 진단 기록이 없어요. 첫 진단을 시작해보세요.</EmptyState> : (
@@ -169,7 +194,10 @@ export function DiagnosticPage() {
           )}
           {result.prescriptions.length === 0 && <p style={{ fontSize: 13.5, color: 'var(--brand)', marginTop: 14 }}>약점 유형이 없어요 — 훌륭해요! 다른 과목도 진단해보세요.</p>}
 
-          <div style={{ marginTop: 18 }}><Button onClick={() => { setPhase('intro'); setResult(null); }}>다시 진단하기</Button></div>
+          <div style={{ marginTop: 18, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {result.prescriptions.length > 0 && <Button onClick={startClinic} disabled={busy}>{busy ? '준비 중…' : '🎯 약점만 다시 풀기'}</Button>}
+            <button onClick={() => { setPhase('intro'); setResult(null); }} style={{ background: 'none', border: '1px solid var(--line-soft)', borderRadius: 8, padding: '9px 16px', color: 'var(--muted)', cursor: 'pointer' }}>다시 진단하기</button>
+          </div>
         </>
       )}
     </div>

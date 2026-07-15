@@ -34,6 +34,24 @@ export class DiagnosticService {
     };
   }
 
+  /** 약점 클리닉 — 지정 시도의 약점 유형만 재출제(반복 훈련). 약점 없으면 응시 유형 전체. */
+  async startClinic(user: AuthUser, attemptId: string, count = DiagnosticService.DEFAULT_COUNT) {
+    this.assertStudent(user);
+    const prev = await this.detail(user, attemptId); // 소유·존재 검증 포함
+    const weakUnits = prev.units.filter((u) => u.weak).map((u) => u.unit);
+    const units = weakUnits.length ? weakUnits : prev.units.map((u) => u.unit);
+    if (units.length === 0) throw new NotFoundException('클리닉할 유형이 없습니다.');
+    const pool = await this.prisma.diagnostic_question.findMany({
+      where: { active: true, unit: { in: units } }, take: Math.min(30, Math.max(1, count)),
+    });
+    if (pool.length === 0) throw new NotFoundException('해당 유형 문항이 없습니다.');
+    const attempt = await this.prisma.diagnostic_attempt.create({ data: { student_id: user.id, subject: '약점클리닉', total: pool.length } });
+    return {
+      attemptId: attempt.id, subject: '약점클리닉', clinic: true, weakUnits: units,
+      questions: pool.map((q) => ({ id: q.id, subject: q.subject, unit: q.unit, difficulty: q.difficulty, stem: q.stem, choices: q.choices as string[] })),
+    };
+  }
+
   /** 제출 — 채점·응답 저장·약점/처방 반환. */
   async submit(user: AuthUser, attemptId: string, answers: { questionId: string; chosen: number | null }[]) {
     this.assertStudent(user);

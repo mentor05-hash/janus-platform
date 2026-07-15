@@ -16,6 +16,9 @@ class AnswerDto {
 class SubmitDto {
   @IsArray() @ArrayMaxSize(30) @ValidateNested({ each: true }) @Type(() => AnswerDto) answers!: AnswerDto[];
 }
+class ClinicDto {
+  @IsString() attemptId!: string;
+}
 
 @Controller('diagnostics')
 export class DiagnosticController {
@@ -26,6 +29,13 @@ export class DiagnosticController {
   @Roles('student')
   start(@Body() dto: StartDto, @CurrentUser() user: AuthUser) {
     return this.diag.start(user, dto.subject);
+  }
+
+  /** POST /diagnostics/clinic — 약점 클리닉 시작(지정 시도의 약점 유형 재출제). */
+  @Post('clinic')
+  @Roles('student')
+  clinic(@Body() dto: ClinicDto, @CurrentUser() user: AuthUser) {
+    return this.diag.startClinic(user, dto.attemptId);
   }
 
   /** GET /diagnostics/me — 내 진단 이력(학생). */
