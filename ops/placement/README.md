@@ -52,6 +52,24 @@
 - 공개 배포 전 점검표(실행계획서 W2 D6): 무료판 외 파일은 공개 환경에 배치하지 않는다.
 - 접합계약 전문·재통합 게이트: `docs/30_features/야누스_배치표_핸드오프_2026-07-14.md` (C1~C6 — 위반 금지).
 
+## 3-1. 카이로스·알레아 계산기 (배치표와 분리 — repo 서빙)
+
+카이로스·알레아는 **저작권 데이터가 없는 자체완결 코드**라 배치표(JANUS_DATA_DIR)와 달리 **repo 에 편입**한다.
+
+- 위치: `apps/web/public/calc/{kairos,alea}.html` (같은 출처 정적 자산).
+- 라우트: 독립 `/kairos`·`/alea`(전체 화면) + 배치표 허브 탭에 자동 편입('유료' 배지).
+- **manifest 에 넣지 말 것** — 허브가 repo 계산기 탭을 우선하며, 같은 slug 가 manifest 에도 있으면 데이터측을 제거(중복 방지).
+- 게이트(C2): `sso_service` 레지스트리(`kairos`·`alea`, `min_tier=paid` — 0064)가 단일 노브.
+  로그인 시 웹이 `GET /sso/entitlements` → `localStorage.janus_sso={tier,services}` 세팅 → 계산기가 읽어 잠금 해제.
+  회원(=member)은 free 티저(블러), 유료(paid)+ 는 전체. 유료 티어 도입 전에는 admin/hr(consultant)만 전체.
+- 계측(C3)·근거(C5): 계산기가 `janus:track`·`janus_report` 를 dispatch → 호스트가 funnel 계측/근거 수집으로 브리지.
+
+## 3-2. 배치표 버전(정시 v26 · 수시 v6) 반입
+
+- 마스터에서 `build_janus_edition_v2.py`(또는 티어 파이프라인 `tier_build.py`)로 배포판 생성 → 영문 파일명으로 `JANUS_DATA_DIR/placement-hub/` 배치(예: `jeongsi-2027-v26.html`, `susi-v6.html`).
+- `manifest.example.json`(이미 v26·v6 반영)을 복사해 목록을 맞춘다. 저작권 데이터·마스터는 **repo 무반입**(C6).
+- 성능/배포 계층(맥북=빌드 / Cloudflare=서비스)은 `docs/30_features/야누스_마감스파이크_성능설계서_*` 참조.
+
 ## 4. 관련 문서
 
 - 이론서(컨설턴트 교육용): `docs/30_features/야누스_정시배치표_이론서_컨설턴트교육용_2026-07-13.html`

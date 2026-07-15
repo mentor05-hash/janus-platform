@@ -98,7 +98,9 @@ export function PlacementHubPage({ embedded = false }: { embedded?: boolean } = 
     api.get<HubList>('/placement-hub/list')
       .then(async (l) => {
         // 배치표(데이터) 탭 + 계산기(repo) 탭 병합. 데이터 미배치여도 계산기는 노출.
-        const dataTables = l.tables.filter((t) => !(seasonOff && t.kind === 'kairos'));
+        // 같은 slug(예: 구 manifest 의 kairos)는 repo 계산기 탭이 우선(자체 게이트·데이터 불요) → 데이터측 제거.
+        const calcSlugs = new Set(calcTabs.map((t) => t.slug));
+        const dataTables = l.tables.filter((t) => !(seasonOff && t.kind === 'kairos')).filter((t) => !calcSlugs.has(t.slug));
         const tables = [...dataTables, ...calcTabs];
         setList({ available: l.available || calcTabs.length > 0, tables });
         const first = tables[0];
