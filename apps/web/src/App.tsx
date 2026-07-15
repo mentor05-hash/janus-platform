@@ -63,6 +63,7 @@ import { CommunityBoardPage } from './pages/CommunityBoardPage';
 import { StudentScoresPage } from './pages/StudentScoresPage';
 import { StudentScoreInputPage } from './pages/StudentScoreInputPage';
 import { DiagnosticPage } from './pages/DiagnosticPage';
+import { CurriculumPage } from './pages/CurriculumPage';
 import { LegalDocPage } from './pages/LegalDocPage';
 import { LegalPage } from './pages/LegalPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
@@ -194,6 +195,7 @@ export function App() {
         <Route path="scores" element={<StudentScoresPage />} />
         <Route path="scores/input" element={<StudentScoreInputPage />} />
         <Route path="diagnostic" element={<DiagnosticPage />} />
+        <Route path="curriculum" element={<CurriculumPage />} />
         <Route path="placement/hub" element={<PlacementHubPage embedded />} />
         <Route path="placement/gap" element={<GapReportPage />} />
         <Route path="membership" element={<StudentMembershipPage />} />
