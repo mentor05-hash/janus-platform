@@ -610,7 +610,16 @@ export class BookingService {
       orderBy: { start_at: 'desc' },
       take: 100,
     });
-    return rows.map((b) => this.toBookingDto(b));
+    // 학생 뷰: 완료 상담의 후기 작성 여부를 표기(중복 후기 폼 방지·UX).
+    let reviewed = new Set<string>();
+    if (!asTeacher) {
+      const doneIds = rows.filter((b) => b.status === BookingStatus.DONE).map((b) => b.id);
+      if (doneIds.length) {
+        const revs = await this.prisma.review.findMany({ where: { booking_id: { in: doneIds } }, select: { booking_id: true } });
+        reviewed = new Set(revs.map((r) => r.booking_id));
+      }
+    }
+    return rows.map((b) => ({ ...this.toBookingDto(b), reviewed: reviewed.has(b.id) }));
   }
 
   /** POST /bookings/reverse — 선생님이 학생에게 역상담 제안(첫 상담 한정). 슬롯 점유, 크레딧은 학생 수락 시 차감. */
@@ -1270,7 +1279,12 @@ export class BookingService {
       user.role === AccountRole.ADMIN ||
       user.role === AccountRole.HR;
     if (!involved) throw new ForbiddenException('이 예약에 접근할 권한이 없습니다.');
-    return this.toBookingDto(b);
+    // 학생 뷰: 완료 상담 후기 작성 여부(중복 후기 방지·UX)
+    let reviewed = false;
+    if (user.role === AccountRole.STUDENT && b.status === BookingStatus.DONE) {
+      reviewed = !!(await this.prisma.review.findUnique({ where: { booking_id: id }, select: { booking_id: true } }));
+    }
+    return { ...this.toBookingDto(b), reviewed };
   }
 
   /**

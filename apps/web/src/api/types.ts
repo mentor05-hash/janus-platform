@@ -34,6 +34,7 @@ export interface Booking {
   content?: string | null;
   attachments?: { id: string; name: string; type?: string }[];
   meetingUrl?: string | null; // zoom 입장 URL(확정 시 발급)
+  reviewed?: boolean; // 완료 상담 후기 작성 여부(학생 뷰)
 }
 
 export interface Slot {

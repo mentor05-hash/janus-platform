@@ -86,7 +86,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 const badgeKind = (s: string) => (['new', 'confirmed', 'done', 'cancelled', 'rejected', 'noshow'].includes(s) ? s : 'soft') as 'new';
 
-function ReviewBox({ bookingId }: { bookingId: string }) {
+function ReviewBox({ bookingId, alreadyReviewed }: { bookingId: string; alreadyReviewed?: boolean }) {
   const [r, setR] = useState({ ratingAttitude: 5, ratingContent: 5, ratingSkill: 5, ratingAgain: 5, text: '' });
   const [done, setDone] = useState(false);
   const [err, setErr] = useState('');
@@ -96,6 +96,7 @@ function ReviewBox({ bookingId }: { bookingId: string }) {
     try { await api.post(`/bookings/${bookingId}/review`, r); setDone(true); }
     catch (e) { setErr(e instanceof ApiError ? e.message : '후기 등록 실패'); }
   }
+  if (alreadyReviewed && !done) return <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 8 }}>✓ 이미 후기를 남긴 상담입니다. 선생님 평점에 반영되었어요.</p>;
   if (done) return <p style={{ color: 'var(--chip-done)', fontSize: 13, marginTop: 8 }}>후기가 등록되었습니다. 감사합니다!</p>;
   return (
     <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--line)' }}>
@@ -155,7 +156,7 @@ function Detail({ bookingId, status }: { bookingId: string; status: string }) {
       ) : (
         <div style={{ fontSize: 13, color: 'var(--muted)' }}>아직 공개된 상담 기록이 없어요(완료 후 열람 가능).</div>
       )}
-      {status === 'done' && <ReviewBox bookingId={bookingId} />}
+      {status === 'done' && <ReviewBox bookingId={bookingId} alreadyReviewed={b?.reviewed} />}
     </div>
   );
 }
