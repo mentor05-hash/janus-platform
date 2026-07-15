@@ -9,10 +9,14 @@ import type { AuthUser } from '../../common/decorators/current-user.decorator';
 export class LectureService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** 카탈로그 — 활성 강좌(과목 필터) + 내 수강 여부. */
-  async catalog(user: AuthUser, subject?: string) {
+  /** 카탈로그 — 활성 강좌(과목·검색 필터) + 내 수강 여부. */
+  async catalog(user: AuthUser, subject?: string, q?: string) {
+    const term = (q ?? '').trim();
     const lectures = await this.prisma.lecture.findMany({
-      where: { active: true, ...(subject ? { subject } : {}) },
+      where: {
+        active: true, ...(subject ? { subject } : {}),
+        ...(term ? { OR: [{ title: { contains: term, mode: 'insensitive' } }, { summary: { contains: term, mode: 'insensitive' } }, { unit: { contains: term, mode: 'insensitive' } }] } : {}),
+      },
       orderBy: { created_at: 'desc' }, take: 100,
     });
     const enrolled = new Set(

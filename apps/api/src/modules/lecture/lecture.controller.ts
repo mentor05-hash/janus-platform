@@ -41,11 +41,11 @@ export class LectureController {
     return this.lectures.setActive(user, id, dto.active);
   }
 
-  /** GET /lectures?subject= — 강좌 카탈로그(로그인 학생). */
+  /** GET /lectures?subject=&q= — 강좌 카탈로그(로그인 학생). */
   @Get()
   @Roles('student')
-  catalog(@CurrentUser() user: AuthUser, @Query('subject') subject?: string) {
-    return this.lectures.catalog(user, subject || undefined);
+  catalog(@CurrentUser() user: AuthUser, @Query('subject') subject?: string, @Query('q') q?: string) {
+    return this.lectures.catalog(user, subject || undefined, q || undefined);
   }
 
   /** GET /lectures/me — 내 수강 목록(학생). */

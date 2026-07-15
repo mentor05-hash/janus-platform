@@ -15,15 +15,23 @@ export function LecturePage() {
     return s && ['국어', '수학', '영어'].includes(s) ? s : '';
   });
   const [tab, setTab] = useState<'catalog' | 'mine'>('catalog');
+  const [searchQ, setSearchQ] = useState('');
+  const [searchApplied, setSearchApplied] = useState('');
   const [list, setList] = useState<Lecture[] | null>(null);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
 
   const load = useCallback(() => {
     setList(null); setError('');
-    const url = tab === 'mine' ? '/lectures/me' : `/lectures${subject ? `?subject=${encodeURIComponent(subject)}` : ''}`;
+    let url = '/lectures/me';
+    if (tab === 'catalog') {
+      const qs = new URLSearchParams();
+      if (subject) qs.set('subject', subject);
+      if (searchApplied.trim()) qs.set('q', searchApplied.trim());
+      url = `/lectures${qs.toString() ? `?${qs.toString()}` : ''}`;
+    }
     api.get<Lecture[]>(url).then(setList).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
-  }, [tab, subject]);
+  }, [tab, subject, searchApplied]);
   useEffect(() => { load(); }, [load]);
 
   async function enroll(id: string) {
@@ -50,12 +58,19 @@ export function LecturePage() {
           ))}
         </div>
         {tab === 'catalog' && (
-          <div style={{ minWidth: 140, marginLeft: 'auto' }}>
+          <div style={{ minWidth: 130, marginLeft: 'auto' }}>
             <SelectField label="과목" value={subject} onChange={(e) => setSubject(e.target.value)}
               options={SUBJECTS.map((s) => ({ value: s, label: s || '전체' }))} />
           </div>
         )}
       </div>
+      {tab === 'catalog' && (
+        <form onSubmit={(e) => { e.preventDefault(); setSearchApplied(searchQ); }} style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+          <input value={searchQ} onChange={(e) => setSearchQ(e.target.value)} placeholder="강좌 검색 (제목·유형)" className="input" style={{ flex: 1 }} />
+          <Button onClick={() => setSearchApplied(searchQ)}>검색</Button>
+          {searchApplied && <button type="button" onClick={() => { setSearchQ(''); setSearchApplied(''); }} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer' }}>✕</button>}
+        </form>
+      )}
 
       {list === null ? <Spinner /> : list.length === 0 ? (
         <EmptyState>{tab === 'mine' ? '수강 중인 강좌가 없어요.' : '해당 과목 강좌가 없어요.'}</EmptyState>
