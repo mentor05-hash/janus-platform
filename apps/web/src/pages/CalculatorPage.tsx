@@ -6,7 +6,7 @@
  * 같은 출처라 iframe.contentWindow 이벤트 청취가 가능(교차출처면 postMessage 필요).
  */
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { JanusLogo } from '../components/JanusLogo';
 import { track } from '../utils/track';
 
@@ -29,6 +29,7 @@ type ReportDetail = { page: string; result: unknown; evidence?: { relTier?: stri
 export function CalculatorPage({ spec }: { spec: CalcSpec }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [lastReport, setLastReport] = useState<ReportDetail | null>(null);
+  const navigate = useNavigate();
 
   // 진입 계측은 부모에서 확정(계산기의 초기 view 이벤트는 iframe load 이전이라 놓칠 수 있음).
   useEffect(() => { track(spec.page, 'view'); }, [spec.page]);
@@ -42,8 +43,8 @@ export function CalculatorPage({ spec }: { spec: CalcSpec }) {
       const d = (e as CustomEvent<TrackDetail>).detail;
       if (!d) return;
       // 계산기 ev → funnel 매핑. view 는 부모 마운트에서 이미 계측(중복 방지 위해 여기선 제외).
-      if (d.ev === 'consult') track(d.page, 'cta', 'consult-reserve');
-      else if (d.ev === 'unlock') track(d.page, 'cta', 'unlock');
+      if (d.ev === 'consult') { track(d.page, 'cta', 'consult-reserve'); navigate('/consulting/apply'); } // 내부 CTA(href=#) 를 실제 예약으로 연결
+      else if (d.ev === 'unlock') track(d.page, 'cta', 'unlock'); // 잠금해제 클릭 — 유료 전환 훅(후속)
     };
     const onReport = (e: Event) => {
       const d = (e as CustomEvent<ReportDetail>).detail;

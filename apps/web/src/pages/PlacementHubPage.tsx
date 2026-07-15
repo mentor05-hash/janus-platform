@@ -15,10 +15,17 @@ import { GapReportPage } from './GapReportPage';
 // 허브 안에서 iframe 대신 네이티브 React로 렌더하는 탭(시안: 격차 리포트는 앱 내부 화면).
 const isNativeTab = (t: { kind?: string }) => t.kind === 'gap';
 
-interface HubMeta { slug: string; title: string; short?: string; icon?: string; kind?: string; updated?: string; badge?: string; tier?: string }
+interface HubMeta { slug: string; title: string; short?: string; icon?: string; kind?: string; updated?: string; badge?: string; tier?: string; calc?: boolean; file?: string }
 interface HubList { available: boolean; tables: HubMeta[] }
 
 const FILE_BASE = '/api/v1/placement-hub/file/';
+
+// 계산기 탭(repo 자산·저작권 데이터 0) — 별도 유료 서비스로 허브에 편입.
+// tier=paid(유료 경계·0064), 자체 게이트(janus_sso)로 열림 → 회원은 티저(블러). page=계측 id.
+const CALC_TABS: (HubMeta & { page: string })[] = [
+  { slug: 'kairos', page: 'kairos', title: '카이로스 · 정시 지원분석', short: '카이로스', icon: '⧗', kind: 'kairos', tier: 'paid', badge: '유료', calc: true, file: '/calc/kairos.html' },
+  { slug: 'alea', page: 'alea', title: '알레아 · 이벤트 확률', short: '알레아', icon: '◈', kind: 'alea', tier: 'paid', badge: '유료', calc: true, file: '/calc/alea.html' },
+];
 const isFree = (t: HubMeta) => !t.tier || t.tier === 'free';
 // 티어 서열(O53·회원 게이트) — 서버가 진짜 게이트(티켓 발급 시 검증). 여기선 UX용.
 const TIER_RANK: Record<string, number> = { free: 0, member: 1, paid: 2, consultant: 3 };
@@ -37,7 +44,8 @@ export function PlacementHubPage({ embedded = false }: { embedded?: boolean } = 
   const { user } = useAuth();
   // 뷰어 티어(tierForRole 미러) — 비로그인=free, admin/hr=consultant, 그 외 로그인=member.
   const viewerTier = !user ? 'free' : user.role === 'admin' || user.role === 'hr' ? 'consultant' : 'member';
-  const canOpen = (t: HubMeta) => TIER_RANK[viewerTier] >= TIER_RANK[requiredTier(t)];
+  // 계산기 탭은 항상 열림(계산기 내부가 janus_sso 로 자체 게이트 → 회원은 티저 표시). 배치표만 하드 게이트.
+  const canOpen = (t: HubMeta) => t.calc || TIER_RANK[viewerTier] >= TIER_RANK[requiredTier(t)];
   const [params] = useSearchParams();
   const [list, setList] = useState<HubList | null>(null);
   const [active, setActive] = useState<string>('');
@@ -62,6 +70,7 @@ export function PlacementHubPage({ embedded = false }: { embedded?: boolean } = 
   }, [user?.id, user?.role]);
 
   async function srcFor(t: HubMeta): Promise<string | null> {
+    if (t.calc) return t.file ?? null; // 계산기: repo 정적 자산 직접(티켓 불요, 자체 게이트)
     if (isFree(t)) return FILE_BASE + t.slug;
     if (!canOpen(t)) return null; // 티어 미달 — 잠금(C2). 서버도 티켓 발급 시 재검증.
     try {
@@ -74,6 +83,7 @@ export function PlacementHubPage({ embedded = false }: { embedded?: boolean } = 
 
   async function open(t: HubMeta) {
     setActive(t.slug);
+    if (t.calc) track(t.slug, 'view', undefined, { view: 'hub' }); // 계산기별 진입 계측(C3)
     if (isNativeTab(t) || srcs[t.slug]) return; // 네이티브 탭(격차)은 iframe 로드 안 함
     const src = await srcFor(t);
     if (src) setSrcs((m) => ({ ...m, [t.slug]: src }));
@@ -81,11 +91,16 @@ export function PlacementHubPage({ embedded = false }: { embedded?: boolean } = 
 
   useEffect(() => track('baechi', 'view', undefined, { view: 'hub' }), []);
 
+  // 시즌 밖(?season=0)이면 계산기 탭(카이로스·알레아) 숨김.
+  const calcTabs = seasonOff ? [] : CALC_TABS;
+
   useEffect(() => {
     api.get<HubList>('/placement-hub/list')
       .then(async (l) => {
-        const tables = l.tables.filter((t) => !(seasonOff && t.kind === 'kairos'));
-        setList({ ...l, tables });
+        // 배치표(데이터) 탭 + 계산기(repo) 탭 병합. 데이터 미배치여도 계산기는 노출.
+        const dataTables = l.tables.filter((t) => !(seasonOff && t.kind === 'kairos'));
+        const tables = [...dataTables, ...calcTabs];
+        setList({ available: l.available || calcTabs.length > 0, tables });
         const first = tables[0];
         if (first) {
           setActive(first.slug);
@@ -102,7 +117,17 @@ export function PlacementHubPage({ embedded = false }: { embedded?: boolean } = 
           }, 2500);
         }
       })
-      .catch(() => setError(true));
+      .catch(async () => {
+        setError(true);
+        // 목록 조회 실패해도 계산기(repo 자산)는 노출 — 허브가 빈 화면이 되지 않게.
+        if (calcTabs.length) {
+          setList({ available: true, tables: calcTabs });
+          const first = calcTabs[0];
+          setActive(first.slug);
+          const src = await srcFor(first);
+          if (src) setSrcs((m) => ({ ...m, [first.slug]: src }));
+        }
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
