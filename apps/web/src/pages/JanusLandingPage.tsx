@@ -10,6 +10,7 @@ import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { roleHome } from '../auth/roleHome';
 import { JanusLogo } from '../components/JanusLogo';
+import { LandingIntro, type IntroKey } from '../components/LandingIntro';
 
 /* ── 길 찾기(관문 해석) ── */
 interface FindCard { title: string; desc: string; service: string; to: string }
@@ -80,9 +81,20 @@ const NOTICES: Record<string, { tag: string; title: string; date: string }[]> = 
   ],
 };
 
+const GNB_TABS: { label: string; key: IntroKey }[] = [
+  { label: '배치표', key: 'baechi' },
+  { label: '질문·답변', key: 'qna' },
+  { label: '강좌', key: 'lecture' },
+  { label: '1:1 상담', key: 'consult' },
+  { label: '서비스', key: 'services' },
+];
+
 export function JanusLandingPage() {
   const { user } = useAuth();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
+  const rawSec = params.get('sec');
+  const sec: IntroKey | null = GNB_TABS.some((t) => t.key === rawSec) ? (rawSec as IntroKey) : null; // null = 홈(기본 랜딩)
+  const goSec = (s: IntroKey | 'home') => setParams(s === 'home' ? {} : { sec: s });
   const [q, setQ] = useState(() => params.get('q') ?? '');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<FindResult | null>(null);
@@ -123,10 +135,6 @@ export function JanusLandingPage() {
     return () => clearInterval(t);
   }, [q, result, busy, slide]);
 
-  const gnbLink = (label: string, to: string, bold = false) => (
-    <Link to={to} style={{ display: 'inline-flex', alignItems: 'center', fontSize: 15.5, fontWeight: bold ? 700 : 600, color: bold ? 'var(--ink)' : 'var(--ink-body)', padding: '8px 12px', borderRadius: 8, whiteSpace: 'nowrap', textDecoration: 'none' }}>{label}</Link>
-  );
-
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
       {/* 유틸리티 바 — 보조 진입 */}
@@ -152,20 +160,29 @@ export function JanusLandingPage() {
       {/* GNB */}
       <header style={{ background: 'var(--surface)', borderBottom: '1px solid var(--line)', position: 'sticky', top: 0, zIndex: 20 }}>
         <div style={{ maxWidth: 1180, margin: '0 auto', height: 66, padding: '0 20px', display: 'flex', alignItems: 'center', gap: 24 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+          <button type="button" onClick={() => goSec('home')} title="처음 화면으로"
+            style={{ display: 'flex', alignItems: 'center', gap: 9, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
             <JanusLogo size={30} />
             <span style={{ fontSize: 21, fontWeight: 800, color: 'var(--ink)', letterSpacing: '-.02em' }}>야누스</span>
-          </span>
+          </button>
           <nav style={{ display: 'flex', gap: 4, flex: 1 }}>
-            {gnbLink('배치표', '/placement', true)}
-            {gnbLink('질문·답변', '/services/qna')}
-            {gnbLink('강좌', '/services/lecture')}
-            {gnbLink('1:1 상담', '/consulting/apply')}
-            {gnbLink('서비스', '/services')}
+            {GNB_TABS.map((t) => (
+              <button key={t.key} type="button" onClick={() => goSec(t.key)} style={{
+                display: 'inline-flex', alignItems: 'center', fontSize: 15.5, whiteSpace: 'nowrap', cursor: 'pointer',
+                fontWeight: sec === t.key ? 800 : 600,
+                color: sec === t.key ? 'var(--j-blue)' : 'var(--ink-body)',
+                background: sec === t.key ? 'var(--j-blue-soft)' : 'transparent',
+                border: 'none', padding: '8px 12px', borderRadius: 8,
+              }}>{t.label}</button>
+            ))}
           </nav>
         </div>
       </header>
 
+      {sec ? (
+        <LandingIntro sec={sec} user={user} />
+      ) : (
+      <>
       {/* 히어로 배너 슬라이더 — 관문 / 이벤트 / Q&A */}
       <section style={{ position: 'relative', background: 'radial-gradient(90% 130% at 50% 0%, #16283f 0%, #0d1626 70%)', color: '#fff', overflow: 'hidden' }}>
         <div style={{ maxWidth: 1180, margin: '0 auto', padding: '0 20px', minHeight: 430, display: 'flex', alignItems: 'center' }}>
@@ -412,6 +429,8 @@ export function JanusLandingPage() {
         </div>
         <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--caption)', textAlign: 'center' }}>지표는 예시이며 실서비스 수치로 교체됩니다</p>
       </section>
+      </>
+      )}
 
       {/* 푸터 — 3컬럼 + 사업자 정보 */}
       <footer style={{ marginTop: 46, borderTop: '1px solid var(--line)', background: 'var(--surface)' }}>
