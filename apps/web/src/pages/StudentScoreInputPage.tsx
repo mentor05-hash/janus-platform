@@ -142,6 +142,12 @@ export function StudentScoreInputPage() {
       </Card>
 
       <Card>
+        <div style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 8, fontSize: 13, lineHeight: 1.6,
+          background: isStd ? 'var(--j-blue-soft)' : 'var(--surface-soft, #f6f7f9)', color: 'var(--ink-body)' }}>
+          {isStd
+            ? '📝 표준점수 모드 — 국어·수학·탐구1·탐구2 옆 칸에 과목별 표준점수(0~200)를 넣어주세요. 영어·한국사는 등급.'
+            : '📝 전국누백 모드 — 성적은 위의 전국누백(하나)로 판단해요. 과목별 점수 입력칸은 없고, 아래 세부과목은 참고용이에요. 과목별 점수로 넣으려면 위 입력 방식을 「표준점수」로 바꾸세요.'}
+        </div>
         <div style={{ display: 'grid', gap: 12 }}>
           <SubjectRow label="국어" row={rows['국어']} subs={SUB_KOR} showScore={isStd} onSub={(v) => setRow('국어', { sub: v })} onScore={(v) => setRow('국어', { score: v })} />
           <SubjectRow label="수학" row={rows['수학']} subs={SUB_MAT} showScore={isStd} onSub={(v) => setRow('수학', { sub: v })} onScore={(v) => setRow('수학', { score: v })} />
