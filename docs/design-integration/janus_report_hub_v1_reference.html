@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@ibm/plex-mono@1.1.0/css/ibm-plex-mono-all.min.css">
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+
+
+
+</head>
+<body>
+
+
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+
+
+<meta name="design_doc_mode" content="canvas">
+<style>
+  *{box-sizing:border-box}html,body{margin:0}
+  body{font-family:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;-webkit-font-smoothing:antialiased;background:#e7eaf0;background-image:radial-gradient(rgba(36,64,95,.08) 1px,transparent 1px);background-size:26px 26px}
+  a{color:#2f6fb3;text-decoration:none}a:hover{color:#cf9a3a}
+  button{font-family:inherit}
+  @keyframes hubFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+</style>
+<script>(function(){var map={tool2027:'[data-tool-2027]',toolSusi:'[data-tool-susi]',toolKairos:'[data-tool-kairos]'};var done={};function wire(){var r=window.__resources;if(!r)return;Object.keys(map).forEach(function(k){if(done[k]||!r[k])return;var f=document.querySelector('iframe'+map[k]);if(f&&!f.src){f.src=r[k];done[k]=true;}});}try{new MutationObserver(wire).observe(document.documentElement,{childList:true,subtree:true});}catch(e){}document.addEventListener('DOMContentLoaded',wire);setInterval(wire,500);})();</script>
+
+<div style="width:max-content;padding:56px 60px 90px">
+
+  <div style="max-width:1280px;margin:0 0 26px">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><svg width="30" height="30" viewBox="0 0 96 96" fill="none" role="img" aria-label="야누스"><defs><linearGradient id="jaHU1" gradientUnits="userSpaceOnUse" x1="18" y1="0" x2="78" y2="0"><stop offset="50%" stop-color="#2F6FB3"></stop><stop offset="50%" stop-color="#BC8A28"></stop></linearGradient><linearGradient id="jaHU2" gradientUnits="userSpaceOnUse" x1="14" y1="0" x2="82" y2="0"><stop offset="50%" stop-color="#2F6FB3"></stop><stop offset="50%" stop-color="#BC8A28"></stop></linearGradient></defs><g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="10"><path d="M18 74V43C18 27.5 30.2 15 48 15C65.8 15 78 27.5 78 43V52" stroke="url(#jaHU1)"></path><path d="M14 79H82" stroke="url(#jaHU2)"></path></g></svg><span style="font-size:15px;font-weight:800;color:#1e3550">janus_report_hub_v1</span><span style="font-size:12.5px;color:#7c8a9e">· 배치표 허브 — 한 액자, 세 그림, 0초 전환</span><a href="janus_flow_v1.dc.html" style="font-size:11.5px;font-weight:700;color:#52627a;background:#fff;border:1px solid #d9e0ea;border-radius:999px;padding:5px 11px;white-space:nowrap">⌂ 플로우 맵</a><a href="#" onclick="return false" style="font-size:11.5px;font-weight:700;color:#52627a;background:#fff;border:1px solid #d9e0ea;border-radius:999px;padding:5px 11px;white-space:nowrap">웹 홈 →</a><a href="janus_qna_flow_v1.dc.html" style="font-size:11.5px;font-weight:700;color:#fff;background:#2f6fb3;border:1px solid #2f6fb3;border-radius:999px;padding:5px 11px;white-space:nowrap">다음: Q&amp;A →</a></div>
+    <h1 style="margin:11px 0 6px;font-size:26px;font-weight:800;color:#1e3550;letter-spacing:-.02em">배치표 허브 — 탭은 그림만 바꾼다</h1>
+    <p style="margin:0;font-size:14.5px;line-height:1.65;color:#52627a;max-width:840px">격차 리포트·정밀배치표·지원 포트폴리오가 <b style="color:#24405f">한 문서 안에서</b> 전환됩니다. GNB·타이틀·탭은 고정, 내용 영역만 스왑. 정밀배치표는 뒤에서 미리 로드되어 탭을 눌러도 기다림이 없습니다.</p>
+  </div>
+
+  <div style="display:flex;gap:30px;align-items:flex-start">
+
+  <div style="width:1280px;height:900px;flex:0 0 auto;background:#1c1f26;border-radius:18px;padding:10px 10px 12px;box-shadow:0 18px 50px rgba(10,16,28,.35)">
+  <div style="display:flex;align-items:center;gap:10px;height:40px;padding:0 8px">
+    <span style="display:flex;gap:6px"><span style="width:11px;height:11px;border-radius:50%;background:#3a3f4a"></span><span style="width:11px;height:11px;border-radius:50%;background:#3a3f4a"></span><span style="width:11px;height:11px;border-radius:50%;background:#3a3f4a"></span></span>
+    <span style="flex:1;background:#2a2e37;border-radius:8px;height:26px;display:flex;align-items:center;padding:0 12px;font-size:12px;color:#9aa4b2;font-family:'IBM Plex Mono',monospace">janus.app/report</span>
+  </div>
+  <div style="width:100%;height:calc(100% - 44px);border-radius:10px;overflow:hidden;background:#f4f6fa">
+  <div style="width:100%;height:100%;display:flex;flex-direction:column;overflow:hidden;background:#f4f6fa;font-family:'Pretendard Variable',Pretendard,sans-serif" data-screen-label="배치표 허브">
+
+    <!-- GNB -->
+    <div style="background:#fff;border-bottom:1px solid #e4eaf1;flex:0 0 auto">
+      <div style="max-width:1180px;margin:0 auto;height:64px;padding:0 20px;display:flex;align-items:center;gap:26px">
+        <a href="#" onclick="return false" style="display:flex;align-items:center;gap:9px;flex:0 0 auto;text-decoration:none">
+          <svg width="28" height="28" viewBox="0 0 96 96" fill="none" role="img" aria-label="야누스"><defs><linearGradient id="jaHU3" gradientUnits="userSpaceOnUse" x1="18" y1="0" x2="78" y2="0"><stop offset="50%" stop-color="#2F6FB3"></stop><stop offset="50%" stop-color="#BC8A28"></stop></linearGradient><linearGradient id="jaHU4" gradientUnits="userSpaceOnUse" x1="14" y1="0" x2="82" y2="0"><stop offset="50%" stop-color="#2F6FB3"></stop><stop offset="50%" stop-color="#BC8A28"></stop></linearGradient></defs><g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="10"><path d="M18 74V43C18 27.5 30.2 15 48 15C65.8 15 78 27.5 78 43V52" stroke="url(#jaHU3)"></path><path d="M14 79H82" stroke="url(#jaHU4)"></path></g></svg>
+          <span style="font-size:20px;font-weight:800;color:#1e3550;letter-spacing:-.02em">야누스</span>
+          <span style="font-size:11px;font-weight:700;color:#2f6fb3;background:rgba(47,111,179,.1);border-radius:6px;padding:3px 7px;white-space:nowrap">입시배치표</span>
+        </a>
+        <nav style="display:flex;gap:2px;flex:1;height:100%">
+          <span style="display:inline-flex;align-items:center;font-size:15px;font-weight:800;color:#1e3550;padding:0 13px;border-bottom:2.5px solid #2f6fb3;white-space:nowrap">배치표</span>
+          <a href="janus_qna_inbox_v1.dc.html" style="display:inline-flex;align-items:center;font-size:15px;font-weight:600;color:#33475e;padding:0 13px;border-bottom:2.5px solid transparent;white-space:nowrap;text-decoration:none">질문·답변</a>
+          <a href="janus_courses_v1.dc.html" style="display:inline-flex;align-items:center;font-size:15px;font-weight:600;color:#33475e;padding:0 13px;border-bottom:2.5px solid transparent;white-space:nowrap;text-decoration:none">강좌</a>
+          <a href="janus_booking_v1.dc.html" style="display:inline-flex;align-items:center;font-size:15px;font-weight:600;color:#33475e;padding:0 13px;border-bottom:2.5px solid transparent;white-space:nowrap;text-decoration:none">1:1 상담</a>
+          <a href="janus_admission_calendar_v1.dc.html" style="display:inline-flex;align-items:center;font-size:15px;font-weight:600;color:#33475e;padding:0 13px;border-bottom:2.5px solid transparent;white-space:nowrap;text-decoration:none">입시 캘린더</a>
+          <a href="janus_community_v1.dc.html" style="display:inline-flex;align-items:center;font-size:15px;font-weight:600;color:#33475e;padding:0 13px;border-bottom:2.5px solid transparent;white-space:nowrap;text-decoration:none">커뮤니티</a>
+        </nav>
+        <span style="display:flex;align-items:center;gap:7px;font-size:13px;color:#8695a8;background:#f4f6fa;border:1px solid #e4eaf1;border-radius:999px;padding:8px 14px;white-space:nowrap"><span>⌕</span>대학·학과 검색</span>
+        <span style="position:relative;font-size:17px;color:#52627a">◉<span style="position:absolute;top:-2px;right:-4px;width:7px;height:7px;border-radius:50%;background:#d06b52"></span></span>
+        <span style="display:flex;align-items:center;gap:8px"><span style="width:32px;height:32px;border-radius:50%;background:rgba(47,111,179,.1);color:#2f6fb3;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:800">진</span><span style="font-size:13.5px;font-weight:700;color:#1e3550;white-space:nowrap">김진호님</span></span>
+      </div>
+    </div>
+
+    <!-- 브레드크럼 + 타이틀 + 탭 (고정 액자) -->
+    <div style="background:#fff;border-bottom:1px solid #e4eaf1;flex:0 0 auto">
+      <div style="max-width:1180px;margin:0 auto;padding:16px 20px 0">
+        <div style="font-size:12px;color:#8695a8;margin-bottom:8px"><a href="#" onclick="return false" style="color:#8695a8;text-decoration:none">홈</a> <span style="color:#c2ccd8">›</span> 배치표 <span style="color:#c2ccd8">›</span> <span style="color:#52627a;font-weight:600"><span id="crumbTail">격차 리포트</span></span></div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:2px"><span style="font-size:25px;font-weight:800;color:#1e3550;letter-spacing:-.02em">배치표</span><span style="font-size:13px;color:#8695a8">이과 · 컴퓨터공학 계열 · 2027 입시</span><span style="flex:1"></span><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8695a8;white-space:nowrap">데이터 병합 v8 · 2026-07-11 갱신</span></div>
+        <div style="display:flex;gap:2px">
+          <span class="scif" data-if="isReport" style="display:contents"><span style="font-size:14.5px;font-weight:800;color:#2f6fb3;padding:10px 15px;border-bottom:2.5px solid #2f6fb3;white-space:nowrap">◱ 격차 리포트</span></span>
+          <span class="scif" data-if="notReport" style="display:contents"><button onclick="go('goReport')" style="font-size:14.5px;font-weight:600;color:#52627a;padding:10px 15px;background:none;border:none;border-bottom:2.5px solid transparent;white-space:nowrap;cursor:pointer">◱ 격차 리포트</button></span>
+          <span class="scif" data-if="isPlacement" style="display:contents"><span style="font-size:14.5px;font-weight:800;color:#2f6fb3;padding:10px 15px;border-bottom:2.5px solid #2f6fb3;white-space:nowrap">▦ 정밀배치표</span></span>
+          <span class="scif" data-if="notPlacement" style="display:contents"><button onclick="go('goPlacement')" style="font-size:14.5px;font-weight:600;color:#52627a;padding:10px 15px;background:none;border:none;border-bottom:2.5px solid transparent;white-space:nowrap;cursor:pointer">▦ 정밀배치표</button></span>
+          <span class="scif" data-if="isPort" style="display:contents"><span style="font-size:14.5px;font-weight:800;color:#2f6fb3;padding:10px 15px;border-bottom:2.5px solid #2f6fb3;white-space:nowrap">◫ 지원 포트폴리오</span></span>
+          <span class="scif" data-if="notPort" style="display:contents"><button onclick="go('goPort')" style="font-size:14.5px;font-weight:600;color:#52627a;padding:10px 15px;background:none;border:none;border-bottom:2.5px solid transparent;white-space:nowrap;cursor:pointer">◫ 지원 포트폴리오</button></span>
+          <span style="width:1px;height:16px;background:#e4eaf1;align-self:center;margin:0 6px"></span>
+          <span class="scif" data-if="isSusi" style="display:contents"><span style="font-size:14.5px;font-weight:800;color:#2f6fb3;padding:10px 15px;border-bottom:2.5px solid #2f6fb3;white-space:nowrap">◈ 수시 입결</span></span>
+          <span class="scif" data-if="notSusi" style="display:contents"><button onclick="go('goSusi')" style="font-size:14.5px;font-weight:600;color:#52627a;padding:10px 15px;background:none;border:none;border-bottom:2.5px solid transparent;white-space:nowrap;cursor:pointer">◈ 수시 입결</button></span>
+          <span class="scif" data-if="kairosTabActive" style="display:contents"><span style="font-size:14.5px;font-weight:800;color:#2f6fb3;padding:10px 15px;border-bottom:2.5px solid #2f6fb3;white-space:nowrap">⧗ 카이로스</span></span>
+          <span class="scif" data-if="kairosTabIdle" style="display:contents"><button onclick="go('goKairos')" style="font-size:14.5px;font-weight:600;color:#52627a;padding:10px 15px;background:none;border:none;border-bottom:2.5px solid transparent;white-space:nowrap;cursor:pointer">⧗ 카이로스</button></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 내용 영역: 그림만 스왑 -->
+    <div style="flex:1;min-height:0;position:relative">
+
+      <!-- 정밀배치표 · 정시 2027 (항상 마운트 · 프리로드) -->
+      <div style="position:absolute;inset:0;display:none" data-disp="placementDisp"><iframe data-tool-2027="" src="/jeongsi" loading="eager" title="정시 정밀배치표 2027" style="width:100%;height:100%;border:none;display:block;background:#f4f6fa"></iframe></div>
+
+      <!-- 수시 합격 입결 (항상 마운트 · 프리로드) -->
+      <div style="position:absolute;inset:0;display:none" data-disp="susiDisp"><iframe data-tool-susi="" src="/susi" loading="lazy" title="수시 합격 입결" style="width:100%;height:100%;border:none;display:block;background:#f4f6fa"></iframe></div>
+
+      <!-- 카이로스 계산기 (정시 시즌 한정 노출) -->
+      <span class="scif" data-if="seasonOn" style="display:contents"><div style="position:absolute;inset:0;display:none" data-disp="kairosDisp"><iframe data-tool-kairos="" src="/kairos" loading="lazy" title="카이로스" style="width:100%;height:100%;border:none;display:block;background:#f4f6fa"></iframe></div></span>
+
+      <!-- 격차 리포트 -->
+      <span class="scif" data-if="isReport" style="display:contents">
+      <div style="position:absolute;inset:0;overflow-y:auto;background:#f4f6fa;animation:hubFade .22s ease" data-screen-label="허브 · 격차 리포트">
+        <div style="max-width:1180px;margin:0 auto;padding:20px 20px 46px">
+          <div style="display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start">
+            <div style="display:flex;flex-direction:column;gap:14px">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+                <div style="background:#122036;border-radius:16px;padding:20px 22px;color:#fff">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px"><span style="font-size:12px;font-weight:700;color:#93a7bd">지금 나의 위치</span><span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;color:#7fc08a;background:rgba(51,168,115,.16);border-radius:999px;padding:3px 9px;white-space:nowrap">◈ 신뢰도 A</span></div>
+                  <div style="display:flex;align-items:baseline;gap:8px"><span style="font-family:'IBM Plex Mono',monospace;font-size:44px;font-weight:700;color:#fff;line-height:1">상위 24.5</span><span style="font-size:20px;color:#93a7bd">%</span></div>
+                  <div style="font-size:12px;color:#93a7bd;margin-top:4px">전국 누백 · 국138·수140·탐67/65</div>
+                  <div style="margin-top:14px;height:1px;background:rgba(255,255,255,.1)"></div>
+                  <div style="display:flex;gap:18px;margin-top:12px"><div><div style="font-size:10.5px;color:#93a7bd">현재 판정</div><div style="display:flex;align-items:center;gap:6px;margin-top:3px"><span style="width:9px;height:9px;border-radius:50%;background:#e3ac33"></span><span style="font-size:14px;font-weight:700;color:#fff">소신</span></div></div><div><div style="font-size:10.5px;color:#93a7bd">합격 확률</div><div style="font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:700;color:#fff;margin-top:3px">52%</div></div><div><div style="font-size:10.5px;color:#93a7bd">기준</div><div style="font-size:12px;color:#c8d6e6;margin-top:4px">수능 실채점</div></div></div>
+                </div>
+                <div style="background:#fff;border:1px solid #e4eaf1;border-radius:16px;padding:20px 22px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px"><span style="font-size:12px;font-weight:700;color:#52627a">목표까지 격차</span><span style="font-size:12px;color:#8695a8">목표 · 아주대 소프트웨어</span></div>
+                  <div style="display:flex;align-items:baseline;gap:8px"><span style="font-family:'IBM Plex Mono',monospace;font-size:44px;font-weight:700;color:#cf9a3a;line-height:1">−4.5</span><span style="font-size:15px;color:#8695a8">%p</span></div>
+                  <div style="font-size:12px;color:#52627a;margin-top:4px">'안정(80%)'까지 누백 <b style="color:#1e3550">상위 20.0%</b> 필요</div>
+                  <div style="margin-top:16px"><div style="position:relative;height:12px;border-radius:6px;background:#eef2f7;overflow:hidden"><div style="position:absolute;left:0;top:0;bottom:0;width:64%;background:linear-gradient(90deg,#57a86a,#e3ac33);border-radius:6px"></div><div style="position:absolute;left:80%;top:-3px;bottom:-3px;width:2px;background:#2a8a5f"></div></div><div style="display:flex;justify-content:space-between;margin-top:5px"><span style="font-size:10px;color:#8695a8;font-family:'IBM Plex Mono',monospace">현재 52%</span><span style="font-size:10px;color:#2a8a5f;font-weight:700;font-family:'IBM Plex Mono',monospace">안정 80%</span></div></div>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:#fbf7ee;border:1px solid #ecdcb8;border-radius:13px;padding:14px 18px"><span style="font-size:11px;font-weight:700;color:#a97d24;background:rgba(207,154,58,.16);border-radius:999px;padding:5px 11px;white-space:nowrap">근거가 곧 신뢰</span><span style="font-size:14.5px;font-weight:700;color:#1e3550;line-height:1.5">작년 70%컷은 '안정'이 아닙니다 — <span style="color:#d06b52">그 성적의 실제 합격률 37%.</span></span></div>
+              <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:14px">
+                <div style="background:#fff;border:1px solid #e4eaf1;border-radius:14px;padding:18px 20px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px"><span style="font-size:13px;font-weight:700;color:#1e3550">3개년 지원선 추세</span><span style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;color:#2f6fb3;background:rgba(47,111,179,.1);border-radius:999px;padding:3px 9px;white-space:nowrap">▤ 실측 기반 · 어디가</span></div>
+                  <svg viewBox="0 0 460 130" style="width:100%;height:130px;display:block">
+                    <line x1="0" y1="40" x2="460" y2="40" stroke="#eef2f7" stroke-width="1"></line><line x1="0" y1="80" x2="460" y2="80" stroke="#eef2f7" stroke-width="1"></line>
+                    <polyline points="30,52 170,60 310,50 450,66" fill="none" stroke="#c7ccd2" stroke-width="2" stroke-dasharray="4 4"></polyline>
+                    <polyline points="30,44 170,66 310,58 450,72" fill="none" stroke="#2f6fb3" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></polyline>
+                    <circle cx="30" cy="44" r="4" fill="#2f6fb3"></circle><circle cx="170" cy="66" r="4" fill="#2f6fb3"></circle><circle cx="310" cy="58" r="4" fill="#2f6fb3"></circle><circle cx="450" cy="72" r="4" fill="#cf9a3a"></circle>
+                  </svg>
+                  <div style="display:flex;justify-content:space-between;margin-top:2px"><span style="font-size:10.5px;color:#8695a8">2023</span><span style="font-size:10.5px;color:#8695a8">2024</span><span style="font-size:10.5px;color:#8695a8">2025</span><span style="font-size:10.5px;color:#cf9a3a;font-weight:700">2026 예측</span></div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:10px">
+                  <div style="flex:1;background:#fff;border:1px solid #e4eaf1;border-radius:14px;padding:14px 16px"><div style="font-size:11px;color:#8695a8;margin-bottom:5px">예측 신뢰도</div><div style="display:flex;align-items:center;gap:10px"><span style="width:34px;height:34px;border-radius:9px;background:#2a8a5f;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:700">A</span><span style="font-size:12.5px;color:#52627a;line-height:1.4">표본·데이터 안정 · <b style="color:#1e3550">높음</b></span></div></div>
+                  <div style="flex:1;background:#fff;border:1px solid #e4eaf1;border-radius:14px;padding:14px 16px"><div style="font-size:11px;color:#8695a8;margin-bottom:5px">변동성 · 경쟁률</div><div style="display:flex;align-items:baseline;gap:8px"><span style="font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:700;color:#1e3550">낮음</span><span style="font-size:12px;color:#52627a">· 6.8:1</span></div></div>
+                </div>
+              </div>
+              <div style="background:#fff;border:1px solid #e4eaf1;border-radius:14px;padding:18px 20px">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><span style="font-size:13px;font-weight:700;color:#1e3550">내 성적의 신호등 요약</span><button onclick="go('goPlacement')" style="font-size:12px;font-weight:700;color:#2f6fb3;background:none;border:none;cursor:pointer;white-space:nowrap;padding:0">정밀배치표에서 전체 보기 →</button></div>
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+                  <div style="border:1px solid #e4eaf1;border-radius:11px;padding:12px 14px;border-top:3px solid #2a8a5f"><div style="font-size:11.5px;font-weight:700;color:#2a8a5f;margin-bottom:3px">안정</div><div style="display:flex;align-items:baseline;gap:4px"><span style="font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:700;color:#1e3550">31</span><span style="font-size:11px;color:#8695a8">곳</span></div></div>
+                  <div style="border:1px solid #e4eaf1;border-radius:11px;padding:12px 14px;border-top:3px solid #57a86a"><div style="font-size:11.5px;font-weight:700;color:#4a9765;margin-bottom:3px">적정</div><div style="display:flex;align-items:baseline;gap:4px"><span style="font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:700;color:#1e3550">48</span><span style="font-size:11px;color:#8695a8">곳</span></div></div>
+                  <div style="border:1px solid #e4eaf1;border-radius:11px;padding:12px 14px;border-top:3px solid #cf9f2f"><div style="font-size:11.5px;font-weight:700;color:#a97d24;margin-bottom:3px">소신</div><div style="display:flex;align-items:baseline;gap:4px"><span style="font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:700;color:#1e3550">27</span><span style="font-size:11px;color:#8695a8">곳</span></div></div>
+                  <div style="border:1px solid #e4eaf1;border-radius:11px;padding:12px 14px;border-top:3px solid #d06b52"><div style="font-size:11.5px;font-weight:700;color:#b05138;margin-bottom:3px">상향</div><div style="display:flex;align-items:baseline;gap:4px"><span style="font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:700;color:#1e3550">19</span><span style="font-size:11px;color:#8695a8">곳</span></div></div>
+                </div>
+              </div>
+              <div style="font-size:11px;color:#8695a8;line-height:1.5">ⓘ 모든 수치는 지난 입시 데이터 기반 <b style="color:#52627a">추정치</b>이며 실제 결과를 보장하지 않습니다. 예시·더미 수치 · 재배포 금지.</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="font-size:14px;font-weight:800;color:#1e3550;padding:2px 2px 0">격차를 좁히는 다음 문</div>
+              <div style="background:#fff;border:1px solid #ecdcb8;border-radius:14px;padding:16px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:9px"><span style="width:36px;height:36px;border-radius:10px;background:rgba(207,154,58,.14);color:#a97d24;display:inline-flex;align-items:center;justify-content:center;font-size:17px">◇</span><span style="font-size:14px;font-weight:800;color:#1e3550">1:1 상담</span></div><div style="font-size:12px;color:#52627a;line-height:1.5;margin-bottom:12px">전략 점검 · 30분 · 격차 기반 지원 설계</div><a href="janus_booking_v1.dc.html" style="display:block;text-align:center;font-size:13px;font-weight:700;color:#20130a;background:#cf9a3a;border-radius:9px;padding:11px;text-decoration:none">예약 →</a></div>
+              <div style="background:#fff;border:1px solid #e4eaf1;border-radius:14px;padding:16px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:9px"><span style="width:36px;height:36px;border-radius:10px;background:rgba(207,154,58,.14);color:#a97d24;display:inline-flex;align-items:center;justify-content:center;font-size:17px">◈</span><span style="font-size:14px;font-weight:800;color:#1e3550">약점 클리닉</span></div><div style="font-size:12px;color:#52627a;line-height:1.5;margin-bottom:12px">미적분 집중 6주 · 격차 큰 단원 우선</div><a href="janus_pack_detail_v1.dc.html" style="display:block;text-align:center;font-size:13px;font-weight:700;color:#fff;background:#2f6fb3;border-radius:9px;padding:11px;text-decoration:none">과정 보기 →</a></div>
+              <div style="background:#fff;border:1px solid #e4eaf1;border-radius:14px;padding:16px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:9px"><span style="width:36px;height:36px;border-radius:10px;background:rgba(47,111,179,.1);color:#2f6fb3;display:inline-flex;align-items:center;justify-content:center;font-size:17px">▶</span><span style="font-size:14px;font-weight:800;color:#1e3550">강의 · VOD</span></div><div style="font-size:12px;color:#52627a;line-height:1.5;margin-bottom:12px">극값 판별 핵심 강의 3편 · 지금 바로</div><a href="janus_courses_v1.dc.html" style="display:block;text-align:center;font-size:13px;font-weight:600;color:#1e3550;background:#eef2f7;border:1px solid #e0e6ee;border-radius:9px;padding:11px;text-decoration:none">보기 →</a></div>
+              <div style="background:#eef4ef;border:1px solid #cfe6d4;border-radius:14px;padding:16px 18px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px"><span style="font-size:13px;font-weight:800;color:#1a6e48">무료로 할 수 있는 것</span></div>
+                <div style="display:flex;flex-direction:column;gap:7px">
+                  <span style="font-size:12px;font-weight:600;color:#25603f">✓ 사진으로 질문 올리기 (AI 초안 즉시)</span>
+                  <span style="font-size:12px;font-weight:600;color:#25603f">✓ 신호등 배치표 미리보기</span>
+                  <span style="font-size:12px;font-weight:600;color:#25603f">✓ 격차 리포트 요약</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      </span>
+
+      <!-- 지원 포트폴리오 -->
+      <span class="scif" data-if="isPort" style="display:contents">
+      <div style="position:absolute;inset:0;overflow-y:auto;background:#f4f6fa;animation:hubFade .22s ease" data-screen-label="허브 · 지원 포트폴리오">
+        <div style="max-width:1180px;margin:0 auto;padding:20px 20px 46px">
+          <div style="display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start">
+            <div style="display:flex;flex-direction:column;gap:14px">
+              <div style="display:flex;align-items:center;gap:12px"><span style="font-size:15px;font-weight:800;color:#1e3550">조합 A</span><span style="font-size:11px;font-weight:700;color:#a97d24;background:rgba(207,154,58,.14);border-radius:999px;padding:4px 10px;white-space:nowrap">유료</span><span style="flex:1"></span><span style="font-size:12px;color:#8695a8">가·나·다 각 1회 · 합·불 독립 가정</span></div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+                <div style="background:#fff;border:1px solid #e4eaf1;border-radius:14px;padding:14px 16px">
+                  <div style="display:flex;align-items:center;gap:7px;margin-bottom:10px"><span style="font-size:12px;font-weight:800;color:#52627a">가군</span><span style="margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;color:#57a86a;white-space:nowrap"><span style="width:7px;height:7px;border-radius:50%;background:#57a86a"></span>적정</span></div>
+                  <div style="font-size:14.5px;font-weight:800;color:#1e3550">인하대</div><div style="font-size:12px;color:#52627a">컴퓨터공학</div>
+                  <div style="margin-top:9px;font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:700;color:#57a86a">71%</div>
+                  <div style="margin-top:8px;font-size:11px;color:#8695a8">환산 687.4 · 접수 1/3–1/6</div>
+                </div>
+                <div style="background:#fff;border:1px solid #e4eaf1;border-radius:14px;padding:14px 16px">
+                  <div style="display:flex;align-items:center;gap:7px;margin-bottom:10px"><span style="font-size:12px;font-weight:800;color:#52627a">나군</span><span style="margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;color:#cf9f2f;white-space:nowrap"><span style="width:7px;height:7px;border-radius:50%;background:#cf9f2f"></span>소신</span></div>
+                  <div style="font-size:14.5px;font-weight:800;color:#1e3550">아주대</div><div style="font-size:12px;color:#52627a">소프트웨어학과</div>
+                  <div style="margin-top:9px;font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:700;color:#cf9f2f">52%</div>
+                  <div style="margin-top:8px;font-size:11px;color:#8695a8">환산 663.1 · 접수 1/4–1/7</div>
+                </div>
+                <div style="background:#fff;border:1.5px dashed #c6d2e0;border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;min-height:150px">
+                  <span style="font-size:12px;font-weight:800;color:#52627a">다군</span>
+                  <span style="width:34px;height:34px;border-radius:50%;background:#eef2f7;border:1px solid #e0e6ee;color:#52627a;display:inline-flex;align-items:center;justify-content:center;font-size:17px">＋</span>
+                  <span style="font-size:11.5px;color:#8695a8;text-align:center">배치표에서 담기</span>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:16px;background:#122036;border-radius:14px;padding:16px 20px">
+                <div style="flex:1"><div style="font-size:11.5px;font-weight:700;color:#93a7bd;margin-bottom:3px">종합 합격확률 — 최소 한 곳</div><div style="font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:700;color:#fff;line-height:1">86.1%</div></div>
+                <div style="flex:1.4"><div style="display:flex;height:10px;border-radius:999px;overflow:hidden"><span style="width:52%;background:#2a8a5f"></span><span style="width:26%;background:#57a86a"></span><span style="width:14%;background:#cf9f2f"></span><span style="width:8%;background:#3a5573"></span></div><div style="display:flex;justify-content:space-between;margin-top:6px"><span style="font-size:10px;color:#93a7bd">2곳+ 52%</span><span style="font-size:10px;color:#93a7bd">1곳 34%</span><span style="font-size:10px;color:#93a7bd">전패 14%</span></div></div>
+                <span style="font-size:11px;font-weight:700;color:#cf9f2f;background:rgba(207,159,47,.14);border:1px solid rgba(207,159,47,.4);border-radius:999px;padding:5px 11px;white-space:nowrap">다군 비면 −12%p</span>
+              </div>
+              <div style="display:flex;gap:10px;align-items:center">
+                <button style="flex:1;font-size:14.5px;font-weight:700;color:#20130a;background:#cf9a3a;border:none;border-radius:12px;padding:14px;cursor:pointer">조합 확정 — 캘린더에 일정 등록 →</button>
+                <button style="font-size:13.5px;font-weight:700;color:#fff;background:#2f6fb3;border:none;border-radius:12px;padding:14px 20px;cursor:pointer;white-space:nowrap">상담에 공유</button>
+                <button style="font-size:13.5px;font-weight:600;color:#52627a;background:#eef2f7;border:1px solid #e0e6ee;border-radius:12px;padding:14px 20px;cursor:pointer;white-space:nowrap">조합 B 만들기</button>
+              </div>
+              <div style="font-size:11px;color:#8695a8;line-height:1.5">ⓘ 종합 확률은 각 군 합·불 독립 가정의 추정치이며 실제 결과를 보장하지 않습니다. 예시·더미 수치.</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="font-size:14px;font-weight:800;color:#1e3550;padding:2px 2px 0">다군 채우기 추천</div>
+              <div style="background:#fff;border:1px solid #cfe6d4;border-radius:14px;padding:14px 16px">
+                <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px"><span style="font-size:10.5px;font-weight:700;color:#2a8a5f;background:rgba(42,138,95,.12);border-radius:5px;padding:2px 8px;white-space:nowrap">안정 88%</span><span style="font-size:10.5px;font-weight:700;color:#52627a;background:#eef2f7;border-radius:5px;padding:2px 8px;white-space:nowrap">다군</span></div>
+                <div style="font-size:14px;font-weight:800;color:#1e3550">가천대 소프트웨어</div>
+                <div style="font-size:11.5px;color:#8695a8;margin:3px 0 10px">전패 확률 14% → 5%로 하락</div>
+                <button style="width:100%;font-size:12.5px;font-weight:700;color:#fff;background:#2f6fb3;border:none;border-radius:9px;padding:10px;cursor:pointer">이 카드로 채우기</button>
+              </div>
+              <div style="background:#fff;border:1px solid #e4eaf1;border-radius:14px;padding:14px 16px">
+                <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px"><span style="font-size:10.5px;font-weight:700;color:#4a9765;background:rgba(87,168,106,.12);border-radius:5px;padding:2px 8px;white-space:nowrap">적정 64%</span><span style="font-size:10.5px;font-weight:700;color:#52627a;background:#eef2f7;border-radius:5px;padding:2px 8px;white-space:nowrap">다군</span></div>
+                <div style="font-size:14px;font-weight:800;color:#1e3550">한국공학대 컴퓨터공학</div>
+                <div style="font-size:11.5px;color:#8695a8;margin:3px 0 10px">전패 확률 14% → 7%로 하락</div>
+                <button style="width:100%;font-size:12.5px;font-weight:600;color:#52627a;background:#eef2f7;border:1px solid #e0e6ee;border-radius:9px;padding:10px;cursor:pointer">이 카드로 채우기</button>
+              </div>
+              <div style="background:#fff;border:1px solid #e4eaf1;border-radius:14px;padding:16px 18px">
+                <div style="font-size:13px;font-weight:800;color:#1e3550;margin-bottom:9px">확정하면 일어나는 일</div>
+                <div style="display:flex;flex-direction:column;gap:7px">
+                  <span style="font-size:12px;color:#52627a">◫ 접수·발표·충원 일정 캘린더 등록</span>
+                  <span style="font-size:12px;color:#52627a">◉ 마감 D-1 알림 자동 설정</span>
+                  <span style="font-size:12px;color:#52627a">◇ 상담 예약 시 조합 자동 첨부</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      </span>
+    </div>
+  </div>
+  </div></div>
+
+    <!-- ══ MOBILE ══ -->
+    <div style="flex:0 0 auto">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:11px"><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;color:#1e3550;background:#fff;border:1px solid #d9e0ea;border-radius:6px;padding:4px 10px;white-space:nowrap">MOBILE · &lt;640px</span></div>
+      <div style="width:366px;height:772px;border-radius:42px;border:10px solid #05070c;overflow:hidden;position:relative;box-shadow:0 34px 74px rgba(20,45,80,.26);background:#f4f6fa" data-screen-label="배치표 허브 모바일">
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column">
+          <!-- 모바일 헤더 + 탭 (고정 액자) -->
+          <div style="flex:0 0 auto;background:#fff;border-bottom:1px solid #e4eaf1;padding:42px 15px 10px">
+            <div style="display:flex;align-items:center;gap:9px;margin-bottom:11px"><svg width="24" height="24" viewBox="0 0 96 96" fill="none" role="img" aria-label="야누스"><defs><linearGradient id="jaHU5" gradientUnits="userSpaceOnUse" x1="18" y1="0" x2="78" y2="0"><stop offset="50%" stop-color="#2F6FB3"></stop><stop offset="50%" stop-color="#BC8A28"></stop></linearGradient><linearGradient id="jaHU6" gradientUnits="userSpaceOnUse" x1="14" y1="0" x2="82" y2="0"><stop offset="50%" stop-color="#2F6FB3"></stop><stop offset="50%" stop-color="#BC8A28"></stop></linearGradient></defs><g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="10"><path d="M18 74V43C18 27.5 30.2 15 48 15C65.8 15 78 27.5 78 43V52" stroke="url(#jaHU5)"></path><path d="M14 79H82" stroke="url(#jaHU6)"></path></g></svg><span style="font-size:17px;font-weight:800;color:#1e3550">배치표</span><span style="font-size:11px;color:#8695a8">이과 · 2027 입시</span><span style="flex:1"></span><span style="width:28px;height:28px;border-radius:50%;background:rgba(47,111,179,.1);color:#2f6fb3;display:inline-flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:800">진</span></div>
+            <div style="display:flex;background:#eef2f7;border-radius:11px;padding:3px;gap:3px">
+              <span class="scif" data-if="mIsReport" style="display:contents"><span style="flex:1;text-align:center;font-size:12px;font-weight:800;color:#1e3550;background:#fff;border-radius:9px;padding:8px 0;box-shadow:0 1px 4px rgba(20,45,80,.12);white-space:nowrap">◱ 리포트</span></span>
+              <span class="scif" data-if="mNotReport" style="display:contents"><button onclick="go('mGoReport')" style="flex:1;text-align:center;font-size:12px;font-weight:600;color:#52627a;background:none;border:none;border-radius:9px;padding:8px 0;cursor:pointer;white-space:nowrap">◱ 리포트</button></span>
+              <span class="scif" data-if="mIsPlacement" style="display:contents"><span style="flex:1;text-align:center;font-size:12px;font-weight:800;color:#1e3550;background:#fff;border-radius:9px;padding:8px 0;box-shadow:0 1px 4px rgba(20,45,80,.12);white-space:nowrap">▦ 배치표</span></span>
+              <span class="scif" data-if="mNotPlacement" style="display:contents"><button onclick="go('mGoPlacement')" style="flex:1;text-align:center;font-size:12px;font-weight:600;color:#52627a;background:none;border:none;border-radius:9px;padding:8px 0;cursor:pointer;white-space:nowrap">▦ 배치표</button></span>
+              <span class="scif" data-if="mIsPort" style="display:contents"><span style="flex:1;text-align:center;font-size:12px;font-weight:800;color:#1e3550;background:#fff;border-radius:9px;padding:8px 0;box-shadow:0 1px 4px rgba(20,45,80,.12);white-space:nowrap">◫ 조합</span></span>
+              <span class="scif" data-if="mNotPort" style="display:contents"><button onclick="go('mGoPort')" style="flex:1;text-align:center;font-size:12px;font-weight:600;color:#52627a;background:none;border:none;border-radius:9px;padding:8px 0;cursor:pointer;white-space:nowrap">◫ 조합</button></span>
+              <span class="scif" data-if="mIsSusi" style="display:contents"><span style="flex:1;text-align:center;font-size:12px;font-weight:800;color:#1e3550;background:#fff;border-radius:9px;padding:8px 0;box-shadow:0 1px 4px rgba(20,45,80,.12);white-space:nowrap">◈ 수시</span></span>
+              <span class="scif" data-if="mNotSusi" style="display:contents"><button onclick="go('mGoSusi')" style="flex:1;text-align:center;font-size:12px;font-weight:600;color:#52627a;background:none;border:none;border-radius:9px;padding:8px 0;cursor:pointer;white-space:nowrap">◈ 수시</button></span>
+            </div>
+          </div>
+
+          <div style="flex:1;min-height:0;position:relative">
+            <!-- 모바일 · 격차 리포트 -->
+            <span class="scif" data-if="mIsReport" style="display:contents">
+            <div style="position:absolute;inset:0;overflow-y:auto;animation:hubFade .22s ease">
+              <div style="padding:13px 15px 28px">
+                <div style="background:#122036;border-radius:16px;padding:18px;color:#fff;margin-bottom:11px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span style="font-size:11.5px;font-weight:700;color:#93a7bd">지금 나의 위치</span><span style="font-size:10px;font-weight:700;color:#7fc08a;background:rgba(51,168,115,.16);border-radius:999px;padding:3px 8px;white-space:nowrap">◈ 신뢰도 A</span></div>
+                  <div style="display:flex;align-items:baseline;gap:6px"><span style="font-family:'IBM Plex Mono',monospace;font-size:38px;font-weight:700;line-height:1">상위 24.5</span><span style="font-size:16px;color:#93a7bd">%</span></div>
+                  <div style="display:flex;gap:8px;margin-top:12px"><span style="flex:1;background:rgba(255,255,255,.06);border-radius:9px;padding:8px 10px"><span style="font-size:10px;color:#93a7bd;display:block">판정</span><span style="font-size:13px;font-weight:700;color:#e3ac33">● 소신</span></span><span style="flex:1;background:rgba(255,255,255,.06);border-radius:9px;padding:8px 10px"><span style="font-size:10px;color:#93a7bd;display:block">확률</span><span style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700">52%</span></span></div>
+                </div>
+                <div style="background:#fff;border:1px solid #e4eaf1;border-radius:16px;padding:16px 18px;margin-bottom:11px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="font-size:11.5px;font-weight:700;color:#52627a">목표까지 격차</span><span style="font-size:11px;color:#8695a8">아주대 SW</span></div>
+                  <div style="display:flex;align-items:baseline;gap:6px"><span style="font-family:'IBM Plex Mono',monospace;font-size:34px;font-weight:700;color:#cf9a3a;line-height:1">−4.5</span><span style="font-size:13px;color:#8695a8">%p</span></div>
+                  <div style="margin-top:12px"><div style="position:relative;height:11px;border-radius:6px;background:#eef2f7;overflow:hidden"><div style="position:absolute;left:0;top:0;bottom:0;width:64%;background:linear-gradient(90deg,#57a86a,#e3ac33)"></div><div style="position:absolute;left:80%;top:-3px;bottom:-3px;width:2px;background:#2a8a5f"></div></div><div style="display:flex;justify-content:space-between;margin-top:5px"><span style="font-size:9.5px;color:#8695a8;font-family:'IBM Plex Mono',monospace">현재 52%</span><span style="font-size:9.5px;color:#2a8a5f;font-weight:700;font-family:'IBM Plex Mono',monospace">안정 80%</span></div></div>
+                </div>
+                <div style="background:#fbf7ee;border:1px solid #ecdcb8;border-radius:12px;padding:13px 15px;margin-bottom:11px"><div style="font-size:10.5px;font-weight:700;color:#a97d24;margin-bottom:4px">근거가 곧 신뢰</div><div style="font-size:13.5px;font-weight:700;color:#1e3550;line-height:1.45">작년 70%컷은 '안정'이 아닙니다 — <span style="color:#d06b52">실제 37%.</span></div></div>
+                <div style="font-size:14px;font-weight:800;color:#1e3550;margin:15px 0 9px">격차를 좁히는 다음 문</div>
+                <div style="display:flex;flex-direction:column;gap:9px">
+                  <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #ecdcb8;border-radius:13px;padding:13px"><span style="width:40px;height:40px;border-radius:11px;background:rgba(207,154,58,.14);color:#a97d24;display:inline-flex;align-items:center;justify-content:center;font-size:18px;flex:0 0 auto">◇</span><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800;color:#1e3550">1:1 상담</div><div style="font-size:11.5px;color:#52627a">격차 기반 지원 설계 · 30분</div></div><span style="font-size:12px;font-weight:700;color:#20130a;background:#cf9a3a;border-radius:8px;padding:8px 12px;white-space:nowrap">예약</span></div>
+                  <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #e4eaf1;border-radius:13px;padding:13px"><span style="width:40px;height:40px;border-radius:11px;background:rgba(207,154,58,.14);color:#a97d24;display:inline-flex;align-items:center;justify-content:center;font-size:18px;flex:0 0 auto">◈</span><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800;color:#1e3550">약점 클리닉</div><div style="font-size:11.5px;color:#52627a">미적분 집중 6주</div></div><span style="font-size:20px;color:#2f6fb3">›</span></div>
+                  <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #e4eaf1;border-radius:13px;padding:13px"><span style="width:40px;height:40px;border-radius:11px;background:rgba(47,111,179,.1);color:#2f6fb3;display:inline-flex;align-items:center;justify-content:center;font-size:18px;flex:0 0 auto">▶</span><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800;color:#1e3550">강의 · VOD</div><div style="font-size:11.5px;color:#52627a">극값 판별 핵심 3편</div></div><span style="font-size:20px;color:#98a4b5">›</span></div>
+                </div>
+                <div style="margin-top:12px;font-size:10.5px;color:#8695a8;line-height:1.5">ⓘ 지난 데이터 기반 추정치 · 결과 비보장 · 예시 더미 수치</div>
+              </div>
+            </div>
+            </span>
+
+            <!-- 모바일 · 정밀배치표 -->
+            <span class="scif" data-if="mIsPlacement" style="display:contents">
+            <div style="position:absolute;inset:0;overflow-y:auto;animation:hubFade .22s ease">
+              <div style="padding:13px 15px 28px">
+                <div style="background:#122036;border-radius:16px;padding:16px 18px;color:#fff;margin-bottom:11px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="font-size:11.5px;font-weight:700;color:#93a7bd">지금 나의 위치</span><span style="font-size:10px;font-weight:700;color:#93a7bd;background:rgba(255,255,255,.08);border-radius:999px;padding:3px 8px;white-space:nowrap">입력 대기</span></div>
+                  <div style="display:flex;align-items:baseline;gap:6px"><span style="font-family:'IBM Plex Mono',monospace;font-size:32px;font-weight:700;line-height:1;color:#4a6584">상위 —.—</span><span style="font-size:14px;color:#4a6584">%</span></div>
+                </div>
+                <div style="background:#fff;border:1px solid #e4eaf1;border-radius:16px;padding:16px 18px;margin-bottom:11px">
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px"><span style="font-size:10.5px;font-weight:700;color:#a97d24;background:rgba(207,154,58,.14);border-radius:999px;padding:3px 9px;white-space:nowrap">시작하기</span><span style="font-size:13.5px;font-weight:800;color:#1e3550">내 점수 입력</span></div>
+                  <div style="display:flex;gap:6px;margin-bottom:9px"><span style="flex:1;text-align:center;font-size:12px;font-weight:800;color:#fff;background:#2f6fb3;border-radius:9px;padding:9px 0">이과</span><span style="flex:1;text-align:center;font-size:12px;font-weight:600;color:#52627a;background:#eef2f7;border:1px solid #e0e6ee;border-radius:9px;padding:9px 0">문과</span></div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;background:#f4f6fa;border:1px solid #e4eaf1;border-radius:10px;padding:11px 13px;margin-bottom:9px"><span style="font-size:12.5px;color:#8695a8">내 전국 누백(%)</span><span style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#c2ccd8">예: 1.5</span></div>
+                  <button style="width:100%;font-size:14px;font-weight:700;color:#20130a;background:#cf9a3a;border:none;border-radius:11px;padding:13px;cursor:pointer">합격예측 적용</button>
+                  <div style="margin-top:8px;font-size:10.5px;color:#8695a8;line-height:1.5">격차 리포트와 같은 기준 — 안정 80% · 적정 50% · 소신 20%</div>
+                </div>
+                <div style="background:#fff;border:1px solid #e4eaf1;border-radius:16px;padding:16px 18px;margin-bottom:11px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><span style="font-size:13px;font-weight:700;color:#1e3550">내 성적의 신호등 요약</span><span style="font-size:10.5px;color:#8695a8">예시</span></div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                    <div style="border:1px solid #e4eaf1;border-radius:10px;padding:10px 12px;border-top:3px solid #2a8a5f"><div style="font-size:11px;font-weight:700;color:#2a8a5f">안정</div><div style="font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:700;color:#1e3550">31<span style="font-size:10.5px;color:#8695a8;font-weight:400"> 곳</span></div></div>
+                    <div style="border:1px solid #e4eaf1;border-radius:10px;padding:10px 12px;border-top:3px solid #57a86a"><div style="font-size:11px;font-weight:700;color:#4a9765">적정</div><div style="font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:700;color:#1e3550">48<span style="font-size:10.5px;color:#8695a8;font-weight:400"> 곳</span></div></div>
+                    <div style="border:1px solid #e4eaf1;border-radius:10px;padding:10px 12px;border-top:3px solid #cf9f2f"><div style="font-size:11px;font-weight:700;color:#a97d24">소신</div><div style="font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:700;color:#1e3550">27<span style="font-size:10.5px;color:#8695a8;font-weight:400"> 곳</span></div></div>
+                    <div style="border:1px solid #e4eaf1;border-radius:10px;padding:10px 12px;border-top:3px solid #d06b52"><div style="font-size:11px;font-weight:700;color:#b05138">상향</div><div style="font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:700;color:#1e3550">19<span style="font-size:10.5px;color:#8695a8;font-weight:400"> 곳</span></div></div>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:11px">
+                  <div style="display:flex;align-items:center;gap:11px;background:#fff;border:1px solid #e4eaf1;border-radius:13px;padding:12px 13px"><span style="font-size:10.5px;font-weight:700;color:#fff;background:#2a8a5f;border-radius:5px;padding:2px 7px;white-space:nowrap">86%</span><div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:800;color:#1e3550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">가천대 소프트웨어</div><div style="font-size:11px;color:#8695a8">예상누백 30.2% · 다군</div></div><span style="font-size:18px;color:#98a4b5">›</span></div>
+                  <div style="display:flex;align-items:center;gap:11px;background:#fff;border:1px solid #e4eaf1;border-radius:13px;padding:12px 13px"><span style="font-size:10.5px;font-weight:700;color:#fff;background:#57a86a;border-radius:5px;padding:2px 7px;white-space:nowrap">71%</span><div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:800;color:#1e3550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">인하대 컴퓨터공학</div><div style="font-size:11px;color:#8695a8">예상누백 26.8% · 가군</div></div><span style="font-size:18px;color:#98a4b5">›</span></div>
+                </div>
+                <div style="font-size:10.5px;color:#8695a8;line-height:1.5">ⓘ 전체 표·필터·고급 옵션은 넓은 화면에서 열립니다 · 예시 더미 수치</div>
+              </div>
+            </div>
+            </span>
+
+            <!-- 모바일 · 지원 포트폴리오 -->
+            <span class="scif" data-if="mIsPort" style="display:contents">
+            <div style="position:absolute;inset:0;overflow-y:auto;animation:hubFade .22s ease">
+              <div style="padding:13px 15px 28px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span style="font-size:14px;font-weight:800;color:#1e3550">조합 A</span><span style="font-size:10px;font-weight:700;color:#a97d24;background:rgba(207,154,58,.14);border-radius:999px;padding:3px 8px;white-space:nowrap">유료</span><span style="flex:1"></span><span style="font-size:10.5px;color:#8695a8">가·나·다 각 1회</span></div>
+                <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:11px">
+                  <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #e4eaf1;border-radius:13px;padding:13px"><span style="font-size:11px;font-weight:800;color:#52627a;width:30px;flex:0 0 auto">가군</span><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800;color:#1e3550">인하대 컴퓨터공학</div><div style="font-size:11px;color:#8695a8">환산 687.4 · 접수 1/3–1/6</div></div><span style="font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:700;color:#57a86a;white-space:nowrap">71%</span></div>
+                  <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #e4eaf1;border-radius:13px;padding:13px"><span style="font-size:11px;font-weight:800;color:#52627a;width:30px;flex:0 0 auto">나군</span><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800;color:#1e3550">아주대 소프트웨어</div><div style="font-size:11px;color:#8695a8">환산 663.1 · 접수 1/4–1/7</div></div><span style="font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:700;color:#cf9f2f;white-space:nowrap">52%</span></div>
+                  <div style="display:flex;align-items:center;gap:12px;background:#fff;border:1.5px dashed #c6d2e0;border-radius:13px;padding:13px"><span style="font-size:11px;font-weight:800;color:#52627a;width:30px;flex:0 0 auto">다군</span><div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;color:#8695a8">비어 있음 — 추천: 가천대 SW 88%</div></div><span style="width:28px;height:28px;border-radius:50%;background:#eef2f7;border:1px solid #e0e6ee;color:#52627a;display:inline-flex;align-items:center;justify-content:center;font-size:15px;flex:0 0 auto">＋</span></div>
+                </div>
+                <div style="background:#122036;border-radius:14px;padding:15px 17px;margin-bottom:11px">
+                  <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:9px"><span style="font-size:11px;font-weight:700;color:#93a7bd">종합 — 최소 한 곳</span><span style="font-family:'IBM Plex Mono',monospace;font-size:24px;font-weight:700;color:#fff">86.1%</span></div>
+                  <div style="display:flex;height:9px;border-radius:999px;overflow:hidden"><span style="width:52%;background:#2a8a5f"></span><span style="width:26%;background:#57a86a"></span><span style="width:14%;background:#cf9f2f"></span><span style="width:8%;background:#3a5573"></span></div>
+                  <div style="display:flex;justify-content:space-between;margin-top:6px"><span style="font-size:9.5px;color:#93a7bd">2곳+ 52%</span><span style="font-size:9.5px;color:#93a7bd">1곳 34%</span><span style="font-size:9.5px;color:#93a7bd">전패 14%</span></div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;background:rgba(207,159,47,.12);border:1px solid rgba(207,159,47,.4);border-radius:11px;padding:10px 13px;margin-bottom:11px"><span style="font-size:11.5px;font-weight:700;color:#a97d24;white-space:nowrap">다군 비면 −12%p</span><span style="font-size:11px;color:#52627a">안정 후보로 채우면 전패 14%→5%</span></div>
+                <button style="width:100%;font-size:14px;font-weight:700;color:#20130a;background:#cf9a3a;border:none;border-radius:12px;padding:14px;cursor:pointer;margin-bottom:8px">조합 확정 — 캘린더 등록 →</button>
+                <div style="display:flex;gap:8px">
+                  <button style="flex:1;font-size:12.5px;font-weight:700;color:#fff;background:#2f6fb3;border:none;border-radius:10px;padding:11px;cursor:pointer;white-space:nowrap">상담에 공유</button>
+                  <button style="flex:1;font-size:12.5px;font-weight:600;color:#52627a;background:#eef2f7;border:1px solid #e0e6ee;border-radius:10px;padding:11px;cursor:pointer;white-space:nowrap">조합 B 만들기</button>
+                </div>
+                <div style="margin-top:11px;font-size:10.5px;color:#8695a8;line-height:1.5">ⓘ 합·불 독립 가정 추정치 · 예시 더미 수치</div>
+              </div>
+            </div>
+            </span>
+
+            <!-- 모바일 · 수시 입결 -->
+            <span class="scif" data-if="mIsSusi" style="display:contents">
+            <div style="position:absolute;inset:0;overflow-y:auto;animation:hubFade .22s ease">
+              <div style="padding:13px 15px 28px">
+                <div style="background:#122036;border-radius:16px;padding:16px 18px;color:#fff;margin-bottom:11px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="font-size:11.5px;font-weight:700;color:#93a7bd">지금 나의 내신</span><span style="font-size:10px;font-weight:700;color:#93a7bd;background:rgba(255,255,255,.08);border-radius:999px;padding:3px 8px;white-space:nowrap">입력 대기</span></div>
+                  <div style="display:flex;align-items:baseline;gap:6px"><span style="font-family:'IBM Plex Mono',monospace;font-size:32px;font-weight:700;line-height:1;color:#4a6584">—.——</span><span style="font-size:14px;color:#4a6584">등급</span></div>
+                  <div style="font-size:11px;color:#93a7bd;margin-top:6px">대학발표 입결 2024~2026 · 16,129개 모집단위</div>
+                </div>
+                <div style="background:#fff;border:1px solid #e4eaf1;border-radius:16px;padding:16px 18px;margin-bottom:11px">
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:11px"><span style="font-size:10.5px;font-weight:700;color:#a97d24;background:rgba(207,154,58,.14);border-radius:999px;padding:3px 9px;white-space:nowrap">시작하기</span><span style="font-size:13.5px;font-weight:800;color:#1e3550">내 내신 입력</span></div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;background:#f4f6fa;border:1px solid #e4eaf1;border-radius:10px;padding:11px 13px;margin-bottom:9px"><span style="font-size:12.5px;color:#8695a8">전 과목 평균 등급</span><span style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#c2ccd8">예: 2.34</span></div>
+                  <button style="width:100%;font-size:14px;font-weight:700;color:#20130a;background:#cf9a3a;border:none;border-radius:11px;padding:13px;cursor:pointer">적용 — 유불리 보기</button>
+                  <div style="margin-top:8px;font-size:10.5px;color:#8695a8;line-height:1.5">정시 배치표와 같은 액자 — 적용하면 요약·전형별 입결이 펼쳐집니다</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:9px;margin-bottom:11px">
+                  <div style="display:flex;align-items:center;gap:11px;background:#fff;border:1px solid #e4eaf1;border-radius:13px;padding:12px 13px"><span style="font-size:10px;font-weight:700;color:#2f6fb3;background:rgba(47,111,179,.1);border-radius:4px;padding:1px 6px;white-space:nowrap">교과</span><div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:800;color:#1e3550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">인하대 컴퓨터공학</div><div style="font-size:11px;color:#8695a8">지역균형 · 모집 12</div></div><span style="font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:700;color:#1e3550;white-space:nowrap">70% <b style="color:#2a8a5f">2.10</b></span></div>
+                  <div style="display:flex;align-items:center;gap:11px;background:#fff;border:1px solid #e4eaf1;border-radius:13px;padding:12px 13px"><span style="font-size:10px;font-weight:700;color:#6d5dd3;background:rgba(109,93,211,.12);border-radius:4px;padding:1px 6px;white-space:nowrap">종합</span><div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:800;color:#1e3550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">아주대 소프트웨어</div><div style="font-size:11px;color:#8695a8">ACE · 모집 25</div></div><span style="font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:700;color:#1e3550;white-space:nowrap">70% <b style="color:#4a9765">2.87</b></span></div>
+                  <div style="display:flex;align-items:center;gap:11px;background:#fff;border:1px solid #e4eaf1;border-radius:13px;padding:12px 13px"><span style="font-size:10px;font-weight:700;color:#a97d24;background:rgba(207,154,58,.16);border-radius:4px;padding:1px 6px;white-space:nowrap">논술</span><div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:800;color:#1e3550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">가천대 소프트웨어</div><div style="font-size:11px;color:#8695a8">논술전형 · 모집 30</div></div><span style="font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:700;color:#1e3550;white-space:nowrap">경쟁 <b style="color:#a97d24">41:1</b></span></div>
+                </div>
+                <div style="font-size:10.5px;color:#8695a8;line-height:1.5">ⓘ 전체 표·필터·전형 상세는 넓은 화면에서 열립니다 · 예시 더미 수치</div>
+              </div>
+            </div>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- annotation -->
+    <div style="width:280px;flex:0 0 auto;display:flex;flex-direction:column;gap:12px">
+      <div style="background:#fff;border:1px solid #e4eaf1;border-radius:14px;padding:16px 18px">
+        <div style="font-size:13px;font-weight:800;color:#1e3550;margin-bottom:10px">이 화면이 지키는 원칙</div>
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <div style="display:flex;gap:9px"><span style="width:6px;height:6px;border-radius:50%;background:#2f6fb3;margin-top:6px;flex:0 0 auto"></span><span style="font-size:12.5px;line-height:1.5;color:#52627a"><b style="color:#1e3550">한 액자</b> — 탭은 문서 이동 없이 내용 영역만 스왑. 헤더·배경·스크롤바 위치 불변.</span></div>
+          <div style="display:flex;gap:9px"><span style="width:6px;height:6px;border-radius:50%;background:#cf9a3a;margin-top:6px;flex:0 0 auto"></span><span style="font-size:12.5px;line-height:1.5;color:#52627a"><b style="color:#1e3550">프리로드</b> — 정시 2027·수시 입결 두 도구를 뒤에서 미리 로드. 탭 4개, 전환 0초. 격차·정밀·지원은 정시 중심, 수시는 분리.</span></div>
+          <div style="display:flex;gap:9px"><span style="width:6px;height:6px;border-radius:50%;background:#2a8a5f;margin-top:6px;flex:0 0 auto"></span><span style="font-size:12.5px;line-height:1.5;color:#52627a"><b style="color:#1e3550">실루엣 통일</b> — 배치표 첫 화면도 리포트와 같은 다크+화이트 2카드 구도로 시작.</span></div>
+        </div>
+      </div>
+      <div style="background:#122036;border-radius:14px;padding:16px 18px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;color:#93a7bd;margin-bottom:10px">SPEC</div>
+        <div style="display:flex;flex-direction:column;gap:7px;font-family:'IBM Plex Mono',monospace">
+          <div style="display:flex;justify-content:space-between"><span style="font-size:11.5px;color:#93a7bd">전환</span><span style="font-size:11.5px;color:#eaf1f8">in-place 스왑 · 0 reload</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="font-size:11.5px;color:#93a7bd">창</span><span style="font-size:11.5px;color:#eaf1f8">1280×900 고정</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="font-size:11.5px;color:#93a7bd">페이드</span><span style="font-size:11.5px;color:#eaf1f8">.22s ease</span></div>
+          <div style="display:flex;justify-content:space-between"><span style="font-size:11.5px;color:#93a7bd">골드 채움</span><span style="font-size:11.5px;color:#e3b45c">그림당 1개</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="text/x-dc" data-dc-script="" data-props="{&quot;$preview&quot;:{&quot;width&quot;:2170,&quot;height&quot;:1050},&quot;defaultTab&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;report&quot;,&quot;placement&quot;,&quot;portfolio&quot;,&quot;susi&quot;,&quot;kairos&quot;],&quot;default&quot;:&quot;portfolio&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;jeongsiSeason&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;시즌&quot;}}">
+class Component extends DCLogic {
+  state = { tab: null, mtab: 'report' };
+  renderVals() {
+    const season = this.props.jeongsiSeason ?? false;
+    const t0 = this.state.tab ?? this.props.defaultTab ?? 'report';
+    const t = (!season && t0 === 'kairos') ? 'report' : t0;
+    const go = (k) => () => this.setState({ tab: k });
+    const m = this.state.mtab;
+    const mgo = (k) => () => this.setState({ mtab: k });
+    const mobileVals = {
+      mIsReport: m === 'report', mNotReport: m !== 'report',
+      mIsPlacement: m === 'placement', mNotPlacement: m !== 'placement',
+      mIsPort: m === 'portfolio', mNotPort: m !== 'portfolio',
+      mIsSusi: m === 'susi', mNotSusi: m !== 'susi',
+      mGoReport: mgo('report'), mGoPlacement: mgo('placement'), mGoPort: mgo('portfolio'), mGoSusi: mgo('susi')
+    };
+    const names = { report: '격차 리포트', placement: '정밀배치표', portfolio: '지원 포트폴리오', susi: '수시 합격 입결', kairos: '카이로스' };
+    return {
+      ...mobileVals,
+      isReport: t === 'report', notReport: t !== 'report',
+      isPlacement: t === 'placement', notPlacement: t !== 'placement',
+      isPort: t === 'portfolio', notPort: t !== 'portfolio',
+      placementDisp: t === 'placement' ? 'block' : 'none',
+      isSusi: t === 'susi', notSusi: t !== 'susi',
+      susiDisp: t === 'susi' ? 'block' : 'none',
+      goSusi: go('susi'),
+      seasonOn: season,
+      kairosTabActive: season && t === 'kairos',
+      kairosTabIdle: season && t !== 'kairos',
+      kairosDisp: t === 'kairos' ? 'block' : 'none',
+      goKairos: go('kairos'),
+      goReport: go('report'), goPlacement: go('placement'), goPort: go('portfolio'),
+      crumbTail: names[t],
+      winW: 1280, winH: 900
+    };
+  }
+}
+</script>
+
+
+<script>
+(function(){
+ const P=new URLSearchParams(location.search);
+ const seasonOn=P.get('season')!=='0';
+ let tab='report';
+ const LBL={report:'격차 리포트',placement:'정밀배치표',port:'지원 포트폴리오',susi:'수시 입결',kairos:'카이로스'};
+ const H={goReport:'report',goPlacement:'placement',goPort:'port',goSusi:'susi',goKairos:'kairos',
+          mGoReport:'report',mGoPlacement:'placement',mGoPort:'port',mGoSusi:'susi'};
+ window.go=function(h){tab=H[h]||h;render();};
+ function stateVal(n){
+  const is=t=>tab===t;
+  const M={isReport:is('report'),notReport:!is('report'),isPlacement:is('placement'),notPlacement:!is('placement'),
+   isPort:is('port'),notPort:!is('port'),isSusi:is('susi'),notSusi:!is('susi'),
+   kairosTabActive:seasonOn&&is('kairos'),kairosTabIdle:seasonOn&&!is('kairos'),seasonOn:seasonOn,
+   mIsReport:is('report'),mNotReport:!is('report'),mIsPlacement:is('placement'),mNotPlacement:!is('placement'),
+   mIsPort:is('port'),mNotPort:!is('port'),mIsSusi:is('susi'),mNotSusi:!is('susi')};
+  return !!M[n];
+ }
+ function render(){
+  document.querySelectorAll('.scif').forEach(el=>{el.style.display=stateVal(el.dataset.if)?'contents':'none';});
+  document.querySelectorAll('[data-disp]').forEach(el=>{
+   const k=el.dataset.disp;
+   el.style.display=((k==='placementDisp'&&tab==='placement')||(k==='susiDisp'&&tab==='susi')||(k==='kairosDisp'&&tab==='kairos'))?'block':'none';});
+  const c=document.getElementById('crumbTail'); if(c)c.textContent=LBL[tab];
+ }
+ render();
+})();
+</script>
+</body></html>
