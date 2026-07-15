@@ -130,6 +130,7 @@ export function App() {
         <Route path="reverse" element={<ReverseProposePage />} />
         <Route path="qna" element={<TeacherQnaPage />} />
         <Route path="community" element={<CommunityBoardPage />} />
+        <Route path="placement/hub" element={<PlacementHubPage embedded />} />
         <Route path="payroll" element={<PayrollPage />} />
         <Route path="materials" element={<TeacherMaterialsPage />} />
         <Route path="records" element={<TeacherRecordsPage />} />
@@ -165,6 +166,7 @@ export function App() {
         <Route path="schedules" element={<AdminSchedulesPage />} />
         <Route path="member-types" element={<AdminMemberTypesPage />} />
         <Route path="membership" element={<AdminMembershipPage />} />
+        <Route path="placement/hub" element={<PlacementHubPage embedded />} />
         <Route path="evaluation" element={<AdminEvaluationPage />} />
         <Route path="assignment" element={<AdminAssignmentPage />} />
         <Route path="analytics" element={<AdminAnalyticsPage />} />
@@ -192,6 +194,8 @@ export function App() {
         <Route path="scores" element={<StudentScoresPage />} />
         <Route path="scores/input" element={<StudentScoreInputPage />} />
         <Route path="diagnostic" element={<DiagnosticPage />} />
+        <Route path="placement/hub" element={<PlacementHubPage embedded />} />
+        <Route path="placement/gap" element={<GapReportPage />} />
         <Route path="membership" element={<StudentMembershipPage />} />
         <Route path="credits" element={<StudentCreditsPage />} />
         <Route path="notifications" element={<StudentNotificationsPage />} />

@@ -154,7 +154,7 @@ export function DiagnosticPage() {
                     <div style={{ fontSize: 14, color: 'var(--ink)' }}>{p.action}</div>
                     <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                       <Link to="/student/community/board" className="btn sm outline" style={{ textDecoration: 'none' }}>질문하기</Link>
-                      <Link to="/placement/gap" className="btn sm outline" style={{ textDecoration: 'none' }}>격차 리포트</Link>
+                      <Link to="/student/placement/gap" className="btn sm outline" style={{ textDecoration: 'none' }}>격차 리포트</Link>
                     </div>
                   </Card>
                 ))}

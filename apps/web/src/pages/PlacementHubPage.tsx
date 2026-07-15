@@ -29,7 +29,7 @@ interface JanusScore {
   eng?: number; han?: number; period: string; source: string;
 }
 
-export function PlacementHubPage() {
+export function PlacementHubPage({ embedded = false }: { embedded?: boolean } = {}) {
   const { user } = useAuth();
   // 뷰어 티어(tierForRole 미러) — 비로그인=free, admin/hr=consultant, 그 외 로그인=member.
   const viewerTier = !user ? 'free' : user.role === 'admin' || user.role === 'hr' ? 'consultant' : 'member';
@@ -106,22 +106,25 @@ export function PlacementHubPage() {
   const lockNeed = activeMeta ? requiredTier(activeMeta) : 'member';
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
-      {/* GNB — 허브 크롬(고정) */}
+    <div style={{ height: embedded ? 'calc(100vh - 40px)' : '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
+      {/* GNB — 허브 크롬(고정). embedded 면 로고·브레드크럼은 사이드바가 대신 → 숨김, CTA·탭은 유지 */}
       <header style={{ background: 'var(--surface)', borderBottom: '1px solid var(--line)', flexShrink: 0 }}>
         <div style={{ maxWidth: 1380, margin: '0 auto', height: 58, padding: '0 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
-            <JanusLogo size={26} />
-            <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--ink)', letterSpacing: '-.02em' }}>야누스</span>
-          </Link>
-          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--j-blue)', background: 'var(--j-blue-soft)', borderRadius: 6, padding: '3px 7px', whiteSpace: 'nowrap' }}>입시배치표</span>
-          <nav style={{ display: 'flex', alignItems: 'center', gap: 2, marginLeft: 8, fontSize: 12.5, color: 'var(--muted)' }}>
-            <Link to="/" style={{ color: 'var(--muted)', textDecoration: 'none' }}>홈</Link>
-            <span style={{ padding: '0 4px' }}>›</span>
-            <Link to="/placement" style={{ color: 'var(--muted)', textDecoration: 'none' }}>배치표</Link>
-            <span style={{ padding: '0 4px' }}>›</span>
-            <b style={{ color: 'var(--ink)' }}>{activeMeta?.short ?? activeMeta?.title ?? '허브'}</b>
-          </nav>
+          {!embedded && <>
+            <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+              <JanusLogo size={26} />
+              <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--ink)', letterSpacing: '-.02em' }}>야누스</span>
+            </Link>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--j-blue)', background: 'var(--j-blue-soft)', borderRadius: 6, padding: '3px 7px', whiteSpace: 'nowrap' }}>입시배치표</span>
+            <nav style={{ display: 'flex', alignItems: 'center', gap: 2, marginLeft: 8, fontSize: 12.5, color: 'var(--muted)' }}>
+              <Link to="/" style={{ color: 'var(--muted)', textDecoration: 'none' }}>홈</Link>
+              <span style={{ padding: '0 4px' }}>›</span>
+              <Link to="/placement" style={{ color: 'var(--muted)', textDecoration: 'none' }}>배치표</Link>
+              <span style={{ padding: '0 4px' }}>›</span>
+              <b style={{ color: 'var(--ink)' }}>{activeMeta?.short ?? activeMeta?.title ?? '허브'}</b>
+            </nav>
+          </>}
+          {embedded && <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--ink)' }}>배치표 허브</span>}
           <span style={{ flex: 1 }} />
           {scoreLinked && (
             <span className="chip ai-human" title={`localStorage.janus_score 주입됨 (${scoreLinked.mode})`} style={{ fontSize: 10.5 }}>

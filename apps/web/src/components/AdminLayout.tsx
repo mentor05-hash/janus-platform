@@ -33,7 +33,7 @@ export function AdminLayout() {
           <NavLink to="/admin/hr-teachers" className={navCls}>선생님 등록·관리</NavLink>
           <NavLink to="/admin/hr-staff" className={navCls}>직원·권한</NavLink>
           <NavLink to="/admin/membership" className={navCls}>회원 등급·구독</NavLink>
-          <NavLink to="/placement/hub" className={navCls}>배치표 허브</NavLink>
+          <NavLink to="/admin/placement/hub" className={navCls}>배치표 허브</NavLink>
           {isAdmin && (
             <>
               {!hq && <NavLink to="/admin/reverse" className={navCls}>역상담 대상</NavLink>}

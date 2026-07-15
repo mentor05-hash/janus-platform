@@ -107,8 +107,8 @@ export function StudentScoreInputPage() {
         <div style={{ fontSize: 13.5, color: linkable ? 'var(--brand)' : 'var(--muted)', marginBottom: 10, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           {msg}
           {linkable && (<>
-            <Link to="/placement/hub" className="btn sm" style={{ textDecoration: 'none' }}>배치표 열기 →</Link>
-            <Link to="/placement/gap" className="btn sm outline" style={{ textDecoration: 'none' }}>격차 리포트 →</Link>
+            <Link to="/student/placement/hub" className="btn sm" style={{ textDecoration: 'none' }}>배치표 열기 →</Link>
+            <Link to="/student/placement/gap" className="btn sm outline" style={{ textDecoration: 'none' }}>격차 리포트 →</Link>
           </>)}
         </div>
       )}
