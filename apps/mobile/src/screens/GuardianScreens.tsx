@@ -177,16 +177,46 @@ export function GuardianConsult({ children, activeId, setActiveId }: Props) {
   const s = useMemo(() => makeStyles(C), [C]);
   const [notes, setNotes] = useState<Note[] | null>(null);
   const [error, setError] = useState('');
+  const [report, setReport] = useState<WeeklyReport | null>(null);
+  const [trend, setTrend] = useState<Trend | null>(null);
+  const [access, setAccess] = useState<{ showTrend: boolean; showPlacement: boolean } | null>(null);
+  useEffect(() => { api.get<{ showTrend: boolean; showPlacement: boolean }>('/me/scores/access').then(setAccess).catch(() => setAccess({ showTrend: false, showPlacement: false })); }, []);
   useEffect(() => {
     if (!activeId) return;
-    setNotes(null);
+    setNotes(null); setReport(null); setTrend(null);
     api.get<Note[]>(`/students/${activeId}/notes`).then(setNotes).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
-  }, [activeId]);
+    api.get<WeeklyReport>(`/guardian/report?studentId=${activeId}`).then(setReport).catch(() => setReport(null));
+    if (access?.showTrend) api.get<Trend>(`/guardian/scores/trend?studentId=${activeId}`).then(setTrend).catch(() => setTrend(null));
+  }, [activeId, access]);
 
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
-      <Text style={ui.h}>상담 내용</Text>
+      <Text style={ui.h}>자녀 상세 리포트</Text>
       <KidSwitcher children={children} activeId={activeId} setActiveId={setActiveId} />
+
+      {/* 주간 요약 */}
+      {report && (
+        <View style={[ui.card, { marginBottom: 8 }]}>
+          <Text style={s.sec}>이번 주 요약</Text>
+          <Text style={{ color: C.ink, fontWeight: '700', fontSize: 14, lineHeight: 20, marginBottom: 10 }}>{report.headline}</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+            {report.sections.attendance.rate != null && <View style={s.rChip}><Text style={s.rChipT}>출석 {report.sections.attendance.rate}%</Text></View>}
+            <View style={s.rChip}><Text style={s.rChipT}>완료 {report.sections.attendance.done}</Text></View>
+            <View style={s.rChip}><Text style={s.rChipT}>상담 {report.sections.consultation.count}</Text></View>
+            <View style={s.rChip}><Text style={s.rChipT}>Q&A {report.sections.qna.count}</Text></View>
+            {report.sections.score?.nb != null && <View style={s.rChip}><Text style={s.rChipT}>누백 {report.sections.score.nb}%</Text></View>}
+          </View>
+        </View>
+      )}
+      {/* 성적 추이 */}
+      {access?.showTrend && trend && (
+        <View style={[ui.card, { marginBottom: 8 }]}>
+          <Text style={s.sec}>성적 추이</Text>
+          <ScoreTrendView trend={trend} showPlacement={!!access.showPlacement} />
+        </View>
+      )}
+
+      <Text style={s.sec}>상담 기록</Text>
       <Text style={s.policy}>공개 정책에 따라 핵심내용 요약·숙제·향후방향만 표시돼요. (선생님 내부 메모·비공개 상담은 제외)</Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}
       {notes === null ? <ActivityIndicator color={C.teal} style={{ marginTop: 16 }} /> : notes.length === 0 ? (
