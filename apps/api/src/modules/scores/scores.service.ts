@@ -267,10 +267,13 @@ export class ScoresService {
       points: reports.map((r) => {
         const s = r.items.map((i) => (i.score ? Number(i.score) : null)).filter((x): x is number => x != null);
         const avg = s.length ? Math.round((s.reduce((a, b) => a + b, 0) / s.length) * 10) / 10 : null;
+        const pl = r.placement as Record<string, unknown> | null;
+        // 누백 모드는 과목별 표점이 없어 avg=null → placement.nb(전국 누백)를 추이 지표로 노출.
+        const nb = pl && typeof pl.nb === 'number' ? (pl.nb as number) : null;
         return {
-          period: r.period, examType: r.exam_type, avg,
+          period: r.period, examType: r.exam_type, avg, nb,
           subjects: r.items.map((i) => ({ subject: i.subject, score: i.score ? Number(i.score) : null })),
-          placement: includePlacement ? ((r.placement as Record<string, unknown> | null) ?? null) : null,
+          placement: includePlacement ? (pl ?? null) : null,
         };
       }),
     };
