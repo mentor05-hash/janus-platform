@@ -14,7 +14,8 @@ const DEMO = import.meta.env.VITE_DEMO_MODE === 'true';
 const ROLES = [
   { label: '선생님', id: 'teacher01' },
   { label: '센터관리자', id: 'admin01' },
-  { label: '본사관리자', id: 'hqadmin' },
+  { label: '본사관리자', id: 'hq01' },
+  { label: '마스터', id: 'master01' },
   { label: 'HR', id: 'hr01' },
   { label: '학생', id: 'student01' },
   { label: '학부모', id: 'guardian01' },
