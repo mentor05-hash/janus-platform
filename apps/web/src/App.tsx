@@ -83,6 +83,7 @@ const StudentNotificationsPage = lazy(() => import('./pages/StudentNotifications
 const StudentMaterialsPage = lazy(() => import('./pages/StudentMaterialsPage').then((m) => ({ default: m.StudentMaterialsPage })));
 const AdminCategoriesPage = lazy(() => import('./pages/AdminCategoriesPage').then((m) => ({ default: m.AdminCategoriesPage })));
 const AdminMembershipPage = lazy(() => import('./pages/AdminMembershipPage').then((m) => ({ default: m.AdminMembershipPage })));
+const AdminEntitlementPage = lazy(() => import('./pages/AdminEntitlementPage').then((m) => ({ default: m.AdminEntitlementPage })));
 const AdminSchedulesPage = lazy(() => import('./pages/AdminSchedulesPage').then((m) => ({ default: m.AdminSchedulesPage })));
 
 function Protected({ roles, children }: { roles?: string[]; children: JSX.Element }) {
@@ -183,6 +184,7 @@ export function App() {
         <Route path="schedules" element={<AdminSchedulesPage />} />
         <Route path="member-types" element={<AdminMemberTypesPage />} />
         <Route path="membership" element={<AdminMembershipPage />} />
+        <Route path="entitlements" element={<AdminEntitlementPage />} />
         <Route path="placement/hub" element={<PlacementHubPage embedded />} />
         <Route path="evaluation" element={<AdminEvaluationPage />} />
         <Route path="assignment" element={<AdminAssignmentPage />} />

@@ -36,6 +36,7 @@ export function AdminLayout() {
           <NavLink to="/admin/placement/hub" className={navCls}>배치표 허브</NavLink>
           {isAdmin && (
             <>
+              <NavLink to="/admin/entitlements" className={navCls}>상품 권한</NavLink>
               {!hq && <NavLink to="/admin/reverse" className={navCls}>역상담 대상</NavLink>}
               <NavLink to="/admin/policy" className={navCls}>정책 편집</NavLink>
               {/* 상담실·줌·차단은 센터 단위 — 본사(HQ)에는 숨김 */}

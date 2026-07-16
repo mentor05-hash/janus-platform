@@ -1,8 +1,10 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { isProductKey, PRODUCTS, type ProductKey } from './domain/products';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * 상품 권한(entitlement) — 유료 상품 구매 시 계정에 서비스 해제 행을 부여.
@@ -16,6 +18,24 @@ export class EntitlementService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
   ) {}
+
+  /** login_id 또는 UUID 로 계정 조회(관리자 편의 — UUID 를 몰라도 student01 로 부여). */
+  async resolveAccount(ref: string): Promise<{ id: string; login_id: string; name: string; role: string }> {
+    const r = (ref ?? '').trim();
+    const acc = UUID_RE.test(r)
+      ? await this.prisma.account.findUnique({ where: { id: r }, select: { id: true, login_id: true, name: true, role: true } })
+      : await this.prisma.account.findUnique({ where: { login_id: r }, select: { id: true, login_id: true, name: true, role: true } });
+    if (!acc) throw new NotFoundException({ code: 'ACCOUNT_NOT_FOUND', message: `계정을 찾을 수 없습니다: ${r}` });
+    return acc;
+  }
+
+  /** 관리자: 계정 + 권한 이력(활성/만료/취소) 한 번에 — UI 조회용. */
+  async accountSummary(ref: string) {
+    const account = await this.resolveAccount(ref);
+    const entitlements = await this.list(account.id);
+    const active = await this.activeServices(account.id);
+    return { account, entitlements, activeServices: [...active] };
+  }
 
   /** 활성 권한의 서비스 id 집합 — 만료(expires_at≤now)·취소(revoked_at) 제외. */
   async activeServices(accountId: string): Promise<Set<string>> {
@@ -45,12 +65,13 @@ export class EntitlementService {
    */
   async grant(
     actor: AuthUser,
-    accountId: string,
+    accountRef: string,
     productKey: string,
     opts: { expiresAt?: Date | null; source?: string; note?: string } = {},
   ) {
     if (!isProductKey(productKey)) throw new BadRequestException({ code: 'PRODUCT_UNKNOWN', message: `알 수 없는 상품: ${productKey}` });
     const product = PRODUCTS[productKey as ProductKey];
+    const accountId = (await this.resolveAccount(accountRef)).id; // login_id·UUID 모두 허용
     const created = await this.prisma.$transaction(
       product.services.map((serviceId) =>
         this.prisma.service_entitlement.create({
