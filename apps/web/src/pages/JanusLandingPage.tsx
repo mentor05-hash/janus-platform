@@ -146,9 +146,7 @@ export function JanusLandingPage() {
           <span style={{ width: 1, height: 11, background: '#24405f' }} />
           <span style={{ fontSize: 12, color: '#7d92ac', whiteSpace: 'nowrap' }}>기업·학원 B2B</span>
           <span style={{ width: 1, height: 11, background: '#24405f' }} />
-          {user ? (
-            <Link to={roleHome(user.role)} style={{ fontSize: 12, fontWeight: 700, color: '#e3b45c', whiteSpace: 'nowrap', textDecoration: 'none' }}>내 관문으로 →</Link>
-          ) : (
+          {!user && (
             <>
               <Link to="/login" style={{ fontSize: 12, color: '#aab8ca', whiteSpace: 'nowrap', textDecoration: 'none' }}>로그인</Link>
               <Link to="/signup" style={{ fontSize: 12, fontWeight: 700, color: '#e3b45c', whiteSpace: 'nowrap', textDecoration: 'none' }}>시작하기</Link>
@@ -160,11 +158,16 @@ export function JanusLandingPage() {
       {/* GNB */}
       <header style={{ background: 'var(--surface)', borderBottom: '1px solid var(--line)', position: 'sticky', top: 0, zIndex: 20 }}>
         <div style={{ maxWidth: 1180, margin: '0 auto', height: 66, padding: '0 20px', display: 'flex', alignItems: 'center', gap: 24 }}>
-          <button type="button" onClick={() => goSec('home')} title="처음 화면으로"
-            style={{ display: 'flex', alignItems: 'center', gap: 9, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-            <JanusLogo size={30} />
-            <span style={{ fontSize: 21, fontWeight: 800, color: 'var(--ink)', letterSpacing: '-.02em' }}>야누스</span>
-          </button>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1 }}>
+            <button type="button" onClick={() => goSec('home')} title="처음 화면으로"
+              style={{ display: 'flex', alignItems: 'center', gap: 9, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+              <JanusLogo size={30} />
+              <span style={{ fontSize: 21, fontWeight: 800, color: 'var(--ink)', letterSpacing: '-.02em' }}>야누스</span>
+            </button>
+            {user && (
+              <Link to={roleHome(user.role)} style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--j-gold-ink, #a9791f)', whiteSpace: 'nowrap', textDecoration: 'none', paddingLeft: 39 }}>내 관문으로 →</Link>
+            )}
+          </div>
           <nav style={{ display: 'flex', gap: 4, flex: 1 }}>
             {GNB_TABS.map((t) => (
               <button key={t.key} type="button" onClick={() => goSec(t.key)} style={{

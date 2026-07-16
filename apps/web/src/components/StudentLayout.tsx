@@ -17,7 +17,6 @@ const NAV: NavItem[] = [
   { to: '/student/curriculum', label: '학습 플랜' },
   { section: '배치·성적' },
   { to: '/student/placement/hub', label: '배치표 허브' },
-  { to: '/student/placement/gap', label: '격차 리포트' },
   { to: '/student/scores', label: '내 성적·배치', flag: 'scores', end: true },
   { section: '학습·상담' },
   { to: '/student/lectures', label: '강좌' },
