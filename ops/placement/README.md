@@ -59,6 +59,9 @@
   (iframe 은 Authorization 헤더를 못 실으므로 티켓 방식).
 - 웹 허브(`/placement/hub`)는 비로그인 상태에서 회원급 탭에 잠금 패널을 띄운다. `?season=0` → 카이로스 탭 숨김.
 - W3 SSO(`janus:sso`, 서비스 id `baechipyo`) 결합 시 티켓 발급을 티어별 권한으로 확장한다.
+- **유료 배치표 상품(O74)**: `tier: paid` 표는 tierForRole≥paid(admin/hr) **또는** 상품 권한(`service_entitlement`)이 덮으면 티켓 발급.
+  전체 배치표(`baechipyo-full`)=모든 kind, 정시 정밀배치표(`baechipyo-jeongsi`)=`kind: jeongsi`만. 그래서 **정시 정밀표는 manifest 에서 `kind: "jeongsi"` 로 표기**해야 정시 상품이 열 수 있다.
+  권한 부여는 `POST /admin/entitlements {accountId, productKey, expiresAt}`(일회성 기간제) — 결제 훅은 후속(성공 콜백이 동일 grant() 호출).
 - 공개 배포 전 점검표(실행계획서 W2 D6): 무료판 외 파일은 공개 환경에 배치하지 않는다.
 - 접합계약 전문·재통합 게이트: `docs/30_features/야누스_배치표_핸드오프_2026-07-14.md` (C1~C6 — 위반 금지).
 

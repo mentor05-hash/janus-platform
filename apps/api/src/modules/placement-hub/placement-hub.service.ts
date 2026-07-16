@@ -6,6 +6,8 @@ import * as path from 'node:path';
 import { CACHE_PROVIDER } from '../../common/cache/cache.types';
 import type { CacheProvider } from '../../common/cache/cache.types';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
+import { EntitlementService } from '../entitlement/entitlement.service';
+import { coversPlacement } from '../entitlement/domain/products';
 import { tierAtLeast, tierForRole, type SsoTier } from '../sso/domain/sso-token';
 
 /**
@@ -32,6 +34,7 @@ export class PlacementHubService {
 
   constructor(
     private readonly config: ConfigService,
+    private readonly entitlement: EntitlementService,
     @Inject(CACHE_PROVIDER) private readonly cache: CacheProvider,
   ) {}
 
@@ -107,13 +110,17 @@ export class PlacementHubService {
     const required = this.tierOf(entry);
     const userTier = tierForRole(user.role);
     if (!tierAtLeast(userTier, required)) {
-      const need = this.TIER_LABEL[required];
-      const msg = required === 'paid'
-        ? '유료 회원 전용입니다 — 유료 전환은 준비 중입니다.'
-        : required === 'consultant'
-          ? '컨설턴트 전용 자료입니다.'
-          : `${need}부터 열람할 수 있습니다.`;
-      throw new ForbiddenException({ code: 'HUB_TIER_LOCKED', message: msg, requiredTier: required, yourTier: userTier });
+      // 티어 미달이어도 유료 배치표 상품(entitlement)이 이 표(kind)를 덮으면 통과.
+      const covered = required === 'paid' && coversPlacement(await this.entitlement.activeServices(user.id), entry.kind);
+      if (!covered) {
+        const need = this.TIER_LABEL[required];
+        const msg = required === 'paid'
+          ? '유료 배치표 상품 전용입니다 — 전체 배치표/정시 정밀배치표를 구매하면 열람할 수 있어요.'
+          : required === 'consultant'
+            ? '컨설턴트 전용 자료입니다.'
+            : `${need}부터 열람할 수 있습니다.`;
+        throw new ForbiddenException({ code: 'HUB_TIER_LOCKED', message: msg, requiredTier: required, yourTier: userTier });
+      }
     }
     const ticket = crypto.randomUUID();
     await this.cache.set(`hubtkt:${ticket}`, slug, 120); // 2분 내 iframe 로드용

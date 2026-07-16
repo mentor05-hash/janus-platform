@@ -46,6 +46,7 @@ import { GatewayModule } from './modules/gateway/gateway.module';
 import { PlacementHubModule } from './modules/placement-hub/placement-hub.module';
 import { FunnelModule } from './modules/funnel/funnel.module';
 import { SsoModule } from './modules/sso/sso.module';
+import { EntitlementModule } from './modules/entitlement/entitlement.module';
 import { GuardianReportModule } from './modules/guardian-report/guardian-report.module';
 import { DiagnosticModule } from './modules/diagnostic/diagnostic.module';
 import { CurriculumModule } from './modules/curriculum/curriculum.module';
@@ -99,6 +100,7 @@ import { SearchModule } from './modules/search/search.module';
     PlacementHubModule, // 배치표 허브 — JANUS_DATA_DIR 런타임 서빙(데이터 무반입)
     FunnelModule, // 간이 전환 계측(W3·C3) — baechi→consult-reserve 전환율
     SsoModule, // 크로스서비스 SSO(O42·W3) — HS256+epoch·레지스트리·verify 위임
+    EntitlementModule, // 상품 권한(유료 배치표·계산기) — role 티어와 별개 서비스 해제(일회성 기간제)
     GuardianReportModule, // 학부모 주간 통합 리포트(W8) — 자녀 성적·출석·상담·Q&A 요약
     DiagnosticModule, // 수준진단(진단 관문) — 문항 풀이→채점→약점→처방(문제은행 데모+후속 kice)
     CurriculumModule, // 주간 학습 플랜 — 진단 약점+성적 → 우선순위 처방 카드

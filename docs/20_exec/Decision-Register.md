@@ -47,6 +47,8 @@
 | O72 | 2026-07-15 | **기능 심화(4~13)**: 커뮤니티 답변·채택 실시간(소켓 community room), 학부모 웹 리포트 상세화(성적추이+상담노트), 진단 결과 공유·PDF(Web Share/인쇄), 전역 통합검색(강좌·자료·커뮤니티·선생님 — 도메인 서비스 재사용), 약점 클리닉 별도 추적·추이(is_clinic·향상도), 상담 후기 reviewed 노출(중복폼 방지), 번들 코드분할(main 1.25MB→74KB), 다크모드 --danger 토큰화, 데모 시드 확장(0062), ops E2E CI 자동화(smoke-e2e 잡) | api tsc0·web tsc0·mobile tsc0·web build |
 | O73 | 2026-07-15 | **품질 정비**: 코드리뷰(검색 teacher href 버그 수정), tsc spec 5건 정리(API tsc 0 달성), 도메인 유닛테스트(summarizeClinic·SEARCH_HREFS), 통합검색·클리닉 E2E, 마이그레이션 순번 검사(migrate:check+CI), 모바일 패리티(통합검색·커뮤니티 실시간·클리닉 추이), SessionStart 훅(웹 세션 의존성 자동화) | api tsc0·web tsc0·mobile tsc0·node 실측 |
 
+| O74 | 2026-07-16 | **유료 배치표·계산기 상품 권한(entitlement) 기반**: mig 0065 `service_entitlement`(account_id·service_id·product_key·expires_at·revoked_at·source). 상품 4종(순수 카탈로그): 전체 배치표(full→baechipyo-full+baechipyo-jeongsi)/정시 정밀배치표(jeongsi→baechipyo-jeongsi)/카이로스 단독(kairos)/카이로스+알레아 묶음(kairos-alea). **모두 일회성 기간제**(expires_at·수능시즌). 티어는 role 파생 유지 — 유료는 role 승격이 아니라 **서비스 단위 해제 행**으로 부여. `EntitlementService.grant/revoke/activeServices`. `sso.entitlements()` = role-티어 서비스 ∪ 활성 구매 서비스 → janus_sso.services 로 계산기·배치표 자동 해제. 배치표 허브 게이트: paid 표는 tierForRole≥paid **또는** entitlement 커버(baechipyo-full=전 kind·baechipyo-jeongsi=정시만). 관리자 수동 부여 API(POST/GET/DELETE /admin/entitlements) — 결제 훅은 후속(성공 콜백이 grant() 호출, source=payment). 비회원은 가입 시 role student(member) 유지, 무료 티저(블러) 현행. 가격/노출은 N23~N25 연동 | api tsc0·products 도메인 실측(coversPlacement·isProductKey ALL PASS). 결정 4점(상품형태 일회성·상품분리 4종·비회원 정의·가격 N23연동) 사용자 확정 |
+
 
 ## 미결 (N) — 결정 대기
 
@@ -54,7 +56,7 @@
 |---|---|---|---|
 | N23 | W1 D6 초안 → W3 확정 | **유료 티어 가격** | 미착수 |
 | N24 | W1 D6 초안 → W3 확정 | **무료 노출 수**(구간별 대표 N개) | 미착수 |
-| N25 | W1 D6 초안 → W3 확정 | **게이트 방식**(권장: 자체 RedemptionCode/SSO 시작, 컨설턴트만 CF Access) | 미착수 |
+| N25 | ~~W1 D6~~ | **게이트 방식** → **O74로 기반 확정**: 자체 SSO(sso_service min_tier) + service_entitlement 권한 행. 결제 성공 콜백이 grant() 호출(source=payment)·현재는 관리자 수동 부여. RedemptionCode/CF Access는 후속 옵션 | 기반 해소(7/16) — 결제 훅만 잔여 |
 | N26 | ~~스텝 3 착수 전~~ | ~~관문 히어로 방향 택1~~ → **O45로 확정(딥 포탈)** | 해소(7/13) |
 | N27 | W8 | 리그 수치(승급 기준·2부 질문가·보상률·지정 가산) | 기획서 확정 후 운영 보정 |
 | N28 | W8과 함께 | 포트폴리오(가·나·다 조합) 개발 여부 — 유료 티어 킬러 후보 | 백로그(스텝 4) |

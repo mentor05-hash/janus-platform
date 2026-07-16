@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
+import { EntitlementService } from '../entitlement/entitlement.service';
 import { signSsoToken, SsoRole, SsoTier, tierAtLeast, tierForRole, verifySsoToken } from './domain/sso-token';
 
 /**
@@ -18,6 +19,7 @@ export class SsoService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly entitlement: EntitlementService,
     config: ConfigService,
   ) {
     this.secret = config.get<string>('SSO_JWT_SECRET') || 'dev-sso-secret-change';
@@ -34,8 +36,12 @@ export class SsoService {
    */
   async entitlements(user: AuthUser): Promise<{ tier: SsoTier; services: string[] }> {
     const tier = this.tierOf(user);
-    const all = await this.prisma.sso_service.findMany({ select: { id: true, min_tier: true } });
-    const services = all.filter((s) => tierAtLeast(tier, s.min_tier as SsoTier)).map((s) => s.id);
+    const [all, purchased] = await Promise.all([
+      this.prisma.sso_service.findMany({ select: { id: true, min_tier: true } }),
+      this.entitlement.activeServices(user.id), // 유료 상품으로 해제된 서비스(role 티어와 별개)
+    ]);
+    // role 티어로 열리는 서비스 ∪ 구매(entitlement)로 열린 서비스 — 유료 상품이 계산기·배치표를 연다.
+    const services = Array.from(new Set([...all.filter((s) => tierAtLeast(tier, s.min_tier as SsoTier)).map((s) => s.id), ...purchased]));
     return { tier, services };
   }
 
@@ -44,7 +50,11 @@ export class SsoService {
     if (!svc) throw new NotFoundException({ code: 'SSO_SERVICE_NOT_FOUND', message: '등록되지 않은 서비스입니다.' });
     const tier = this.tierOf(user);
     if (!tierAtLeast(tier, svc.min_tier as SsoTier)) {
-      throw new ForbiddenException({ code: 'SSO_TIER_LOCKED', message: `이 서비스는 ${svc.min_tier} 티어부터 이용할 수 있습니다.` });
+      // 티어 미달이어도 유료 상품(entitlement)으로 이 서비스를 구매했으면 통과.
+      const purchased = await this.entitlement.activeServices(user.id);
+      if (!purchased.has(svc.id)) {
+        throw new ForbiddenException({ code: 'SSO_TIER_LOCKED', message: `이 서비스는 ${svc.min_tier} 티어부터 이용할 수 있습니다.` });
+      }
     }
     const scope = (svc.allowed_scopes as string[]) ?? ['view'];
     const token = signSsoToken(
