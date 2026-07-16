@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { io, type Socket } from 'socket.io-client';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
@@ -272,29 +272,41 @@ function CommunityDetail({ postId, onBack, onReport }: {
 }
 
 // 리그(3부→2부→1부) — 내 등급·진행도 + 상위 리더보드.
+type LeagueTierRule = { tier: number; label: string; entry: boolean; rule: TierRule | null };
+
 function LeaguePanel() {
   const [me, setMe] = useState<MyLeague | null>(null);
   const [board, setBoard] = useState<LeaderRow[] | null>(null);
-  const [open, setOpen] = useState(false);
-  const isStudent = useLocation().pathname.startsWith('/student'); // 규칙 페이지는 학생 라우트
+  const [rules, setRules] = useState<LeagueTierRule[] | null>(null);
+  const [open, setOpen] = useState(false);       // 리더보드
+  const [rulesOpen, setRulesOpen] = useState(false); // 규칙 안내
 
   useEffect(() => {
     api.get<MyLeague>('/qna/league/me').then(setMe).catch(() => { /* 무시 */ });
     api.get<LeaderRow[]>('/qna/league/leaderboard').then(setBoard).catch(() => { /* 무시 */ });
+    api.get<{ tiers: LeagueTierRule[] }>('/qna/league/rules').then((r) => setRules(r.tiers)).catch(() => { /* 무시 */ });
   }, []);
 
   if (!me) return null;
   const need = me.next?.rule;
+  // 눈에 띄는 토글 버튼(칩형) — 활성 시 강조.
+  const toggleBtn = (active: boolean) => ({
+    display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer',
+    fontSize: 13.5, fontWeight: 700, padding: '8px 16px', borderRadius: 999,
+    border: `1.5px solid ${active ? 'var(--brand)' : 'var(--line)'}`,
+    background: active ? 'var(--j-blue-soft, #eef4fb)' : 'var(--surface)',
+    color: active ? 'var(--brand)' : 'var(--ink)',
+  });
+  const orderedRules = (rules ?? []).slice().sort((a, b) => a.tier - b.tier);
+
   return (
     <Card style={{ marginBottom: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 15, fontWeight: 800, color: tierColor(me.tier) }}>🏅 {me.label}</span>
         <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>답변 {me.authored} · 채택 {me.accepted} · 채택률 {me.acceptRate}%</span>
-        <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 12, alignItems: 'center' }}>
-          {isStudent && <Link to="/student/league/rules" style={{ color: 'var(--muted)', fontSize: 12.5, textDecoration: 'none' }}>📖 규칙 안내</Link>}
-          <button onClick={() => setOpen((v) => !v)} style={{ background: 'none', border: 'none', color: 'var(--brand)', cursor: 'pointer', fontSize: 12.5 }}>
-            리더보드 {open ? '접기' : '보기'}
-          </button>
+        <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+          <button type="button" onClick={() => setRulesOpen((v) => !v)} style={toggleBtn(rulesOpen)}>📖 규칙 안내 {rulesOpen ? '▲' : '▼'}</button>
+          <button type="button" onClick={() => setOpen((v) => !v)} style={toggleBtn(open)}>🏆 리더보드 {open ? '▲' : '▼'}</button>
         </span>
       </div>
       {me.next && need && (
@@ -304,6 +316,34 @@ function LeaguePanel() {
         </div>
       )}
       {!me.next && <div style={{ marginTop: 8, fontSize: 12.5, color: 'var(--muted)' }}>최고 등급이에요. 커뮤니티의 든든한 답변자!</div>}
+
+      {/* 규칙 안내 — 펼침 */}
+      {rulesOpen && (
+        <div style={{ marginTop: 12, borderTop: '1px solid var(--line-soft)', paddingTop: 12 }}>
+          <div style={{ fontSize: 12.5, color: 'var(--ink-body)', lineHeight: 1.6, marginBottom: 10 }}>
+            답변을 남기고 질문자가 <b>채택</b>하면 실적이 쌓여요. 아래 요건을 모두 넘으면 <b>자동 승급</b>(숫자가 작을수록 상위).
+          </div>
+          <div style={{ display: 'grid', gap: 8 }}>
+            {orderedRules.map((t) => (
+              <div key={t.tier} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '8px 0', borderTop: '1px dashed var(--line)' }}>
+                <span style={{ fontSize: 13.5, fontWeight: 800, color: tierColor(t.tier), minWidth: 92 }}>{t.tier === 1 ? '👑' : t.tier === 2 ? '🏅' : '🌱'} {t.label}</span>
+                {t.entry || !t.rule ? (
+                  <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>가입 시 기본 등급 — 요건 없이 시작</span>
+                ) : (
+                  <span style={{ fontSize: 12.5, color: 'var(--ink-body)', display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
+                    <span>답변 <b>{t.rule.minAuthored}+</b></span>·
+                    <span>채택 <b>{t.rule.minAccepted}+</b></span>·
+                    <span>채택률 <b>{t.rule.minRate}%+</b></span>
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 11.5, color: 'var(--caption)', marginTop: 8 }}>강등은 없어요 · 채택 시마다 재평가·즉시 승급·알림. 요건 수치는 운영 정책에 따라 조정될 수 있어요.</div>
+        </div>
+      )}
+
+      {/* 리더보드 — 펼침 */}
       {open && (
         <div style={{ marginTop: 12, borderTop: '1px solid var(--line-soft)', paddingTop: 10 }}>
           {board === null || board.length === 0 ? (
