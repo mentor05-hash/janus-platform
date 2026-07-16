@@ -213,6 +213,12 @@ export class QnaController {
     return this.qna.leaderboard();
   }
 
+  /** GET /qna/league/rules — 전체 티어 승급 요건(규칙 안내 페이지, 로그인 전원). */
+  @Get('league/rules')
+  leagueRules() {
+    return this.qna.leagueRules();
+  }
+
   /** GET /qna/league/policy — 승급 정책값(admin/hr). */
   @Get('league/policy')
   @Roles('admin', 'hr')

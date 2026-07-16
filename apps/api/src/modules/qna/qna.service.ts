@@ -750,6 +750,18 @@ export class QnaService {
     };
   }
 
+  /** 리그 규칙 — 전체 티어 승급 요건(라이브 정책). 규칙 안내 페이지용(로그인 전원). */
+  async leagueRules() {
+    const policy = await this.getLeaguePolicy();
+    return {
+      tiers: [
+        { tier: 3, label: TIER_LABEL[3], entry: true, rule: null },
+        { tier: 2, label: TIER_LABEL[2], entry: false, rule: policy.promote2 },
+        { tier: 1, label: TIER_LABEL[1], entry: false, rule: policy.promote1 },
+      ],
+    };
+  }
+
   /** 리그 리더보드 — 상위 등급·채택수 순(로그인 전원). */
   async leaderboard(limit = 20) {
     const rows = await this.prisma.qna_league.findMany({

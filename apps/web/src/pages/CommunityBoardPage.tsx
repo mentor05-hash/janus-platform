@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { io, type Socket } from 'socket.io-client';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
@@ -276,6 +276,7 @@ function LeaguePanel() {
   const [me, setMe] = useState<MyLeague | null>(null);
   const [board, setBoard] = useState<LeaderRow[] | null>(null);
   const [open, setOpen] = useState(false);
+  const isStudent = useLocation().pathname.startsWith('/student'); // 규칙 페이지는 학생 라우트
 
   useEffect(() => {
     api.get<MyLeague>('/qna/league/me').then(setMe).catch(() => { /* 무시 */ });
@@ -289,9 +290,12 @@ function LeaguePanel() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 15, fontWeight: 800, color: tierColor(me.tier) }}>🏅 {me.label}</span>
         <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>답변 {me.authored} · 채택 {me.accepted} · 채택률 {me.acceptRate}%</span>
-        <button onClick={() => setOpen((v) => !v)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--brand)', cursor: 'pointer', fontSize: 12.5 }}>
-          리더보드 {open ? '접기' : '보기'}
-        </button>
+        <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 12, alignItems: 'center' }}>
+          {isStudent && <Link to="/student/league/rules" style={{ color: 'var(--muted)', fontSize: 12.5, textDecoration: 'none' }}>📖 규칙 안내</Link>}
+          <button onClick={() => setOpen((v) => !v)} style={{ background: 'none', border: 'none', color: 'var(--brand)', cursor: 'pointer', fontSize: 12.5 }}>
+            리더보드 {open ? '접기' : '보기'}
+          </button>
+        </span>
       </div>
       {me.next && need && (
         <div style={{ marginTop: 8, fontSize: 12.5, color: 'var(--muted)' }}>

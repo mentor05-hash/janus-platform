@@ -74,6 +74,7 @@ const DiagnosticPage = lazy(() => import('./pages/DiagnosticPage').then((m) => (
 const CurriculumPage = lazy(() => import('./pages/CurriculumPage').then((m) => ({ default: m.CurriculumPage })));
 const LecturePage = lazy(() => import('./pages/LecturePage').then((m) => ({ default: m.LecturePage })));
 const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage').then((m) => ({ default: m.LeaderboardPage })));
+const LeagueRulesPage = lazy(() => import('./pages/LeagueRulesPage').then((m) => ({ default: m.LeagueRulesPage })));
 const LegalDocPage = lazy(() => import('./pages/LegalDocPage').then((m) => ({ default: m.LegalDocPage })));
 const LegalPage = lazy(() => import('./pages/LegalPage').then((m) => ({ default: m.LegalPage })));
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })));
@@ -211,6 +212,7 @@ export function App() {
         <Route path="community" element={<StudentCommunityPage />} />
         <Route path="community/board" element={<CommunityBoardPage />} />
         <Route path="league" element={<LeaderboardPage />} />
+        <Route path="league/rules" element={<LeagueRulesPage />} />
         <Route path="scores" element={<StudentScoresPage />} />
         <Route path="scores/input" element={<StudentScoreInputPage />} />
         <Route path="diagnostic" element={<DiagnosticPage />} />

@@ -28,6 +28,7 @@ const NAV: NavItem[] = [
   { to: '/student/community', label: '커뮤니티', end: true },
   { to: '/student/community/board', label: '커뮤니티 Q&A' },
   { to: '/student/league', label: '리그 리더보드' },
+  { to: '/student/league/rules', label: '리그 규칙', end: true },
   { section: '내 계정' },
   { to: '/student/membership', label: '멤버십·결제' },
   { to: '/student/credits', label: '크레딧' },
