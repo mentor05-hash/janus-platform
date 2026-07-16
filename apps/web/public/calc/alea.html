@@ -49,7 +49,9 @@ button{font-family:inherit;font-size:13.5px;font-weight:700;border:none;border-r
 .jns-lock{transition:filter .18s}
 html[data-tier="free"][data-gate="on"] .jns-lock{filter:blur(8px);pointer-events:none;user-select:none}
 .jns-veil{transition:filter .2s}
-html[data-tier="free"][data-gate="on"] .jns-veil{filter:blur(7px);opacity:.6;max-height:190px;overflow:hidden;pointer-events:none;user-select:none;-webkit-mask-image:linear-gradient(180deg,#000 0%,#000 20%,rgba(0,0,0,.4) 58%,transparent 95%);mask-image:linear-gradient(180deg,#000 0%,#000 20%,rgba(0,0,0,.4) 58%,transparent 95%)}
+html[data-tier="free"][data-gate="on"] .jns-veil{filter:blur(6px);opacity:.5;pointer-events:none;user-select:none;max-height:440px;overflow:hidden;-webkit-mask-image:linear-gradient(180deg,#000 0%,#000 40%,rgba(0,0,0,.28) 78%,transparent 100%);mask-image:linear-gradient(180deg,#000 0%,#000 40%,rgba(0,0,0,.28) 78%,transparent 100%)}
+html[data-tier="free"][data-gate="on"] .jns-veil input,html[data-tier="free"][data-gate="on"] .jns-veil select,html[data-tier="free"][data-gate="on"] .jns-veil textarea,html[data-tier="free"][data-gate="on"] .jns-veil .out{filter:blur(2px);opacity:.45}
+html[data-tier="free"][data-gate="on"] .jns-veil td,html[data-tier="free"][data-gate="on"] .jns-veil th{padding-top:3px;padding-bottom:3px}
 .jns-paywall{display:none}
 html[data-tier="free"][data-gate="on"] .jns-paywall{display:flex;align-items:center;gap:12px;justify-content:center;flex-wrap:wrap;background:linear-gradient(135deg,#1e3550,#2f6fb3);color:#fff;border-radius:12px;padding:14px 18px;margin:14px auto;max-width:1000px;font-size:13.5px;font-weight:600}
 .jns-paywall button{background:#f2d98a;color:#3a2d05;border:none;border-radius:8px;padding:8px 16px;font-weight:800;cursor:pointer;font-family:inherit}
