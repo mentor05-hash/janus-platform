@@ -250,7 +250,7 @@ async function main() {
     if (hasEnt.rows[0]?.present) {
       await client.query(
         `INSERT INTO service_entitlement (account_id, service_id, product_key, source, expires_at)
-         SELECT $1, s, 'full', 'seed', TIMESTAMPTZ '2026-01-31 23:59:59+09'
+         SELECT $1, s, 'full', 'seed', TIMESTAMPTZ '2027-01-31 23:59:59+09'
            FROM unnest(ARRAY['baechipyo-full','baechipyo-jeongsi']) AS s
           WHERE NOT EXISTS (
             SELECT 1 FROM service_entitlement e

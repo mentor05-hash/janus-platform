@@ -30,7 +30,7 @@ export function AdminEntitlementPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [account, setAccount] = useState('');
   const [productKey, setProductKey] = useState('full');
-  const [expiresAt, setExpiresAt] = useState('2026-01-31'); // 기본: 정시 시즌 말(일회성 기간제)
+  const [expiresAt, setExpiresAt] = useState('2027-01-31'); // 기본: 2026 수능 정시 시즌 말(일회성 기간제)
   const [note, setNote] = useState('');
   const [summary, setSummary] = useState<Summary | null>(null);
   const [busy, setBusy] = useState(false);
