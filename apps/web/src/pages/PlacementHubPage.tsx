@@ -40,12 +40,31 @@ interface JanusScore {
   eng?: number; han?: number; period: string; source: string;
 }
 
+// 구매 권한(entitlement)이 유료 배치표를 덮는지 — 서버 coversPlacement 미러(O74).
+//   baechipyo-full = 전 kind · baechipyo-jeongsi = kind 'jeongsi' 만.
+const coversPlacement = (services: string[], kind?: string) =>
+  services.includes('baechipyo-full') || (kind === 'jeongsi' && services.includes('baechipyo-jeongsi'));
+const readSsoServices = (): string[] => {
+  try { const s = JSON.parse(localStorage.getItem('janus_sso') || 'null'); return Array.isArray(s?.services) ? s.services : []; } catch { return []; }
+};
+
 export function PlacementHubPage({ embedded = false }: { embedded?: boolean } = {}) {
   const { user } = useAuth();
   // 뷰어 티어(tierForRole 미러) — 비로그인=free, admin/hr=consultant, 그 외 로그인=member.
   const viewerTier = !user ? 'free' : user.role === 'admin' || user.role === 'hr' ? 'consultant' : 'member';
+  // 구매 권한(janus_sso.services) — 로그인 시 세팅, 이벤트로 갱신. 유료표는 티어 또는 구매권한으로 열림.
+  const [ssoServices, setSsoServices] = useState<string[]>(readSsoServices);
+  useEffect(() => {
+    setSsoServices(readSsoServices());
+    const h = (e: Event) => { const d = (e as CustomEvent).detail; setSsoServices(Array.isArray(d?.services) ? d.services : readSsoServices()); };
+    window.addEventListener('janus:sso', h);
+    return () => window.removeEventListener('janus:sso', h);
+  }, [user?.id]);
   // 계산기 탭은 항상 열림(계산기 내부가 janus_sso 로 자체 게이트 → 회원은 티저 표시). 배치표만 하드 게이트.
-  const canOpen = (t: HubMeta) => t.calc || TIER_RANK[viewerTier] >= TIER_RANK[requiredTier(t)];
+  //   유료표는 티어 충족 OR 구매 권한(entitlement)이 해당 kind 를 덮으면 열림.
+  const canOpen = (t: HubMeta) =>
+    t.calc || TIER_RANK[viewerTier] >= TIER_RANK[requiredTier(t)] ||
+    (requiredTier(t) === 'paid' && coversPlacement(ssoServices, t.kind));
   const [params] = useSearchParams();
   const [list, setList] = useState<HubList | null>(null);
   const [active, setActive] = useState<string>('');
