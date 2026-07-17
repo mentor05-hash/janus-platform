@@ -1288,6 +1288,23 @@ model service_entitlement {
   @@index([account_id, service_id])
 }
 
+/** 리뎀션 코드(수강권) — 오프라인·프로모 판매. 등록 시 상품 권한 부여. */
+model redemption_code {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code             String    @unique
+  product_key      String
+  grant_expires_at DateTime? @db.Timestamptz(6)
+  valid_until      DateTime? @db.Timestamptz(6)
+  redeemed_by      String?   @db.Uuid
+  redeemed_at      DateTime? @db.Timestamptz(6)
+  note             String?
+  created_by       String?   @db.Uuid
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([product_key])
+  @@index([redeemed_by])
+}
+
 /** 수준진단 문제은행 — 데모(합성) + 후속 kice 주입. */
 model diagnostic_question {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid

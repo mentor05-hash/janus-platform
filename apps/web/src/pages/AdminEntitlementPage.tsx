@@ -18,6 +18,7 @@ type Summary = {
   entitlements: Entitlement[];
   activeServices: string[];
 };
+type RedeemCode = { id: string; code: string; product_key: string; grant_expires_at: string | null; redeemed_by: string | null; redeemed_at: string | null; created_at: string };
 
 const fmt = (s: string | null) => (s ? new Date(s).toLocaleDateString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit' }) : '무기한');
 const isActive = (e: Entitlement) => !e.revoked_at && (!e.expires_at || new Date(e.expires_at) > new Date());
@@ -36,10 +37,31 @@ export function AdminEntitlementPage() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
+  // 수강권 코드 발급
+  const [genProduct, setGenProduct] = useState('full');
+  const [genCount, setGenCount] = useState(10);
+  const [genExpiry, setGenExpiry] = useState('2027-01-31');
+  const [genCodes, setGenCodes] = useState<string[]>([]);
+  const [codes, setCodes] = useState<RedeemCode[] | null>(null);
 
   useEffect(() => {
     api.get<Product[]>('/admin/entitlements/products').then(setProducts).catch(() => setProducts([]));
+    loadCodes();
   }, []);
+
+  function loadCodes() {
+    api.get<RedeemCode[]>('/admin/redemption-codes').then(setCodes).catch(() => setCodes([]));
+  }
+  async function generateCodes() {
+    setBusy(true); setError(''); setMsg(''); setGenCodes([]);
+    try {
+      const r = await api.post<{ generated: number; codes: string[] }>('/admin/redemption-codes', {
+        productKey: genProduct, count: Number(genCount),
+        grantExpiresAt: genExpiry ? new Date(`${genExpiry}T23:59:59+09:00`).toISOString() : undefined,
+      });
+      setGenCodes(r.codes); setMsg(`수강권 ${r.generated}개 발급 완료 — 아래 코드를 복사해 배포하세요.`); loadCodes();
+    } catch (e) { setError(e instanceof ApiError ? e.message : '발급 실패'); } finally { setBusy(false); }
+  }
 
   async function lookup(ref?: string) {
     const acc = (ref ?? account).trim();
@@ -170,6 +192,57 @@ export function AdminEntitlementPage() {
             </Card>
           )}
         </>
+      )}
+
+      {/* 수강권 코드 발급(오프라인·프로모 판매) */}
+      <h3 style={{ fontSize: 15, margin: '24px 0 8px' }}>수강권 코드</h3>
+      <Card title="코드 발급">
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <label style={{ flex: '1 1 200px' }}>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>상품</div>
+            <select className="input" value={genProduct} onChange={(e) => setGenProduct(e.target.value)}>
+              {products.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
+            </select>
+          </label>
+          <label style={{ flex: '0 1 110px' }}>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>수량</div>
+            <input className="input" type="number" min={1} max={500} value={genCount} onChange={(e) => setGenCount(Number(e.target.value))} />
+          </label>
+          <label style={{ flex: '0 1 180px' }}>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>권한 만료일(등록 시 적용)</div>
+            <input className="input" type="date" value={genExpiry} onChange={(e) => setGenExpiry(e.target.value)} />
+          </label>
+          <Button onClick={generateCodes} loading={busy}>발급</Button>
+        </div>
+        {genCodes.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>발급된 코드 ({genCodes.length}) — 복사해 배포</div>
+            <textarea className="input" readOnly rows={Math.min(8, genCodes.length)} value={genCodes.join('\n')} style={{ fontFamily: 'monospace', fontSize: 13 }} onFocus={(e) => e.currentTarget.select()} />
+          </div>
+        )}
+      </Card>
+
+      {codes && codes.length > 0 && (
+        <Card style={{ padding: 0, overflow: 'hidden', marginTop: 12 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: 'var(--fill,#f4f7fb)', textAlign: 'left' }}>
+                <th style={th}>코드</th><th style={th}>상품</th><th style={th}>권한 만료</th><th style={th}>상태</th><th style={th}>발급일</th>
+              </tr>
+            </thead>
+            <tbody>
+              {codes.slice(0, 100).map((c) => (
+                <tr key={c.id} style={{ borderTop: '1px solid var(--line,#eceff1)', opacity: c.redeemed_by ? 0.5 : 1 }}>
+                  <td style={{ ...td, fontFamily: 'monospace' }}>{c.code}</td>
+                  <td style={td}>{c.product_key}</td>
+                  <td style={td}>{fmt(c.grant_expires_at)}</td>
+                  <td style={td}><Badge kind={c.redeemed_by ? 'soft' : 'done'}>{c.redeemed_by ? '사용됨' : '미사용'}</Badge></td>
+                  <td style={td}>{fmt(c.created_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
       )}
     </div>
   );

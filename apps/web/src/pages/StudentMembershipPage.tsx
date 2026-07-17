@@ -21,6 +21,7 @@ export function StudentMembershipPage() {
   const [sub, setSub] = useState<Sub>(null);
   const [pays, setPays] = useState<Pay[] | null>(null);
   const [ent, setEnt] = useState<MyEnt | null>(null);
+  const [redeemCode, setRedeemCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [payMethod, setPayMethod] = useState<'card' | 'voucher'>('card');
   const [error, setError] = useState('');
@@ -45,6 +46,15 @@ export function StudentMembershipPage() {
     try { await api.post('/payments/charge', { amount, method: payMethod }); setMsg(`${won(amount)} 충전되었습니다(${payMethod === 'voucher' ? '상품권' : '카드'}).`); load(); }
     catch (e) { setError(e instanceof ApiError ? e.message : '충전 실패'); } finally { setBusy(false); }
   }
+  async function redeem() {
+    const code = redeemCode.trim();
+    if (!code) return;
+    setBusy(true); setError(''); setMsg('');
+    try {
+      const r = await api.post<{ product: string }>('/me/redemption/redeem', { code });
+      setMsg(`「${r.product}」 이용권이 등록되었습니다.`); setRedeemCode(''); load();
+    } catch (e) { setError(e instanceof ApiError ? e.message : '코드 등록 실패'); } finally { setBusy(false); }
+  }
 
   return (
     <div>
@@ -57,6 +67,17 @@ export function StudentMembershipPage() {
         <StatCard label="현재 구독" value={sub ? '구독중' : '없음'} />
         <StatCard label="이용권" value={ent ? String(ent.active.length) : '…'} />
       </StatGrid>
+
+      {/* 이용권 코드(수강권) 등록 */}
+      <Card title="이용권 코드 등록" style={{ marginTop: 16, maxWidth: 620 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input className="input" value={redeemCode} placeholder="JANUS-XXXX-XXXX"
+            onChange={(e) => setRedeemCode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') redeem(); }}
+            style={{ flex: '1 1 220px', textTransform: 'uppercase', letterSpacing: '.05em' }} />
+          <Button disabled={busy || !redeemCode.trim()} onClick={redeem}>등록</Button>
+        </div>
+        <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 8 }}>센터에서 받은 수강권 코드를 입력하면 배치표·계산기 이용권이 바로 열립니다.</p>
+      </Card>
 
       {/* 내 이용권(상품 권한) */}
       <h3 style={{ fontSize: 15, margin: '18px 0 8px' }}>내 이용권</h3>
