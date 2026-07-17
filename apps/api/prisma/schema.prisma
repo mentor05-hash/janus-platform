@@ -826,6 +826,7 @@ model subscription_plan {
   billing_cycle        billing_cycle
   payer                payer_t                @default(guardian)
   grade_id             String?                @db.Uuid
+  included_products    Json                   @default("[]")
   student_subscription student_subscription[]
   membership_grade     membership_grade?      @relation(fields: [grade_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }

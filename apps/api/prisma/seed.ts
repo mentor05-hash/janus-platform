@@ -86,16 +86,17 @@ async function main() {
     }
 
     // 2-1) 구독 플랜(등급 연결, 월간) — 구독 시 학생 등급 결정(§5-3 연동)
-    const plans: [string, string, number, string][] = [
-      [ID.planStd, 'Standard 월간', 49_000, ID.gradeStd],
-      [ID.planPrem, 'Premium 월간', 89_000, ID.gradePrem],
-      [ID.planVip, 'VIP 월간', 149_000, ID.gradeVip],
+    const plans: [string, string, number, string, string][] = [
+      [ID.planStd, 'Standard 월간', 49_000, ID.gradeStd, '[]'],
+      [ID.planPrem, 'Premium 월간', 89_000, ID.gradePrem, '[]'],
+      [ID.planVip, 'VIP 월간', 149_000, ID.gradeVip, '["full"]'], // 구독 번들: 전체 배치표 포함(O74 #3)
     ];
-    for (const [id, name, price, gradeId] of plans) {
+    for (const [id, name, price, gradeId, included] of plans) {
       await client.query(
-        `INSERT INTO subscription_plan (id, name, price, billing_cycle, payer, grade_id)
-         VALUES ($1,$2,$3,'monthly','guardian',$4) ON CONFLICT (id) DO NOTHING`,
-        [id, name, price, gradeId],
+        `INSERT INTO subscription_plan (id, name, price, billing_cycle, payer, grade_id, included_products)
+         VALUES ($1,$2,$3,'monthly','guardian',$4,$5::jsonb)
+         ON CONFLICT (id) DO UPDATE SET included_products = EXCLUDED.included_products`,
+        [id, name, price, gradeId, included],
       );
     }
 

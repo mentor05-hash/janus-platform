@@ -4,7 +4,8 @@ import type { CreditAccount } from '../api/types';
 import { PageHeader, Card, Button, Badge, ErrorText, Spinner, EmptyState } from '../components/ui';
 import { StatCard, StatGrid } from '../components/dashboard/widgets';
 
-type Plan = { id: string; name: string; price: number; membership_grade?: { name: string; weekly_credits: number; tier: string } | null };
+type Plan = { id: string; name: string; price: number; membership_grade?: { name: string; weekly_credits: number; tier: string } | null; included_products?: string[] };
+const PRODUCT_LABEL: Record<string, string> = { full: '전체 배치표', jeongsi: '정시 정밀배치표', kairos: '카이로스', 'kairos-alea': '카이로스+알레아' };
 type Sub = { id: string; plan_id: string; status: string; started_at: string } | null;
 type Pay = { id: string; amount: number; status?: string | null; created_at: string };
 type Ent = { productKey: string | null; label: string; services: string[]; grantedAt: string; expiresAt: string | null; daysRemaining: number | null; active: boolean; source: string };
@@ -141,6 +142,11 @@ export function StudentMembershipPage() {
               </div>
               <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--teal)', marginTop: 6 }}>{won(p.price)}<span style={{ fontSize: 13, color: 'var(--muted)' }}>/월</span></div>
               {p.membership_grade && <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>주간 {p.membership_grade.weekly_credits.toLocaleString()} 크레딧</div>}
+              {(p.included_products ?? []).length > 0 && (
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
+                  {(p.included_products ?? []).map((k) => <Badge key={k} kind="done">{PRODUCT_LABEL[k] ?? k} 포함</Badge>)}
+                </div>
+              )}
               <Button block style={{ marginTop: 10 }} disabled={busy || sub?.plan_id === p.id} onClick={() => subscribe(p.id)}>{sub?.plan_id === p.id ? '구독중' : '구독하기'}</Button>
             </Card>
           ))}

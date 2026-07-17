@@ -159,6 +159,27 @@ export class EntitlementService {
     return created;
   }
 
+  /**
+   * 구독 번들 동기화 — 플랜 포함 상품(source='subscription')을 현재 구독에 맞춤.
+   * 기존 구독-소스 권한은 취소 후 재부여(플랜 변경·해지 반영). 만료는 구독 수명에 연동(expires_at=null).
+   */
+  async syncSubscriptionProducts(accountId: string, productKeys: unknown, actorId?: string): Promise<{ granted: number }> {
+    const keys = Array.isArray(productKeys) ? productKeys.filter((k): k is string => typeof k === 'string' && isProductKey(k)) : [];
+    // 기존 구독 번들 권한 취소(플랜 변경/해지 시 이전 상품 회수).
+    await this.prisma.service_entitlement.updateMany({
+      where: { account_id: accountId, source: 'subscription', revoked_at: null },
+      data: { revoked_at: new Date() },
+    });
+    if (!keys.length) return { granted: 0 };
+    const rows = keys.flatMap((k) =>
+      PRODUCTS[k as ProductKey].services.map((serviceId) => ({
+        account_id: accountId, service_id: serviceId, product_key: k, source: 'subscription', expires_at: null, created_by: actorId ?? null,
+      })),
+    );
+    await this.prisma.service_entitlement.createMany({ data: rows });
+    return { granted: rows.length };
+  }
+
   /** 권한 행 1건 취소(환불·오부여) — 소프트 삭제(revoked_at). */
   async revoke(actor: AuthUser, entitlementId: string) {
     const row = await this.prisma.service_entitlement.findUnique({ where: { id: entitlementId } });
