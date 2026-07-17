@@ -47,6 +47,7 @@ const ID = {
   acPaid2: '00000000-0000-4000-8000-0000000000a9',
   acPaid3: '00000000-0000-4000-8000-0000000000aa',
   acPaid4: '00000000-0000-4000-8000-0000000000ab',
+  acPaidAll: '00000000-0000-4000-8000-0000000000ac',
   planStd: '00000000-0000-4000-8000-0000000000b2',
   planPrem: '00000000-0000-4000-8000-0000000000b3',
   planVip: '00000000-0000-4000-8000-0000000000b4',
@@ -237,12 +238,22 @@ async function main() {
     );
     // 유료 결제 회원 데모(O74) — 학생 role(=member 티어) + 상품 권한. 상품 4종을 1:1로 부여해 각 권한 실측.
     //   프로덕션 모델과 동일: 비회원 가입 시 student(member) → 결제 시 entitlement 부여로 유료 해제.
-    //   [id, login_id, name, product_key, serviceIds]
-    const paidAccounts: [string, string, string, string, string[]][] = [
-      [ID.acPaid, 'paid01', '유료회원1·전체배치표', 'full', ['baechipyo-full', 'baechipyo-jeongsi']],
-      [ID.acPaid2, 'paid02', '유료회원2·정시정밀', 'jeongsi', ['baechipyo-jeongsi']],
-      [ID.acPaid3, 'paid03', '유료회원3·카이로스', 'kairos', ['kairos']],
-      [ID.acPaid4, 'paid04', '유료회원4·카이로스+알레아', 'kairos-alea', ['kairos', 'alea']],
+    //   [id, login_id, name]
+    const paidAccounts: [string, string, string][] = [
+      [ID.acPaid, 'paid01', '유료회원1·전체배치표'],
+      [ID.acPaid2, 'paid02', '유료회원2·정시정밀'],
+      [ID.acPaid3, 'paid03', '유료회원3·카이로스'],
+      [ID.acPaid4, 'paid04', '유료회원4·카이로스+알레아'],
+      [ID.acPaidAll, 'paidall', '유료회원ALL·전체배치표+계산기'],
+    ];
+    // [accountId, product_key, serviceIds] — paidall 은 전체배치표+계산기묶음 2상품 보유(전 서비스 해제).
+    const paidGrants: [string, string, string[]][] = [
+      [ID.acPaid, 'full', ['baechipyo-full', 'baechipyo-jeongsi']],
+      [ID.acPaid2, 'jeongsi', ['baechipyo-jeongsi']],
+      [ID.acPaid3, 'kairos', ['kairos']],
+      [ID.acPaid4, 'kairos-alea', ['kairos', 'alea']],
+      [ID.acPaidAll, 'full', ['baechipyo-full', 'baechipyo-jeongsi']],
+      [ID.acPaidAll, 'kairos-alea', ['kairos', 'alea']],
     ];
     for (const [id, loginId, name] of paidAccounts) {
       await client.query(
@@ -260,7 +271,7 @@ async function main() {
     // 상품 권한(일회성 기간제·수능시즌 말). service_entitlement 미배포 DB(0065 전)면 건너뜀(시드 전체 실패 방지).
     const hasEnt = await client.query("SELECT to_regclass('public.service_entitlement') IS NOT NULL AS present");
     if (hasEnt.rows[0]?.present) {
-      for (const [id, , , productKey, serviceIds] of paidAccounts) {
+      for (const [id, productKey, serviceIds] of paidGrants) {
         await client.query(
           `INSERT INTO service_entitlement (account_id, service_id, product_key, source, expires_at)
            SELECT $1, s, $2, 'seed', TIMESTAMPTZ '2027-01-31 23:59:59+09'
