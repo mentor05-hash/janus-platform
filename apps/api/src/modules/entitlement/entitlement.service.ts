@@ -2,7 +2,10 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
-import { isProductKey, PRODUCTS, type ProductKey } from './domain/products';
+import { NotifyService } from '../notification/notify.service';
+import { isProductKey, productLabel, PRODUCTS, type ProductKey } from './domain/products';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -17,6 +20,7 @@ export class EntitlementService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly notify: NotifyService,
   ) {}
 
   /** login_id 또는 UUID 로 계정 조회(관리자 편의 — UUID 를 몰라도 student01 로 부여). */
@@ -57,6 +61,64 @@ export class EntitlementService {
       where: { account_id: accountId },
       orderBy: { granted_at: 'desc' },
     });
+  }
+
+  /**
+   * 사용자용 "내 이용권" — 상품 단위로 묶어 활성/만료 분리 + 남은 일수.
+   * 상품 1건이 서비스 여러 행을 만들므로 (product_key, expires_at) 로 묶어 카드 1개로.
+   */
+  async myEntitlements(accountId: string) {
+    const rows = await this.prisma.service_entitlement.findMany({
+      where: { account_id: accountId, revoked_at: null },
+      orderBy: { granted_at: 'desc' },
+    });
+    const now = Date.now();
+    const groups = new Map<string, { productKey: string | null; label: string; services: string[]; grantedAt: Date; expiresAt: Date | null; source: string }>();
+    for (const r of rows) {
+      const key = `${r.product_key ?? r.service_id}|${r.expires_at ? r.expires_at.getTime() : 'none'}`;
+      const g = groups.get(key);
+      if (g) g.services.push(r.service_id);
+      else groups.set(key, { productKey: r.product_key, label: productLabel(r.product_key), services: [r.service_id], grantedAt: r.granted_at, expiresAt: r.expires_at, source: r.source });
+    }
+    const cards = [...groups.values()].map((g) => ({
+      ...g,
+      daysRemaining: g.expiresAt ? Math.ceil((g.expiresAt.getTime() - now) / DAY_MS) : null,
+      active: !g.expiresAt || g.expiresAt.getTime() > now,
+    }));
+    return {
+      active: cards.filter((c) => c.active).sort((a, b) => (a.daysRemaining ?? 1e9) - (b.daysRemaining ?? 1e9)),
+      expired: cards.filter((c) => !c.active),
+    };
+  }
+
+  /**
+   * 만료 임박 알림(운영/스케줄) — expires_at 이 withinDays 이내로 남은 활성 권한 보유자에게
+   * 계정당 1회 알림(expiry_notified_at 으로 멱등). 결제 훅/크론 또는 관리자 수동 실행.
+   */
+  async runExpiryCheck(withinDays = 7): Promise<{ notified: number; accounts: number }> {
+    const now = new Date();
+    const until = new Date(now.getTime() + withinDays * DAY_MS);
+    const due = await this.prisma.service_entitlement.findMany({
+      where: { revoked_at: null, expiry_notified_at: null, expires_at: { gt: now, lte: until } },
+      orderBy: { expires_at: 'asc' },
+    });
+    if (!due.length) return { notified: 0, accounts: 0 };
+    // 계정별 최소 남은일수·대표 상품으로 묶어 1회 알림.
+    const byAcc = new Map<string, { minDays: number; label: string; ids: string[] }>();
+    for (const r of due) {
+      const days = Math.ceil(((r.expires_at as Date).getTime() - now.getTime()) / DAY_MS);
+      const cur = byAcc.get(r.account_id);
+      if (cur) { cur.ids.push(r.id); if (days < cur.minDays) { cur.minDays = days; cur.label = productLabel(r.product_key); } }
+      else byAcc.set(r.account_id, { minDays: days, label: productLabel(r.product_key), ids: [r.id] });
+    }
+    for (const [accountId, info] of byAcc) {
+      await this.notify.notify(accountId, 'entitlement_expiring', { days: info.minDays, product: info.label });
+    }
+    await this.prisma.service_entitlement.updateMany({
+      where: { id: { in: due.map((r) => r.id) } },
+      data: { expiry_notified_at: now },
+    });
+    return { notified: due.length, accounts: byAcc.size };
   }
 
   /**

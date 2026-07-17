@@ -27,6 +27,10 @@ export const PRODUCT_KEYS = Object.keys(PRODUCTS) as ProductKey[];
 
 export const isProductKey = (k: string): k is ProductKey => k in PRODUCTS;
 
+/** 상품 라벨(미등록 키는 키 자체를 폴백). */
+export const productLabel = (key: string | null | undefined): string =>
+  key && isProductKey(key) ? PRODUCTS[key].label : (key ?? '알 수 없는 상품');
+
 /**
  * 활성 서비스 집합이 허브 배치표(kind) 유료 열람을 덮는지.
  *   baechipyo-full   → 모든 유료 배치표

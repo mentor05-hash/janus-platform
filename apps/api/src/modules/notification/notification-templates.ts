@@ -47,6 +47,7 @@ const TEMPLATES: Record<string, Tmpl> = {
   // ── 상담기록·성적·질문 ──
   note_shared: { title: '상담 기록 공개', body: '상담 기록(핵심요약·숙제·향후방향)이 공개되었어요.' },
   score_uploaded: { title: '성적 업데이트', body: '성적이 업데이트되었어요. 성적·배치에서 확인하세요.' },
+  entitlement_expiring: { title: '이용권 만료 임박', body: '{product} 이용권이 {days}일 뒤 만료돼요. 내 이용권에서 확인·연장하세요.' },
   qna_answered: { title: '질문 답변', body: '등록한 질문에 답변이 달렸어요.' },
   // ── 커뮤니티·리그(Q3) ──
   qna_community_answer: { title: '커뮤니티 새 답변', body: '내 커뮤니티 질문에 새 답변이 달렸어요. 확인하고 채택해 보세요.' },

@@ -23,11 +23,25 @@ class GrantDto {
 export class EntitlementController {
   constructor(private readonly entitlement: EntitlementService) {}
 
+  /** GET /me/entitlements — 내 이용권(상품 단위 활성/만료 + 남은 일수). 로그인 사용자 본인. */
+  @Get('me/entitlements')
+  mine(@CurrentUser() user: AuthUser) {
+    return this.entitlement.myEntitlements(user.id);
+  }
+
   /** 상품 카탈로그(관리자 UI 셀렉트용). */
   @Roles('admin')
   @Get('admin/entitlements/products')
   products() {
     return Object.values(PRODUCTS);
+  }
+
+  /** 만료 임박 알림 실행(운영/스케줄) — 계정당 1회 멱등. 기본 7일 이내. */
+  @Roles('admin')
+  @Post('admin/entitlements/run-expiry-check')
+  runExpiryCheck(@Query('days') days?: string) {
+    const n = Math.min(60, Math.max(1, Number(days) || 7));
+    return this.entitlement.runExpiryCheck(n);
   }
 
   /** 계정(login_id·UUID) 조회 — 계정 정보 + 권한 이력(활성·만료·취소). */

@@ -7,6 +7,10 @@ import { StatCard, StatGrid } from '../components/dashboard/widgets';
 type Plan = { id: string; name: string; price: number; membership_grade?: { name: string; weekly_credits: number; tier: string } | null };
 type Sub = { id: string; plan_id: string; status: string; started_at: string } | null;
 type Pay = { id: string; amount: number; status?: string | null; created_at: string };
+type Ent = { productKey: string | null; label: string; services: string[]; grantedAt: string; expiresAt: string | null; daysRemaining: number | null; active: boolean; source: string };
+type MyEnt = { active: Ent[]; expired: Ent[] };
+
+const entDate = (s: string | null) => (s ? new Date(s).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '무기한');
 
 const won = (n: number) => `${n.toLocaleString()}원`;
 const CHARGE = [30000, 50000, 100000];
@@ -16,6 +20,7 @@ export function StudentMembershipPage() {
   const [plans, setPlans] = useState<Plan[] | null>(null);
   const [sub, setSub] = useState<Sub>(null);
   const [pays, setPays] = useState<Pay[] | null>(null);
+  const [ent, setEnt] = useState<MyEnt | null>(null);
   const [busy, setBusy] = useState(false);
   const [payMethod, setPayMethod] = useState<'card' | 'voucher'>('card');
   const [error, setError] = useState('');
@@ -26,6 +31,7 @@ export function StudentMembershipPage() {
     api.get<Plan[]>('/subscription/plans').then(setPlans).catch(() => setPlans([]));
     api.get<Sub>('/subscription/me').then(setSub).catch(() => setSub(null));
     api.get<Pay[]>('/payments/history').then(setPays).catch(() => setPays([]));
+    api.get<MyEnt>('/me/entitlements').then(setEnt).catch(() => setEnt({ active: [], expired: [] }));
   }
   useEffect(load, []);
 
@@ -49,7 +55,44 @@ export function StudentMembershipPage() {
       <StatGrid>
         <StatCard label="보유 크레딧" value={acc ? acc.total.toLocaleString() : '…'} tone="teal" />
         <StatCard label="현재 구독" value={sub ? '구독중' : '없음'} />
+        <StatCard label="이용권" value={ent ? String(ent.active.length) : '…'} />
       </StatGrid>
+
+      {/* 내 이용권(상품 권한) */}
+      <h3 style={{ fontSize: 15, margin: '18px 0 8px' }}>내 이용권</h3>
+      {ent === null ? <Spinner /> : ent.active.length === 0 && ent.expired.length === 0 ? (
+        <Card><EmptyState>보유한 이용권이 없어요. 배치표·계산기는 상품 구매 시 열립니다.</EmptyState></Card>
+      ) : (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
+            {ent.active.map((e, i) => {
+              const soon = e.daysRemaining != null && e.daysRemaining <= 14;
+              return (
+                <Card key={`a${i}`} style={soon ? { borderColor: 'var(--chip-confirmed, #d97706)' } : undefined}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                    <b style={{ fontSize: 15 }}>{e.label}</b>
+                    <Badge kind={soon ? 'confirmed' : 'done'}>{e.daysRemaining == null ? '무기한' : `D-${e.daysRemaining}`}</Badge>
+                  </div>
+                  <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 6 }}>만료 {entDate(e.expiresAt)}</div>
+                  {soon && <div style={{ fontSize: 12, color: 'var(--chip-confirmed, #d97706)', fontWeight: 700, marginTop: 4 }}>⚠ 만료 임박 — 연장을 준비하세요</div>}
+                  <div style={{ fontSize: 11, color: 'var(--caption)', marginTop: 6 }}>해제: {e.services.join(' · ')}</div>
+                </Card>
+              );
+            })}
+          </div>
+          {ent.expired.length > 0 && (
+            <Card style={{ marginTop: 10 }}>
+              <div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 6 }}>만료된 이용권</div>
+              {ent.expired.map((e, i) => (
+                <div key={`e${i}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderTop: i ? '1px solid var(--line)' : 'none', opacity: 0.6 }}>
+                  <span style={{ fontSize: 13 }}>{e.label}</span>
+                  <span style={{ fontSize: 12, color: 'var(--caption)' }}>만료 {entDate(e.expiresAt)}</span>
+                </div>
+              ))}
+            </Card>
+          )}
+        </>
+      )}
 
       {/* 크레딧 충전 */}
       <Card title="크레딧 충전" style={{ marginTop: 16, maxWidth: 620 }}>
