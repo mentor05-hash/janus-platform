@@ -1,9 +1,46 @@
 {
-  "_comment": "배치표 허브 manifest — JANUS_DATA_DIR/placement-hub/manifest.json 으로 복사해 사용. file 은 같은 폴더 기준 상대 경로(영문 파일명 권장). 목록에 없는 파일은 서빙되지 않는다(허용목록). 카이로스·알레아 계산기는 저작권 데이터가 없어 여기 두지 않고 repo(apps/web/public/calc) 에서 서빙되며 허브 탭에 자동 편입된다 — manifest 에 넣지 말 것(중복 방지).",
+  "_comment": "배치표 허브 manifest — JANUS_DATA_DIR/placement-hub/manifest.json 으로 복사해 사용. file 은 같은 폴더 기준 상대 경로. 목록에 없는 파일은 서빙되지 않는다(허용목록). 카이로스·알레아 계산기는 repo(apps/web/public/calc)에서 서빙되며 허브 탭에 자동 편입 — manifest 에 넣지 말 것. ⚠ 풀데이터 내장 배포판은 client-side 블러가 시각처리일 뿐 데이터를 지우지 않으므로(DevTools 노출) 반드시 tier:paid(티켓 게이트) 뒤에 둔다. 무료 노출이 필요하면 tier_build.py 로 데이터 제거된 무료판(tier:free)을 따로 생성해 별도 slug 로 추가. 유료 게이트: 전체 배치표=baechipyo-full(전 kind)·정시 정밀배치표=baechipyo-jeongsi(kind:jeongsi) — service_entitlement(O74).",
   "tables": [
-    { "slug": "gap-report", "title": "야누스 격차 리포트 v2", "short": "격차 리포트", "icon": "◱", "kind": "gap", "updated": "2026-07-13", "tier": "free", "file": "gap-report-v2.html" },
-    { "slug": "jeongsi-2027", "title": "2027 정시 정밀배치표 v26", "short": "정밀배치표", "icon": "▦", "kind": "jeongsi", "updated": "2026-07-14", "badge": "6월 실채점", "tier": "member", "file": "jeongsi-2027-v26.html" },
-    { "slug": "susi", "title": "전국 수시 합격 입결 v6", "short": "수시 입결", "icon": "◈", "kind": "susi", "updated": "2026-07-09", "tier": "member", "file": "susi-v6.html" },
-    { "slug": "jeongsi-2026", "title": "2026 정시 정밀배치표 v24 (아카이브)", "short": "정시 2026", "icon": "▤", "kind": "jeongsi", "updated": "2026-07-09", "tier": "member", "file": "jeongsi-2026-v24.html" }
+    {
+      "slug": "gap-report",
+      "title": "야누스 격차 리포트 v2",
+      "short": "격차 리포트",
+      "icon": "◱",
+      "kind": "gap",
+      "updated": "2026-07-13",
+      "tier": "free",
+      "file": "gap-report-v2.html"
+    },
+    {
+      "slug": "jeongsi-2027",
+      "title": "2027 정시 정밀배치표 v26",
+      "short": "정밀배치표",
+      "icon": "▦",
+      "kind": "jeongsi",
+      "updated": "2026-07-14",
+      "badge": "6월 실채점",
+      "tier": "paid",
+      "file": "jeongsi-2027-v26.html"
+    },
+    {
+      "slug": "susi",
+      "title": "전국 수시 합격 입결 v6",
+      "short": "수시 입결",
+      "icon": "◈",
+      "kind": "susi",
+      "updated": "2026-07-09",
+      "tier": "paid",
+      "file": "susi-v6.html"
+    },
+    {
+      "slug": "jeongsi-2026",
+      "title": "2026 정시 정밀배치표 v24 (아카이브)",
+      "short": "정시 2026",
+      "icon": "▤",
+      "kind": "jeongsi",
+      "updated": "2026-07-09",
+      "tier": "paid",
+      "file": "jeongsi-2026-v24.html"
+    }
   ]
 }
