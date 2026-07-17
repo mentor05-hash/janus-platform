@@ -44,6 +44,9 @@ const ID = {
   acHq: '00000000-0000-4000-8000-0000000000a6',
   acMaster: '00000000-0000-4000-8000-0000000000a7',
   acPaid: '00000000-0000-4000-8000-0000000000a8',
+  acPaid2: '00000000-0000-4000-8000-0000000000a9',
+  acPaid3: '00000000-0000-4000-8000-0000000000aa',
+  acPaid4: '00000000-0000-4000-8000-0000000000ab',
   planStd: '00000000-0000-4000-8000-0000000000b2',
   planPrem: '00000000-0000-4000-8000-0000000000b3',
   planVip: '00000000-0000-4000-8000-0000000000b4',
@@ -232,32 +235,42 @@ async function main() {
        VALUES ($1,'마스터',NULL,'L1') ON CONFLICT (account_id) DO UPDATE SET perm_level='L1', center_id=NULL, staff_role='마스터'`,
       [ID.acMaster],
     );
-    // 유료 결제 회원 데모(O74) — 학생 role(=member 티어) + 전체 배치표 상품 권한.
+    // 유료 결제 회원 데모(O74) — 학생 role(=member 티어) + 상품 권한. 상품 4종을 1:1로 부여해 각 권한 실측.
     //   프로덕션 모델과 동일: 비회원 가입 시 student(member) → 결제 시 entitlement 부여로 유료 해제.
-    await client.query(
-      `INSERT INTO account (id, role, center_id, login_id, pw_hash, name, status)
-       VALUES ($1,'student',$2,'paid01',$3,'유료회원더미','approved')
-       ON CONFLICT (id) DO UPDATE SET pw_hash = EXCLUDED.pw_hash, status='approved'`,
-      [ID.acPaid, ID.center, DUMMY_PW_HASH],
-    );
-    await client.query(
-      `INSERT INTO student_profile (account_id, center_id, membership_grade_id)
-       VALUES ($1,$2,$3) ON CONFLICT (account_id) DO NOTHING`,
-      [ID.acPaid, ID.center, ID.gradeStd],
-    );
-    // 전체 배치표 권한(전 kind 해제 = baechipyo-full + baechipyo-jeongsi). 일회성 기간제(수능시즌 말).
-    //   service_entitlement 미배포 DB(0065 전)면 건너뜀 — 시드 전체가 실패하지 않도록 가드.
+    //   [id, login_id, name, product_key, serviceIds]
+    const paidAccounts: [string, string, string, string, string[]][] = [
+      [ID.acPaid, 'paid01', '유료회원1·전체배치표', 'full', ['baechipyo-full', 'baechipyo-jeongsi']],
+      [ID.acPaid2, 'paid02', '유료회원2·정시정밀', 'jeongsi', ['baechipyo-jeongsi']],
+      [ID.acPaid3, 'paid03', '유료회원3·카이로스', 'kairos', ['kairos']],
+      [ID.acPaid4, 'paid04', '유료회원4·카이로스+알레아', 'kairos-alea', ['kairos', 'alea']],
+    ];
+    for (const [id, loginId, name] of paidAccounts) {
+      await client.query(
+        `INSERT INTO account (id, role, center_id, login_id, pw_hash, name, status)
+         VALUES ($1,'student',$2,$3,$4,$5,'approved')
+         ON CONFLICT (id) DO UPDATE SET pw_hash = EXCLUDED.pw_hash, status='approved'`,
+        [id, ID.center, loginId, DUMMY_PW_HASH, name],
+      );
+      await client.query(
+        `INSERT INTO student_profile (account_id, center_id, membership_grade_id)
+         VALUES ($1,$2,$3) ON CONFLICT (account_id) DO NOTHING`,
+        [id, ID.center, ID.gradeStd],
+      );
+    }
+    // 상품 권한(일회성 기간제·수능시즌 말). service_entitlement 미배포 DB(0065 전)면 건너뜀(시드 전체 실패 방지).
     const hasEnt = await client.query("SELECT to_regclass('public.service_entitlement') IS NOT NULL AS present");
     if (hasEnt.rows[0]?.present) {
-      await client.query(
-        `INSERT INTO service_entitlement (account_id, service_id, product_key, source, expires_at)
-         SELECT $1, s, 'full', 'seed', TIMESTAMPTZ '2027-01-31 23:59:59+09'
-           FROM unnest(ARRAY['baechipyo-full','baechipyo-jeongsi']) AS s
-          WHERE NOT EXISTS (
-            SELECT 1 FROM service_entitlement e
-             WHERE e.account_id = $1 AND e.service_id = s AND e.source = 'seed' AND e.revoked_at IS NULL)`,
-        [ID.acPaid],
-      );
+      for (const [id, , , productKey, serviceIds] of paidAccounts) {
+        await client.query(
+          `INSERT INTO service_entitlement (account_id, service_id, product_key, source, expires_at)
+           SELECT $1, s, $2, 'seed', TIMESTAMPTZ '2027-01-31 23:59:59+09'
+             FROM unnest($3::text[]) AS s
+            WHERE NOT EXISTS (
+              SELECT 1 FROM service_entitlement e
+               WHERE e.account_id = $1 AND e.service_id = s AND e.source = 'seed' AND e.revoked_at IS NULL)`,
+          [id, productKey, serviceIds],
+        );
+      }
     }
     // 크레딧 계좌(학생) — 잔액 0
     await client.query(
