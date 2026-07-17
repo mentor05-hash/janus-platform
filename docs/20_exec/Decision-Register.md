@@ -49,6 +49,8 @@
 
 | O74 | 2026-07-16 | **유료 배치표·계산기 상품 권한(entitlement) 기반**: mig 0065 `service_entitlement`(account_id·service_id·product_key·expires_at·revoked_at·source). 상품 4종(순수 카탈로그): 전체 배치표(full→baechipyo-full+baechipyo-jeongsi)/정시 정밀배치표(jeongsi→baechipyo-jeongsi)/카이로스 단독(kairos)/카이로스+알레아 묶음(kairos-alea). **모두 일회성 기간제**(expires_at·수능시즌). 티어는 role 파생 유지 — 유료는 role 승격이 아니라 **서비스 단위 해제 행**으로 부여. `EntitlementService.grant/revoke/activeServices`. `sso.entitlements()` = role-티어 서비스 ∪ 활성 구매 서비스 → janus_sso.services 로 계산기·배치표 자동 해제. 배치표 허브 게이트: paid 표는 tierForRole≥paid **또는** entitlement 커버(baechipyo-full=전 kind·baechipyo-jeongsi=정시만). 관리자 수동 부여 API(POST/GET/DELETE /admin/entitlements) — 결제 훅은 후속(성공 콜백이 grant() 호출, source=payment). 비회원은 가입 시 role student(member) 유지, 무료 티저(블러) 현행. 가격/노출은 N23~N25 연동 | api tsc0·products 도메인 실측(coversPlacement·isProductKey ALL PASS). 결정 4점(상품형태 일회성·상품분리 4종·비회원 정의·가격 N23연동) 사용자 확정 |
 
+| O75 | 2026-07-17 | **상품 권한 수익화 3종(순차)**: ①내 이용권 페이지(GET /me/entitlements — 상품 단위 활성/만료+남은일수, 멤버십·결제 섹션) + 만료 임박 알림(mig 0066 expiry_notified_at 멱등, run-expiry-check, entitlement_expiring 템플릿). ②리뎀션 코드/수강권(mig 0067 redemption_code — 관리자 배치 발급→사용자 등록→grant(source=redemption), 트랜잭션 이중사용 방지, 오프라인·프로모 판매 경로). ③구독-상품 번들(mig 0068 subscription_plan.included_products — 구독 시 자동 부여, syncSubscriptionProducts로 플랜 변경/해지 재동기화, VIP=전체 배치표). 만료 기본 2027-01-31(2026 수능 정시 시즌 말·2026-01-31 오설정 수정). paid01 데모 계정(학생 role+전체 배치표). 결제 훅(④)은 N23~25 확정 후 grant(source=payment) 연결만 잔여 | api tsc0·web tsc0·web build·마이그 순번(0068). E2E: paid01 로그인→entitlements baechipyo-full/jeongsi 반환 실측 |
+
 
 ## 미결 (N) — 결정 대기
 
