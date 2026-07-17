@@ -32,6 +32,16 @@ export class PlacementHubController {
     return this.hub.issueTicket(user, dto.slug);
   }
 
+  /**
+   * thin-slice 조회(O76) — 검색 일치 행만 반환(요청당 30행·일 600행). 전체 파일 대신 쓰는 공개용 경로.
+   * slices/<slug>.json 미배치면 available:false → 프런트는 티켓(전체 HTML) 폴백.
+   */
+  @Get('placement-hub/slice/:slug')
+  @RateLimit({ limit: 30, windowSec: 60 })
+  slice(@CurrentUser() user: AuthUser, @Param('slug') slug: string, @Query('q') q?: string, @Query('limit') limit?: string) {
+    return this.hub.slice(user, slug, q ?? '', limit ? Number(limit) : undefined);
+  }
+
   /** 배치표 HTML 서빙 — manifest 허용목록만. 무료=공개, 회원급=?t=티켓 필수. iframe(동일 출처) 임베드용. */
   @Public()
   @RateLimit({ limit: 60, windowSec: 60 })

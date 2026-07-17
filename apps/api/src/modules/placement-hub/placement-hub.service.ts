@@ -6,9 +6,15 @@ import * as path from 'node:path';
 import { CACHE_PROVIDER } from '../../common/cache/cache.types';
 import type { CacheProvider } from '../../common/cache/cache.types';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
+import { AuditService } from '../audit/audit.service';
 import { EntitlementService } from '../entitlement/entitlement.service';
 import { coversPlacement } from '../entitlement/domain/products';
 import { tierAtLeast, tierForRole, type SsoTier } from '../sso/domain/sso-token';
+import { filterSliceRows, type SliceResult, type SliceRow } from './domain/slice';
+import { injectWatermark, watermarkSnippet } from './domain/watermark';
+
+/** 티켓 페이로드 — 파일 서빙 시 워터마크·감사에 쓸 열람자 신원(발급 시점 고정). */
+interface TicketPayload { s: string; u: string; l: string; n: string; r: string }
 
 /**
  * 배치표 허브(§CLAUDE.md 4) — 저작권 데이터(배치표·격차 리포트 HTML)는 repo 에 없고
@@ -32,11 +38,21 @@ export interface HubTable {
 export class PlacementHubService {
   private readonly logger = new Logger('PlacementHub');
 
+  /** 유료(비무료) 파일 열람 일일 상한(계정당) — 전 탭 자동 스크래핑 이상행동 차단(O76). */
+  private static readonly FILE_DAY_CAP = 40;
+  /** thin-slice 일일 행 상한(계정당) — 검색 반복으로 전량 수집 차단(O76). */
+  private static readonly SLICE_ROW_DAY_CAP = 600;
+
   constructor(
     private readonly config: ConfigService,
     private readonly entitlement: EntitlementService,
+    private readonly audit: AuditService,
     @Inject(CACHE_PROVIDER) private readonly cache: CacheProvider,
   ) {}
+
+  private dayKey(): string {
+    return new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  }
 
   private baseDir(): string | null {
     const root = this.config.get<string>('JANUS_DATA_DIR');
@@ -122,20 +138,43 @@ export class PlacementHubService {
         throw new ForbiddenException({ code: 'HUB_TIER_LOCKED', message: msg, requiredTier: required, yourTier: userTier });
       }
     }
+    // 이상행동 상한(O76): 계정당 하루 유료 파일 티켓 N회 — 전 탭 자동 스크래핑 억제.
+    const used = await this.cache.incr(`hubcap:file:${user.id}:${this.dayKey()}`, 86_400);
+    if (used > PlacementHubService.FILE_DAY_CAP) {
+      await this.audit.record(user, { action: 'hub.cap.file', targetType: 'placement', targetId: slug, summary: `유료표 일일 상한 초과(${used}회)` });
+      throw new ForbiddenException({ code: 'HUB_DAILY_CAP', message: '오늘 열람 한도를 초과했습니다. 내일 다시 이용해 주세요.' });
+    }
+    // 열람자 신원(발급 시점 고정) — 파일 서빙 시 워터마크·감사(O76). name 은 조회 실패 시 loginId 폴백.
+    const name = await this.entitlement.resolveAccount(user.id).then((a) => a.name).catch(() => user.loginId);
+    const payload: TicketPayload = { s: slug, u: user.id, l: user.loginId, n: name, r: user.role };
     const ticket = crypto.randomUUID();
-    await this.cache.set(`hubtkt:${ticket}`, slug, 120); // 2분 내 iframe 로드용
+    await this.cache.set(`hubtkt:${ticket}`, JSON.stringify(payload), 120); // 2분 내 iframe 로드용
+    await this.audit.record(user, { action: 'hub.ticket', targetType: 'placement', targetId: slug, summary: `배치표 티켓 발급(${slug})` });
     return { ticket };
   }
 
-  /** 허용목록 파일 스트리밍용 로드. slug 이외의 입력은 받지 않는다. 무료(tier=free/미지정)만 티켓 없이 공개. */
-  async fileHtml(slug: string, ticket?: string): Promise<{ html: Buffer; updated?: string }> {
+  /**
+   * 허용목록 파일 스트리밍용 로드. slug 이외의 입력은 받지 않는다. 무료(tier=free/미지정)만 티켓 없이 공개.
+   * 유료(비무료)는 ①티켓 1회용(재사용=재발급 강제) ②per-user 워터마크 주입 ③서빙 감사 로그(O76).
+   */
+  async fileHtml(slug: string, ticket?: string): Promise<{ html: Buffer | string; updated?: string }> {
     const base = this.baseDir();
     const entry = this.readManifest().find((t) => t.slug === slug);
     if (!base || !entry) throw new NotFoundException({ code: 'HUB_NOT_FOUND', message: '해당 배치표가 없습니다.' });
     const isFree = !entry.tier || entry.tier === 'free';
+    let viewer: TicketPayload | null = null;
     if (!isFree) {
-      const ok = ticket && (await this.cache.get<string>(`hubtkt:${ticket}`)) === slug;
-      if (!ok) throw new ForbiddenException({ code: 'HUB_TIER_LOCKED', message: '회원부터 열람할 수 있습니다 — 로그인 후 이용하세요.' });
+      const raw = ticket ? await this.cache.get<string>(`hubtkt:${ticket}`) : null;
+      if (raw) {
+        try {
+          const p = JSON.parse(raw) as TicketPayload;
+          if (p.s === slug) viewer = p;
+        } catch {
+          if (raw === slug) viewer = { s: slug, u: 'legacy', l: 'legacy', n: '열람자', r: 'student' }; // 구형 티켓 호환
+        }
+      }
+      if (!viewer) throw new ForbiddenException({ code: 'HUB_TIER_LOCKED', message: '회원부터 열람할 수 있습니다 — 로그인 후 이용하세요.' });
+      await this.cache.del(`hubtkt:${ticket}`); // 1회용 — 유출된 URL 재사용 차단(재열람은 재발급)
     }
     // 경로 탈출 차단: manifest 파일명이라도 base 밖이면 거부
     const abs = path.resolve(base, entry.file);
@@ -143,10 +182,58 @@ export class PlacementHubService {
       this.logger.warn(`경로 탈출 시도 차단: ${entry.file}`);
       throw new NotFoundException({ code: 'HUB_NOT_FOUND', message: '해당 배치표가 없습니다.' });
     }
+    let buf: Buffer;
     try {
-      return { html: fs.readFileSync(abs), updated: entry.updated };
+      buf = fs.readFileSync(abs);
     } catch {
       throw new NotFoundException({ code: 'HUB_FILE_MISSING', message: '파일이 데이터 디렉토리에 없습니다.' });
     }
+    if (!viewer) return { html: buf, updated: entry.updated }; // 무료판 — 원문 그대로
+    // per-user 워터마크(가시 오버레이+지문 주석) + 서빙 감사 — 유출 억지·귀속(O76)
+    const html = injectWatermark(
+      buf.toString('utf8'),
+      watermarkSnippet({ name: viewer.n, loginId: viewer.l, accountId: viewer.u, nowMs: Date.now() }),
+    );
+    await this.audit.record(
+      { id: viewer.u, role: viewer.r as never, centerId: null, loginId: viewer.l },
+      { action: 'hub.file', targetType: 'placement', targetId: slug, summary: `유료 배치표 서빙(${slug} → ${viewer.l})` },
+    );
+    return { html, updated: entry.updated };
+  }
+
+  /**
+   * thin-slice 조회(O76) — 전체 파일 대신 검색 조건 일치 행만 반환. 공개 상업화의 핵심 방어:
+   * 결제 계정 1개로 전체 데이터셋을 받을 수 없다(요청당 30행·계정당 일일 600행·검색어 2자+).
+   * 데이터: JANUS_DATA_DIR/placement-hub/slices/<slug>.json (데이터 트랙이 생성 — README §slice).
+   * 파일이 없으면 available:false → 프런트는 기존 전체 HTML(티켓) 경로 폴백.
+   */
+  async slice(user: AuthUser, slug: string, q: string, limit?: number): Promise<SliceResult & { remainingToday?: number }> {
+    const entry = this.readManifest().find((t) => t.slug === slug);
+    if (!entry) throw new NotFoundException({ code: 'HUB_NOT_FOUND', message: '해당 배치표가 없습니다.' });
+    // 게이트 — 티켓과 동일 판정(티어 또는 상품 권한)
+    const required = this.tierOf(entry);
+    if (!tierAtLeast(tierForRole(user.role), required)) {
+      const covered = required === 'paid' && coversPlacement(await this.entitlement.activeServices(user.id), entry.kind);
+      if (!covered) throw new ForbiddenException({ code: 'HUB_TIER_LOCKED', message: '이 자료는 상품 구매 후 열람할 수 있습니다.' });
+    }
+    const base = this.baseDir();
+    if (!base) return { available: false, total: 0, rows: [], capped: false };
+    let rows: SliceRow[] = [];
+    try {
+      const j = JSON.parse(fs.readFileSync(path.join(base, 'slices', `${slug}.json`), 'utf8')) as { rows?: SliceRow[] };
+      rows = Array.isArray(j.rows) ? j.rows : [];
+    } catch {
+      return { available: false, total: 0, rows: [], capped: false }; // slice 미배치 — 전체파일 경로 폴백
+    }
+    const result = filterSliceRows(rows, q, limit);
+    // 일일 행 상한(계정당) — 검색 반복으로 전량 수집 차단
+    const capKey = `hubcap:slice:${user.id}:${this.dayKey()}`;
+    const served = (await this.cache.get<number>(capKey)) ?? 0;
+    if (served + result.rows.length > PlacementHubService.SLICE_ROW_DAY_CAP) {
+      await this.audit.record(user, { action: 'hub.cap.slice', targetType: 'placement', targetId: slug, summary: `slice 일일 행 상한 초과(${served}행)` });
+      throw new ForbiddenException({ code: 'HUB_DAILY_CAP', message: '오늘 조회 한도를 초과했습니다. 내일 다시 이용해 주세요.' });
+    }
+    await this.cache.set(capKey, served + result.rows.length, 86_400);
+    return { ...result, remainingToday: PlacementHubService.SLICE_ROW_DAY_CAP - served - result.rows.length };
   }
 }

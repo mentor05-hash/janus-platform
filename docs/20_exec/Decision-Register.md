@@ -51,6 +51,8 @@
 
 | O75 | 2026-07-17 | **상품 권한 수익화 3종(순차)**: ①내 이용권 페이지(GET /me/entitlements — 상품 단위 활성/만료+남은일수, 멤버십·결제 섹션) + 만료 임박 알림(mig 0066 expiry_notified_at 멱등, run-expiry-check, entitlement_expiring 템플릿). ②리뎀션 코드/수강권(mig 0067 redemption_code — 관리자 배치 발급→사용자 등록→grant(source=redemption), 트랜잭션 이중사용 방지, 오프라인·프로모 판매 경로). ③구독-상품 번들(mig 0068 subscription_plan.included_products — 구독 시 자동 부여, syncSubscriptionProducts로 플랜 변경/해지 재동기화, VIP=전체 배치표). 만료 기본 2027-01-31(2026 수능 정시 시즌 말·2026-01-31 오설정 수정). paid01 데모 계정(학생 role+전체 배치표). 결제 훅(④)은 N23~25 확정 후 grant(source=payment) 연결만 잔여 | api tsc0·web tsc0·web build·마이그 순번(0068). E2E: paid01 로그인→entitlements baechipyo-full/jeongsi 반환 실측 |
 
+| O76 | 2026-07-17 | **배치표 공개 상업화 방어(워터마크+thin-slice)**: 위험진단 — 풀-HTML 서빙은 결제 1건=전체 DB 유출 가능·추적 불가. 대응 ①**per-user 워터마크**(서버 주입: 가시 대각타일 라벨(이름·loginId·KST시각)+비가시 지문 주석 `jns-fp:base64url(loginId|uid|ts)` 2곳 — 유출본 귀속) ②**1회용 티켓**(사용 즉시 소멸, 티켓에 열람자 신원 탑재) ③**일일 상한**(파일 40회·slice 600행/계정, 초과=HUB_DAILY_CAP+감사) ④**감사 로그**(hub.ticket/hub.file/hub.cap.*) ⑤**thin-slice API**(`GET /placement-hub/slice/:slug?q=` — 요청당 30행·검색어 2자+·게이트 동일, `slices/<slug>.json` 데이터트랙 생성, 미배치=전체파일 폴백). **원칙: 공개 상업 서비스=slice 경로, 전체 HTML=내부·신뢰 사용자용.** 아우구르 엔진은 오프라인(출력만 배포)이라 기존대로 안전 | api tsc0. 도메인 실측 ALL PASS(fp 왕복·주입 위치·한글 무손상·최소검색어·limit 클램프). 원천 데이터 라이선스(상업 재배포 허용 여부) 확인은 별도 잔여 |
+
 
 ## 미결 (N) — 결정 대기
 
