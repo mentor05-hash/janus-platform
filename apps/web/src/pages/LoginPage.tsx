@@ -18,6 +18,7 @@ const ROLES = [
   { label: '마스터', id: 'master01' },
   { label: 'HR', id: 'hr01' },
   { label: '학생', id: 'student01' },
+  { label: '유료회원', id: 'paid01' },
   { label: '학부모', id: 'guardian01' },
 ];
 

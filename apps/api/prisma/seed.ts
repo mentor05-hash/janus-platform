@@ -43,6 +43,7 @@ const ID = {
   acGuardian: '00000000-0000-4000-8000-0000000000a5',
   acHq: '00000000-0000-4000-8000-0000000000a6',
   acMaster: '00000000-0000-4000-8000-0000000000a7',
+  acPaid: '00000000-0000-4000-8000-0000000000a8',
   planStd: '00000000-0000-4000-8000-0000000000b2',
   planPrem: '00000000-0000-4000-8000-0000000000b3',
   planVip: '00000000-0000-4000-8000-0000000000b4',
@@ -230,6 +231,33 @@ async function main() {
        VALUES ($1,'마스터',NULL,'L1') ON CONFLICT (account_id) DO UPDATE SET perm_level='L1', center_id=NULL, staff_role='마스터'`,
       [ID.acMaster],
     );
+    // 유료 결제 회원 데모(O74) — 학생 role(=member 티어) + 전체 배치표 상품 권한.
+    //   프로덕션 모델과 동일: 비회원 가입 시 student(member) → 결제 시 entitlement 부여로 유료 해제.
+    await client.query(
+      `INSERT INTO account (id, role, center_id, login_id, pw_hash, name, status)
+       VALUES ($1,'student',$2,'paid01',$3,'유료회원더미','approved')
+       ON CONFLICT (id) DO UPDATE SET pw_hash = EXCLUDED.pw_hash, status='approved'`,
+      [ID.acPaid, ID.center, DUMMY_PW_HASH],
+    );
+    await client.query(
+      `INSERT INTO student_profile (account_id, center_id, membership_grade_id)
+       VALUES ($1,$2,$3) ON CONFLICT (account_id) DO NOTHING`,
+      [ID.acPaid, ID.center, ID.gradeStd],
+    );
+    // 전체 배치표 권한(전 kind 해제 = baechipyo-full + baechipyo-jeongsi). 일회성 기간제(수능시즌 말).
+    //   service_entitlement 미배포 DB(0065 전)면 건너뜀 — 시드 전체가 실패하지 않도록 가드.
+    const hasEnt = await client.query("SELECT to_regclass('public.service_entitlement') IS NOT NULL AS present");
+    if (hasEnt.rows[0]?.present) {
+      await client.query(
+        `INSERT INTO service_entitlement (account_id, service_id, product_key, source, expires_at)
+         SELECT $1, s, 'full', 'seed', TIMESTAMPTZ '2026-01-31 23:59:59+09'
+           FROM unnest(ARRAY['baechipyo-full','baechipyo-jeongsi']) AS s
+          WHERE NOT EXISTS (
+            SELECT 1 FROM service_entitlement e
+             WHERE e.account_id = $1 AND e.service_id = s AND e.source = 'seed' AND e.revoked_at IS NULL)`,
+        [ID.acPaid],
+      );
+    }
     // 크레딧 계좌(학생) — 잔액 0
     await client.query(
       `INSERT INTO credit_account (student_id, purchased_balance, granted_balance, reserved_credits)
