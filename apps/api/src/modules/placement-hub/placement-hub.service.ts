@@ -31,6 +31,9 @@ export interface HubTable {
   updated?: string;
   badge?: string; // '6월 실채점' 등
   tier?: string; // free | member | paid | consultant (게이트는 후속)
+  /** O77 투트랙: 'internal' = 내부 검증용(V1·V2 — 고속 유래 입력 포함본). 관리자(consultant)만,
+   *  상품 권한(entitlement)으로도 열 수 없다. 미지정/'public' = 외부 공개 가능본(V3 청정 빌드만). */
+  audience?: string;
   file: string; // placement-hub/ 기준 상대 파일명
 }
 
@@ -108,6 +111,17 @@ export class PlacementHubService {
     return { available: true, targets: valid };
   }
 
+  /**
+   * O77 투트랙 게이트 — audience:'internal'(V1·V2, 고속 유래 입력 포함)은 관리자(consultant)만.
+   * 상품 권한(entitlement)은 이 판정을 우회하지 못한다 — 외부 유료 공개는 V3 청정 빌드만.
+   */
+  private assertNotInternalOnly(user: AuthUser, entry: HubTable): void {
+    if (entry.audience !== 'internal') return;
+    if (!tierAtLeast(tierForRole(user.role), 'consultant')) {
+      throw new ForbiddenException({ code: 'HUB_INTERNAL_ONLY', message: '내부 검증용 자료입니다 — 외부 공개본을 이용해 주세요.' });
+    }
+  }
+
   /** 표별 요구 티어(미지정=free). */
   private tierOf(entry: HubTable): SsoTier {
     const t = entry.tier;
@@ -123,6 +137,7 @@ export class PlacementHubService {
   async issueTicket(user: AuthUser, slug: string): Promise<{ ticket: string }> {
     const entry = this.readManifest().find((t) => t.slug === slug);
     if (!entry) throw new NotFoundException({ code: 'HUB_NOT_FOUND', message: '해당 배치표가 없습니다.' });
+    this.assertNotInternalOnly(user, entry); // O77 — 내부용(V1·V2)은 상품 권한으로도 불가
     const required = this.tierOf(entry);
     const userTier = tierForRole(user.role);
     if (!tierAtLeast(userTier, required)) {
@@ -161,7 +176,8 @@ export class PlacementHubService {
     const base = this.baseDir();
     const entry = this.readManifest().find((t) => t.slug === slug);
     if (!base || !entry) throw new NotFoundException({ code: 'HUB_NOT_FOUND', message: '해당 배치표가 없습니다.' });
-    const isFree = !entry.tier || entry.tier === 'free';
+    // 내부용(O77)은 tier 표기와 무관하게 항상 티켓 필수 — 티켓 발급 단계가 관리자만 허용하므로 이중 잠금.
+    const isFree = (!entry.tier || entry.tier === 'free') && entry.audience !== 'internal';
     let viewer: TicketPayload | null = null;
     if (!isFree) {
       const raw = ticket ? await this.cache.get<string>(`hubtkt:${ticket}`) : null;
@@ -210,6 +226,7 @@ export class PlacementHubService {
   async slice(user: AuthUser, slug: string, q: string, limit?: number): Promise<SliceResult & { remainingToday?: number }> {
     const entry = this.readManifest().find((t) => t.slug === slug);
     if (!entry) throw new NotFoundException({ code: 'HUB_NOT_FOUND', message: '해당 배치표가 없습니다.' });
+    this.assertNotInternalOnly(user, entry); // O77 — 내부용(V1·V2)은 상품 권한으로도 불가
     // 게이트 — 티켓과 동일 판정(티어 또는 상품 권한)
     const required = this.tierOf(entry);
     if (!tierAtLeast(tierForRole(user.role), required)) {

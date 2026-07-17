@@ -53,6 +53,8 @@
 
 | O76 | 2026-07-17 | **배치표 공개 상업화 방어(워터마크+thin-slice)**: 위험진단 — 풀-HTML 서빙은 결제 1건=전체 DB 유출 가능·추적 불가. 대응 ①**per-user 워터마크**(서버 주입: 가시 대각타일 라벨(이름·loginId·KST시각)+비가시 지문 주석 `jns-fp:base64url(loginId|uid|ts)` 2곳 — 유출본 귀속) ②**1회용 티켓**(사용 즉시 소멸, 티켓에 열람자 신원 탑재) ③**일일 상한**(파일 40회·slice 600행/계정, 초과=HUB_DAILY_CAP+감사) ④**감사 로그**(hub.ticket/hub.file/hub.cap.*) ⑤**thin-slice API**(`GET /placement-hub/slice/:slug?q=` — 요청당 30행·검색어 2자+·게이트 동일, `slices/<slug>.json` 데이터트랙 생성, 미배치=전체파일 폴백). **원칙: 공개 상업 서비스=slice 경로, 전체 HTML=내부·신뢰 사용자용.** 아우구르 엔진은 오프라인(출력만 배포)이라 기존대로 안전 | api tsc0. 도메인 실측 ALL PASS(fp 왕복·주입 위치·한글 무손상·최소검색어·limit 클램프). 원천 데이터 라이선스(상업 재배포 허용 여부) 확인은 별도 잔여 |
 
+| O77 | 2026-07-17 | **데이터 원천 정책 — 투트랙·3버전(외부 유료 공개=V3만)**: ①어디가=공공 — 단 타인 2차가공물 불사용, 원본 직수집·재유도 ②고속성장=파이프라인 **입력 금지**, 내부 벤치마크 전용(V3 vs 고속 비교, 서면 확인 권장) ③3버전 — V1(아우구르 전)·V2(아우구르 현행, 둘 다 고속 유래)=`audience:internal`(관리자만·entitlement 우회 불가·학생 탭 숨김·무료표기여도 티켓 강제), V3(어디가 원본+평가원 공식+아우구르+자체지표, 고속 무입력)=외부 유료 공개 유일본 ④장치 — manifest audience 필드+서버 HUB_INTERNAL_ONLY 게이트(ticket·slice·file 3중), `check_clean_build.py`(공개표+slices 고속 마커 0건, fail-closed), `data-lineage-matrix.md`(필드 태깅+V3 반출 체크리스트). 검증시스템 영향: 플랫폼 0·엔진 방법론 0(청정 입력 재적합+백테스트 1회) | api tsc0·web tsc0·build. V3 빌드·매트릭스 필드 채움은 데이터트랙 잔여 |
+
 
 ## 미결 (N) — 결정 대기
 

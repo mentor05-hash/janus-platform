@@ -84,6 +84,16 @@
 - slice 파일 미배치면 `available:false` → 웹은 기존 전체 HTML(티켓+워터마크) 경로 폴백.
 - **원칙**: 전체 HTML 서빙은 내부·소수 신뢰 사용자용. 공개 상업 서비스는 slice 배치 후 그 경로로.
 
+## 3-2. 투트랙·3버전 원천 정책 (O77 — 외부 유료 공개는 V3만)
+
+- **V1**(아우구르 전·고속+어디가 병합) · **V2**(아우구르 적용 현행) = `"audience": "internal"` —
+  관리자(consultant)만 열람. **상품 권한(entitlement)으로도 열리지 않고**, 학생·유료회원에겐 탭 자체 숨김.
+- **V3**(청정 빌드: 어디가 원본 직수집 + 평가원·교육청 공식 + 아우구르, **고속 무입력**) = 외부 유료 공개 유일본.
+- 고속 데이터 = 파이프라인 입력 금지, **내부 벤치마크 전용**(V3 vs 고속 비교 — 내부 문서).
+- 반출 게이트: `python3 ops/placement/check_clean_build.py <DATA_DIR>/placement-hub`
+  — audience!=internal 표 + slices/*.json 에 고속 마커 0건이어야 통과(비-0 종료=반출 불가). fail-closed.
+- 필드별 원천 태깅·V3 체크리스트: `ops/placement/data-lineage-matrix.md` (데이터트랙이 채움).
+
 ## 3-1. 카이로스·알레아 계산기 (배치표와 분리 — repo 서빙)
 
 카이로스·알레아는 **저작권 데이터가 없는 자체완결 코드**라 배치표(JANUS_DATA_DIR)와 달리 **repo 에 편입**한다.

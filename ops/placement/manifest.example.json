@@ -1,5 +1,5 @@
 {
-  "_comment": "배치표 허브 manifest — JANUS_DATA_DIR/placement-hub/manifest.json 으로 복사해 사용. file 은 같은 폴더 기준 상대 경로. 목록에 없는 파일은 서빙되지 않는다(허용목록). 카이로스·알레아 계산기는 repo(apps/web/public/calc)에서 서빙되며 허브 탭에 자동 편입 — manifest 에 넣지 말 것. ⚠ 풀데이터 내장 배포판은 client-side 블러가 시각처리일 뿐 데이터를 지우지 않으므로(DevTools 노출) 반드시 tier:paid(티켓 게이트) 뒤에 둔다. 무료 노출이 필요하면 tier_build.py 로 데이터 제거된 무료판(tier:free)을 따로 생성해 별도 slug 로 추가. 유료 게이트: 전체 배치표=baechipyo-full(전 kind)·정시 정밀배치표=baechipyo-jeongsi(kind:jeongsi) — service_entitlement(O74).",
+  "_comment": "배치표 허브 manifest — JANUS_DATA_DIR/placement-hub/manifest.json 으로 복사해 사용. 허용목록: 목록에 없는 파일은 서빙 안 됨. 계산기(카이로스·알레아)는 repo 서빙 — 넣지 말 것. ⚠ O77 투트랙: 고속 유래 입력이 섞인 표(V1·V2)는 반드시 audience:'internal'(관리자만·상품권한 우회 불가·학생 탭 숨김). 외부 유료 공개는 V3 청정 빌드(어디가 원본+공식+아우구르, 고속 무입력)만 — 반출 전 check_clean_build.py 통과 필수. 유료 게이트: baechipyo-full(전 kind)·baechipyo-jeongsi(kind:jeongsi) — service_entitlement(O74).",
   "tables": [
     {
       "slug": "gap-report",
@@ -20,6 +20,7 @@
       "updated": "2026-07-14",
       "badge": "6월 실채점",
       "tier": "paid",
+      "audience": "internal",
       "file": "jeongsi-2027-v26.html"
     },
     {
@@ -30,6 +31,7 @@
       "kind": "susi",
       "updated": "2026-07-09",
       "tier": "paid",
+      "audience": "internal",
       "file": "susi-v6.html"
     },
     {
@@ -40,7 +42,18 @@
       "kind": "jeongsi",
       "updated": "2026-07-09",
       "tier": "paid",
+      "audience": "internal",
       "file": "jeongsi-2026-v24.html"
+    },
+    {
+      "slug": "jeongsi-2027-v3",
+      "title": "2027 정시 정밀배치표 (청정 V3 — 준비 중)",
+      "short": "정밀배치표 V3",
+      "icon": "▦",
+      "kind": "jeongsi",
+      "tier": "paid",
+      "file": "jeongsi-2027-clean-v3.html",
+      "_comment": "V3 청정 빌드 도착 시 이 항목 활성(파일 배치+check_clean_build 통과) — 외부 유료 공개 유일본"
     }
   ]
 }

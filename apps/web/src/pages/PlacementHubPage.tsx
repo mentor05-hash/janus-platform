@@ -15,7 +15,7 @@ import { GapReportPage } from './GapReportPage';
 // 허브 안에서 iframe 대신 네이티브 React로 렌더하는 탭(시안: 격차 리포트는 앱 내부 화면).
 const isNativeTab = (t: { kind?: string }) => t.kind === 'gap';
 
-interface HubMeta { slug: string; title: string; short?: string; icon?: string; kind?: string; updated?: string; badge?: string; tier?: string; calc?: boolean; file?: string }
+interface HubMeta { slug: string; title: string; short?: string; icon?: string; kind?: string; updated?: string; badge?: string; tier?: string; audience?: string; calc?: boolean; file?: string }
 interface HubList { available: boolean; tables: HubMeta[] }
 
 const FILE_BASE = '/api/v1/placement-hub/file/';
@@ -62,9 +62,12 @@ export function PlacementHubPage({ embedded = false }: { embedded?: boolean } = 
   }, [user?.id]);
   // 계산기 탭은 항상 열림(계산기 내부가 janus_sso 로 자체 게이트 → 회원은 티저 표시). 배치표만 하드 게이트.
   //   유료표는 티어 충족 OR 구매 권한(entitlement)이 해당 kind 를 덮으면 열림.
-  const canOpen = (t: HubMeta) =>
-    t.calc || TIER_RANK[viewerTier] >= TIER_RANK[requiredTier(t)] ||
-    (requiredTier(t) === 'paid' && coversPlacement(ssoServices, t.kind));
+  //   내부용(O77 — audience:internal, 고속 유래 V1·V2)은 관리자만 — 구매 권한으로도 불가(서버도 동일 거부).
+  const canOpen = (t: HubMeta) => {
+    if (t.audience === 'internal') return viewerTier === 'consultant';
+    return t.calc || TIER_RANK[viewerTier] >= TIER_RANK[requiredTier(t)] ||
+      (requiredTier(t) === 'paid' && coversPlacement(ssoServices, t.kind));
+  };
   const [params] = useSearchParams();
   const [list, setList] = useState<HubList | null>(null);
   const [active, setActive] = useState<string>('');
@@ -119,7 +122,11 @@ export function PlacementHubPage({ embedded = false }: { embedded?: boolean } = 
         // 배치표(데이터) 탭 + 계산기(repo) 탭 병합. 데이터 미배치여도 계산기는 노출.
         // 같은 slug(예: 구 manifest 의 kairos)는 repo 계산기 탭이 우선(자체 게이트·데이터 불요) → 데이터측 제거.
         const calcSlugs = new Set(calcTabs.map((t) => t.slug));
-        const dataTables = l.tables.filter((t) => !(seasonOff && t.kind === 'kairos')).filter((t) => !calcSlugs.has(t.slug));
+        const dataTables = l.tables
+          .filter((t) => !(seasonOff && t.kind === 'kairos'))
+          .filter((t) => !calcSlugs.has(t.slug))
+          // 내부용(O77 — V1·V2 검증본)은 관리자에게만 탭 노출. 학생·유료회원에겐 존재 자체를 숨김.
+          .filter((t) => t.audience !== 'internal' || viewerTier === 'consultant');
         const tables = [...dataTables, ...calcTabs];
         setList({ available: l.available || calcTabs.length > 0, tables });
         // 허브 얼굴 = 대표 배치표(정시) 우선 → 없으면 첫 비-네이티브(배치표/계산기) → 최후 tables[0].
@@ -209,6 +216,7 @@ export function PlacementHubPage({ embedded = false }: { embedded?: boolean } = 
                 }}>
                   <span>{locked ? '🔒' : t.icon ?? '▦'}</span>{t.short ?? t.title}
                   {t.badge && <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--j-gold-ink)', background: 'var(--j-gold-soft)', borderRadius: 999, padding: '2px 7px' }}>{t.badge}</span>}
+                  {t.audience === 'internal' && <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--chip-danger, #b3261e)', background: 'var(--chip-danger-bg, #fdecea)', borderRadius: 999, padding: '2px 7px' }}>내부용</span>}
                 </button>
               );
             })}
