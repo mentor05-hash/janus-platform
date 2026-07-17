@@ -10,6 +10,7 @@ import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { JanusLogo } from '../components/JanusLogo';
 import { track } from '../utils/track';
+import { PlacementSlicePanel } from '../components/PlacementSlicePanel';
 import { GapReportPage } from './GapReportPage';
 
 // 허브 안에서 iframe 대신 네이티브 React로 렌더하는 탭(시안: 격차 리포트는 앱 내부 화면).
@@ -73,6 +74,19 @@ export function PlacementHubPage({ embedded = false }: { embedded?: boolean } = 
   const [active, setActive] = useState<string>('');
   const [srcs, setSrcs] = useState<Record<string, string>>({}); // 로드된 탭의 iframe src(티켓 포함) — 유지해 0초 전환
   const [error, setError] = useState(false);
+  // thin-slice(O76·O77): slug별 slice 데이터 존재 여부(undefined=미확인). 있으면 검색 패널이 기본, 전체표는 버튼 폴백.
+  const [sliceAvail, setSliceAvail] = useState<Record<string, boolean>>({});
+  const [fullView, setFullView] = useState<Record<string, boolean>>({}); // '전체표로 보기' 전환 상태
+
+  /** slice 데이터 존재 프로브(빈 검색 — 행 0건이라 일일 상한 소모 없음). 403/오류 = 폴백(false). */
+  async function probeSlice(slug: string): Promise<boolean> {
+    try {
+      const r = await api.get<{ available: boolean }>(`/placement-hub/slice/${slug}?q=`);
+      return !!r.available;
+    } catch {
+      return false;
+    }
+  }
 
   const seasonOff = params.get('season') === '0'; // 카이로스 숨김(원서 시즌 밖)
   const [scoreLinked, setScoreLinked] = useState<JanusScore | null>(null);
@@ -106,9 +120,25 @@ export function PlacementHubPage({ embedded = false }: { embedded?: boolean } = 
   async function open(t: HubMeta) {
     setActive(t.slug);
     if (t.calc) track(t.slug, 'view', undefined, { view: 'hub' }); // 계산기별 진입 계측(C3)
-    if (isNativeTab(t) || srcs[t.slug]) return; // 네이티브 탭(격차)은 iframe 로드 안 함
+    if (isNativeTab(t)) return; // 네이티브 탭(격차)은 iframe 로드 안 함
+    // 배치표(비계산기)는 slice 우선 — 있으면 검색 패널(iframe·티켓 불요), 없으면 전체표 폴백.
+    if (!t.calc && canOpen(t)) {
+      const avail = sliceAvail[t.slug] ?? (await probeSlice(t.slug));
+      if (sliceAvail[t.slug] === undefined) setSliceAvail((m) => ({ ...m, [t.slug]: avail }));
+      if (avail && !fullView[t.slug]) return;
+    }
+    if (srcs[t.slug]) return;
     const src = await srcFor(t);
     if (src) setSrcs((m) => ({ ...m, [t.slug]: src }));
+  }
+
+  /** '전체표로 보기' — slice 기본에서 원본 표(티켓+워터마크)로 전환. */
+  async function openFull(t: HubMeta) {
+    setFullView((m) => ({ ...m, [t.slug]: true }));
+    if (!srcs[t.slug]) {
+      const src = await srcFor(t);
+      if (src) setSrcs((m) => ({ ...m, [t.slug]: src }));
+    }
   }
 
   useEffect(() => track('baechi', 'view', undefined, { view: 'hub' }), []);
@@ -135,12 +165,23 @@ export function PlacementHubPage({ embedded = false }: { embedded?: boolean } = 
         if (first) {
           setActive(first.slug);
           if (!isNativeTab(first)) {
-            const src = await srcFor(first);
-            if (src) setSrcs((m) => ({ ...m, [first.slug]: src }));
+            // slice 우선(O77 공개 경로) — 있으면 검색 패널, 없으면 전체표(티켓) 폴백
+            if (!first.calc && (await probeSlice(first.slug))) {
+              setSliceAvail((m) => ({ ...m, [first.slug]: true }));
+            } else {
+              if (!first.calc) setSliceAvail((m) => ({ ...m, [first.slug]: false }));
+              const src = await srcFor(first);
+              if (src) setSrcs((m) => ({ ...m, [first.slug]: src }));
+            }
           }
           // 첫 그림이 뜬 뒤 나머지 "열람 가능한" 탭을 뒤에서 프리로드(시안: 기다림 없음)
           setTimeout(() => {
             tables.filter((t) => !isNativeTab(t) && t.slug !== first.slug).forEach(async (t) => {
+              if (!t.calc) {
+                const avail = await probeSlice(t.slug);
+                setSliceAvail((m) => (t.slug in m ? m : { ...m, [t.slug]: avail }));
+                if (avail) return; // slice 탭은 iframe 프리로드 불필요 — 일일 티켓 상한(O76) 아낌
+              }
               const s = await srcFor(t);
               if (s) setSrcs((m) => (m[t.slug] ? m : { ...m, [t.slug]: s }));
             });
@@ -284,14 +325,40 @@ export function PlacementHubPage({ embedded = false }: { embedded?: boolean } = 
           </div>
         )}
 
-        {Object.entries(srcs).map(([slug, src]) => (
-          <iframe
-            key={slug}
-            src={src}
-            title={tables.find((t) => t.slug === slug)?.title ?? slug}
-            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none', display: slug === active && !activeLocked ? 'block' : 'none', background: '#fff' }}
+        {/* thin-slice 검색 패널(O76·O77) — slice 데이터가 있는 배치표 탭의 기본 화면(전체표는 버튼 폴백) */}
+        {activeMeta && !isNativeTab(activeMeta) && !activeMeta.calc && !activeLocked
+          && sliceAvail[activeMeta.slug] && !fullView[activeMeta.slug] && (
+          <PlacementSlicePanel
+            key={activeMeta.slug}
+            slug={activeMeta.slug}
+            title={activeMeta.title}
+            updated={activeMeta.updated}
+            canOpenFull={canOpen(activeMeta)}
+            onOpenFull={() => void openFull(activeMeta)}
           />
-        ))}
+        )}
+
+        {Object.entries(srcs).map(([slug, src]) => {
+          const meta = tables.find((t) => t.slug === slug);
+          const sliceHidden = !!meta && !meta.calc && sliceAvail[slug] && !fullView[slug]; // slice 기본이면 iframe 숨김
+          return (
+            <iframe
+              key={slug}
+              src={src}
+              title={meta?.title ?? slug}
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none', display: slug === active && !activeLocked && !sliceHidden ? 'block' : 'none', background: '#fff' }}
+            />
+          );
+        })}
+
+        {/* 전체표 보기 중 → 검색으로 복귀 칩 */}
+        {activeMeta && sliceAvail[activeMeta.slug] && fullView[activeMeta.slug] && !activeLocked && (
+          <button
+            type="button"
+            onClick={() => setFullView((m) => ({ ...m, [activeMeta.slug]: false }))}
+            style={{ position: 'absolute', top: 10, right: 14, zIndex: 5, cursor: 'pointer', fontSize: 12, fontWeight: 700, color: 'var(--j-blue)', background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: 999, padding: '6px 12px', boxShadow: '0 1px 4px rgba(0,0,0,.08)' }}
+          >↩ 검색으로</button>
+        )}
       </main>
 
       {/* 면책 — 고정 푸터 라인 */}
