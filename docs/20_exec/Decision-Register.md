@@ -57,6 +57,8 @@
 
 | O78 | 2026-07-18 | **화상 상담 방향 — 부록 B-3 실사·수정 A안·미디어킷 분리 설계**: 실사 결과 상담 음성=자체 P2P(voiceCall·call:signal 게이트웨이 시그널링·STUN only·TURN 없음), LiveKit=강의 라인 전용(mock 폴백=실개통 전) → 기획서 A안의 '음성이 이미 LiveKit' 전제 무효. **판정: 결론(LiveKit)은 유지하되 작업 재정의 — 화상 도입 시 상담 음성+화상 동시 이관**(서버=classroom issueToken 재사용·클라=useVoiceCall 교체). 시즌 전 선행 2건 실행: ①ICE 단일소스+TURN ENV 후결합(웹 VITE_TURN_*·모바일 EXPO_PUBLIC_TURN_* — 미설정 시 무변경) ②P2P 연결 성공률 계측(funnel page consult_media·meta.ev join_attempt/connected/failed — C3 enum 무변경). 전환 임계 추가: 성공률<95% 시 이관 앞당김. **M-계약 4종**(토큰/권한=rtc scope+O74 entitlement/이벤트 rtc:*/임베드 media-kit·독립URL)으로 별도 화상툴 분리 가능 설계 — 구현은 M1에서 packages/media-kit. 줌 패리티 로드맵 문서화(도메인 우위: 보드·컨텍스트·미성년 보호 기본값·STT요약) | 문서 docs/30_features/야누스_미디어킷_회신_기능로드맵. web/mobile tsc0. 완료조건: 맥 상담룸 음성 스모크 1회 |
 
+| O79 | 2026-07-18 | **화상 일정·M0 착수**: 실오픈 10월 이후 확정, 8~9월 유료상담은 줌 등 외부툴 → 현행 P2P 라인은 시즌 매출 비탑재(TURN 보강은 선택으로 격하). 9월을 화상 개발(M1 이관+화상→M2→M3)에 배정, 10월 초 시범 5건→오픈. 예상 순작업 9~14일(캘린더 3주). **M0 스파이크 착수**: compose LIVEKIT ENV 스위치(MEDIA_PROVIDER 등 4종), 데모 토큰 POST /media/demo-token(프로덕션 차단·media-demo 룸·publisher), 웹 /media/demo 화상 검증 페이지(두 기기 상호 영상·mock 미개통 안내 폴백). 잔여: LiveKit Cloud 가입·키 발급(사용자)→ENV 주입→맥·폰 상호 영상+LTE 실측 | api tsc0·web tsc0·build. P2P 실측 데이터(5G 딜레이·1분 끊김·재연결)로 A안 이관 근거 보강 |
+
 
 ## 미결 (N) — 결정 대기
 

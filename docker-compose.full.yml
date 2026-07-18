@@ -59,6 +59,11 @@ services:
       # 배치표 허브 데이터 경로(§4 — ENV 로만). 컨테이너 안 마운트 지점 고정, 호스트 경로는 아래 volumes 에서 주입.
       JANUS_DATA_DIR: /data/janus
       ZOOM_PROVIDER: mock
+      # 미디어(SFU) — 기본 mock. LiveKit 실개통(M0·O79): MEDIA_PROVIDER=livekit + LIVEKIT_* 주입 후 api 재기동.
+      MEDIA_PROVIDER: ${MEDIA_PROVIDER:-mock}
+      LIVEKIT_URL: ${LIVEKIT_URL:-}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
       LLM_PROVIDER: none
       HOMEROOM_CYCLE_DAYS: "30"
       PRE_BOOK_HORIZON_DAYS: "30"

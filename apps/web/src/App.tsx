@@ -43,6 +43,7 @@ const AdminAssignmentPage = lazy(() => import('./pages/AdminAssignmentPage').the
 const EmbedSessionPage = lazy(() => import('./pages/EmbedSessionPage').then((m) => ({ default: m.EmbedSessionPage })));
 const RoomStandalonePage = lazy(() => import('./pages/RoomStandalonePage').then((m) => ({ default: m.RoomStandalonePage })));
 const RoomDemoLauncherPage = lazy(() => import('./pages/RoomDemoLauncherPage').then((m) => ({ default: m.RoomDemoLauncherPage })));
+const MediaDemoPage = lazy(() => import('./pages/MediaDemoPage').then((m) => ({ default: m.MediaDemoPage })));
 import { JanusLandingPage } from './pages/JanusLandingPage';
 const PlacementPage = lazy(() => import('./pages/PlacementPage').then((m) => ({ default: m.PlacementPage })));
 const StudentHomePage = lazy(() => import('./pages/StudentHomePage').then((m) => ({ default: m.StudentHomePage })));
@@ -128,6 +129,7 @@ export function App() {
       <Route path="/embed/session" element={<EmbedSessionPage />} />
       <Route path="/room" element={<RoomStandalonePage />} />
       <Route path="/room/demo" element={<RoomDemoLauncherPage />} />
+      <Route path="/media/demo" element={<MediaDemoPage />} />
 
       <Route
         path="/app"
