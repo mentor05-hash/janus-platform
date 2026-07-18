@@ -16,12 +16,43 @@ export function useRoomVoiceCall(getSocket: () => Socket | null) {
   const localRef = useRef<MediaStream | null>(null);
   const remoteRef = useRef<HTMLAudioElement | null>(null);
   const offerSeenRef = useRef(false);
+  const [net, setNet] = useState<'connecting' | 'connected' | 'reconnecting'>('connecting');
+  const restartsRef = useRef(0);
+  const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function clearRestartTimer() { if (restartTimerRef.current != null) { clearTimeout(restartTimerRef.current); restartTimerRef.current = null; } }
+  async function iceRestart() {
+    const pc = pcRef.current; const sock = getSocket();
+    if (!pc || !sock || pc.signalingState === 'closed') return;
+    try { const offer = await pc.createOffer({ iceRestart: true }); await pc.setLocalDescription(offer); sock.emit('call:signal', { kind: 'offer', data: offer }); } catch { /* 수동 재연결로 */ }
+  }
+  function scheduleRestart(delayMs: number) {
+    clearRestartTimer();
+    restartTimerRef.current = setTimeout(() => {
+      const pc = pcRef.current;
+      if (!pc || !['disconnected', 'failed'].includes(pc.connectionState)) return;
+      if (restartsRef.current >= 2) return;
+      restartsRef.current += 1; void iceRestart();
+    }, delayMs);
+  }
+  async function reconnect() {
+    restartsRef.current = 0; setNet('reconnecting');
+    const pc = pcRef.current;
+    if (pc && pc.signalingState !== 'closed') await iceRestart();
+    else { pcRef.current = null; offerSeenRef.current = false; await start(); }
+  }
 
   function makePc() {
     const pc = new RTCPeerConnection({ iceServers: iceServers() });
     pc.onicecandidate = (e) => { if (e.candidate) getSocket()?.emit('call:signal', { kind: 'ice', data: e.candidate }); };
     pc.ontrack = (e) => { if (typeof document !== 'undefined') { if (!remoteRef.current) { remoteRef.current = document.createElement('audio'); remoteRef.current.autoplay = true; } remoteRef.current.srcObject = e.streams[0]; } };
-    pc.onconnectionstatechange = () => { if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) setPeerPresent(false); };
+    pc.onconnectionstatechange = () => {
+      const st = pc.connectionState;
+      if (st === 'connected') { setPeerPresent(true); setNet('connected'); restartsRef.current = 0; clearRestartTimer(); }
+      else if (st === 'disconnected') { setNet('reconnecting'); scheduleRestart(3000); }
+      else if (st === 'failed') { setPeerPresent(false); setNet('reconnecting'); scheduleRestart(0); }
+      else if (st === 'closed') setPeerPresent(false);
+    };
     pcRef.current = pc; return pc;
   }
   async function ensureLocal() { if (localRef.current) return localRef.current; const s = await navigator.mediaDevices.getUserMedia({ audio: true, video: false }); localRef.current = s; return s; }
@@ -30,7 +61,7 @@ export function useRoomVoiceCall(getSocket: () => Socket | null) {
     try {
       const pc = pcRef.current ?? makePc(); const local = await ensureLocal();
       local.getTracks().forEach((t) => { if (!pc.getSenders().find((s) => s.track === t)) pc.addTrack(t, local); });
-      setInCall(true);
+      setInCall(true); setNet('connecting');
       sock.emit('call:join');
       await new Promise((r) => setTimeout(r, 600)); // 동시 발신 방지 — 상대 offer 가 오면 자동 응답이 처리
       if (offerSeenRef.current || pc.remoteDescription) return;
@@ -39,7 +70,7 @@ export function useRoomVoiceCall(getSocket: () => Socket | null) {
     } catch { hangup(); }
   }
   function toggleMute() { const s = localRef.current; if (!s) return; const next = !muted; setMuted(next); s.getAudioTracks().forEach((t) => (t.enabled = !next)); }
-  function hangup() { getSocket()?.emit('call:leave'); pcRef.current?.close(); pcRef.current = null; localRef.current?.getTracks().forEach((t) => t.stop()); localRef.current = null; offerSeenRef.current = false; setInCall(false); setMuted(false); setPeerPresent(false); }
+  function hangup() { getSocket()?.emit('call:leave'); clearRestartTimer(); restartsRef.current = 0; setNet('connecting'); pcRef.current?.close(); pcRef.current = null; localRef.current?.getTracks().forEach((t) => t.stop()); localRef.current = null; offerSeenRef.current = false; setInCall(false); setMuted(false); setPeerPresent(false); }
 
   useEffect(() => {
     let sock: Socket | null = null;
@@ -72,5 +103,5 @@ export function useRoomVoiceCall(getSocket: () => Socket | null) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => () => hangup(), []);
-  return { inCall, muted, peerPresent, supported, start, hangup, toggleMute };
+  return { inCall, muted, peerPresent, supported, status: inCall ? net : 'idle' as const, start, hangup, toggleMute, reconnect };
 }

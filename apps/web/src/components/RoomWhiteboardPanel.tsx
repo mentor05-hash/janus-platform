@@ -335,7 +335,10 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
               ? <LectureAudioBar media={media} publish={!!mediaPublish} />
               : (status !== 'off' && (call.inCall
                 ? <>
-                    <span style={{ fontSize: 12, color: call.peerPresent ? 'var(--chip-done)' : 'var(--muted)' }}>🎧 {call.peerPresent ? '통화 중' : '연결 대기'}</span>
+                    <span style={{ fontSize: 12, color: call.status === 'connected' ? 'var(--chip-done)' : call.status === 'reconnecting' ? 'var(--chip-confirmed, #d97706)' : 'var(--muted)' }}>
+                      🎧 {call.status === 'connected' ? '통화 중' : call.status === 'reconnecting' ? '재연결 중…' : '연결 중…'}
+                    </span>
+                    {call.status === 'reconnecting' && <button className="btn sm" onClick={() => void call.reconnect()}>🔄 재연결</button>}
                     <button className="btn ghost sm" onClick={call.toggleMute}>{call.muted ? '🔇 음소거' : '🎙 켜짐'}</button>
                     <button className="btn danger sm" onClick={call.hangup}>통화 종료</button>
                   </>
