@@ -65,7 +65,8 @@ services:
       # 실시간 룸 서비스 이관 브리지(플래그). 엔드포인트만 추가 — 클라가 호출 전엔 기존 in-app 그대로.
       REALTIME_ROOMS_ENABLED: "true"
       ROOMS_API_URL: http://realtime-rooms:3100
-      ROOMS_PUBLIC_URL: http://localhost:3100
+      # 외부(폰 등) 접속 시 터널 URL 로 덮어쓰기: ROOMS_PUBLIC_URL=https://<룸터널> docker compose up -d api
+      ROOMS_PUBLIC_URL: ${ROOMS_PUBLIC_URL:-http://localhost:3100}
       ROOMS_API_KEY: dev-rooms-api-key
     depends_on:
       postgres:
