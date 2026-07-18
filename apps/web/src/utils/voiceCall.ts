@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Socket } from 'socket.io-client';
+import { iceServers } from './iceServers';
+import { track } from './track';
 
 /**
  * 예약 room 기반 1:1 WebRTC 음성통화. 시그널링(offer/answer/ICE)은 socket.io 게이트웨이(call:signal)로 중계.
- * 자체 구현(외부 서비스 없음) — STUN 은 구글 공개 서버, 대칭 NAT 대비 TURN 은 ENV 로 후결합 가능.
+ * 자체 구현(외부 서비스 없음) — ICE 는 iceServers()(ENV 로 TURN 후결합, 기본 구글 STUN — O78).
  * 필기·채팅과 같은 소켓을 쓰므로 "필기하며 음성 설명"이 동시 동작.
+ * 계측(M3 선행): page 'consult_media' + meta.ev(join_attempt|connected|failed) — P2P 연결 성공률 실측용.
  */
-const ICE: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
 
 export function useVoiceCall(getSocket: () => Socket | null, bookingId: string) {
   const [inCall, setInCall] = useState(false);
@@ -15,12 +17,24 @@ export function useVoiceCall(getSocket: () => Socket | null, bookingId: string) 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const connectedOnce = useRef(false); // 이번 통화에서 connected 도달 여부(성공률 계측)
 
   function makePc() {
-    const pc = new RTCPeerConnection({ iceServers: ICE });
+    const pc = new RTCPeerConnection({ iceServers: iceServers() });
+    connectedOnce.current = false;
     pc.onicecandidate = (e) => { if (e.candidate) getSocket()?.emit('call:signal', { bookingId, kind: 'ice', data: e.candidate }); };
     pc.ontrack = (e) => { if (remoteAudioRef.current) remoteAudioRef.current.srcObject = e.streams[0]; };
-    pc.onconnectionstatechange = () => { if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) setPeerPresent(false); };
+    pc.onconnectionstatechange = () => {
+      if (pc.connectionState === 'connected' && !connectedOnce.current) {
+        connectedOnce.current = true;
+        track('consult_media', 'view', undefined, { ev: 'connected', bookingId });
+      }
+      if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) {
+        setPeerPresent(false);
+        // failed = ICE 협상 실패(NAT/방화벽) — 성공률 분모 대비 실패 실측(P2P→LiveKit 이관 판단 근거, O78)
+        if (pc.connectionState === 'failed') track('consult_media', 'view', undefined, { ev: 'failed', afterConnect: connectedOnce.current, bookingId });
+      }
+    };
     pcRef.current = pc;
     return pc;
   }
@@ -35,6 +49,7 @@ export function useVoiceCall(getSocket: () => Socket | null, bookingId: string) 
     const sock = getSocket(); if (!sock) return;
     try {
       const pc = pcRef.current ?? makePc();
+      track('consult_media', 'view', undefined, { ev: 'join_attempt', bookingId }); // 입장 시도(성공률 분모)
       const local = await ensureLocal();
       local.getTracks().forEach((t) => pc.addTrack(t, local));
       setInCall(true);

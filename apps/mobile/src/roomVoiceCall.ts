@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Socket } from 'socket.io-client';
+import { iceServers } from './iceServers';
 
 /** 룸 서비스 프로토콜용 1:1 WebRTC 음성(모바일/expo-web). payload 에 bookingId 없음(토큰 고정). */
-const ICE: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
 
 export function useRoomVoiceCall(getSocket: () => Socket | null) {
   const [inCall, setInCall] = useState(false);
@@ -14,7 +14,7 @@ export function useRoomVoiceCall(getSocket: () => Socket | null) {
   const remoteRef = useRef<HTMLAudioElement | null>(null);
 
   function makePc() {
-    const pc = new RTCPeerConnection({ iceServers: ICE });
+    const pc = new RTCPeerConnection({ iceServers: iceServers() });
     pc.onicecandidate = (e) => { if (e.candidate) getSocket()?.emit('call:signal', { kind: 'ice', data: e.candidate }); };
     pc.ontrack = (e) => { if (typeof document !== 'undefined') { if (!remoteRef.current) { remoteRef.current = document.createElement('audio'); remoteRef.current.autoplay = true; } remoteRef.current.srcObject = e.streams[0]; } };
     pc.onconnectionstatechange = () => { if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) setPeerPresent(false); };

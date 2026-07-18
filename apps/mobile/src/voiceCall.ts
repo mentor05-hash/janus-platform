@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Socket } from 'socket.io-client';
+import { iceServers } from './iceServers';
 
 /**
  * 1:1 WebRTC 음성통화(모바일/expo-web) — 시그널링은 게이트웨이 call:signal 중계.
  * 웹(expo-web)에서 동작(브라우저 WebRTC). 네이티브는 react-native-webrtc 후결합(데모 범위 밖).
  * 원격 오디오는 DOM audio 엘리먼트로 재생(RN <audio> 부재 대응).
  */
-const ICE: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
 const hasWebRTC = typeof window !== 'undefined' && typeof (window as unknown as { RTCPeerConnection?: unknown }).RTCPeerConnection !== 'undefined';
 
 export function useVoiceCall(getSocket: () => Socket | null, bookingId: string) {
@@ -23,7 +23,7 @@ export function useVoiceCall(getSocket: () => Socket | null, bookingId: string) 
     return audioElRef.current;
   }
   function makePc() {
-    const pc = new RTCPeerConnection({ iceServers: ICE });
+    const pc = new RTCPeerConnection({ iceServers: iceServers() });
     pc.onicecandidate = (e) => { if (e.candidate) getSocket()?.emit('call:signal', { bookingId, kind: 'ice', data: e.candidate }); };
     pc.ontrack = (e) => { const a = remoteAudio(); if (a) a.srcObject = e.streams[0]; };
     pcRef.current = pc; return pc;

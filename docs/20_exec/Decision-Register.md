@@ -55,6 +55,8 @@
 
 | O77 | 2026-07-17 | **데이터 원천 정책 — 투트랙·3버전(외부 유료 공개=V3만)**: ①어디가=공공 — 단 타인 2차가공물 불사용, 원본 직수집·재유도 ②고속성장=파이프라인 **입력 금지**, 내부 벤치마크 전용(V3 vs 고속 비교, 서면 확인 권장) ③3버전 — V1(아우구르 전)·V2(아우구르 현행, 둘 다 고속 유래)=`audience:internal`(관리자만·entitlement 우회 불가·학생 탭 숨김·무료표기여도 티켓 강제), V3(어디가 원본+평가원 공식+아우구르+자체지표, 고속 무입력)=외부 유료 공개 유일본 ④장치 — manifest audience 필드+서버 HUB_INTERNAL_ONLY 게이트(ticket·slice·file 3중), `check_clean_build.py`(공개표+slices 고속 마커 0건, fail-closed), `data-lineage-matrix.md`(필드 태깅+V3 반출 체크리스트). 검증시스템 영향: 플랫폼 0·엔진 방법론 0(청정 입력 재적합+백테스트 1회) | api tsc0·web tsc0·build. V3 빌드·매트릭스 필드 채움은 데이터트랙 잔여 |
 
+| O78 | 2026-07-18 | **화상 상담 방향 — 부록 B-3 실사·수정 A안·미디어킷 분리 설계**: 실사 결과 상담 음성=자체 P2P(voiceCall·call:signal 게이트웨이 시그널링·STUN only·TURN 없음), LiveKit=강의 라인 전용(mock 폴백=실개통 전) → 기획서 A안의 '음성이 이미 LiveKit' 전제 무효. **판정: 결론(LiveKit)은 유지하되 작업 재정의 — 화상 도입 시 상담 음성+화상 동시 이관**(서버=classroom issueToken 재사용·클라=useVoiceCall 교체). 시즌 전 선행 2건 실행: ①ICE 단일소스+TURN ENV 후결합(웹 VITE_TURN_*·모바일 EXPO_PUBLIC_TURN_* — 미설정 시 무변경) ②P2P 연결 성공률 계측(funnel page consult_media·meta.ev join_attempt/connected/failed — C3 enum 무변경). 전환 임계 추가: 성공률<95% 시 이관 앞당김. **M-계약 4종**(토큰/권한=rtc scope+O74 entitlement/이벤트 rtc:*/임베드 media-kit·독립URL)으로 별도 화상툴 분리 가능 설계 — 구현은 M1에서 packages/media-kit. 줌 패리티 로드맵 문서화(도메인 우위: 보드·컨텍스트·미성년 보호 기본값·STT요약) | 문서 docs/30_features/야누스_미디어킷_회신_기능로드맵. web/mobile tsc0. 완료조건: 맥 상담룸 음성 스모크 1회 |
+
 
 ## 미결 (N) — 결정 대기
 

@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Socket } from 'socket.io-client';
+import { iceServers } from './iceServers';
 
 /**
  * 룸 서비스(apps/realtime-rooms) 프로토콜용 1:1 WebRTC 음성통화 훅.
  * 예약(useVoiceCall)과 동일하나 payload 에 bookingId 가 없다(룸은 토큰으로 고정).
  * 시그널: call:join / call:signal {kind,data} / call:leave, 수신 call:signal {from,kind,data}.
  */
-const ICE: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
 
 export function useRoomVoiceCall(getSocket: () => Socket | null) {
   const [inCall, setInCall] = useState(false);
@@ -17,7 +17,7 @@ export function useRoomVoiceCall(getSocket: () => Socket | null) {
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
 
   function makePc() {
-    const pc = new RTCPeerConnection({ iceServers: ICE });
+    const pc = new RTCPeerConnection({ iceServers: iceServers() });
     pc.onicecandidate = (e) => { if (e.candidate) getSocket()?.emit('call:signal', { kind: 'ice', data: e.candidate }); };
     pc.ontrack = (e) => { if (remoteAudioRef.current) remoteAudioRef.current.srcObject = e.streams[0]; };
     pc.onconnectionstatechange = () => { if (['failed', 'disconnected', 'closed'].includes(pc.connectionState)) setPeerPresent(false); };
