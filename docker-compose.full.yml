@@ -119,6 +119,8 @@ services:
       args:
         # 로컬 데모 배포 — 데모 로그인 편의 활성. 실서비스 배포에선 이 줄을 제거/false.
         VITE_DEMO_MODE: "true"
+        # 상담 화상(M1) 켜기: .env 에 VITE_MEDIA_CONSULT=livekit 후 web 재빌드
+        VITE_MEDIA_CONSULT: ${VITE_MEDIA_CONSULT:-}
     ports:
       - "8080:80"
     depends_on:

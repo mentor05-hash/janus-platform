@@ -16,6 +16,9 @@ COPY . .
 # 실서비스 빌드는 이 ARG 를 넘기지 않으면 자동으로 비활성(안전 기본값).
 ARG VITE_DEMO_MODE=""
 ENV VITE_DEMO_MODE=$VITE_DEMO_MODE
+# 상담 미디어 스택(O79 M1): livekit 지정 시 상담룸이 미디어킷(음성+화상). 미지정=기존 P2P.
+ARG VITE_MEDIA_CONSULT=""
+ENV VITE_MEDIA_CONSULT=$VITE_MEDIA_CONSULT
 RUN npm run build --workspace apps/web
 
 # ---------- runner (nginx) ----------
