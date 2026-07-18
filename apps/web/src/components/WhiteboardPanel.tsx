@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
+import { useMediaSession } from '@mentoring/media-kit';
 import { api } from '../api/client';
+import { track } from '../utils/track';
 import { useVoiceCall } from '../utils/voiceCall';
 import { useSessionPhase, canInteract, sessionNotice, type SessionInfo } from '../utils/session';
+
+/** O79 M1 — 상담 미디어 스택 플래그: 'livekit' 이면 미디어킷(음성+화상), 아니면 기존 P2P 폴백(무변경). */
+const LK_ON = ((import.meta.env as Record<string, string | undefined>).VITE_MEDIA_CONSULT ?? '') === 'livekit';
 
 type Pt = { x: number; y: number; p?: number }; // p=필압(0~1)
 type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean; highlight?: boolean };
@@ -45,12 +50,22 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
   const fileRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const camStreamRef = useRef<MediaStream | null>(null);
-  const call = useVoiceCall(() => sockRef.current, bookingId);
+  const call = useVoiceCall(() => sockRef.current, bookingId); // 기존 P2P(폴백 — LK_ON 이면 미사용)
+  // 미디어킷(LiveKit) — 음성+화상. 토큰은 M-계약 M1(/media/token, 예약·시간창 서버 게이팅).
+  const lk = useMediaSession({
+    getToken: async () => {
+      const r = await api.post<{ url: string | null; token: string | null }>('/media/token', { context: 'consult', refId: bookingId });
+      return r.url && r.token ? { url: r.url, token: r.token } : null;
+    },
+    video: true,
+    onEvent: (ev, meta) => track('consult_media', 'view', undefined, { ev, stack: 'livekit', bookingId, ...meta }),
+  });
   const phase = useSessionPhase(session);
   const rw = canInteract(phase); // 지금 필기·음성 가능 여부 — 라이브 세션은 예약 시간대에만
   const notice = sessionNotice(phase, session);
   // 세션 창이 닫히면(강제 종료) 진행 중 음성통화도 자동 종료.
   useEffect(() => { if (!rw && call.inCall) call.hangup(); }, [rw, call.inCall]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!rw && lk.status !== 'idle') void lk.leave(); }, [rw, lk.status]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); }, []);
 
   // 한 획을 잉크 컨텍스트에 렌더(변환은 호출측 적용). 지우개(destination-out)·형광펜(반투명)·필압.
@@ -368,16 +383,27 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <b style={{ fontSize: 15 }}>🖊 {title ?? '공유 화이트보드'}</b>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {status !== 'off' && (call.inCall
-              ? <>
-                  <span style={{ fontSize: 12, color: call.status === 'connected' ? 'var(--chip-done)' : call.status === 'reconnecting' ? 'var(--chip-confirmed, #d97706)' : 'var(--muted)' }}>
-                    🎧 {call.status === 'connected' ? '통화 중' : call.status === 'reconnecting' ? '재연결 중…' : '연결 중…'}
-                  </span>
-                  {call.status === 'reconnecting' && <button className="btn sm" onClick={() => void call.reconnect()}>🔄 재연결</button>}
-                  <button className="btn ghost sm" onClick={call.toggleMute}>{call.muted ? '🔇 음소거' : '🎙 켜짐'}</button>
-                  <button className="btn danger sm" onClick={call.hangup}>통화 종료</button>
-                </>
-              : <button className="btn ghost sm" disabled={!rw} onClick={call.start} title={rw ? '음성통화' : '상담 시간대에만 통화할 수 있어요'}>📞 음성통화</button>)}
+            {status !== 'off' && (LK_ON
+              ? (lk.status !== 'idle'
+                ? <>
+                    <span style={{ fontSize: 12, color: lk.status === 'connected' ? 'var(--chip-done)' : lk.status === 'reconnecting' ? 'var(--chip-confirmed, #d97706)' : 'var(--muted)' }}>
+                      📹 {lk.status === 'connected' ? '통화 중' : lk.status === 'reconnecting' ? '재연결 중…' : '연결 중…'}
+                    </span>
+                    <button className="btn ghost sm" onClick={() => void lk.toggleCam()}>{lk.camOn ? '📷 켜짐' : '📷 끔'}</button>
+                    <button className="btn ghost sm" onClick={() => void lk.toggleMic()}>{lk.micOn ? '🎙 켜짐' : '🔇 음소거'}</button>
+                    <button className="btn danger sm" onClick={() => void lk.leave()}>통화 종료</button>
+                  </>
+                : <button className="btn ghost sm" disabled={!rw} onClick={() => void lk.join()} title={rw ? '화상통화' : '상담 시간대에만 통화할 수 있어요'}>📹 화상통화</button>)
+              : (call.inCall
+                ? <>
+                    <span style={{ fontSize: 12, color: call.status === 'connected' ? 'var(--chip-done)' : call.status === 'reconnecting' ? 'var(--chip-confirmed, #d97706)' : 'var(--muted)' }}>
+                      🎧 {call.status === 'connected' ? '통화 중' : call.status === 'reconnecting' ? '재연결 중…' : '연결 중…'}
+                    </span>
+                    {call.status === 'reconnecting' && <button className="btn sm" onClick={() => void call.reconnect()}>🔄 재연결</button>}
+                    <button className="btn ghost sm" onClick={call.toggleMute}>{call.muted ? '🔇 음소거' : '🎙 켜짐'}</button>
+                    <button className="btn danger sm" onClick={call.hangup}>통화 종료</button>
+                  </>
+                : <button className="btn ghost sm" disabled={!rw} onClick={call.start} title={rw ? '음성통화' : '상담 시간대에만 통화할 수 있어요'}>📞 음성통화</button>))}
             <button onClick={onClose} aria-label="닫기" style={{ border: 'none', background: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--muted)' }}>✕</button>
           </div>
         </div>
@@ -441,6 +467,14 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
           </>
         )}
         <audio ref={call.remoteAudioRef} autoPlay />
+        {/* 화상 PIP(미디어킷) — 보드 위 우상단 오버레이. 상대 화상은 크게, 내 화상은 그 아래 썸네일. */}
+        {LK_ON && lk.status !== 'idle' && (
+          <div style={{ position: 'absolute', top: 60, right: 14, zIndex: 20, display: 'flex', flexDirection: 'column', gap: 6, pointerEvents: 'none' }}>
+            <video ref={lk.remoteVideoRef} autoPlay playsInline style={{ width: 168, aspectRatio: '4 / 3', borderRadius: 10, background: '#111', objectFit: 'cover', boxShadow: '0 2px 10px rgba(0,0,0,.28)', display: lk.remoteCamOn ? 'block' : 'none' }} />
+            {!lk.remoteCamOn && <div style={{ width: 168, aspectRatio: '4 / 3', borderRadius: 10, background: '#1b2430', color: '#9fb0c2', display: 'grid', placeItems: 'center', fontSize: 12 }}>상대 화상 꺼짐</div>}
+            <video ref={lk.localVideoRef} autoPlay playsInline muted style={{ width: 108, aspectRatio: '4 / 3', borderRadius: 8, background: '#111', objectFit: 'cover', alignSelf: 'flex-end', boxShadow: '0 1px 6px rgba(0,0,0,.28)', display: lk.camOn ? 'block' : 'none' }} />
+          </div>
+        )}
       </div>
     </div>
   );
