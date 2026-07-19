@@ -1,6 +1,8 @@
-// ⚠ 쌍둥이 구현: WhiteboardPanel.tsx 와 UI·입력 로직이 병행 유지된다(Session*Panel 이 VITE_REALTIME_ROOMS 로 택1).
-//   말풍선 정렬·IME(isComposing)·통화 UI 등 공통 수정은 **반드시 두 파일에 동일 반영**할 것.
-//   (전례: 정렬·IME 수정이 룸 쪽에만 들어가 예약 경로에서 재발 — O79 회귀. 근본 해소는 공용 컴포넌트 추출 백로그)
+// ⚠ 쌍둥이 구현 4파일: WhiteboardPanel.tsx(웹 예약) + mobile WhiteboardScreen/RoomWhiteboardScreen 과
+//   캔버스 합성·입력 로직이 병행 유지된다(Session*Panel 이 VITE_REALTIME_ROOMS 로 택1).
+//   지우개(합성 상태 초기화)·정렬·IME(isComposing)·통화 UI 등 공통 수정은 **반드시 4파일 전수 반영**할 것.
+//   (전례 2회: 정렬·IME 수정, 지우개 destination-out 누수 수정(b9ce125)이 룸 쪽에만 들어가 예약 경로에서 재발 — O79/O81 회귀.
+//    근본 해소는 공용 컴포넌트 추출 백로그)
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { useRoomVoiceCall } from '../utils/roomVoiceCall';
