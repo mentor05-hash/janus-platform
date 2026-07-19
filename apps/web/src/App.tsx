@@ -60,6 +60,7 @@ const AdminScoresPage = lazy(() => import('./pages/AdminScoresPage').then((m) =>
 const AdminReversePage = lazy(() => import('./pages/AdminReversePage').then((m) => ({ default: m.AdminReversePage })));
 const TeacherDashboardPage = lazy(() => import('./pages/TeacherDashboardPage').then((m) => ({ default: m.TeacherDashboardPage })));
 import { StudentLayout } from './components/StudentLayout';
+import { GuardianLayout } from './components/GuardianLayout';
 const StudentBookingsPage = lazy(() => import('./pages/StudentBookingsPage').then((m) => ({ default: m.StudentBookingsPage })));
 const StudentSearchPage = lazy(() => import('./pages/StudentSearchPage').then((m) => ({ default: m.StudentSearchPage })));
 const GlobalSearchPage = lazy(() => import('./pages/GlobalSearchPage').then((m) => ({ default: m.GlobalSearchPage })));
@@ -113,7 +114,6 @@ export function App() {
       <Route path="/kairos" element={<KairosPage />} />
       <Route path="/alea" element={<AleaPage />} />
       <Route path="/placement/gap" element={<GapReportPage />} />
-      <Route path="/guardian/report" element={<GuardianReportPage />} />
       <Route path="/services" element={<ServicesPage />} />
       <Route path="/services/:slug" element={<ServiceDetailPage />} />
       {/* 구 잇올 랜딩·연계서비스는 신규 야누스 페이지로 대체 완료 → 리다이렉트(잇올 노출 차단) */}
@@ -130,6 +130,21 @@ export function App() {
       <Route path="/room" element={<RoomStandalonePage />} />
       <Route path="/room/demo" element={<RoomDemoLauncherPage />} />
       <Route path="/media/demo" element={<MediaDemoPage />} />
+
+      {/* 학부모 — 전용 레이아웃(주간 리포트·커뮤니티·알림). bbf7fb3 회귀(내비 소실) 복원 */}
+      <Route
+        path="/guardian"
+        element={
+          <Protected roles={['guardian']}>
+            <GuardianLayout />
+          </Protected>
+        }
+      >
+        <Route index element={<Navigate to="report" replace />} />
+        <Route path="report" element={<GuardianReportPage />} />
+        <Route path="community" element={<CommunityBoardPage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
+      </Route>
 
       <Route
         path="/app"
