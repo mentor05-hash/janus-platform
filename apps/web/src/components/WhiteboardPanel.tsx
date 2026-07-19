@@ -3,7 +3,7 @@
 //   (전례: 정렬·IME 수정이 룸 쪽에만 들어가 예약 경로에서 재발 — O79 회귀. 근본 해소는 공용 컴포넌트 추출 백로그)
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import { useMediaSession } from '@mentoring/media-kit';
+import { useMediaSession, MediaPreflight, type PreflightSelection } from '@mentoring/media-kit';
 import { api } from '../api/client';
 import { track } from '../utils/track';
 import { useVoiceCall } from '../utils/voiceCall';
@@ -63,6 +63,7 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     video: true,
     onEvent: (ev, meta) => track('consult_media', 'view', undefined, { ev, stack: 'livekit', bookingId, ...meta }),
   });
+  const [preflight, setPreflight] = useState(false); // 입장 전 점검 모달(§3.5)
   const phase = useSessionPhase(session);
   const rw = canInteract(phase); // 지금 필기·음성 가능 여부 — 라이브 세션은 예약 시간대에만
   const notice = sessionNotice(phase, session);
@@ -396,7 +397,7 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
                     <button className="btn ghost sm" onClick={() => void lk.toggleMic()}>{lk.micOn ? '🎙 켜짐' : '🔇 음소거'}</button>
                     <button className="btn danger sm" onClick={() => void lk.leave()}>통화 종료</button>
                   </>
-                : <button className="btn ghost sm" disabled={!rw} onClick={() => void lk.join()} title={rw ? '화상통화' : '상담 시간대에만 통화할 수 있어요'}>📹 화상통화</button>)
+                : <button className="btn ghost sm" disabled={!rw} onClick={() => setPreflight(true)} title={rw ? '화상통화' : '상담 시간대에만 통화할 수 있어요'}>📹 화상통화</button>)
               : (call.inCall
                 ? <>
                     <span style={{ fontSize: 12, color: call.status === 'connected' ? 'var(--chip-done)' : call.status === 'reconnecting' ? 'var(--chip-confirmed, #d97706)' : 'var(--muted)' }}>
@@ -477,6 +478,17 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
             {!lk.remoteCamOn && <div style={{ width: 168, aspectRatio: '4 / 3', borderRadius: 10, background: '#1b2430', color: '#9fb0c2', display: 'grid', placeItems: 'center', fontSize: 12 }}>상대 화상 꺼짐</div>}
             <video ref={lk.localVideoRef} autoPlay playsInline muted style={{ width: 108, aspectRatio: '4 / 3', borderRadius: 8, background: '#111', objectFit: 'cover', alignSelf: 'flex-end', boxShadow: '0 1px 6px rgba(0,0,0,.28)', display: lk.camOn ? 'block' : 'none' }} />
           </div>
+        )}
+        {/* 입장 전 점검(§3.5) — 장치 선택·미리보기·마이크 레벨·간이 RTT. 선택 결과를 join 에 그대로 전달. */}
+        {LK_ON && preflight && (
+          <MediaPreflight
+            probe={async () => {
+              const t0 = performance.now();
+              try { await api.get('/health'); return Math.round(performance.now() - t0); } catch { return null; }
+            }}
+            onStart={(sel: PreflightSelection) => { setPreflight(false); void lk.join(sel); }}
+            onCancel={() => setPreflight(false)}
+          />
         )}
       </div>
     </div>

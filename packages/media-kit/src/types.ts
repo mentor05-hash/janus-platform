@@ -20,3 +20,17 @@ export interface MediaSessionOptions {
   /** 계측·로깅 훅(선택) — 실패 사유는 meta.message 로 전달. */
   onEvent?: (ev: MediaEvent, meta?: Record<string, unknown>) => void;
 }
+
+/** join 시 프리플라이트 선택 반영 — video 는 세션 기본값 오버라이드, deviceId 는 장치 지정. */
+export interface JoinOptions {
+  video?: boolean;
+  audioDeviceId?: string;
+  videoDeviceId?: string;
+}
+
+/** 프리플라이트 결과(사용자 선택) — onStart 로 전달되어 join(opts) 에 그대로 쓴다. */
+export interface PreflightSelection {
+  video: boolean; // false = "음성만 시작"
+  audioDeviceId?: string;
+  videoDeviceId?: string;
+}

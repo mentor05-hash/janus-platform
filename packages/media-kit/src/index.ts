@@ -1,2 +1,4 @@
 export { useMediaSession } from './useMediaSession';
-export type { MediaStatus, MediaEvent, MediaToken, MediaSessionOptions } from './types';
+export { MediaPreflight } from './MediaPreflight';
+export type { MediaPreflightProps } from './MediaPreflight';
+export type { MediaStatus, MediaEvent, MediaToken, MediaSessionOptions, JoinOptions, PreflightSelection } from './types';

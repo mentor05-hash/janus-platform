@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Room, RoomEvent, Track, type RemoteTrack, type TrackPublication, type Participant } from 'livekit-client';
-import type { MediaSessionOptions, MediaStatus } from './types';
+import type { JoinOptions, MediaSessionOptions, MediaStatus } from './types';
 
 /**
  * useMediaSession — LiveKit 기반 1:1 음성(+화상) 세션 훅(미디어킷 코어, O79 M1).
@@ -18,6 +18,8 @@ export function useMediaSession(opts: MediaSessionOptions) {
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
   const audioElsRef = useRef<HTMLMediaElement[]>([]);
+  // 프리플라이트에서 고른 장치 — toggleCam 재켜기에서도 유지한다.
+  const deviceRef = useRef<{ audio?: string; video?: string }>({});
   // 콜백은 ref 로 고정 — 소비자 리렌더마다 룸을 재구성하지 않는다.
   const getTokenRef = useRef(opts.getToken);
   getTokenRef.current = opts.getToken;
@@ -33,8 +35,10 @@ export function useMediaSession(opts: MediaSessionOptions) {
     setStatus('idle'); setRemoteCamOn(false); setCamOn(false); setMicOn(true);
   }
 
-  async function join() {
+  async function join(joinOpts?: JoinOptions) {
     if (roomRef.current) return; // 중복 입장 방지
+    const wantVideo = joinOpts?.video ?? video;
+    deviceRef.current = { audio: joinOpts?.audioDeviceId, video: joinOpts?.videoDeviceId };
     setStatus('connecting');
     onEventRef.current?.('join_attempt');
     const room = new Room();
@@ -65,10 +69,12 @@ export function useMediaSession(opts: MediaSessionOptions) {
         .on(RoomEvent.TrackMuted, (pub: TrackPublication, p: Participant) => { if (isRemote(p) && pub.kind === Track.Kind.Video) setRemoteCamOn(false); })
         .on(RoomEvent.TrackUnmuted, (pub: TrackPublication, p: Participant) => { if (isRemote(p) && pub.kind === Track.Kind.Video) setRemoteCamOn(true); });
       await room.connect(tok.url, tok.token);
-      await room.localParticipant.setMicrophoneEnabled(true);
+      const aid = deviceRef.current.audio;
+      await room.localParticipant.setMicrophoneEnabled(true, aid ? { deviceId: aid } : undefined);
       setMicOn(true);
-      if (video) {
-        const pub = await room.localParticipant.setCameraEnabled(true);
+      if (wantVideo) {
+        const vid = deviceRef.current.video;
+        const pub = await room.localParticipant.setCameraEnabled(true, vid ? { deviceId: vid } : undefined);
         const t = pub?.track ?? [...room.localParticipant.videoTrackPublications.values()][0]?.track;
         if (t && localVideoRef.current) t.attach(localVideoRef.current);
         setCamOn(true);
@@ -100,7 +106,8 @@ export function useMediaSession(opts: MediaSessionOptions) {
   async function toggleCam() {
     const room = roomRef.current; if (!room) return;
     const next = !camOn;
-    const pub = await room.localParticipant.setCameraEnabled(next);
+    const vid = deviceRef.current.video;
+    const pub = await room.localParticipant.setCameraEnabled(next, next && vid ? { deviceId: vid } : undefined);
     if (next) {
       const t = pub?.track ?? [...room.localParticipant.videoTrackPublications.values()][0]?.track;
       if (t && localVideoRef.current) t.attach(localVideoRef.current);
