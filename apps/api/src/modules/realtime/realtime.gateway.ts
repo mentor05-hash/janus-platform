@@ -167,6 +167,21 @@ export class RealtimeGateway implements OnGatewayConnection {
     return { ok: true };
   }
 
+  /** 벌크 재동기화(되돌리기 등) — 전체 스트로크 집합 교체를 상대에게 중계. */
+  @SubscribeMessage('wb:sync')
+  wbSync(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, strokes }: { bookingId: string; strokes: unknown }) {
+    if (!this.openNow(bookingId)) return { ok: false, closed: true };
+    client.to(`booking:${bookingId}`).emit('wb:sync', { strokes });
+    return { ok: true };
+  }
+
+  /** 레이저 포인터 궤적 중계(비영구 — 저장 안 함, 발신자 제외). */
+  @SubscribeMessage('wb:laser')
+  wbLaser(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, sid, points }: { bookingId: string; sid?: string; points: unknown }) {
+    if (!this.openNow(bookingId)) return;
+    client.to(`booking:${bookingId}`).emit('wb:laser', { sid, points });
+  }
+
   @SubscribeMessage('wb:save')
   async wbSave(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, strokes, backgroundFileId }: { bookingId: string; strokes: unknown; backgroundFileId?: string | null }) {
     const user = this.user(client);
