@@ -11,7 +11,7 @@ import { useSessionPhase, canInteract, sessionNotice, type SessionInfo } from '.
 import type { RoomSession } from './RoomChatScreen';
 
 type Pt = { x: number; y: number; p?: number };
-type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean; highlight?: boolean };
+type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean; highlight?: boolean; shape?: 'line' | 'arrow' | 'rect' | 'ellipse' };
 const COLORS = ['#1E3550', '#2F6FB3', '#E5484D', '#2A8A5F', '#CF9A3A'];
 const W = 720, H = 900;
 
@@ -65,6 +65,23 @@ export function RoomWhiteboardScreen({ title, onClose, embedded, session: rs }: 
   function paintStroke(ictx: CanvasRenderingContext2D, s: Stroke) {
     if (s.points.length < 1) return;
     ictx.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over'; ictx.globalAlpha = s.highlight ? 0.32 : 1; ictx.strokeStyle = s.color;
+    if (s.shape) { // 도형 렌더(웹에서 그린 직선·화살표·사각형·타원 표시 호환 — 작성 UI는 웹 전용)
+      const a = s.points[0], b = s.points[s.points.length - 1] ?? a;
+      ictx.lineWidth = s.width;
+      ictx.beginPath();
+      if (s.shape === 'rect') ictx.rect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
+      else if (s.shape === 'ellipse') ictx.ellipse((a.x + b.x) / 2, (a.y + b.y) / 2, Math.max(0.1, Math.abs(b.x - a.x) / 2), Math.max(0.1, Math.abs(b.y - a.y) / 2), 0, 0, Math.PI * 2);
+      else { ictx.moveTo(a.x, a.y); ictx.lineTo(b.x, b.y); }
+      ictx.stroke();
+      if (s.shape === 'arrow') {
+        const ang = Math.atan2(b.y - a.y, b.x - a.x), hl = Math.max(10, s.width * 3);
+        ictx.beginPath();
+        ictx.moveTo(b.x, b.y); ictx.lineTo(b.x - hl * Math.cos(ang - 0.45), b.y - hl * Math.sin(ang - 0.45));
+        ictx.moveTo(b.x, b.y); ictx.lineTo(b.x - hl * Math.cos(ang + 0.45), b.y - hl * Math.sin(ang + 0.45));
+        ictx.stroke();
+      }
+      return;
+    }
     if (s.erase || s.highlight || s.points.length === 1 || s.points.every((q) => q.p == null)) {
       ictx.lineWidth = s.width; ictx.beginPath(); ictx.moveTo(s.points[0].x, s.points[0].y);
       for (const p of s.points.slice(1)) ictx.lineTo(p.x, p.y);

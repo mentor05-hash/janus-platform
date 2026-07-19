@@ -175,6 +175,13 @@ export class RealtimeGateway implements OnGatewayConnection {
     return { ok: true };
   }
 
+  /** 안내선(모눈/줄) 모드 동기화 — 세션 한정(스냅샷 저장 안 함). */
+  @SubscribeMessage('wb:grid')
+  wbGrid(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, grid }: { bookingId: string; grid: string }) {
+    if (!this.openNow(bookingId)) return;
+    client.to(`booking:${bookingId}`).emit('wb:grid', { grid });
+  }
+
   /** 레이저 포인터 궤적 중계(비영구 — 저장 안 함, 발신자 제외). */
   @SubscribeMessage('wb:laser')
   wbLaser(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, sid, points }: { bookingId: string; sid?: string; points: unknown }) {

@@ -259,6 +259,14 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.to(this.room(client)).emit('wb:sync', { strokes });
     return { ok: true };
   }
+  // 안내선(모눈/줄) 모드 동기화 — 세션 한정(스냅샷 저장 안 함).
+  @SubscribeMessage('wb:grid')
+  wbGrid(@ConnectedSocket() client: Socket, @MessageBody() { grid }: { grid: string }) {
+    const c = this.ctx(client);
+    if (!this.featureOn(c.roomId, 'whiteboard') || !this.openNow(c.roomId)) return;
+    if (!this.canDraw(client)) return; // 강의 모드: 학생 변경 무시
+    client.to(this.room(client)).emit('wb:grid', { grid });
+  }
   // 레이저 포인터 — 비영구(저장 안 함). 잠깐 보여주고 사라지는 궤적만 중계.
   @SubscribeMessage('wb:laser')
   wbLaser(@ConnectedSocket() client: Socket, @MessageBody() { sid, points }: { sid: string; points: unknown }) {
