@@ -36,9 +36,11 @@ export class RealtimeService {
   private async isPremiumStudent(studentId: string): Promise<boolean> {
     const sp = await this.prisma.student_profile.findUnique({
       where: { account_id: studentId },
-      select: { membership_grade: { select: { name: true } } },
+      select: { membership_grade: { select: { name: true, tier: true } } },
     });
-    return /premium|프리미엄/i.test(sp?.membership_grade?.name ?? '');
+    const g = sp?.membership_grade;
+    // 티어 기준(Premium=3 이상 — VIP 포함). 이름 매칭은 커스텀 등급명 폴백.
+    return (g?.tier ?? 0) >= 3 || /premium|프리미엄/i.test(g?.name ?? '');
   }
 
   /** 이 사용자에게 각 기능이 열려 있는지(예약 참여자 기준). */
@@ -64,10 +66,11 @@ export class RealtimeService {
     if (f.notif === 'all') return true;
     const sp = await this.prisma.student_profile.findUnique({
       where: { account_id: recipientId },
-      select: { membership_grade: { select: { name: true } } },
+      select: { membership_grade: { select: { name: true, tier: true } } },
     });
     if (!sp) return true; // 학생 프로필 없음 = 직원/보호자
-    return /premium|프리미엄/i.test(sp.membership_grade?.name ?? '');
+    // 티어 기준(Premium=3 이상 — VIP 포함) + 커스텀 등급명 폴백(isPremiumStudent 와 동일 규칙).
+    return (sp.membership_grade?.tier ?? 0) >= 3 || /premium|프리미엄/i.test(sp.membership_grade?.name ?? '');
   }
 
   // 라이브 세션(줌·오프라인·필기·보드)은 예약 시간대에만 실시간 상호작용 허용.
