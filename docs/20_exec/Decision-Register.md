@@ -61,6 +61,7 @@
 
 | O80 | 2026-07-19 | **M1 1차 실측 완료 — 상담 화상(미디어킷) E2E**: 구독(Premium 모의결제)→등급 승격→프리미엄 게이트(화이트보드 버튼)→상담룸 📹 화상통화(LiveKit·PIP·보드 필기 동시) 전 구간 실측 성공. 구성: packages/media-kit(useMediaSession)+POST /media/token(예약·시간창 게이팅)+WhiteboardPanel 플래그 전환(VITE_MEDIA_CONSULT=livekit·P2P 폴백 보존). 부수 수정: ①예약 채팅 정렬·IME 회귀(쌍둥이 ChatPanel 미수정 경로 — 4파일 경고주석+공용화 백로그) ②VIP 프리미엄 판정 탈락(tier≥3 기준으로) ③Dockerfile 3종 media-kit manifest ④구독플랜 500(0066~0068 적용). M1 잔여: 프리플라이트(모델배정 Sonnet)·마감 다듬기 → M2(화면공유·블러·모바일 세로) | 실측: 맥 2계정 상호 영상·음성·필기·채팅. 모델배정 운용(설계·통합=Fable/정형=Sonnet) 첫 사이클 완료 |
 
+| O81 | 2026-07-19 | **M1 마감 — 프리플라이트(기획서 §3.5)**: media-kit에 MediaPreflight 컴포넌트(카메라 미리보기·마이크 레벨 미터·장치 셀렉터·간이 RTT 3회 평균·개인정보 주의 문구·"음성만 시작" 선택지) 추가. useMediaSession.join(opts)가 프리플라이트 선택(video·deviceId)을 반영하고 toggleCam 재켜기에도 장치 유지. 상담룸 📹 화상통화 버튼은 프리플라이트 모달 경유 후 join. 네트워크 점검은 probe 콜백 주입(앱 무의존 유지) — 웹은 /health 왕복 실측. 미리보기는 전부 로컬(getUserMedia)·서버 무전송. **M1 전 항목 완료** → M2(9월: 화면공유+생기부 인터스티셜·배경 블러·노이즈 억제·모바일 세로 UX) 대기 | web tsc 0·vite build 통과. Mac 실측: git pull 후 web 재빌드 필요 |
 
 ## 미결 (N) — 결정 대기
 
