@@ -17,7 +17,7 @@ const LK_ON = ((import.meta.env as Record<string, string | undefined>).VITE_MEDI
 type Pt = { x: number; y: number; p?: number }; // p=필압(0~1)
 // shape 있으면 points[0]→points[끝] 두 점으로 정의되는 도형(직선·화살표·사각형·타원).
 type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean; highlight?: boolean; shape?: 'line' | 'arrow' | 'rect' | 'ellipse' };
-type GridMode = 'none' | 'grid' | 'lines';
+type GridMode = 'none' | 'grid' | 'lines' | 'wrongnote' | 'quad';
 const SHAPE_TOOLS = ['line', 'arrow', 'rect', 'ellipse'] as const;
 const COLORS = ['#1E3550', '#2F6FB3', '#E5484D', '#2A8A5F', '#CF9A3A'];
 const W = 900, H = 620; // 논리 좌표(비율 유지 스케일링)
@@ -61,7 +61,7 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
   const [grid, setGrid] = useState<GridMode>('none'); // 배경 안내선(모눈/줄) — 상대와 동기화
   const gridRef = useRef<GridMode>('none');
   const [wide, setWide] = useState(false); // 전체화면(넓게 보기)
-  const [pop, setPop] = useState<'pen' | 'shape' | 'clear' | null>(null); // 툴바 팝오버(W-U1 — 1줄화)
+  const [pop, setPop] = useState<'pen' | 'shape' | 'clear' | 'bg' | null>(null); // 툴바 팝오버(W-U1 — 1줄화)
   const [archState, setArchState] = useState<'idle' | 'busy' | 'done'>('idle'); // 보드→채팅 기록 상태
   const [status, setStatus] = useState<'connecting' | 'ready' | 'off'>('connecting');
   const [session, setSession] = useState<SessionInfo | null>(null);
@@ -129,6 +129,35 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     }
   }
 
+  // 안내선·템플릿 렌더(논리좌표) — 화면·아카이브 공용. 배경 이미지가 있으면 호출측에서 생략.
+  function paintGuide(ctx: CanvasRenderingContext2D) {
+    const g = gridRef.current; if (g === 'none') return;
+    const step = 40;
+    ctx.strokeStyle = '#dbe4ee'; ctx.fillStyle = '#8fa3b8'; ctx.lineWidth = 1;
+    if (g === 'grid' || g === 'lines') {
+      ctx.beginPath();
+      if (g === 'grid') for (let x = step; x < W; x += step) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+      for (let y = step; y < H; y += step) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+      ctx.stroke();
+    } else if (g === 'wrongnote') { // 오답노트 4분할(문제/풀이/틀린 이유/다시 풀기)
+      ctx.beginPath(); ctx.moveTo(W / 2, 0); ctx.lineTo(W / 2, H); ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2); ctx.stroke();
+      ctx.font = '700 14px sans-serif';
+      ctx.fillText('\u2460 \ubb38\uc81c', 12, 22); ctx.fillText('\u2461 \ud480\uc774 \uacfc\uc815', W / 2 + 12, 22);
+      ctx.fillText('\u2462 \ud2c0\ub9b0 \uc774\uc720', 12, H / 2 + 22); ctx.fillText('\u2463 \ub2e4\uc2dc \ud480\uae30', W / 2 + 12, H / 2 + 22);
+    } else if (g === 'quad') { // 4분면 좌표축(수학 그래프)
+      ctx.strokeStyle = '#b9c6d6';
+      ctx.beginPath();
+      ctx.moveTo(W / 2, 8); ctx.lineTo(W / 2, H - 8); ctx.moveTo(8, H / 2); ctx.lineTo(W - 8, H / 2);
+      ctx.moveTo(W / 2, 8); ctx.lineTo(W / 2 - 5, 18); ctx.moveTo(W / 2, 8); ctx.lineTo(W / 2 + 5, 18);
+      ctx.moveTo(W - 8, H / 2); ctx.lineTo(W - 18, H / 2 - 5); ctx.moveTo(W - 8, H / 2); ctx.lineTo(W - 18, H / 2 + 5);
+      ctx.stroke();
+      ctx.strokeStyle = '#dbe4ee'; ctx.beginPath();
+      for (let x = (W / 2) % step; x < W; x += step) { ctx.moveTo(x, H / 2 - 4); ctx.lineTo(x, H / 2 + 4); }
+      for (let y = (H / 2) % step; y < H; y += step) { ctx.moveTo(W / 2 - 4, y); ctx.lineTo(W / 2 + 4, y); }
+      ctx.stroke();
+    }
+  }
+
   // 확정 스트로크만 캐시에 재렌더 — 뷰 변환 반영. 확정 집합/뷰 변경 시에만(핫패스 아님).
   function rebuildCache() {
     const cv = canvasRef.current; if (!cv) return;
@@ -154,14 +183,8 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     // 배경(이미지/PDF) — 뷰 변환, 비율 유지 contain
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
     ctx.setTransform(v.scale, 0, 0, v.scale, v.tx, v.ty);
-    // 안내선(모눈/줄) — 배경 이미지가 없을 때만, 필기 아래에 렌더.
-    if (!bgImgRef.current && gridRef.current !== 'none') {
-      ctx.strokeStyle = '#dbe4ee'; ctx.lineWidth = 1; ctx.beginPath();
-      const step = 40;
-      if (gridRef.current === 'grid') for (let x = step; x < W; x += step) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
-      for (let y = step; y < H; y += step) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
-      ctx.stroke();
-    }
+    // 안내선·템플릿(모눈/줄/오답노트/4분면) — 배경 이미지가 없을 때만, 필기 아래에 렌더.
+    if (!bgImgRef.current) paintGuide(ctx);
     if (bgImgRef.current) {
       const img = bgImgRef.current; const ir = img.width / img.height, cr = W / H;
       let dw = W, dh = H, dx = 0, dy = 0;
@@ -467,10 +490,10 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
   function clearInk() { strokesRef.current = []; liveRef.current.clear(); redoRef.current = []; setCanRedo(false); redraw(); setCanUndo(false); sockRef.current?.emit('wb:clear', { bookingId }); scheduleAutosave(); }
   // 배경까지 모두 지우기 — 필기 + 배경 이미지 제거.
   function clearAll() { strokesRef.current = []; liveRef.current.clear(); redoRef.current = []; setCanRedo(false); setPdf(null); loadBg(null); redraw(); setCanUndo(false); sockRef.current?.emit('wb:clear', { bookingId }); sockRef.current?.emit('wb:image', { bookingId, fileId: null }); scheduleAutosave(); }
-  // 안내선 모드 순환(없음→모눈→줄) — 상대와 동기화.
-  function cycleGrid() {
-    const next: GridMode = grid === 'none' ? 'grid' : grid === 'grid' ? 'lines' : 'none';
-    gridRef.current = next; setGrid(next); requestPaint();
+  // 안내선·템플릿 선택 — 상대와 동기화.
+  function setGuide(next: GridMode) {
+    setPop(null);
+    gridRef.current = next; setGrid(next); cacheDirtyRef.current = true; requestPaint();
     sockRef.current?.emit('wb:grid', { bookingId, grid: next });
   }
   // 보드 전체(줌 무관, 원본 좌표 2배율)를 PNG 로 렌더 — 내보내기·기록 공용.
@@ -485,13 +508,7 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     for (const s of strokesRef.current) paintStroke(ictx, s);
     octx.fillStyle = '#fff'; octx.fillRect(0, 0, out.width, out.height);
     octx.setTransform(S, 0, 0, S, 0, 0);
-    if (!bgImgRef.current && gridRef.current !== 'none') {
-      octx.strokeStyle = '#dbe4ee'; octx.lineWidth = 1; octx.beginPath();
-      const step = 40;
-      if (gridRef.current === 'grid') for (let x = step; x < W; x += step) { octx.moveTo(x, 0); octx.lineTo(x, H); }
-      for (let y = step; y < H; y += step) { octx.moveTo(0, y); octx.lineTo(W, y); }
-      octx.stroke();
-    }
+    if (!bgImgRef.current) paintGuide(octx);
     if (bgImgRef.current) {
       const img = bgImgRef.current; const ir = img.width / img.height, cr = W / H;
       let dw = W, dh = H, dx = 0, dy = 0;
@@ -686,7 +703,19 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
                 <button className="btn ghost sm" title="축소" onClick={() => zoomAt(W / 2, H / 2, 1 / 1.25)}>🔍−</button>
                 <button className="btn ghost sm" title="원본 크기" onClick={resetZoom} style={{ minWidth: 52, fontVariantNumeric: 'tabular-nums' }}>{zoomPct}%</button>
                 <button className="btn ghost sm" title="확대" onClick={() => zoomAt(W / 2, H / 2, 1.25)}>🔍＋</button>
-                <button className="btn ghost sm" title={grid === 'none' ? '모눈 보이기' : grid === 'grid' ? '줄노트로' : '안내선 끄기'} onClick={cycleGrid} aria-pressed={grid !== 'none'} style={grid !== 'none' ? { borderColor: 'var(--teal)' } : undefined}>{grid === 'lines' ? '▤' : '⊞'}</button>
+                {/* 안내선·템플릿 팝오버(오답노트·4분면 포함) */}
+                <span style={{ position: 'relative', display: 'inline-flex' }}>
+                  <button className="btn ghost sm" title="안내선·템플릿" onClick={() => setPop((p) => (p === 'bg' ? null : 'bg'))} aria-expanded={pop === 'bg'} aria-pressed={grid !== 'none'} style={grid !== 'none' ? { borderColor: 'var(--teal)' } : undefined}>
+                    {grid === 'lines' ? '▤' : grid === 'wrongnote' ? '📋' : grid === 'quad' ? '➕' : '⊞'} <span style={{ fontSize: 9, color: 'var(--muted)' }}>▾</span>
+                  </button>
+                  {pop === 'bg' && (
+                    <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 40, background: 'var(--surface, #fff)', border: '1px solid var(--line)', borderRadius: 10, padding: 8, boxShadow: '0 8px 24px rgba(0,0,0,.15)', display: 'flex', flexDirection: 'column', gap: 6, minWidth: 150 }}>
+                      {([['none', '⬜ 없음'], ['grid', '⊞ 모눈'], ['lines', '▤ 줄노트'], ['wrongnote', '📋 오답노트'], ['quad', '➕ 4분면 좌표']] as const).map(([g, label]) => (
+                        <button key={g} className="btn ghost sm" onClick={() => setGuide(g)} aria-pressed={grid === g} style={grid === g ? { borderColor: 'var(--teal)', fontWeight: 700 } : undefined}>{label}</button>
+                      ))}
+                    </div>
+                  )}
+                </span>
                 <button className="btn ghost sm" title={wide ? '기본 크기로' : '넓게 보기'} onClick={() => setWide((w) => !w)}>{wide ? '🗗' : '⛶'}</button>
               </div>
               {pdf && pdf.pageCount > 1 && (
