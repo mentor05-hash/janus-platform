@@ -60,10 +60,10 @@ export function StudentQnaPage() {
   const [durPol, setDurPol] = useState<Record<string, number> | null>(null);
   const [teachers, setTeachers] = useState<TeacherDir[]>([]); // P5 — 지정 질문 선생님 디렉터리(SLA 배지)
   const [assignedTeacherId, setAssignedTeacherId] = useState('');
-  const [fee, setFee] = useState<{ itemFee: number; generalFee: number; freeQuota?: { quota: number; used: number; remaining: number; resetsAt: string } | null } | null>(null);
+  const [fee, setFee] = useState<{ itemFee: number; generalFee: number; freeQuota?: { quota: number; used: number; remaining: number; resetsAt: string } | null; expectedFirstReplyMin?: number | null } | null>(null);
   useEffect(() => {
     api.get<Record<string, number>>('/bookings/question-duration/policy').then(setDurPol).catch(() => { /* 기본값 */ });
-    api.get<{ itemFee: number; generalFee: number; freeQuota?: { quota: number; used: number; remaining: number; resetsAt: string } | null }>('/qna/pricing').then(setFee).catch(() => { /* 요금 조회 실패 */ });
+    api.get<{ itemFee: number; generalFee: number; freeQuota?: { quota: number; used: number; remaining: number; resetsAt: string } | null; expectedFirstReplyMin?: number | null }>('/qna/pricing').then(setFee).catch(() => { /* 요금 조회 실패 */ });
     api.get<{ teachers: TeacherDir[] }>('/qna/teachers').then((r) => setTeachers(r.teachers ?? [])).catch(() => { /* 디렉터리 조회 실패 */ });
   }, []);
   const tierOf = (d: string) => (d === '하' ? '기초' : d === '상' ? '심화' : '중급');
@@ -143,7 +143,7 @@ export function StudentQnaPage() {
         : `질문이 등록되었습니다(${(r.chargedCredits ?? 0).toLocaleString()} 크레딧 차감).`;
       setMsg(r.moderationWarning ? `${base} ⚠️ ${r.moderationWarning}` : base);
       setF({ ...f, body: '' }); setAtts([]); setOpen(false); load();
-      api.get<{ itemFee: number; generalFee: number; freeQuota?: { quota: number; used: number; remaining: number; resetsAt: string } | null }>('/qna/pricing').then(setFee).catch(() => { /* noop */ });
+      api.get<{ itemFee: number; generalFee: number; freeQuota?: { quota: number; used: number; remaining: number; resetsAt: string } | null; expectedFirstReplyMin?: number | null }>('/qna/pricing').then(setFee).catch(() => { /* noop */ });
     } catch (e) {
       setError(e instanceof ApiError ? (e.status === 402 ? '크레딧이 부족합니다.' : e.message) : '등록 실패');
     }
@@ -191,6 +191,7 @@ export function StudentQnaPage() {
               {fee?.freeQuota && fee.freeQuota.remaining > 0
                 ? <>· <b style={{ color: 'var(--teal)' }}>이번 주 무료 질문 {fee.freeQuota.remaining}건 남음</b>(소진 후 건당 {(f.qType === 'item' ? fee?.itemFee : fee?.generalFee)?.toLocaleString() ?? '—'} 크레딧)</>
                 : <>· 건당 {(f.qType === 'item' ? fee?.itemFee : fee?.generalFee)?.toLocaleString() ?? '—'} 크레딧{fee?.freeQuota && fee.freeQuota.quota > 0 ? ' · 이번 주 무료 질문권 소진' : ''}</>}
+              {fee?.expectedFirstReplyMin != null && <> · ⚡ 보통 첫 답변까지 약 {fee.expectedFirstReplyMin >= 60 ? `${Math.round(fee.expectedFirstReplyMin / 60)}시간` : `${fee.expectedFirstReplyMin}분`}</>}
               {' · '}난이도가 높을수록 답변블록이 길어져요.
             </span>
           </div>

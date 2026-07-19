@@ -89,7 +89,12 @@ export class QnaService {
       this.pricing.quoteBoard('general', centerId),
     ]);
     const free = studentId ? await this.freeQuotaStatus(studentId) : null;
-    return { itemFee: item.credits, generalFee: general.credits, freeQuota: free };
+    // C3 응답 예상 시간 — 최근 30일 전체 풀 평균 첫응답(분). 데이터 없으면 null(표시 생략).
+    const rows = await this.prisma.$queryRaw<Array<{ avg_min: number | null }>>`
+      SELECT avg(EXTRACT(EPOCH FROM (first_reply_at - created_at)) / 60) AS avg_min
+      FROM qna_post WHERE first_reply_at IS NOT NULL AND created_at > now() - interval '30 days'`;
+    const expectedFirstReplyMin = rows[0]?.avg_min != null ? Math.max(1, Math.round(Number(rows[0].avg_min))) : null;
+    return { itemFee: item.credits, generalFee: general.credits, freeQuota: free, expectedFirstReplyMin };
   }
 
   /** C1 직거래·연락처 감지 기록(audit_log 재사용) — 실패 비차단. 반환: 경고 문구 또는 null. */
