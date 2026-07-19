@@ -83,6 +83,7 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
   // 단축키: ⌘/Ctrl+Z 되돌리기 · ⌘/Ctrl+Shift+Z 다시 실행 (입력 필드 포커스 중엔 무시)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && wide) { setWide(false); return; } // 넓게 보기 탈출(안전장치)
       if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z') return;
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
@@ -417,7 +418,7 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 950, background: 'rgba(8,16,20,0.5)', display: 'grid', placeItems: 'center', padding: 16 }}>
-      <div role="dialog" aria-modal="true" aria-label={title ?? '공유 화이트보드'} onClick={(e) => e.stopPropagation()} className="card" style={{ width: '100%', maxWidth: wide ? '96vw' : 960, display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
+      <div role="dialog" aria-modal="true" aria-label={title ?? '공유 화이트보드'} onClick={(e) => e.stopPropagation()} className="card" style={{ width: '100%', maxWidth: wide ? `min(96vw, calc((100vh - 170px) * ${W / H}))` : 960, maxHeight: 'calc(100vh - 16px)', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <b style={{ fontSize: 15 }}>🖊 {title ?? '공유 화이트보드'}</b>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
