@@ -4,7 +4,8 @@ import { PageHeader, Card, Button, Badge, ErrorText, Spinner, EmptyState, Textar
 import { AuthImage } from '../components/AuthImage';
 
 type Attachment = { id: string; name: string; type?: string };
-type Answer = { id: string; body: string; accepted: boolean; teacherName: string; teacherId?: string | null; attachments?: Attachment[] };
+type Followup = { id: string; byTeacher: boolean; body: string; createdAt: string };
+type Answer = { id: string; body: string; accepted: boolean; teacherName: string; teacherId?: string | null; attachments?: Attachment[]; followups?: Followup[] };
 type Post = {
   id: string;
   subject: string | null;
@@ -92,6 +93,18 @@ export function StudentQnaPage() {
     api.get<Post[]>('/qna/posts').then(setPosts).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
   }
   useEffect(() => { load(); loadBlocks(); }, []);
+
+  const [fuDraft, setFuDraft] = useState<Record<string, string>>({}); // C2 — 답변별 이어 묻기 초안
+  async function sendFollowup(answerId: string) {
+    const body = (fuDraft[answerId] ?? '').trim();
+    if (!body) return;
+    setError(''); setMsg('');
+    try {
+      const r = await api.post<{ moderationWarning?: string | null }>(`/qna/answers/${answerId}/followups`, { body });
+      setMsg(r.moderationWarning ? `추가 질문을 보냈어요. ⚠️ ${r.moderationWarning}` : '추가 질문을 보냈어요 — 선생님이 이어서 답해드릴 거예요.');
+      setFuDraft((d) => ({ ...d, [answerId]: '' })); load();
+    } catch (e) { setError(e instanceof ApiError ? e.message : '전송 실패'); }
+  }
 
   async function accept(answerId: string) {
     setError(''); setMsg('');
@@ -259,6 +272,22 @@ export function StudentQnaPage() {
                     {(a.attachments ?? []).length > 0 && (
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
                         {(a.attachments ?? []).map((f) => <AuthImage key={f.id} fileId={f.id} alt={f.name} size={160} />)}
+                      </div>
+                    )}
+                    {/* C2 후속 문답 스레드 — 같은 선생님에게 이어 묻기(답변당 한도, 무료) */}
+                    {(a.followups ?? []).map((fu) => (
+                      <div key={fu.id} style={{ marginTop: 6, marginLeft: 12, padding: '6px 10px', borderLeft: '3px solid var(--line)', fontSize: 13 }}>
+                        <b style={{ fontSize: 12, color: fu.byTeacher ? 'var(--teal)' : 'var(--muted)' }}>{fu.byTeacher ? '선생님' : '나'}</b>
+                        <div style={{ whiteSpace: 'pre-wrap', marginTop: 2 }}>{fu.body}</div>
+                      </div>
+                    ))}
+                    {p.status !== 'resolved' && (
+                      <div style={{ display: 'flex', gap: 6, marginTop: 8, marginLeft: 12 }}>
+                        <input value={fuDraft[a.id] ?? ''} onChange={(e) => setFuDraft((d) => ({ ...d, [a.id]: e.target.value }))}
+                          onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) sendFollowup(a.id); }}
+                          placeholder="이 답변에 이어서 궁금한 점 묻기 (무료)"
+                          style={{ flex: 1, border: '1px solid var(--input-border)', borderRadius: 8, padding: '7px 10px', fontSize: 13 }} />
+                        <Button size="sm" disabled={!(fuDraft[a.id] ?? '').trim()} onClick={() => sendFollowup(a.id)}>보내기</Button>
                       </div>
                     )}
                   </div>

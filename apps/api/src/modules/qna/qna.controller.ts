@@ -142,6 +142,12 @@ export class QnaController {
     return this.qna.myBlocks(user);
   }
 
+  /** POST /qna/answers/{id}/followups — 후속 문답(이어 묻기/이어 답하기·C2). */
+  @Post('answers/:id/followups')
+  followup(@Param('id', ParseUUIDPipe) id: string, @Body() dto: { body: string }, @CurrentUser() user: AuthUser) {
+    return this.qna.addFollowup(user, id, dto.body ?? '');
+  }
+
   /** GET /qna/teachers — 지정 질문용 선생님 디렉터리 + 공개 SLA 배지(학생·P5). */
   @Get('teachers')
   teachers(@CurrentUser() user: AuthUser) {

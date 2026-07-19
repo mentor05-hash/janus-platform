@@ -236,7 +236,10 @@ export class QnaService {
     const answersInclude = {
       qna_answer: {
         orderBy: { created_at: 'asc' as const },
-        include: { teacher_profile: { include: { account: { select: { name: true } } } } },
+        include: {
+          teacher_profile: { include: { account: { select: { name: true } } } },
+          qna_followup: { orderBy: { created_at: 'asc' as const } },
+        },
       },
     };
     const shape = (rows: Awaited<ReturnType<typeof this.prisma.qna_post.findMany>>) =>
@@ -266,6 +269,9 @@ export class QnaService {
           attachments: Array.isArray((a as { attachments?: unknown }).attachments)
             ? ((a as { attachments?: unknown }).attachments as { id: string; name: string; type?: string }[])
             : [],
+          followups: ((a as { qna_followup?: Array<{ id: string; author_id: string; body: string; created_at: Date }> }).qna_followup ?? []).map((fu) => ({
+            id: fu.id, byTeacher: fu.author_id === a.teacher_id, body: fu.body, createdAt: fu.created_at,
+          })),
         })),
       }));
 
@@ -409,6 +415,33 @@ export class QnaService {
     }
     const moderationWarning = await this.moderate(teacher, 'qna_answer', ans.id, dto.body);
     return { id: ans.id, postId, accepted: false, simFlagged: sim.flagged, similarity: sim.maxSimilarity, simSummary: sim.summary, moderationWarning };
+  }
+
+  // ── C2(큐브 벤치마크): 답변 후속 문답 — 같은 선생님에게 이어 묻기(추가 과금 없음) ──
+  private static readonly FOLLOWUP_LIMIT_KEY = 'qa_followup_limit';
+  private static readonly FOLLOWUP_LIMIT_DEFAULT = 2; // 답변당 학생 후속 질문 한도(정책값)
+
+  /** 후속 문답 등록 — 학생(질문 작성자, 답변당 한도)·선생님(해당 답변 작성자, 무제한 응답). */
+  async addFollowup(user: AuthUser, answerId: string, body: string) {
+    const text = body?.trim();
+    if (!text) throw new BadRequestException('내용을 입력하세요.');
+    const ans = await this.prisma.qna_answer.findUnique({ where: { id: answerId }, include: { qna_post: true } });
+    if (!ans) throw new NotFoundException('답변을 찾을 수 없습니다.');
+    const isStudent = ans.qna_post.student_id === user.id;
+    const isAnswerer = ans.teacher_id === user.id;
+    if (!isStudent && !isAnswerer) throw new ForbiddenException('이 답변의 당사자만 이어서 대화할 수 있습니다.');
+    if (isStudent) {
+      const row = await this.prisma.system_setting.findUnique({ where: { key: QnaService.FOLLOWUP_LIMIT_KEY } });
+      const limit = Number((row?.value as { limit?: number } | null)?.limit ?? QnaService.FOLLOWUP_LIMIT_DEFAULT);
+      const used = await this.prisma.qna_followup.count({ where: { answer_id: answerId, author_id: user.id } });
+      if (used >= limit) throw new ForbiddenException(`이어 묻기는 답변당 ${limit}회까지예요. 더 필요하면 재답변 요청 또는 상담으로 이어가기를 이용해 주세요.`);
+    }
+    const fu = await this.prisma.qna_followup.create({ data: { answer_id: answerId, author_id: user.id, body: text } });
+    const moderationWarning = await this.moderate(user, 'qna_followup', fu.id, text);
+    // 상대에게 알림(실패 비차단)
+    const to = isStudent ? ans.teacher_id : ans.qna_post.student_id;
+    void this.notify.notify(to, 'qna_followup', { postId: ans.post_id, byTeacher: !isStudent });
+    return { id: fu.id, createdAt: fu.created_at, moderationWarning };
   }
 
   /** 답변 채택(질문 학생) — 채택 답변 급여 적격(pay_eligible), 질문 마감. */
