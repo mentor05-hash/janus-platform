@@ -11,7 +11,7 @@ import { useSessionPhase, canInteract, sessionNotice, type SessionInfo } from '.
 import type { RoomSession } from './RoomChatScreen';
 
 type Pt = { x: number; y: number; p?: number };
-type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean; highlight?: boolean; shape?: 'line' | 'arrow' | 'rect' | 'ellipse' };
+type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean; highlight?: boolean; shape?: 'line' | 'arrow' | 'rect' | 'ellipse' | 'text'; text?: string };
 type GridMode = 'none' | 'grid' | 'lines' | 'wrongnote' | 'quad';
 type Tool = 'pen' | 'eraser' | 'highlighter' | 'laser' | 'line' | 'arrow' | 'rect' | 'ellipse';
 const SHAPE_TOOLS = ['line', 'arrow', 'rect', 'ellipse'] as const;
@@ -80,6 +80,14 @@ export function RoomWhiteboardScreen({ title, onClose, embedded, session: rs }: 
     if (s.points.length < 1) return;
     ictx.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over'; ictx.globalAlpha = s.highlight ? 0.42 : 1; ictx.strokeStyle = s.color;
     if (s.shape) { // 도형 렌더(웹에서 그린 직선·화살표·사각형·타원 표시 호환 — 작성 UI는 웹 전용)
+    if (s.shape === 'text') { // 텍스트 상자 — points[0] 기준, 폰트 크기는 굵기에 비례
+      const a = s.points[0];
+      const fs = Math.max(14, s.width * 7);
+      ictx.fillStyle = s.color;
+      ictx.font = `600 ${fs}px sans-serif`;
+      (s.text ?? '').split('\n').forEach((ln, i) => ictx.fillText(ln, a.x, a.y + fs * (i + 0.9)));
+      return;
+    }
       const a = s.points[0], b = s.points[s.points.length - 1] ?? a;
       ictx.lineWidth = s.width;
       ictx.beginPath();

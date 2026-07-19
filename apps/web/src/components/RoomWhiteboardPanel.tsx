@@ -12,7 +12,7 @@ import { LectureAudioBar } from './LectureAudioBar';
 
 type Pt = { x: number; y: number; p?: number };
 // shape 있으면 points[0]→points[끝] 두 점으로 정의되는 도형(직선·화살표·사각형·타원).
-type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean; highlight?: boolean; shape?: 'line' | 'arrow' | 'rect' | 'ellipse' };
+type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean; highlight?: boolean; shape?: 'line' | 'arrow' | 'rect' | 'ellipse' | 'text'; text?: string };
 type GridMode = 'none' | 'grid' | 'lines' | 'wrongnote' | 'quad';
 const SHAPE_TOOLS = ['line', 'arrow', 'rect', 'ellipse'] as const;
 const COLORS = ['#1E3550', '#2F6FB3', '#E5484D', '#2A8A5F', '#CF9A3A'];
@@ -46,7 +46,7 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
   const bgUrlRef = useRef<string | null>(null); // 현재 배경 fileUrl(룸 서비스)
   const [color, setColor] = useState(COLORS[0]);
   const [width, setWidth] = useState(3);
-  const [tool, setTool] = useState<'pen' | 'eraser' | 'highlighter' | 'laser' | 'line' | 'arrow' | 'rect' | 'ellipse'>('pen');
+  const [tool, setTool] = useState<'pen' | 'eraser' | 'highlighter' | 'laser' | 'line' | 'arrow' | 'rect' | 'ellipse' | 'text'>('pen');
   const [canUndo, setCanUndo] = useState(false); // 되돌리기 가능(확정 스트로크 존재) — 버튼 활성화용
   const [canRedo, setCanRedo] = useState(false);
   const redoRef = useRef<Stroke[]>([]); // 되돌린 획(다시 실행용) — 새 획 확정 시 비움
@@ -55,6 +55,7 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
   const [wide, setWide] = useState(false); // 전체화면(넓게 보기)
   const [pop, setPop] = useState<'pen' | 'shape' | 'clear' | 'bg' | null>(null); // 툴바 팝오버(W-U1 — 1줄화)
   const [archState, setArchState] = useState<'idle' | 'busy' | 'done'>('idle'); // 보드→채팅 기록 상태
+  const [textBox, setTextBox] = useState<{ x: number; y: number; value: string } | null>(null); // 텍스트 입력 오버레이(논리좌표)
   // 강의(1:다) 모드: 서버가 wb:join 으로 role·mode·roster 를 알려준다. viewer=학생(열람 전용).
   const [mode, setMode] = useState<'session' | 'lecture'>('session');
   const [role, setRole] = useState<string>('viewer');
@@ -85,7 +86,7 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
   // 단축키: ⌘/Ctrl+Z 되돌리기 · ⌘/Ctrl+Shift+Z 다시 실행 (입력 필드 포커스 중엔 무시)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && wide) { setWide(false); return; } // 넓게 보기 탈출(안전장치)
+      if (e.key === 'Escape') { if (textBox) { setTextBox(null); return; } if (wide) { setWide(false); return; } } // 입력·넓게보기 탈출
       if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z') return;
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
@@ -102,6 +103,14 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
     ictx.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over';
     ictx.globalAlpha = s.highlight ? 0.42 : 1; ictx.strokeStyle = s.color;
     if (s.shape) { // 도형: 시작점→끝점 두 점으로 정의(스냅샷·중계 포맷은 기존 Stroke 그대로)
+    if (s.shape === 'text') { // 텍스트 상자 — points[0] 기준, 폰트 크기는 굵기에 비례
+      const a = s.points[0];
+      const fs = Math.max(14, s.width * 7);
+      ictx.fillStyle = s.color;
+      ictx.font = `600 ${fs}px sans-serif`;
+      (s.text ?? '').split('\n').forEach((ln, i) => ictx.fillText(ln, a.x, a.y + fs * (i + 0.9)));
+      return;
+    }
       const a = s.points[0], b = s.points[s.points.length - 1] ?? a;
       ictx.lineWidth = s.width;
       ictx.beginPath();
@@ -343,6 +352,10 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
     if (tool === 'laser') { // 레이저는 확정 스트로크가 아님 — 궤적만 그리고 방송(저장·되돌리기 대상 아님).
       laserPendingRef.current = []; laserFlushRef.current = 0; addLaser('me', p0.x, p0.y); laserPendingRef.current.push(p0); flushLaser(); requestPaint(); return;
     }
+    if (tool === 'text') { // 텍스트 — 클릭 지점에 입력 오버레이
+      setTextBox({ x: p0.x, y: p0.y, value: '' });
+      return;
+    }
     if ((SHAPE_TOOLS as readonly string[]).includes(tool)) { // 도형: 드래그로 시작→끝 두 점 확정(라이브 스트리밍 없음 — 최종 획만 중계)
       drawingRef.current = { points: [p0, p0], color, width, shape: tool as Stroke['shape'] };
       pendingRef.current = []; lastFlushRef.current = 0; requestPaint(); return;
@@ -383,6 +396,15 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
     pointersRef.current.delete(e.pointerId); if (pointersRef.current.size < 2) pinchRef.current = null;
     if (tool === 'laser') { flushLaser(); sidRef.current = ''; return; }
     finalizeStroke();
+  }
+  // 텍스트 확정 — 일반 획과 동일하게 저장·중계(undo/redo 대상).
+  function commitText() {
+    const tb = textBox; setTextBox(null);
+    if (!tb || !tb.value.trim()) return;
+    const st: Stroke = { points: [{ x: tb.x, y: tb.y }], color, width, shape: 'text', text: tb.value.replace(/\s+$/, '') };
+    strokesRef.current.push(st); redraw(); setCanUndo(true);
+    redoRef.current = []; setCanRedo(false);
+    sockRef.current?.emit('wb:stroke', { stroke: st, sid: '' }); scheduleAutosave();
   }
   // 되돌리기 — 마지막 확정 스트로크 제거 후 전체 집합 재동기화(순서 무관, 상대와 일치 보장).
   function undo() {
@@ -570,6 +592,7 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
                     </div>
                   )}
                 </span>
+                <button onClick={() => setTool('text')} aria-pressed={tool === 'text'} title="텍스트(클릭한 곳에 입력)" style={{ padding: '5px 9px', borderRadius: 6, cursor: 'pointer', border: tool === 'text' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13, fontWeight: 800 }}>T</button>
                 <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
                 <input ref={fileRef} type="file" accept="application/pdf,image/*" hidden onChange={onAttach} />
                 <button className="btn ghost sm" disabled={!rw} onClick={() => fileRef.current?.click()} title="이미지 배경 올리기">🖼</button>
@@ -639,6 +662,19 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
             )}
             <div style={{ position: 'relative' }}>
               <canvas ref={canvasRef} width={W} height={H} role="img" aria-label="공유 필기 캔버스" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up} style={{ width: '100%', aspectRatio: `${W} / ${H}`, background: '#fff', touchAction: 'none', cursor: isViewer ? 'default' : eraserCursor, display: 'block' }} />
+              {textBox && (
+                <div style={{ position: 'absolute', left: `${((textBox.x * viewRef.current.scale + viewRef.current.tx) / W) * 100}%`, top: `${((textBox.y * viewRef.current.scale + viewRef.current.ty) / H) * 100}%`, zIndex: 25, background: 'var(--surface, #fff)', border: '1px solid var(--line)', borderRadius: 8, padding: 8, boxShadow: '0 8px 24px rgba(0,0,0,.18)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <textarea autoFocus value={textBox.value}
+                    onChange={(e) => setTextBox({ ...textBox, value: e.target.value })}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); commitText(); } }}
+                    placeholder="내용 입력 (Enter 확정 · Shift+Enter 줄바꿈)"
+                    style={{ width: 220, minHeight: 52, resize: 'both', border: '1px solid var(--line)', borderRadius: 6, padding: 6, fontSize: 13, color, fontWeight: 600 }} />
+                  <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                    <button className="btn ghost sm" onClick={() => setTextBox(null)}>취소</button>
+                    <button className="btn sm" onClick={commitText}>확정</button>
+                  </div>
+                </div>
+              )}
               {camOn && (
                 <div style={{ position: 'absolute', inset: 0, background: '#000', display: 'flex', flexDirection: 'column' }}>
                   <video ref={videoRef} playsInline muted style={{ flex: 1, width: '100%', objectFit: 'contain', minHeight: 0 }} />
