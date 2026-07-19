@@ -461,21 +461,26 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
                 <button onClick={() => setTool('eraser')} aria-pressed={tool === 'eraser'} title="지우개(영역만큼 지움)" style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'eraser' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>🧽</button>
                 <button onClick={() => setTool('laser')} aria-pressed={tool === 'laser'} title="레이저 포인터(잠시 후 사라짐)" style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'laser' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>🔦</button>
                 <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
-                {/* 도형: 드래그로 직선·화살표·사각형·타원 */}
-                {([['line', '╱', '직선'], ['arrow', '↗', '화살표'], ['rect', '▭', '사각형'], ['ellipse', '◯', '타원']] as const).map(([t, icon, name]) => (
-                  <button key={t} onClick={() => setTool(t)} aria-pressed={tool === t} title={name} style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === t ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>{icon}</button>
-                ))}
+                {/* 도형: 드래그로 직선·화살표·사각형·타원 (묶음 — 줄바꿈 시 함께 이동) */}
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'nowrap' }}>
+                  {([['line', '╱', '직선'], ['arrow', '↗', '화살표'], ['rect', '▭', '사각형'], ['ellipse', '◯', '타원']] as const).map(([t, icon, name]) => (
+                    <button key={t} onClick={() => setTool(t)} aria-pressed={tool === t} title={name} style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === t ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>{icon}</button>
+                  ))}
+                </div>
                 <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
                 <input ref={fileRef} type="file" accept="application/pdf,image/*" hidden onChange={onAttach} />
                 <button className="btn ghost sm" disabled={!rw} onClick={() => fileRef.current?.click()}>🖼 이미지</button>
                 <button className="btn ghost sm" disabled={!rw} onClick={openCamera}>📷 촬영</button>
                 <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
               </>)}
-              <button className="btn ghost sm" title="축소" onClick={() => zoomAt(W / 2, H / 2, 1 / 1.25)}>🔍−</button>
-              <button className="btn ghost sm" title="원본 크기" onClick={resetZoom} style={{ minWidth: 52, fontVariantNumeric: 'tabular-nums' }}>{zoomPct}%</button>
-              <button className="btn ghost sm" title="확대" onClick={() => zoomAt(W / 2, H / 2, 1.25)}>🔍＋</button>
-              {!isViewer && <button className="btn ghost sm" title={grid === 'none' ? '모눈 보이기' : grid === 'grid' ? '줄노트로' : '안내선 끄기'} onClick={cycleGrid} aria-pressed={grid !== 'none'} style={grid !== 'none' ? { borderColor: 'var(--teal)' } : undefined}>{grid === 'lines' ? '▤' : '⊞'}</button>}
-              <button className="btn ghost sm" title={wide ? '기본 크기로' : '넓게 보기'} onClick={() => setWide((w) => !w)}>{wide ? '🗗' : '⛶'}</button>
+              {/* 줌·보기 묶음 — 줄바꿈 시에도 함께 이동(그룹 분리 방지) */}
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'nowrap' }}>
+                <button className="btn ghost sm" title="축소" onClick={() => zoomAt(W / 2, H / 2, 1 / 1.25)}>🔍−</button>
+                <button className="btn ghost sm" title="원본 크기" onClick={resetZoom} style={{ minWidth: 52, fontVariantNumeric: 'tabular-nums' }}>{zoomPct}%</button>
+                <button className="btn ghost sm" title="확대" onClick={() => zoomAt(W / 2, H / 2, 1.25)}>🔍＋</button>
+                {!isViewer && <button className="btn ghost sm" title={grid === 'none' ? '모눈 보이기' : grid === 'grid' ? '줄노트로' : '안내선 끄기'} onClick={cycleGrid} aria-pressed={grid !== 'none'} style={grid !== 'none' ? { borderColor: 'var(--teal)' } : undefined}>{grid === 'lines' ? '▤' : '⊞'}</button>}
+                <button className="btn ghost sm" title={wide ? '기본 크기로' : '넓게 보기'} onClick={() => setWide((w) => !w)}>{wide ? '🗗' : '⛶'}</button>
+              </div>
               <div style={{ flex: 1 }} />
               {isViewer ? (<>
                 <button className="btn ghost sm" onClick={() => { const nv = !handUp; setHandUp(nv); sockRef.current?.emit('hand:raise', { raised: nv }); }} style={handUp ? { borderColor: 'var(--gold, #e8a63d)', color: 'var(--gold-d, #a97d24)' } : undefined}>{handUp ? '✋ 손 내리기' : '✋ 손들기'}</button>
@@ -483,12 +488,14 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
                 <span style={{ fontSize: 12, color: 'var(--muted)' }}>👁 선생님 판서를 실시간으로 봅니다</span>
               </>) : (<>
                 <span style={{ fontSize: 11, color: 'var(--muted)' }}>{saveState === 'saving' ? '저장 중…' : saveState === 'saved' ? '자동 저장됨 ✓' : saveState === 'dirty' ? '변경됨' : ''}</span>
-                <button className="btn ghost sm" disabled={!rw || !canUndo} onClick={undo} title="되돌리기 (⌘Z)">↶</button>
-                <button className="btn ghost sm" disabled={!rw || !canRedo} onClick={redo} title="다시 실행 (⌘⇧Z)">↷</button>
-                <button className="btn ghost sm" disabled={!rw} onClick={clearInk} title="필기만 지우기(배경 유지)">필기 지우기</button>
-                <button className="btn ghost sm" disabled={!rw} onClick={clearAll} title="배경까지 모두 지우기">배경까지</button>
-                <button className="btn ghost sm" onClick={exportPng} title="보드를 PNG 이미지로 저장">⬇ PNG</button>
-                <button className="btn sm" disabled={!rw} onClick={save}>저장</button>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'nowrap' }}>
+                  <button className="btn ghost sm" disabled={!rw || !canUndo} onClick={undo} title="되돌리기 (⌘Z)">↶</button>
+                  <button className="btn ghost sm" disabled={!rw || !canRedo} onClick={redo} title="다시 실행 (⌘⇧Z)">↷</button>
+                  <button className="btn ghost sm" disabled={!rw} onClick={clearInk} title="필기만 지우기(배경 유지)">필기 지우기</button>
+                  <button className="btn ghost sm" disabled={!rw} onClick={clearAll} title="배경까지 모두 지우기">배경까지</button>
+                  <button className="btn ghost sm" onClick={exportPng} title="보드를 PNG 이미지로 저장">⬇ PNG</button>
+                  <button className="btn sm" disabled={!rw} onClick={save}>저장</button>
+                </div>
               </>)}
             </div>
             {isHost && (raised.size > 0 || roster.some((r) => r.role === 'presenter')) && (
