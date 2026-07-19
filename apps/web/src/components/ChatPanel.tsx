@@ -1,3 +1,6 @@
+// ⚠ 쌍둥이 구현: RoomChatPanel.tsx 와 UI·입력 로직이 병행 유지된다(Session*Panel 이 VITE_REALTIME_ROOMS 로 택1).
+//   말풍선 정렬·IME(isComposing)·통화 UI 등 공통 수정은 **반드시 두 파일에 동일 반영**할 것.
+//   (전례: 정렬·IME 수정이 룸 쪽에만 들어가 예약 경로에서 재발 — O79 회귀. 근본 해소는 공용 컴포넌트 추출 백로그)
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { api } from '../api/client';
@@ -178,9 +181,10 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
               const rx = m.reactions ?? {};
               const rxKeys = Object.keys(rx).filter((k) => (rx[k] ?? []).length > 0);
               return (
-                <div key={m.id}>
-                  {showDay && <div style={{ textAlign: 'center', margin: '10px 0 6px' }}><span style={{ fontSize: 11, color: 'var(--muted)', background: 'var(--line-soft,#e4eaf1)', borderRadius: 999, padding: '3px 10px' }}>{dayLabel(m.createdAt)}</span></div>}
-                  <div onMouseEnter={() => setHover(m.id)} onMouseLeave={() => { setHover((h) => (h === m.id ? null : h)); }} style={{ alignSelf: m.mine ? 'flex-end' : 'flex-start', maxWidth: '82%', marginLeft: m.mine ? 'auto' : 0, marginTop: 4, position: 'relative' }}>
+                // 메시지 래퍼는 flex 컬럼 — 내 글은 오른쪽·상대는 왼쪽 정렬, 말풍선은 내용 크기(shrink-to-fit)
+                <div key={m.id} style={{ display: 'flex', flexDirection: 'column', alignItems: m.mine ? 'flex-end' : 'flex-start' }}>
+                  {showDay && <div style={{ alignSelf: 'stretch', textAlign: 'center', margin: '10px 0 6px' }}><span style={{ fontSize: 11, color: 'var(--muted)', background: 'var(--line-soft,#e4eaf1)', borderRadius: 999, padding: '3px 10px' }}>{dayLabel(m.createdAt)}</span></div>}
+                  <div onMouseEnter={() => setHover(m.id)} onMouseLeave={() => { setHover((h) => (h === m.id ? null : h)); }} style={{ maxWidth: '82%', marginTop: 4, position: 'relative' }}>
                     {/* 답장 인용 */}
                     {m.replyTo && <div style={{ fontSize: 11, color: 'var(--muted)', borderLeft: '3px solid var(--teal)', padding: '2px 8px', background: 'var(--line-soft,#eef2f7)', borderRadius: 6, marginBottom: 3, maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>↩ {m.replyTo.senderId === myId ? '나' : '상대'}: {snippet(m.replyTo)}</div>}
                     <div style={{ background: m.mine ? 'var(--teal)' : 'var(--surface)', color: m.mine ? '#fff' : 'var(--ink)', border: m.mine ? 'none' : '1px solid var(--line)', borderRadius: 12, padding: m.kind === 'image' ? 6 : '8px 12px', fontSize: 14, whiteSpace: 'pre-wrap', wordBreak: 'break-word', opacity: m.pending ? 0.6 : 1 }}>
@@ -245,7 +249,7 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
             <button onClick={openCamera} title="사진 촬영(무음)" aria-label="사진 촬영" style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer' }}>📷</button>
             <input ref={docRef} type="file" hidden onChange={onDoc} />
             <button onClick={() => docRef.current?.click()} title="파일 첨부(PDF·문서)" aria-label="파일 첨부" style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer' }}>📎</button>
-            <input className="input" value={text} onChange={(e) => onType(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && send()} placeholder={reply ? '답장 입력…' : '메시지 입력…'} aria-label="메시지 입력" />
+            <input className="input" value={text} onChange={(e) => onType(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) send(); }} placeholder={reply ? '답장 입력…' : '메시지 입력…'} aria-label="메시지 입력" />
             <button className="btn sm" onClick={send} disabled={!text.trim()}>전송</button>
           </div>
         )}
