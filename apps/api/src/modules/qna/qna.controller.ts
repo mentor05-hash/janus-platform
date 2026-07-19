@@ -142,6 +142,18 @@ export class QnaController {
     return this.qna.myBlocks(user);
   }
 
+  /** GET /qna/teachers — 지정 질문용 선생님 디렉터리 + 공개 SLA 배지(학생·P5). */
+  @Get('teachers')
+  teachers(@CurrentUser() user: AuthUser) {
+    return this.qna.teacherDirectory(user);
+  }
+
+  /** GET /qna/my-open — 진행 중인 내 질문 요약(학생 홈 위젯·P5). */
+  @Get('my-open')
+  myOpen(@CurrentUser() user: AuthUser) {
+    return this.qna.myOpenQuestions(user);
+  }
+
   /** GET /qna/sla — 풀별 SLA 집계(admin/hr·Q1). */
   @Get('sla')
   @Roles('admin', 'hr')

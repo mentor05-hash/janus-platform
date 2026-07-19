@@ -21,6 +21,7 @@ type Post = {
   answers?: Answer[];
 };
 type Block = { teacherId: string; teacherName: string; since: string };
+type TeacherDir = { teacherId: string; name: string; avgFirstReplyMin: number | null; avgRating: number | null; answers: number; accepted: number };
 const isImage = (a: Attachment) => (a.type ?? '').startsWith('image/') || /\.(png|jpe?g|gif|webp|heic)$/i.test(a.name);
 const MAX_IMG = 3;
 
@@ -57,10 +58,13 @@ export function StudentQnaPage() {
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
   // 난이도별 답변블록 시간(정책) + 질문 요금(정책)
   const [durPol, setDurPol] = useState<Record<string, number> | null>(null);
+  const [teachers, setTeachers] = useState<TeacherDir[]>([]); // P5 — 지정 질문 선생님 디렉터리(SLA 배지)
+  const [assignedTeacherId, setAssignedTeacherId] = useState('');
   const [fee, setFee] = useState<{ itemFee: number; generalFee: number; freeQuota?: { quota: number; used: number; remaining: number; resetsAt: string } | null } | null>(null);
   useEffect(() => {
     api.get<Record<string, number>>('/bookings/question-duration/policy').then(setDurPol).catch(() => { /* 기본값 */ });
     api.get<{ itemFee: number; generalFee: number; freeQuota?: { quota: number; used: number; remaining: number; resetsAt: string } | null }>('/qna/pricing').then(setFee).catch(() => { /* 요금 조회 실패 */ });
+    api.get<{ teachers: TeacherDir[] }>('/qna/teachers').then((r) => setTeachers(r.teachers ?? [])).catch(() => { /* 디렉터리 조회 실패 */ });
   }, []);
   const tierOf = (d: string) => (d === '하' ? '기초' : d === '상' ? '심화' : '중급');
   const blockMin = durPol?.[tierOf(f.difficulty)] ?? ({ 하: 10, 중: 20, 상: 30 } as Record<string, number>)[f.difficulty] ?? 20;
@@ -131,8 +135,9 @@ export function StudentQnaPage() {
   async function submit() {
     setError(''); setMsg('');
     if (!f.body.trim()) { setError('질문 내용을 입력하세요.'); return; }
+    if (f.scope === 'assigned' && !assignedTeacherId) { setError('지정 질문은 선생님을 선택해야 합니다.'); return; }
     try {
-      const r = await api.post<{ freeUsed?: boolean; freeRemaining?: number; chargedCredits?: number }>('/qna/posts', { subject: f.subject, qType: f.qType, scope: f.scope, difficulty: f.difficulty, body: f.body, attachments: atts });
+      const r = await api.post<{ freeUsed?: boolean; freeRemaining?: number; chargedCredits?: number }>('/qna/posts', { subject: f.subject, qType: f.qType, scope: f.scope, difficulty: f.difficulty, body: f.body, attachments: atts, ...(f.scope === 'assigned' ? { assignedTeacherId } : {}) });
       setMsg(r.freeUsed
         ? `질문이 등록되었습니다 — 무료 질문권 사용(이번 주 ${r.freeRemaining ?? 0}건 남음).`
         : `질문이 등록되었습니다(${(r.chargedCredits ?? 0).toLocaleString()} 크레딧 차감).`);
@@ -160,6 +165,25 @@ export function StudentQnaPage() {
             <div style={{ minWidth: 120 }}><SelectField label="공개범위" value={f.scope} onChange={(e) => set('scope', e.target.value)} options={[{ value: 'open', label: '공개' }, { value: 'assigned', label: '지정' }]} /></div>
             <div style={{ minWidth: 100 }}><SelectField label="난이도" value={f.difficulty} onChange={(e) => set('difficulty', e.target.value)} options={['하', '중', '상'].map((d) => ({ value: d, label: d }))} /></div>
           </div>
+          {f.scope === 'assigned' && (
+            <div style={{ marginTop: 8 }}>
+              <label className="label">지정할 선생님 <span style={{ color: 'var(--muted)', fontWeight: 400 }}>— 평균 첫응답·만족도는 지정 질문 실적 기준</span></label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto', border: '1px solid var(--line)', borderRadius: 10, padding: 8 }}>
+                {teachers.length === 0 && <span style={{ fontSize: 13, color: 'var(--muted)' }}>선택 가능한 선생님이 없습니다.</span>}
+                {teachers.map((t) => (
+                  <button key={t.teacherId} type="button" onClick={() => setAssignedTeacherId(t.teacherId)}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, textAlign: 'left', padding: '8px 10px', borderRadius: 8, cursor: 'pointer', border: assignedTeacherId === t.teacherId ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)' }}>
+                    <span style={{ fontSize: 13.5, fontWeight: 700 }}>{t.name} 선생님</span>
+                    <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                      {t.avgFirstReplyMin != null ? `⚡ 평균 첫응답 ${t.avgFirstReplyMin >= 60 ? `${Math.round(t.avgFirstReplyMin / 60)}시간` : `${t.avgFirstReplyMin}분`}` : '신규'}
+                      {t.avgRating != null && ` · ★${t.avgRating}`}
+                      {t.answers > 0 && ` · 답변 ${t.answers}건`}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--teal-50,#EEF4FB)', borderRadius: 8, padding: '8px 12px', marginTop: 8 }}>
             <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--teal)' }}>답변블록 약 {blockMin}분</span>
             <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>

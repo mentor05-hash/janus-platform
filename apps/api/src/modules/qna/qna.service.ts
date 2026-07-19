@@ -455,6 +455,77 @@ export class QnaService {
     return { blocks: blocks.map((b) => ({ teacherId: b.teacher_id, teacherName: nameOf.get(b.teacher_id) ?? '선생님', since: b.created_at })) };
   }
 
+  /** P5(큐브 벤치마크): 지정 질문용 선생님 디렉터리 — 공개 SLA 배지(평균 첫응답·만족도·답변 실적) 포함.
+   *  학생의 소프트 블록 대상은 제외(§1-3 양방향 필터). */
+  async teacherDirectory(student: AuthUser) {
+    if (student.role !== AccountRole.STUDENT) throw new ForbiddenException('학생만 조회할 수 있습니다.');
+    const blocked = await this.prisma.qna_relation_block.findMany({
+      where: { student_id: student.id }, select: { teacher_id: true },
+    });
+    const blockedSet = new Set(blocked.map((b) => b.teacher_id));
+    const teachers = await this.prisma.teacher_profile.findMany({
+      select: { account_id: true, account: { select: { name: true } } },
+      take: 100,
+    });
+    // 풀별 원칙(§2): 배지는 지정(assigned) 풀 기준 첫응답·만족도 + 전체 답변 실적(채택 수).
+    const [slaRows, ansRows] = await Promise.all([
+      this.prisma.$queryRaw<Array<{ tid: string; answered: number; avg_first_min: number | null; avg_rating: number | null }>>`
+        SELECT p.assigned_teacher_id AS tid,
+               count(*) FILTER (WHERE p.first_reply_at IS NOT NULL)::int AS answered,
+               avg(EXTRACT(EPOCH FROM (p.first_reply_at - p.created_at)) / 60) FILTER (WHERE p.first_reply_at IS NOT NULL) AS avg_first_min,
+               avg(p.rating) FILTER (WHERE p.rating IS NOT NULL) AS avg_rating
+        FROM qna_post p
+        WHERE p.assigned_teacher_id IS NOT NULL
+        GROUP BY 1`,
+      this.prisma.$queryRaw<Array<{ tid: string; answers: number; accepted: number }>>`
+        SELECT a.teacher_id AS tid, count(*)::int AS answers, count(*) FILTER (WHERE a.accepted)::int AS accepted
+        FROM qna_answer a GROUP BY 1`,
+    ]);
+    const sla = new Map(slaRows.map((r) => [r.tid, r]));
+    const ans = new Map(ansRows.map((r) => [r.tid, r]));
+    return {
+      teachers: teachers
+        .filter((t) => !blockedSet.has(t.account_id))
+        .map((t) => {
+          const s = sla.get(t.account_id); const a = ans.get(t.account_id);
+          return {
+            teacherId: t.account_id,
+            name: t.account?.name ?? '선생님',
+            avgFirstReplyMin: s?.avg_first_min != null ? Math.round(Number(s.avg_first_min)) : null,
+            avgRating: s?.avg_rating != null ? Math.round(Number(s.avg_rating) * 10) / 10 : null,
+            answers: a?.answers ?? 0,
+            accepted: a?.accepted ?? 0,
+          };
+        })
+        // 실적 있는 선생님 우선(첫응답 빠른 순), 무실적은 뒤에 이름순
+        .sort((x, y) => {
+          if (x.avgFirstReplyMin == null && y.avgFirstReplyMin == null) return x.name.localeCompare(y.name);
+          if (x.avgFirstReplyMin == null) return 1;
+          if (y.avgFirstReplyMin == null) return -1;
+          return x.avgFirstReplyMin - y.avgFirstReplyMin;
+        }),
+    };
+  }
+
+  /** P5: 학생 홈 위젯 — 진행 중인 내 질문 요약(최근 5건). */
+  async myOpenQuestions(student: AuthUser) {
+    if (student.role !== AccountRole.STUDENT) return { posts: [] };
+    const rows = await this.prisma.qna_post.findMany({
+      where: { student_id: student.id, status: 'open' },
+      orderBy: { created_at: 'desc' }, take: 5,
+      select: {
+        id: true, subject: true, scope: true, created_at: true, first_reply_at: true,
+        _count: { select: { qna_answer: true } },
+      },
+    });
+    return {
+      posts: rows.map((r) => ({
+        id: r.id, subject: r.subject, scope: r.scope, createdAt: r.created_at,
+        answered: r.first_reply_at != null, answerCount: r._count.qna_answer,
+      })),
+    };
+  }
+
   /** Q1 SLA 풀별 집계(admin/hr) — 접수→클레임→첫응답→해결 지연·해결률. */
   async sla(user: AuthUser) {
     if (user.role !== AccountRole.ADMIN && user.role !== AccountRole.HR) throw new ForbiddenException('관리자만 조회할 수 있습니다.');

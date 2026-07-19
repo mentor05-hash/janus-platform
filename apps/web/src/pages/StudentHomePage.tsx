@@ -22,6 +22,7 @@ const SHORTCUTS = [
 ];
 
 type DiagRow = { score: number; correct: number; total: number; submitted_at: string };
+type OpenQ = { id: string; subject: string | null; scope: string | null; createdAt: string; answered: boolean; answerCount: number };
 type Plan = { headline: string; items: { subject: string; unit: string; rate: number }[] };
 
 export function StudentHomePage() {
@@ -29,11 +30,13 @@ export function StudentHomePage() {
   const [diag, setDiag] = useState<DiagRow | null | undefined>(undefined); // undefined=로딩, null=없음
   const [plan, setPlan] = useState<Plan | null>(null);
   const [unread, setUnread] = useState(0);
+  const [openQ, setOpenQ] = useState<OpenQ[]>([]); // P5 — 진행 중인 내 질문
 
   useEffect(() => {
     api.get<{ attempts: DiagRow[] }>('/diagnostics/me').then((r) => setDiag(r.attempts[0] ?? null)).catch(() => setDiag(null));
     api.get<Plan>('/curriculum/me').then(setPlan).catch(() => setPlan(null));
     api.get<Array<{ read_at: string | null }>>('/notifications').then((r) => setUnread((Array.isArray(r) ? r : []).filter((n) => !n.read_at).length)).catch(() => {});
+    api.get<{ posts: OpenQ[] }>('/qna/my-open').then((r) => setOpenQ(r.posts ?? [])).catch(() => {});
   }, []);
 
   const hasDiag = !!diag;
@@ -83,6 +86,18 @@ export function StudentHomePage() {
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.4 }}>{plan?.items?.length ? `우선순위 ${plan.items.length}개` : '플랜 없음'}</div>
           <div style={{ fontSize: 12, color: 'var(--brand)', marginTop: 4 }}>보기 →</div>
         </Link>
+        {openQ.length > 0 && (
+          <Link to="/student/qna" className="card" style={{ textDecoration: 'none', padding: 16 }}>
+            <div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 6 }}>✎ 진행 중인 질문</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.5 }}>
+              {openQ.length}건 대기·답변 중
+              <span style={{ display: 'block', fontSize: 12, fontWeight: 400, color: 'var(--muted)', marginTop: 2 }}>
+                {openQ[0].subject ?? '질문'} {openQ[0].answered ? '· 답변 도착 ✓' : '· 답변 대기'}
+              </span>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--brand)', marginTop: 4 }}>확인 →</div>
+          </Link>
+        )}
         <Link to="/student/notifications" className="card" style={{ textDecoration: 'none', padding: 16 }}>
           <div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 6 }}>🔔 알림</div>
           <div style={{ fontSize: 20, fontWeight: 800, color: unread > 0 ? 'var(--danger, #dc2626)' : 'var(--ink)' }}>{unread > 0 ? `${unread}건` : '없음'}</div>
