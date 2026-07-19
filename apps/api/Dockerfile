@@ -19,6 +19,7 @@ RUN npm ci
 COPY . .
 RUN npm run prisma:generate --workspace apps/api \
  && npm run build --workspace apps/api \
+ && npm run build:seed --workspace apps/api \
  && npm prune --omit=dev
 
 # ---------- runner ----------
@@ -33,6 +34,7 @@ RUN apk add --no-cache dumb-init poppler-utils fontconfig ttf-freefont font-noto
 
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
+COPY --from=builder /app/apps/api/dist-seed ./apps/api/dist-seed
 COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
 COPY --from=builder /app/apps/api/migrations ./apps/api/migrations
 COPY --from=builder /app/apps/api/scripts ./apps/api/scripts

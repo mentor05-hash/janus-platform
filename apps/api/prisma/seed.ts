@@ -189,6 +189,30 @@ async function main() {
       [ID.acTeacher, ID.center, ['수학'], ['미적분']],
     );
 
+    // student_profile
+    await client.query(
+      `INSERT INTO student_profile (account_id, center_id, membership_grade_id)
+       VALUES ($1,$2,$3) ON CONFLICT (account_id) DO NOTHING`,
+      [ID.acStudent, ID.center, ID.gradeStd],
+    );
+    // staff_profile (admin=L3, hr=L2)
+    await client.query(
+      `INSERT INTO staff_profile (account_id, staff_role, center_id, perm_level)
+       VALUES ($1,'운영',$2,'L3') ON CONFLICT (account_id) DO NOTHING`,
+      [ID.acAdmin, ID.center],
+    );
+    await client.query(
+      `INSERT INTO staff_profile (account_id, staff_role, center_id, perm_level)
+       VALUES ($1,'HR',$2,'L2') ON CONFLICT (account_id) DO NOTHING`,
+      [ID.acHr, ID.center],
+    );
+    // guardian
+    await client.query(
+      `INSERT INTO guardian (account_id, notify_settings) VALUES ($1,'{}'::jsonb)
+       ON CONFLICT (account_id) DO NOTHING`,
+      [ID.acGuardian],
+    );
+
     // 5-0) Q&A 데모 선생님(P5 배지 확인용) — 첫응답·만족도가 서로 다른 4명 + 지정 질문 실적.
     //      teacher02(빠름·고평점) / teacher03(보통) / teacher04(느림·저평점) / teacher05(신규·무실적)
     const qnaTeachers: [string, string, string, string[], number | null, number | null][] = [
@@ -232,29 +256,7 @@ async function main() {
         );
       }
     }
-    // student_profile
-    await client.query(
-      `INSERT INTO student_profile (account_id, center_id, membership_grade_id)
-       VALUES ($1,$2,$3) ON CONFLICT (account_id) DO NOTHING`,
-      [ID.acStudent, ID.center, ID.gradeStd],
-    );
-    // staff_profile (admin=L3, hr=L2)
-    await client.query(
-      `INSERT INTO staff_profile (account_id, staff_role, center_id, perm_level)
-       VALUES ($1,'운영',$2,'L3') ON CONFLICT (account_id) DO NOTHING`,
-      [ID.acAdmin, ID.center],
-    );
-    await client.query(
-      `INSERT INTO staff_profile (account_id, staff_role, center_id, perm_level)
-       VALUES ($1,'HR',$2,'L2') ON CONFLICT (account_id) DO NOTHING`,
-      [ID.acHr, ID.center],
-    );
-    // guardian
-    await client.query(
-      `INSERT INTO guardian (account_id, notify_settings) VALUES ($1,'{}'::jsonb)
-       ON CONFLICT (account_id) DO NOTHING`,
-      [ID.acGuardian],
-    );
+
     // 관리자 계층(§iam): L1 마스터 / L2 본사 / L3 센터. 역할은 admin, perm_level 로 계층.
     // 본사(HQ) — admin + 센터 미소속(center_id NULL) + L2.
     await client.query(

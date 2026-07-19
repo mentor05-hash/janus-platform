@@ -10,10 +10,18 @@ INSERT INTO diagnostic_question (id, subject, unit, difficulty, stem, choices, a
 ON CONFLICT (id) DO NOTHING;
 
 -- 2) 커뮤니티 Q&A(무료·전원답변) — 게시판·통합검색에 초기 콘텐츠 제공.
+-- 아래 데모 행들은 시드 더미 계정(00000000-…-a1 등)에 의존 — 계정이 없으면(신규 DB, 시드 전) 생략.
+-- (기존엔 무조건 INSERT 라 신규 DB에서 FK 실패 — 2026-07-20 가드 추가. 시드 후 재실행 시 삽입됨: 원장 재기록 없이 psql 로 이 파일만 재실행 가능)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM account WHERE id = '00000000-0000-4000-8000-0000000000a1') THEN
+    RAISE NOTICE '데모 계정 없음 — 0062 데모 행 생략(시드 후 필요 시 파일 재실행)';
+    RETURN;
+  END IF;
 INSERT INTO qna_post (id, student_id, subject, difficulty, scope, body, status, community, first_reply_at, resolved_at) VALUES
  ('c0000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-0000000000a1','수학','중','open','미적분에서 합성함수 미분(연쇄법칙)이 헷갈려요. 예시로 설명해주실 분?','resolved',true, now() - interval '2 hour', now() - interval '1 hour'),
- ('c0000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-0000000000a1','영어','하','open','영어 지문에서 주제문을 빠르게 찾는 팁이 있을까요?','open', now() - interval '30 minute', NULL),
- ('c0000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-0000000000a1','국어',NULL,'open','비문학 독서 지문 시간이 항상 부족해요. 시간 단축 훈련법 공유 부탁드려요.','open', NULL, NULL)
+ ('c0000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-0000000000a1','영어','하','open','영어 지문에서 주제문을 빠르게 찾는 팁이 있을까요?','open',true, now() - interval '30 minute', NULL),
+ ('c0000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-0000000000a1','국어',NULL,'open','비문학 독서 지문 시간이 항상 부족해요. 시간 단축 훈련법 공유 부탁드려요.','open',true, NULL, NULL)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO qna_community_answer (id, post_id, author_id, body, accepted) VALUES
@@ -25,3 +33,4 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO lecture_review (id, lecture_id, student_id, rating, text) VALUES
  ('e0000000-0000-4000-8000-000000000001','b0000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-0000000000a1',5,'도함수 직관이 처음으로 잡혔어요. 강추!')
 ON CONFLICT (id) DO NOTHING;
+END $$;
