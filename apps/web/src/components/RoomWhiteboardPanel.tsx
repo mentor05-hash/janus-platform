@@ -480,6 +480,17 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
   async function capture() { const v = videoRef.current; if (!v) return; const cw = v.videoWidth || 1280, ch = v.videoHeight || 720; const c = document.createElement('canvas'); c.width = cw; c.height = ch; c.getContext('2d')!.drawImage(v, 0, 0, cw, ch); const blob: Blob = await new Promise((res) => c.toBlob((b) => res(b!), 'image/jpeg', 0.85)); closeCamera(); await useAsBackground(blob, 'shot.jpg'); }
   useEffect(() => () => closeCamera(), []);
 
+  // 지우개 커서 — 지울 범위를 원으로 표시(캔버스 표시 배율·줌 반영).
+  const eraserCursor = (() => {
+    if (tool !== 'eraser') return 'crosshair';
+    const rect = canvasRef.current?.getBoundingClientRect();
+    const k = ((rect?.width ?? 900) / W) * (zoomPct / 100);
+    const d = Math.max(10, Math.min(128, Math.round(Math.max(16, width * 4) * k)));
+    const r = d / 2;
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${d}' height='${d}'><circle cx='${r}' cy='${r}' r='${r - 1}' fill='rgba(200,210,220,0.28)' stroke='%23607080' stroke-width='1'/></svg>`;
+    return `url("data:image/svg+xml,${svg}") ${r} ${r}, crosshair`;
+  })();
+
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 950, background: 'rgba(8,16,20,0.5)', display: 'grid', placeItems: 'center', padding: 16 }}>
       <div role="dialog" aria-modal="true" aria-label={title ?? '공유 화이트보드'} onClick={(e) => e.stopPropagation()} className="card" style={{ width: '100%', maxWidth: wide ? `min(96vw, calc((100vh - 170px) * ${W / H}))` : 960, maxHeight: 'calc(100vh - 16px)', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
@@ -627,7 +638,7 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
               </div>
             )}
             <div style={{ position: 'relative' }}>
-              <canvas ref={canvasRef} width={W} height={H} role="img" aria-label="공유 필기 캔버스" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up} style={{ width: '100%', aspectRatio: `${W} / ${H}`, background: '#fff', touchAction: 'none', cursor: isViewer ? 'default' : 'crosshair', display: 'block' }} />
+              <canvas ref={canvasRef} width={W} height={H} role="img" aria-label="공유 필기 캔버스" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up} style={{ width: '100%', aspectRatio: `${W} / ${H}`, background: '#fff', touchAction: 'none', cursor: isViewer ? 'default' : eraserCursor, display: 'block' }} />
               {camOn && (
                 <div style={{ position: 'absolute', inset: 0, background: '#000', display: 'flex', flexDirection: 'column' }}>
                   <video ref={videoRef} playsInline muted style={{ flex: 1, width: '100%', objectFit: 'contain', minHeight: 0 }} />

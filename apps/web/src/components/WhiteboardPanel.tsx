@@ -63,6 +63,10 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
   const [wide, setWide] = useState(false); // 전체화면(넓게 보기)
   const [pop, setPop] = useState<'pen' | 'shape' | 'clear' | 'bg' | null>(null); // 툴바 팝오버(W-U1 — 1줄화)
   const [archState, setArchState] = useState<'idle' | 'busy' | 'done'>('idle'); // 보드→채팅 기록 상태
+  // 화상 PIP 드래그 — 필기 영역을 가리면 옮길 수 있게. null=기본(우상단).
+  const [pipPos, setPipPos] = useState<{ x: number; y: number } | null>(null);
+  const pipRef = useRef<HTMLDivElement | null>(null);
+  const pipDragRef = useRef<{ dx: number; dy: number } | null>(null);
   const [status, setStatus] = useState<'connecting' | 'ready' | 'off'>('connecting');
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved'>('idle');
@@ -606,6 +610,17 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
   }
   useEffect(() => () => closeCamera(), []);
 
+  // 지우개 커서 — 지울 범위를 원으로 표시(캔버스 표시 배율·줌 반영).
+  const eraserCursor = (() => {
+    if (tool !== 'eraser') return 'crosshair';
+    const rect = canvasRef.current?.getBoundingClientRect();
+    const k = ((rect?.width ?? 900) / W) * (zoomPct / 100);
+    const d = Math.max(10, Math.min(128, Math.round(Math.max(16, width * 4) * k)));
+    const r = d / 2;
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${d}' height='${d}'><circle cx='${r}' cy='${r}' r='${r - 1}' fill='rgba(200,210,220,0.28)' stroke='%23607080' stroke-width='1'/></svg>`;
+    return `url("data:image/svg+xml,${svg}") ${r} ${r}, crosshair`;
+  })();
+
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 950, background: 'rgba(8,16,20,0.5)', display: 'grid', placeItems: 'center', padding: 16 }}>
       <div role="dialog" aria-modal="true" aria-label={title ?? '공유 화이트보드'} onClick={(e) => e.stopPropagation()} className="card" style={{ position: 'relative', width: '100%', maxWidth: wide ? `min(96vw, calc((100vh - 170px) * ${W / H}))` : 960, maxHeight: 'calc(100vh - 16px)', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
@@ -751,7 +766,7 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
             <div style={{ position: 'relative' }}>
               <canvas ref={canvasRef} width={W} height={H} role="img" aria-label="공유 필기 캔버스"
                 onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up}
-                style={{ width: '100%', aspectRatio: `${W} / ${H}`, background: '#fff', touchAction: 'none', cursor: 'crosshair', display: 'block' }} />
+                style={{ width: '100%', aspectRatio: `${W} / ${H}`, background: '#fff', touchAction: 'none', cursor: eraserCursor, display: 'block' }} />
               {camOn && (
                 <div style={{ position: 'absolute', inset: 0, background: '#000', display: 'flex', flexDirection: 'column' }}>
                   <video ref={videoRef} playsInline muted style={{ flex: 1, width: '100%', objectFit: 'contain', minHeight: 0 }} />
@@ -767,10 +782,25 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
         <audio ref={call.remoteAudioRef} autoPlay />
         {/* 화상 PIP(미디어킷) — 보드 위 우상단 오버레이. 상대 화상은 크게, 내 화상은 그 아래 썸네일. */}
         {LK_ON && lk.status !== 'idle' && (
-          <div style={{ position: 'absolute', top: 60, right: 14, zIndex: 20, display: 'flex', flexDirection: 'column', gap: 6, pointerEvents: 'none' }}>
-            <video ref={lk.remoteVideoRef} autoPlay playsInline style={{ width: 168, aspectRatio: '4 / 3', borderRadius: 10, background: '#111', objectFit: 'cover', boxShadow: '0 2px 10px rgba(0,0,0,.28)', display: lk.remoteCamOn ? 'block' : 'none' }} />
-            {!lk.remoteCamOn && <div style={{ width: 168, aspectRatio: '4 / 3', borderRadius: 10, background: '#1b2430', color: '#9fb0c2', display: 'grid', placeItems: 'center', fontSize: 12 }}>상대 화상 꺼짐</div>}
-            <video ref={lk.localVideoRef} autoPlay playsInline muted style={{ width: 108, aspectRatio: '4 / 3', borderRadius: 8, background: '#111', objectFit: 'cover', alignSelf: 'flex-end', boxShadow: '0 1px 6px rgba(0,0,0,.28)', display: lk.camOn ? 'block' : 'none' }} />
+          <div ref={pipRef}
+            onPointerDown={(e) => {
+              const el = pipRef.current; if (!el) return;
+              (e.target as Element).setPointerCapture?.(e.pointerId);
+              pipDragRef.current = { dx: e.clientX - el.offsetLeft, dy: e.clientY - el.offsetTop };
+            }}
+            onPointerMove={(e) => {
+              const d = pipDragRef.current; const el = pipRef.current; if (!d || !el) return;
+              const parent = el.offsetParent as HTMLElement | null;
+              const maxX = (parent?.clientWidth ?? 900) - el.offsetWidth;
+              const maxY = (parent?.clientHeight ?? 600) - el.offsetHeight;
+              setPipPos({ x: Math.max(0, Math.min(maxX, e.clientX - d.dx)), y: Math.max(0, Math.min(maxY, e.clientY - d.dy)) });
+            }}
+            onPointerUp={() => { pipDragRef.current = null; }}
+            title="드래그해서 옮길 수 있어요"
+            style={{ position: 'absolute', ...(pipPos ? { left: pipPos.x, top: pipPos.y } : { top: 60, right: 14 }), zIndex: 20, display: 'flex', flexDirection: 'column', gap: 6, cursor: 'grab', touchAction: 'none' }}>
+            <video ref={lk.remoteVideoRef} autoPlay playsInline style={{ pointerEvents: 'none', width: 168, aspectRatio: '4 / 3', borderRadius: 10, background: '#111', objectFit: 'cover', boxShadow: '0 2px 10px rgba(0,0,0,.28)', display: lk.remoteCamOn ? 'block' : 'none' }} />
+            {!lk.remoteCamOn && <div style={{ pointerEvents: 'none', width: 168, aspectRatio: '4 / 3', borderRadius: 10, background: '#1b2430', color: '#9fb0c2', display: 'grid', placeItems: 'center', fontSize: 12 }}>상대 화상 꺼짐</div>}
+            <video ref={lk.localVideoRef} autoPlay playsInline muted style={{ pointerEvents: 'none', width: 108, aspectRatio: '4 / 3', borderRadius: 8, background: '#111', objectFit: 'cover', alignSelf: 'flex-end', boxShadow: '0 1px 6px rgba(0,0,0,.28)', display: lk.camOn ? 'block' : 'none' }} />
           </div>
         )}
         {/* 입장 전 점검(§3.5) — 장치 선택·미리보기·마이크 레벨·간이 RTT. 선택 결과를 join 에 그대로 전달. */}
