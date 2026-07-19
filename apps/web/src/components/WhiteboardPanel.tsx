@@ -390,7 +390,7 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 950, background: 'rgba(8,16,20,0.5)', display: 'grid', placeItems: 'center', padding: 16 }}>
-      <div role="dialog" aria-modal="true" aria-label={title ?? '공유 화이트보드'} onClick={(e) => e.stopPropagation()} className="card" style={{ width: '100%', maxWidth: 960, display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
+      <div role="dialog" aria-modal="true" aria-label={title ?? '공유 화이트보드'} onClick={(e) => e.stopPropagation()} className="card" style={{ position: 'relative', width: '100%', maxWidth: 960, display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}>
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <b style={{ fontSize: 15 }}>🖊 {title ?? '공유 화이트보드'}</b>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
