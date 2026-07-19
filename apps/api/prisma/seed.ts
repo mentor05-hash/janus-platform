@@ -188,6 +188,50 @@ async function main() {
        VALUES ($1,$2,$3,$4,'A','더미 경력','교과') ON CONFLICT (account_id) DO NOTHING`,
       [ID.acTeacher, ID.center, ['수학'], ['미적분']],
     );
+
+    // 5-0) Q&A 데모 선생님(P5 배지 확인용) — 첫응답·만족도가 서로 다른 4명 + 지정 질문 실적.
+    //      teacher02(빠름·고평점) / teacher03(보통) / teacher04(느림·저평점) / teacher05(신규·무실적)
+    const qnaTeachers: [string, string, string, string[], number | null, number | null][] = [
+      ['e2e00000-0000-4000-8000-000000000102', 'teacher02', '김수학', ['수학'], 8, 5],
+      ['e2e00000-0000-4000-8000-000000000103', 'teacher03', '이영어', ['영어'], 45, 4],
+      ['e2e00000-0000-4000-8000-000000000104', 'teacher04', '박과탐', ['과학'], 200, 3],
+      ['e2e00000-0000-4000-8000-000000000105', 'teacher05', '최국어', ['국어'], null, null],
+    ];
+    for (const [tid, loginId, name, subjects, replyMin, rating] of qnaTeachers) {
+      await client.query(
+        `INSERT INTO account (id, role, center_id, login_id, pw_hash, name, status)
+         VALUES ($1,'teacher',$2,$3,$4,$5,'approved')
+         ON CONFLICT (id) DO UPDATE SET pw_hash = EXCLUDED.pw_hash, status = 'approved'`,
+        [tid, ID.center, loginId, DUMMY_PW_HASH, name],
+      );
+      await client.query(
+        `INSERT INTO teacher_profile (account_id, center_id, subjects, grade, career, teacher_category)
+         VALUES ($1,$2,$3,'A','데모 경력','교과') ON CONFLICT (account_id) DO NOTHING`,
+        [tid, ID.center, subjects],
+      );
+      if (replyMin == null) continue; // 신규(무실적) 선생님
+      // 지정 질문 2건: 접수→첫응답(replyMin분)→해결(+30분), 만족도 rating — 배지 집계의 원천 데이터.
+      for (let i = 0; i < 2; i++) {
+        const pid = `${tid.slice(0, 28)}a${i}${tid.slice(30)}`; // 선생님 id 파생 고정 uuid(멱등)
+        await client.query(
+          `INSERT INTO qna_post (id, student_id, subject, scope, assigned_teacher_id, body, status,
+                                 created_at, claimed_at, first_reply_at, resolved_at, rating)
+           VALUES ($1,$2,$3,'assigned',$4,$5,'resolved',
+                   now() - interval '${3 + i} days',
+                   now() - interval '${3 + i} days' + interval '${Math.max(1, Math.round(replyMin / 2))} minutes',
+                   now() - interval '${3 + i} days' + interval '${replyMin + i * 3} minutes',
+                   now() - interval '${3 + i} days' + interval '${replyMin + 30} minutes', $6)
+           ON CONFLICT (id) DO NOTHING`,
+          [pid, ID.acStudent, subjects[0], tid, `${subjects[0]} 데모 질문 ${i + 1} (SLA 배지 시드)`, rating],
+        );
+        await client.query(
+          `INSERT INTO qna_answer (id, post_id, teacher_id, body, accepted, pay_eligible, created_at)
+           VALUES ($1,$2,$3,$4,true,false, now() - interval '${3 + i} days' + interval '${replyMin + i * 3} minutes')
+           ON CONFLICT (id) DO NOTHING`,
+          [`${tid.slice(0, 28)}b${i}${tid.slice(30)}`, pid, tid, `데모 풀이 답변 ${i + 1}`],
+        );
+      }
+    }
     // student_profile
     await client.query(
       `INSERT INTO student_profile (account_id, center_id, membership_grade_id)
