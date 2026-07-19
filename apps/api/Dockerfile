@@ -11,6 +11,7 @@ COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/
 COPY packages/shared/package.json packages/shared/
 COPY packages/pricing/package.json packages/pricing/
+COPY packages/media-kit/package.json packages/media-kit/
 RUN npm ci
 
 # 소스 복사 후 Prisma client 생성 + 빌드 → 런타임 의존성만 남김

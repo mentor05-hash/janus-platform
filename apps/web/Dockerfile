@@ -8,6 +8,7 @@ COPY package.json package-lock.json ./
 COPY apps/web/package.json apps/web/
 COPY packages/shared/package.json packages/shared/
 COPY packages/pricing/package.json packages/pricing/
+COPY packages/media-kit/package.json packages/media-kit/
 # macOS 에서 생성된 lock 은 linux/musl rollup 바이너리를 누락(npm optional-deps 버그).
 # lock 을 지우고 install 하면 컨테이너 플랫폼에 맞는 optional 을 새로 해석한다.
 RUN rm -f package-lock.json && npm install --no-audit --no-fund
