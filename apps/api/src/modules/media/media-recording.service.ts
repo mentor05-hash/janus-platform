@@ -1,9 +1,10 @@
-import { ForbiddenException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { createHash, createHmac } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { AccountRole } from '../../config/enums';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { MEDIA_PROVIDER } from './media.types';
 import type { MediaProvider } from './media.types';
 
@@ -22,6 +23,7 @@ export class MediaRecordingService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     @Inject(MEDIA_PROVIDER) private readonly media: MediaProvider,
+    @Optional() private readonly realtime?: RealtimeGateway, // 채팅 시스템 메시지(녹음 시작/중단 안내)
   ) {}
 
   private async flags() {
@@ -118,6 +120,7 @@ export class MediaRecordingService {
       const r = await this.prisma.consult_recording.findUnique({ where: { booking_id: bookingId } });
       if (r?.status === 'recording' && r.egress_id) {
         await this.media.stopRecording(`consult_${bookingId}`, r.egress_id).catch((e) => this.logger.warn(`철회 중단 실패: ${e}`));
+        void this.realtime?.systemMessage(bookingId, '⏹ 상담 녹음이 중단되었습니다(동의 철회).');
       }
       await this.prisma.consult_recording.upsert({
         where: { booking_id: bookingId },
@@ -157,6 +160,7 @@ export class MediaRecordingService {
         where: { booking_id: bookingId },
         data: { status: 'recording', egress_id: started.recordingRef, expires_at: expiresAt, consent_guardian_at: guardian.grantedAt },
       });
+      void this.realtime?.systemMessage(bookingId, '🔴 상담 녹음이 시작되었습니다(양측 동의).');
       return { status: 'recording', recordingStarted: true };
     } catch (e) {
       this.logger.warn(`egress 시작 실패 booking=${bookingId}: ${(e as Error).message}`);

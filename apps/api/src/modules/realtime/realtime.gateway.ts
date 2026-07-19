@@ -22,12 +22,39 @@ export class RealtimeGateway implements OnGatewayConnection {
   @WebSocketServer() server!: Server;
   // 예약별 세션 시간창 캐시(고빈도 wb:stroke 경로의 DB 조회 회피). 창은 예약당 불변 → 캐시 안전.
   private readonly windows = new Map<string, { restricted: boolean; opensMs: number; closesMs: number }>();
+  // 세션 종료 시스템 메시지 예약 타이머(예약당 1회 — DB 중복검사로 재기동·다중 join 에도 멱등).
+  private readonly closeTimers = new Map<string, NodeJS.Timeout>();
+  private static readonly CLOSE_NOTICE = '🔒 상담 시간이 종료되었습니다. 채팅은 열람만 가능해요.';
 
   constructor(private readonly jwt: JwtService, private readonly svc: RealtimeService) {}
 
   private rememberWindow(bookingId: string, b: { mode: string | null; start_at: Date | null; end_at: Date | null }) {
     const w = this.svc.sessionWindow(b);
     this.windows.set(bookingId, { restricted: w.restricted, opensMs: w.opensAt?.getTime() ?? 0, closesMs: w.closesAt?.getTime() ?? 0 });
+    this.scheduleCloseNotice(bookingId);
+  }
+
+  /** 시간창이 닫히는 시각에 세션 종료 시스템 메시지 1회 게시(시간창 제한 예약만). */
+  private scheduleCloseNotice(bookingId: string) {
+    const w = this.windows.get(bookingId);
+    if (!w || !w.restricted || this.closeTimers.has(bookingId)) return;
+    const delay = w.closesMs - Date.now();
+    if (delay <= 0 || delay > 2 ** 31 - 1) return; // 이미 종료(안내 불필요) 또는 과도한 지연
+    const t = setTimeout(() => {
+      this.closeTimers.delete(bookingId);
+      void this.systemMessage(bookingId, RealtimeGateway.CLOSE_NOTICE, { once: true });
+    }, delay);
+    if (typeof t.unref === 'function') t.unref();
+    this.closeTimers.set(bookingId, t);
+  }
+
+  /** 시스템 메시지 게시 + 방 브로드캐스트(녹음 시작/중단, 세션 종료 안내 등 — 외부 모듈에서도 호출). */
+  async systemMessage(bookingId: string, body: string, opts?: { once?: boolean }) {
+    try {
+      if (opts?.once && (await this.svc.hasSystemMessage(bookingId, body))) return;
+      const msg = await this.svc.saveSystemMessage(bookingId, body);
+      this.server?.to(`booking:${bookingId}`).emit('chat:message', { ...msg, mine: false });
+    } catch { /* 안내 실패는 본 작업 비차단 */ }
   }
   /** 캐시된 창 기준으로 지금 필기 가능한지(캐시 없으면 관대하게 허용 — join 이 항상 선행). */
   private openNow(bookingId: string): boolean {
@@ -87,17 +114,17 @@ export class RealtimeGateway implements OnGatewayConnection {
   }
 
   @SubscribeMessage('chat:send')
-  async chatSend(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, body, imageFileId, fileId, fileName, replyToId }: { bookingId: string; body?: string; imageFileId?: string; fileId?: string; fileName?: string; replyToId?: string }) {
+  async chatSend(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, body, imageFileId, fileId, fileName, audioFileId, replyToId }: { bookingId: string; body?: string; imageFileId?: string; fileId?: string; fileName?: string; audioFileId?: string; replyToId?: string }) {
     const user = this.user(client);
     const b = await this.svc.assertRoomAccess(user, bookingId);
     const access = await this.svc.featureAccess(user);
     if (!access.chat) return { ok: false, error: '채팅이 비활성화되어 있습니다.' };
     if (!this.svc.sessionOpen(b)) return { ok: false, closed: true, error: '상담 세션 시간이 아닙니다. 예약 시간대에만 메시지를 보낼 수 있어요.' };
-    if (!body?.trim() && !imageFileId && !fileId) return { ok: false };
-    // 파일(PDF·문서 등)은 kind='file' + image_file_id 재사용, body 에 파일명 저장(표시용)
-    const kind = imageFileId ? 'image' : fileId ? 'file' : 'text';
-    const savedBody = fileId ? (fileName ?? '첨부파일') : (body?.trim() || null);
-    const msg = await this.svc.saveMessage(user.id, bookingId, kind, savedBody, imageFileId ?? fileId ?? null, replyToId ?? null);
+    if (!body?.trim() && !imageFileId && !fileId && !audioFileId) return { ok: false };
+    // 파일(PDF·문서)·음성은 kind 만 다르고 image_file_id 재사용, body 에 파일명 저장(표시용)
+    const kind = imageFileId ? 'image' : audioFileId ? 'audio' : fileId ? 'file' : 'text';
+    const savedBody = audioFileId ? (fileName ?? '음성 메시지') : fileId ? (fileName ?? '첨부파일') : (body?.trim() || null);
+    const msg = await this.svc.saveMessage(user.id, bookingId, kind, savedBody, imageFileId ?? audioFileId ?? fileId ?? null, replyToId ?? null);
     // C1 직거래·연락처 감지 — 차단하지 않는다: 발신자 경고 + 감사 기록(오탐 안전 설계).
     const modKinds = detectDirectContact(savedBody);
     if (modKinds.length > 0) {
@@ -111,6 +138,19 @@ export class RealtimeGateway implements OnGatewayConnection {
       sock.emit('chat:message', { ...msg, mine: msg.senderId === viewerId });
     }
     return { ok: true, id: msg.id };
+  }
+
+  /** 메시지 삭제(회수) — 본인 발신만, soft delete(원문 DB 보존). 방 전체에 통지. */
+  @SubscribeMessage('chat:delete')
+  async chatDelete(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, messageId }: { bookingId: string; messageId: string }) {
+    const user = this.user(client);
+    const b = await this.svc.assertRoomAccess(user, bookingId);
+    if (!this.svc.sessionOpen(b)) return { ok: false, closed: true };
+    if (!messageId) return { ok: false };
+    const done = await this.svc.deleteMessage(user.id, bookingId, messageId);
+    if (!done) return { ok: false, error: '본인이 보낸 메시지만 삭제할 수 있습니다.' };
+    this.server.to(`booking:${bookingId}`).emit('chat:deleted', { messageId });
+    return { ok: true };
   }
 
   /** 메시지 이모지 반응 토글 — 방 전체(발신자 포함)에 갱신 브로드캐스트. */

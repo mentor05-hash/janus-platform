@@ -194,6 +194,19 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return { ok: true, id: msg.id };
   }
 
+  /** 메시지 삭제(회수) — 본인 발신만, soft delete(원문 보존). 방 전체에 통지. */
+  @SubscribeMessage('chat:delete')
+  async chatDelete(@ConnectedSocket() client: Socket, @MessageBody() { messageId }: { messageId: string }) {
+    const c = this.ctx(client);
+    if (!this.featureOn(c.roomId, 'chat')) return { ok: false };
+    if (!this.openNow(c.roomId)) return { ok: false, closed: true };
+    if (!messageId) return { ok: false };
+    const done = await this.svc.deleteMessage(c.roomId, c.participantId, messageId);
+    if (!done) return { ok: false, error: '본인이 보낸 메시지만 삭제할 수 있습니다.' };
+    this.server.to(this.room(client)).emit('chat:deleted', { messageId });
+    return { ok: true };
+  }
+
   @SubscribeMessage('chat:react')
   async chatReact(@ConnectedSocket() client: Socket, @MessageBody() { messageId, emoji }: { messageId: string; emoji: string }) {
     const c = this.ctx(client);

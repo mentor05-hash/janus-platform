@@ -15,7 +15,7 @@ const decodeCursor = (c: string): { ts: string; id: string } | null => {
   try { const [ts, id] = Buffer.from(c, 'base64url').toString().split('|'); return ts && id ? { ts, id } : null; } catch { return null; }
 };
 
-type MsgRow = { id: string; sender_id: string | null; kind: string; body: string | null; file_url: string | null; reply_to_id: string | null; reactions: Record<string, string[]>; read_at: Date | null; created_at: Date };
+type MsgRow = { id: string; sender_id: string | null; kind: string; body: string | null; file_url: string | null; reply_to_id: string | null; reactions: Record<string, string[]>; read_at: Date | null; deleted_at: Date | null; created_at: Date };
 
 /** 룸 데이터 + 시간창/기능 정책. 호스트 도메인 무관(범용). */
 @Injectable()
@@ -170,9 +170,18 @@ export class RoomsService {
     const r = await this.pool.query<FileRow>(`SELECT id, room_id, filename, mime, size, storage_path FROM room_file WHERE id = $1`, [fileId]);
     return r.rows[0] ?? null;
   }
+  /** 메시지 삭제(회수) — 본인 발신만, soft delete(원문 보존). */
+  async deleteMessage(roomId: string, participantId: string, messageId: string): Promise<boolean> {
+    const r = await this.pool.query(
+      `UPDATE room_message SET deleted_at = now() WHERE id = $1 AND room_id = $2 AND sender_id = $3 AND deleted_at IS NULL`,
+      [messageId, roomId, participantId],
+    );
+    return (r.rowCount ?? 0) > 0;
+  }
+
   async toggleReaction(roomId: string, messageId: string, participantId: string, emoji: string) {
     const cur = await this.pool.query<MsgRow>(`SELECT * FROM room_message WHERE id = $1 AND room_id = $2`, [messageId, roomId]);
-    const m = cur.rows[0]; if (!m) return null;
+    const m = cur.rows[0]; if (!m || m.deleted_at) return null;
     const reactions: Record<string, string[]> = { ...(m.reactions ?? {}) };
     const set = new Set(reactions[emoji] ?? []);
     if (set.has(participantId)) set.delete(participantId); else set.add(participantId);
@@ -196,11 +205,19 @@ export class RoomsService {
   }
 
   private shape(m: MsgRow, viewerId: string, orig: MsgRow | null) {
+    // 삭제(회수)된 메시지는 내용을 내려보내지 않는다 — kind='deleted' 묘비만.
+    if (m.deleted_at) {
+      return {
+        id: m.id, senderId: m.sender_id, mine: m.sender_id === viewerId, kind: 'deleted', body: null,
+        fileUrl: null, createdAt: m.created_at, readAt: m.read_at ?? null,
+        reactions: {} as Record<string, string[]>, replyToId: null, replyTo: null,
+      };
+    }
     return {
       id: m.id, senderId: m.sender_id, mine: m.sender_id === viewerId, kind: m.kind, body: m.body,
       fileUrl: m.file_url, createdAt: m.created_at, readAt: m.read_at ?? null,
       reactions: m.reactions ?? {}, replyToId: m.reply_to_id ?? null,
-      replyTo: orig ? { id: orig.id, senderId: orig.sender_id, kind: orig.kind, body: orig.body ? orig.body.slice(0, 80) : null } : null,
+      replyTo: orig && !orig.deleted_at ? { id: orig.id, senderId: orig.sender_id, kind: orig.kind, body: orig.body ? orig.body.slice(0, 80) : null } : null,
     };
   }
 }

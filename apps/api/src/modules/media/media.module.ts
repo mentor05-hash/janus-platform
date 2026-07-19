@@ -1,5 +1,6 @@
 import { Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { RealtimeModule } from '../realtime/realtime.module';
 import { MediaDemoController } from './media-demo.controller';
 import { MediaRecordingController } from './media-recording.controller';
 import { MediaRecordingService } from './media-recording.service';
@@ -14,6 +15,7 @@ import { LiveKitMediaProvider } from './livekit-media.provider';
  *   - (기본) mock: 플레이스홀더 — 엔드포인트 동작, 실제 음성 없음.
  */
 @Module({
+  imports: [RealtimeModule], // 녹음 시작/중단 시 채팅 시스템 메시지 게시
   controllers: [MediaDemoController, MediaTokenController, MediaRecordingController], // 데모(M0)·상담 토큰(M1)·녹음(R1)
   providers: [
     MediaRecordingService,

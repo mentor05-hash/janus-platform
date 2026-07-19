@@ -138,10 +138,33 @@ export class RealtimeService {
     return this.shape(m, senderId, orig);
   }
 
+  /** 메시지 삭제(회수) — 본인 발신만, soft delete(원문 보존: C1 직거래 감사·분쟁 대응). */
+  async deleteMessage(userId: string, bookingId: string, messageId: string): Promise<boolean> {
+    const r = await this.prisma.chat_message.updateMany({
+      where: { id: messageId, booking_id: bookingId, sender_id: userId, deleted_at: null },
+      data: { deleted_at: new Date() },
+    });
+    return r.count > 0;
+  }
+
+  /** 시스템 메시지(세션·녹음 안내) — sender 없음, kind='system'. 중앙 회색 칩으로 표시. */
+  async saveSystemMessage(bookingId: string, body: string) {
+    const m = await this.prisma.chat_message.create({
+      data: { booking_id: bookingId, sender_id: null, kind: 'system', body },
+    });
+    return this.shape(m, '');
+  }
+
+  /** 같은 본문의 시스템 메시지가 이미 있는지(세션 종료 안내 등 중복 방지). */
+  async hasSystemMessage(bookingId: string, body: string): Promise<boolean> {
+    const m = await this.prisma.chat_message.findFirst({ where: { booking_id: bookingId, kind: 'system', body } });
+    return !!m;
+  }
+
   /** 이모지 반응 토글(같은 예약의 메시지만). 반환: 갱신된 reactions. */
   async toggleReaction(userId: string, bookingId: string, messageId: string, emoji: string) {
     const m = await this.prisma.chat_message.findFirst({ where: { id: messageId, booking_id: bookingId } });
-    if (!m) return null;
+    if (!m || m.deleted_at) return null;
     const reactions: Record<string, string[]> = { ...((m.reactions as Record<string, string[]>) ?? {}) };
     const arr = new Set(reactions[emoji] ?? []);
     if (arr.has(userId)) arr.delete(userId); else arr.add(userId);
@@ -151,16 +174,24 @@ export class RealtimeService {
   }
 
   private shape(
-    m: { id: string; sender_id: string | null; kind: string; body: string | null; image_file_id: string | null; reply_to_id?: string | null; reactions?: unknown; created_at: Date; read_at?: Date | null },
+    m: { id: string; sender_id: string | null; kind: string; body: string | null; image_file_id: string | null; reply_to_id?: string | null; reactions?: unknown; created_at: Date; read_at?: Date | null; deleted_at?: Date | null },
     viewerId: string,
-    orig?: { id: string; sender_id: string | null; kind: string; body: string | null } | null,
+    orig?: { id: string; sender_id: string | null; kind: string; body: string | null; deleted_at?: Date | null } | null,
   ) {
+    // 삭제(회수)된 메시지는 내용을 내려보내지 않는다 — kind='deleted' 묘비만.
+    if (m.deleted_at) {
+      return {
+        id: m.id, senderId: m.sender_id, mine: m.sender_id === viewerId, kind: 'deleted', body: null,
+        imageFileId: null, createdAt: m.created_at, readAt: m.read_at ?? null,
+        reactions: {} as Record<string, string[]>, replyToId: null, replyTo: null,
+      };
+    }
     return {
       id: m.id, senderId: m.sender_id, mine: m.sender_id === viewerId, kind: m.kind, body: m.body,
       imageFileId: m.image_file_id, createdAt: m.created_at, readAt: m.read_at ?? null,
       reactions: (m.reactions as Record<string, string[]>) ?? {},
       replyToId: m.reply_to_id ?? null,
-      replyTo: orig ? { id: orig.id, senderId: orig.sender_id, kind: orig.kind, body: orig.body ? orig.body.slice(0, 80) : null } : null,
+      replyTo: orig && !orig.deleted_at ? { id: orig.id, senderId: orig.sender_id, kind: orig.kind, body: orig.body ? orig.body.slice(0, 80) : null } : null,
     };
   }
 
@@ -198,6 +229,7 @@ export class RealtimeService {
       WHERE (b.student_id = ${user.id}::uuid OR b.teacher_id = ${user.id}::uuid)
         AND cm.sender_id IS DISTINCT FROM ${user.id}::uuid
         AND cm.read_at IS NULL
+        AND cm.deleted_at IS NULL
       GROUP BY cm.booking_id`;
     const out: Record<string, number> = {};
     for (const r of rows) out[r.booking_id] = Number(r.n);

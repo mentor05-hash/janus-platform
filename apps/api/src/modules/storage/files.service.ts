@@ -52,7 +52,8 @@ export class FilesService {
    *  ③ 화이트보드 스냅샷 배경: 그 예약의 참여자. (P4에서 표면화 — 선생님 업로드가 학생에게 403이던 갭) */
   private async participantCanAccess(userId: string, fileId: string): Promise<boolean> {
     const chat = await this.prisma.chat_message.findFirst({
-      where: { image_file_id: fileId, booking: { OR: [{ student_id: userId }, { teacher_id: userId }] } },
+      // 삭제(회수)된 메시지의 첨부는 상대에게 다시 열지 않는다(소유자는 위의 owner 검사로 통과).
+      where: { image_file_id: fileId, deleted_at: null, booking: { OR: [{ student_id: userId }, { teacher_id: userId }] } },
       select: { id: true },
     });
     if (chat) return true;
