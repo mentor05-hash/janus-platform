@@ -13,6 +13,7 @@ COPY apps/api/package.json apps/api/
 COPY packages/shared/package.json packages/shared/
 COPY packages/pricing/package.json packages/pricing/
 COPY packages/media-kit/package.json packages/media-kit/
+COPY packages/board-core/package.json packages/board-core/
 RUN npm ci
 COPY . .
 RUN npm run build --workspace apps/realtime-rooms \

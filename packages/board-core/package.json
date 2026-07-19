@@ -1,0 +1,8 @@
+{
+  "name": "@mentoring/board-core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "화이트보드 렌더 코어 — 획·도형·텍스트·레이저·안내선 렌더의 단일 소스(쌍둥이 4파일 회귀 방지, O83)",
+  "main": "src/index.ts",
+  "types": "src/index.ts"
+}

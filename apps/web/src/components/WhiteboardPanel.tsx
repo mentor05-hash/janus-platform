@@ -5,6 +5,7 @@
 //    근본 해소는 공용 컴포넌트 추출 백로그)
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
+import { paintStroke, paintGuide as renderGuide, paintLasers as renderLasers, addLaser as pushLaser, SHAPE_TOOLS, type Pt, type Stroke, type GridMode } from '@mentoring/board-core';
 import { useMediaSession, MediaPreflight, type PreflightSelection } from '@mentoring/media-kit';
 import { api } from '../api/client';
 import { track } from '../utils/track';
@@ -14,15 +15,8 @@ import { useSessionPhase, canInteract, sessionNotice, type SessionInfo } from '.
 /** O79 M1 — 상담 미디어 스택 플래그: 'livekit' 이면 미디어킷(음성+화상), 아니면 기존 P2P 폴백(무변경). */
 const LK_ON = ((import.meta.env as Record<string, string | undefined>).VITE_MEDIA_CONSULT ?? '') === 'livekit';
 
-type Pt = { x: number; y: number; p?: number }; // p=필압(0~1)
-// shape 있으면 points[0]→points[끝] 두 점으로 정의되는 도형(직선·화살표·사각형·타원).
-type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean; highlight?: boolean; shape?: 'line' | 'arrow' | 'rect' | 'ellipse' | 'text'; text?: string };
-type GridMode = 'none' | 'grid' | 'lines' | 'wrongnote' | 'quad';
-const SHAPE_TOOLS = ['line', 'arrow', 'rect', 'ellipse'] as const;
 const COLORS = ['#1E3550', '#2F6FB3', '#E5484D', '#2A8A5F', '#CF9A3A'];
 const W = 900, H = 620; // 논리 좌표(비율 유지 스케일링)
-const LASER_TTL = 900;        // 레이저 점 하나가 남아있는 시간(ms) — 이후 연해지며 사라짐
-const LASER_COLOR = '#F5333F';
 
 /** 예약 기반 공유 화이트보드(웹). 배경 이미지(첨부/촬영) 위에 필기 + 음성통화 동시. */
 export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: string; title?: string; onClose: () => void }) {
@@ -96,80 +90,9 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
   useEffect(() => { if (!rw && lk.status !== 'idle') void lk.leave(); }, [rw, lk.status]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); }, []);
 
-  // 한 획을 잉크 컨텍스트에 렌더(변환은 호출측 적용). 지우개(destination-out)·형광펜(반투명)·필압.
-  function paintStroke(ictx: CanvasRenderingContext2D, s: Stroke) {
-    if (s.points.length < 1) return;
-    ictx.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over';
-    ictx.globalAlpha = s.highlight ? 0.42 : 1;
-    ictx.strokeStyle = s.color;
-    if (s.shape) { // 도형: 시작점→끝점 두 점으로 정의(스냅샷·중계 포맷은 기존 Stroke 그대로)
-    if (s.shape === 'text') { // 텍스트 상자 — points[0] 기준, 폰트 크기는 굵기에 비례
-      const a = s.points[0];
-      const fs = Math.max(14, s.width * 7);
-      ictx.fillStyle = s.color;
-      ictx.font = `600 ${fs}px sans-serif`;
-      (s.text ?? '').split('\n').forEach((ln, i) => ictx.fillText(ln, a.x, a.y + fs * (i + 0.9)));
-      return;
-    }
-      const a = s.points[0], b = s.points[s.points.length - 1] ?? a;
-      ictx.lineWidth = s.width;
-      ictx.beginPath();
-      if (s.shape === 'rect') ictx.rect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
-      else if (s.shape === 'ellipse') ictx.ellipse((a.x + b.x) / 2, (a.y + b.y) / 2, Math.max(0.1, Math.abs(b.x - a.x) / 2), Math.max(0.1, Math.abs(b.y - a.y) / 2), 0, 0, Math.PI * 2);
-      else { ictx.moveTo(a.x, a.y); ictx.lineTo(b.x, b.y); }
-      ictx.stroke();
-      if (s.shape === 'arrow') {
-        const ang = Math.atan2(b.y - a.y, b.x - a.x), hl = Math.max(10, s.width * 3);
-        ictx.beginPath();
-        ictx.moveTo(b.x, b.y); ictx.lineTo(b.x - hl * Math.cos(ang - 0.45), b.y - hl * Math.sin(ang - 0.45));
-        ictx.moveTo(b.x, b.y); ictx.lineTo(b.x - hl * Math.cos(ang + 0.45), b.y - hl * Math.sin(ang + 0.45));
-        ictx.stroke();
-      }
-      return;
-    }
-    if (s.erase || s.highlight || s.points.length === 1 || s.points.every((q) => q.p == null)) {
-      ictx.lineWidth = s.width;
-      ictx.beginPath(); ictx.moveTo(s.points[0].x, s.points[0].y);
-      for (const p of s.points.slice(1)) ictx.lineTo(p.x, p.y);
-      if (s.points.length === 1) ictx.lineTo(s.points[0].x + 0.1, s.points[0].y + 0.1);
-      ictx.stroke();
-    } else {
-      for (let i = 1; i < s.points.length; i++) {
-        const a = s.points[i - 1], b = s.points[i];
-        ictx.lineWidth = s.width * (0.35 + ((b.p ?? 0.5)) * 1.3);
-        ictx.beginPath(); ictx.moveTo(a.x, a.y); ictx.lineTo(b.x, b.y); ictx.stroke();
-      }
-    }
-  }
 
-  // 안내선·템플릿 렌더(논리좌표) — 화면·아카이브 공용. 배경 이미지가 있으면 호출측에서 생략.
-  function paintGuide(ctx: CanvasRenderingContext2D) {
-    const g = gridRef.current; if (g === 'none') return;
-    const step = 40;
-    ctx.strokeStyle = '#dbe4ee'; ctx.fillStyle = '#8fa3b8'; ctx.lineWidth = 1;
-    if (g === 'grid' || g === 'lines') {
-      ctx.beginPath();
-      if (g === 'grid') for (let x = step; x < W; x += step) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
-      for (let y = step; y < H; y += step) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
-      ctx.stroke();
-    } else if (g === 'wrongnote') { // 오답노트 4분할(문제/풀이/틀린 이유/다시 풀기)
-      ctx.beginPath(); ctx.moveTo(W / 2, 0); ctx.lineTo(W / 2, H); ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2); ctx.stroke();
-      ctx.font = '700 14px sans-serif';
-      ctx.fillText('\u2460 \ubb38\uc81c', 12, 22); ctx.fillText('\u2461 \ud480\uc774 \uacfc\uc815', W / 2 + 12, 22);
-      ctx.fillText('\u2462 \ud2c0\ub9b0 \uc774\uc720', 12, H / 2 + 22); ctx.fillText('\u2463 \ub2e4\uc2dc \ud480\uae30', W / 2 + 12, H / 2 + 22);
-    } else if (g === 'quad') { // 4분면 좌표축(수학 그래프)
-      ctx.strokeStyle = '#b9c6d6';
-      ctx.beginPath();
-      ctx.moveTo(W / 2, 8); ctx.lineTo(W / 2, H - 8); ctx.moveTo(8, H / 2); ctx.lineTo(W - 8, H / 2);
-      ctx.moveTo(W / 2, 8); ctx.lineTo(W / 2 - 5, 18); ctx.moveTo(W / 2, 8); ctx.lineTo(W / 2 + 5, 18);
-      ctx.moveTo(W - 8, H / 2); ctx.lineTo(W - 18, H / 2 - 5); ctx.moveTo(W - 8, H / 2); ctx.lineTo(W - 18, H / 2 + 5);
-      ctx.stroke();
-      ctx.strokeStyle = '#dbe4ee'; ctx.beginPath();
-      for (let x = (W / 2) % step; x < W; x += step) { ctx.moveTo(x, H / 2 - 4); ctx.lineTo(x, H / 2 + 4); }
-      for (let y = (H / 2) % step; y < H; y += step) { ctx.moveTo(W / 2 - 4, y); ctx.lineTo(W / 2 + 4, y); }
-      ctx.stroke();
-    }
-  }
+  // 안내선·템플릿 — 렌더는 board-core 단일 소스.
+  function paintGuide(ctx: CanvasRenderingContext2D) { renderGuide(ctx, gridRef.current, W, H); }
 
   // 확정 스트로크만 캐시에 재렌더 — 뷰 변환 반영. 확정 집합/뷰 변경 시에만(핫패스 아님).
   function rebuildCache() {
@@ -225,34 +148,9 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     if (laserAlive) rafRef.current = requestAnimationFrame(drawFrame);
   }
 
-  // 레이저 궤적을 페이드 렌더 + 만료 점 제거. 살아있는 궤적이 있으면 true.
-  function paintLasers(ctx: CanvasRenderingContext2D, v: { scale: number; tx: number; ty: number }): boolean {
-    if (laserRef.current.size === 0) return false;
-    const now = Date.now();
-    let alive = false;
-    ctx.setTransform(v.scale, 0, 0, v.scale, v.tx, v.ty);
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    for (const [id, tr] of laserRef.current) {
-      tr.pts = tr.pts.filter((p) => now - p.t < LASER_TTL);
-      if (tr.pts.length === 0) { laserRef.current.delete(id); continue; }
-      alive = true;
-      for (let i = 1; i < tr.pts.length; i++) {
-        const a = tr.pts[i - 1], b = tr.pts[i];
-        const k = Math.max(0, 1 - (now - b.t) / LASER_TTL);
-        ctx.globalAlpha = 0.12 + 0.78 * k; ctx.strokeStyle = tr.color; ctx.lineWidth = 3 + 5 * k;
-        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-      }
-      const head = tr.pts[tr.pts.length - 1], hk = Math.max(0, 1 - (now - head.t) / LASER_TTL);
-      if (hk > 0) { ctx.globalAlpha = 0.9 * hk; ctx.fillStyle = tr.color; ctx.beginPath(); ctx.arc(head.x, head.y, 4 + 4 * hk, 0, Math.PI * 2); ctx.fill(); }
-    }
-    ctx.globalAlpha = 1;
-    return alive;
-  }
-  function addLaser(key: string, x: number, y: number) {
-    let tr = laserRef.current.get(key);
-    if (!tr) { tr = { pts: [], color: LASER_COLOR }; laserRef.current.set(key, tr); }
-    tr.pts.push({ x, y, t: Date.now() });
-  }
+  // 레이저 — 렌더는 board-core 단일 소스.
+  function paintLasers(ctx: CanvasRenderingContext2D, v: { scale: number; tx: number; ty: number }): boolean { return renderLasers(ctx, laserRef.current, v); }
+  function addLaser(key: string, x: number, y: number) { pushLaser(laserRef.current, key, x, y); }
   function flushLaser() {
     if (laserPendingRef.current.length === 0) return;
     sockRef.current?.emit('wb:laser', { bookingId, sid: sidRef.current, points: laserPendingRef.current.map((p) => ({ x: p.x, y: p.y })) });

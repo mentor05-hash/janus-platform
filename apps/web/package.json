@@ -17,7 +17,8 @@
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.2",
     "socket.io-client": "^4.8.3",
-    "@mentoring/media-kit": "*"
+    "@mentoring/media-kit": "*",
+    "@mentoring/board-core": "*"
   },
   "devDependencies": {
     "@types/react": "^18.3.5",
