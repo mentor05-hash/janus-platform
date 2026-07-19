@@ -618,6 +618,26 @@ model pricing_policy {
   center                center?      @relation(fields: [center_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
+/** R1 상담 오디오 녹음 원장(브리핑 v1) — 동의·egress·보관·파기 추적. booking 조인 키 전용(기존 테이블 무변경). */
+model consult_recording {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  booking_id             String    @unique @db.Uuid
+  egress_id              String?
+  s3_key                 String?
+  duration_sec           Int?
+  size_bytes             BigInt?
+  consent_student_at     DateTime? @db.Timestamptz(6)
+  consent_teacher_at     DateTime? @db.Timestamptz(6)
+  consent_policy_version String    @default("v1")
+  consent_guardian_at    DateTime? @db.Timestamptz(6)
+  status                 String    @default("pending")
+  expires_at             DateTime? @db.Timestamptz(6)
+  purged_at              DateTime? @db.Timestamptz(6)
+  created_at             DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([status, expires_at])
+}
+
 model qna_followup {
   id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   answer_id  String     @db.Uuid

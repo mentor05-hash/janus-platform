@@ -54,17 +54,17 @@ export class LiveKitMediaProvider implements MediaProvider {
     if (!res.ok) throw new Error(`livekit ${service} → ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
     return res.json() as Promise<T>;
   }
-  private egressOutput(roomRef: string): Record<string, unknown> {
+  private egressOutput(roomRef: string, pathPrefix = 'lectures'): Record<string, unknown> {
     if (!this.egressS3) throw new Error('LiveKit 녹화 저장소(LIVEKIT_EGRESS_S3)가 설정되지 않았습니다.');
     const s3 = JSON.parse(this.egressS3) as { access_key: string; secret: string; bucket: string; region?: string; endpoint?: string };
-    return { file_outputs: [{ filepath: `lectures/${roomRef}-{time}.mp4`, s3 }] };
+    return { file_outputs: [{ filepath: `${pathPrefix}/${roomRef}-{time}.mp4`, s3 }] };
   }
 
-  async startRecording(roomRef: string): Promise<{ provider: string; recordingRef: string }> {
-    // 강의는 음성 위주 → audio_only room composite egress.
+  async startRecording(roomRef: string, opts?: { pathPrefix?: string }): Promise<{ provider: string; recordingRef: string }> {
+    // 음성 위주 → audio_only room composite egress. (상담 R1 은 pathPrefix='consult-audio' 로 분기 — 오디오 전용 확정)
     const res = await this.twirp<{ egress_id: string }>(
       'livekit.Egress/StartRoomCompositeEgress',
-      { room_name: roomRef, audio_only: true, ...this.egressOutput(roomRef) },
+      { room_name: roomRef, audio_only: true, ...this.egressOutput(roomRef, opts?.pathPrefix) },
       { video: { roomRecord: true } },
     );
     this.logger.log(`startRecording room=${roomRef} egress=${res.egress_id}`);

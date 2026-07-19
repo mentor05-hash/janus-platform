@@ -58,6 +58,17 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
   const [pop, setPop] = useState<'pen' | 'shape' | 'clear' | 'bg' | null>(null); // 툴바 팝오버(W-U1 — 1줄화)
   const [archState, setArchState] = useState<'idle' | 'busy' | 'done'>('idle'); // 보드→채팅 기록 상태
   const [textBox, setTextBox] = useState<{ x: number; y: number; value: string } | null>(null); // 텍스트 입력 오버레이(논리좌표)
+  // R1 상담 녹음 — 동의·상태(기능 플래그 OFF 면 UI 자체 비노출). 브리핑 §5 동의 UX.
+  const [rec, setRec] = useState<{ enabled: boolean; status: string; studentConsented: boolean; teacherConsented: boolean; retentionDays?: number } | null>(null);
+  const loadRec = () => { if (LK_ON) api.get<typeof rec>(`/media/consent/${bookingId}`).then(setRec).catch(() => setRec(null)); };
+  useEffect(() => { loadRec(); const t = window.setInterval(loadRec, 20_000); return () => window.clearInterval(t); }, [bookingId]); // eslint-disable-line react-hooks/exhaustive-deps
+  async function setRecConsent(on: boolean) {
+    try {
+      const r = await api.post<{ status: string }>('/media/consent', { bookingId, recording: on });
+      track('consult_media', 'view', undefined, { ev: on ? 'record_consent' : 'record_withdrawn', bookingId, status: r.status });
+      loadRec();
+    } catch { /* 실패 시 다음 폴에서 상태 복원 */ }
+  }
   // 화상 PIP 드래그 — 필기 영역을 가리면 옮길 수 있게. null=기본(우상단).
   const [pipPos, setPipPos] = useState<{ x: number; y: number } | null>(null);
   const pipRef = useRef<HTMLDivElement | null>(null);
@@ -553,6 +564,14 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
                     <span style={{ fontSize: 12, color: lk.status === 'connected' ? 'var(--chip-done)' : lk.status === 'reconnecting' ? 'var(--chip-confirmed, #d97706)' : 'var(--muted)' }}>
                       📹 {lk.status === 'connected' ? '통화 중' : lk.status === 'reconnecting' ? '재연결 중…' : '연결 중…'}
                     </span>
+                    {rec?.enabled && (rec.status === 'recording'
+                      ? <span title="양측 동의로 녹음 중 — 종료 후 요약 리포트가 제공됩니다" style={{ fontSize: 12, color: '#dc2626', fontWeight: 800 }}>🔴 녹음 중
+                          <button className="btn ghost sm" style={{ marginLeft: 4 }} onClick={() => void setRecConsent(false)} title="녹음 철회 — 즉시 중단되고 이 세션 녹음분은 파기됩니다">철회</button>
+                        </span>
+                      : <button className="btn ghost sm" onClick={() => void setRecConsent(true)}
+                          title={`상담 요약 리포트 제공을 위해 음성만 녹음합니다(영상 아님). 보관 ${rec?.retentionDays ?? 30}일 후 자동 파기. 양측 모두 동의해야 시작됩니다.`}>
+                          {rec.studentConsented && rec.teacherConsented ? '⏺ 녹음 대기' : '⏺ 녹음 동의'}
+                        </button>)}
                     <button className="btn ghost sm" onClick={() => void lk.toggleCam()}>{lk.camOn ? '📷 켜짐' : '📷 끔'}</button>
                     <button className="btn ghost sm" onClick={() => void lk.toggleMic()}>{lk.micOn ? '🎙 켜짐' : '🔇 음소거'}</button>
                     <button className="btn danger sm" onClick={() => void lk.leave()}>통화 종료</button>

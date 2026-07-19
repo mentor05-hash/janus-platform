@@ -1,6 +1,8 @@
 import { Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { MediaDemoController } from './media-demo.controller';
+import { MediaRecordingController } from './media-recording.controller';
+import { MediaRecordingService } from './media-recording.service';
 import { MediaTokenController } from './media-token.controller';
 import { MEDIA_PROVIDER } from './media.types';
 import { MockMediaProvider } from './mock-media.provider';
@@ -12,8 +14,9 @@ import { LiveKitMediaProvider } from './livekit-media.provider';
  *   - (기본) mock: 플레이스홀더 — 엔드포인트 동작, 실제 음성 없음.
  */
 @Module({
-  controllers: [MediaDemoController, MediaTokenController], // 데모(M0)·상담 토큰(M1) — O79
+  controllers: [MediaDemoController, MediaTokenController, MediaRecordingController], // 데모(M0)·상담 토큰(M1)·녹음(R1)
   providers: [
+    MediaRecordingService,
     {
       provide: MEDIA_PROVIDER,
       inject: [ConfigService],
