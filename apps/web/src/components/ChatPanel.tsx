@@ -46,6 +46,7 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
   const [hover, setHover] = useState<string | null>(null);
   const [unseen, setUnseen] = useState(0);
   const sockRef = useRef<Socket | null>(null);
+  const [modWarn, setModWarn] = useState(''); // C1 직거래 감지 경고(서버 발신)
   const fileRef = useRef<HTMLInputElement>(null);
   const docRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -71,6 +72,7 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
       });
     });
     s.on('chat:message', (m: Msg) => {
+    s.on('chat:moderation', ({ warning }: { warning: string }) => { setModWarn(warning); setTimeout(() => setModWarn(''), 10_000); });
       setMsgs((p) => {
         if (p.some((x) => x.id === m.id)) return p; // 중복 방지
         let base = p;
@@ -244,6 +246,7 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
         )}
         {status !== 'off' && rw && (
           <div style={{ display: 'flex', gap: 6, padding: 10, borderTop: '1px solid var(--line)', alignItems: 'center' }}>
+            {modWarn && <div style={{ margin: "6px 12px", padding: "8px 12px", borderRadius: 8, background: "#FEF3CD", border: "1px solid #F5D889", color: "#8a6d1a", fontSize: 12.5 }}>⚠️ {modWarn}</div>}
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
             <button onClick={() => fileRef.current?.click()} title="이미지 첨부" aria-label="이미지 첨부" style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer' }}>🖼</button>
             <button onClick={openCamera} title="사진 촬영(무음)" aria-label="사진 촬영" style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer' }}>📷</button>

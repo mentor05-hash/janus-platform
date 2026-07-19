@@ -137,10 +137,11 @@ export function StudentQnaPage() {
     if (!f.body.trim()) { setError('질문 내용을 입력하세요.'); return; }
     if (f.scope === 'assigned' && !assignedTeacherId) { setError('지정 질문은 선생님을 선택해야 합니다.'); return; }
     try {
-      const r = await api.post<{ freeUsed?: boolean; freeRemaining?: number; chargedCredits?: number }>('/qna/posts', { subject: f.subject, qType: f.qType, scope: f.scope, difficulty: f.difficulty, body: f.body, attachments: atts, ...(f.scope === 'assigned' ? { assignedTeacherId } : {}) });
-      setMsg(r.freeUsed
+      const r = await api.post<{ freeUsed?: boolean; freeRemaining?: number; chargedCredits?: number; moderationWarning?: string | null }>('/qna/posts', { subject: f.subject, qType: f.qType, scope: f.scope, difficulty: f.difficulty, body: f.body, attachments: atts, ...(f.scope === 'assigned' ? { assignedTeacherId } : {}) });
+      const base = r.freeUsed
         ? `질문이 등록되었습니다 — 무료 질문권 사용(이번 주 ${r.freeRemaining ?? 0}건 남음).`
-        : `질문이 등록되었습니다(${(r.chargedCredits ?? 0).toLocaleString()} 크레딧 차감).`);
+        : `질문이 등록되었습니다(${(r.chargedCredits ?? 0).toLocaleString()} 크레딧 차감).`;
+      setMsg(r.moderationWarning ? `${base} ⚠️ ${r.moderationWarning}` : base);
       setF({ ...f, body: '' }); setAtts([]); setOpen(false); load();
       api.get<{ itemFee: number; generalFee: number; freeQuota?: { quota: number; used: number; remaining: number; resetsAt: string } | null }>('/qna/pricing').then(setFee).catch(() => { /* noop */ });
     } catch (e) {

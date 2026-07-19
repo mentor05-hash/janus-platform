@@ -10,6 +10,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
+import { detectDirectContact, DIRECT_CONTACT_WARNING } from '../../common/moderation/direct-contact';
 import { RealtimeService } from './realtime.service';
 
 type SockUser = { id: string; role: string; centerId: string | null; loginId: string };
@@ -97,6 +98,12 @@ export class RealtimeGateway implements OnGatewayConnection {
     const kind = imageFileId ? 'image' : fileId ? 'file' : 'text';
     const savedBody = fileId ? (fileName ?? '첨부파일') : (body?.trim() || null);
     const msg = await this.svc.saveMessage(user.id, bookingId, kind, savedBody, imageFileId ?? fileId ?? null, replyToId ?? null);
+    // C1 직거래·연락처 감지 — 차단하지 않는다: 발신자 경고 + 감사 기록(오탐 안전 설계).
+    const modKinds = detectDirectContact(savedBody);
+    if (modKinds.length > 0) {
+      client.emit('chat:moderation', { warning: DIRECT_CONTACT_WARNING });
+      void this.svc.flagModeration(user, 'chat', bookingId, modKinds, savedBody ?? '');
+    }
     // 수신자별로 mine 을 서버에서 계산해 개별 전송(클라이언트 myId 오류와 무관하게 좌/우 정렬 보장).
     const sockets = await this.server.in(`booking:${bookingId}`).fetchSockets();
     for (const sock of sockets) {

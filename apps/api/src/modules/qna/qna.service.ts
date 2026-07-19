@@ -17,6 +17,7 @@ import type { CacheProvider } from '../../common/cache/cache.types';
 import { withCronLock } from '../../common/cache/cron-lock';
 import { ShortfallError } from '../../common/errors/shortfall.error';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { detectDirectContact, DIRECT_CONTACT_WARNING } from '../../common/moderation/direct-contact';
 import { kstDateString } from '../../common/time/kst';
 import { AccountRole, ConsultMode, ConsultType, TeacherGrade } from '../../config/enums';
 import { AvailabilityService } from '../availability/availability.service';
@@ -89,6 +90,23 @@ export class QnaService {
     ]);
     const free = studentId ? await this.freeQuotaStatus(studentId) : null;
     return { itemFee: item.credits, generalFee: general.credits, freeQuota: free };
+  }
+
+  /** C1 직거래·연락처 감지 기록(audit_log 재사용) — 실패 비차단. 반환: 경고 문구 또는 null. */
+  private async moderate(actor: AuthUser, context: string, refId: string, text: string | null | undefined): Promise<string | null> {
+    const kinds = detectDirectContact(text);
+    if (kinds.length === 0) return null;
+    try {
+      await this.prisma.audit_log.create({
+        data: {
+          actor_id: actor.id, actor_role: actor.role,
+          action: 'moderation_flag', target_type: context, target_id: refId,
+          summary: (text ?? '').slice(0, 120), meta: { kinds } as object,
+          center_id: actor.centerId ?? null,
+        },
+      });
+    } catch { /* 기록 실패는 삼킨다 */ }
+    return DIRECT_CONTACT_WARNING;
   }
 
   // ── P1(큐브 벤치마크): 주간 무료 질문권 — 구독 등급 번들. 수치는 system_setting(관리자 조정) ──
@@ -184,6 +202,7 @@ export class QnaService {
       });
       // Q3: 질문 등록 즉시 AI 1차 초안 자동 생성(비동기·비용상한·실패 무해).
       void this.generateAiDraft(post.id, { subject: dto.subject ?? null, difficulty: dto.difficulty ?? null, body: dto.body });
+      const moderationWarning = await this.moderate(student, 'qna_post', post.id, dto.body);
       return {
         id: post.id,
         scope: post.scope,
@@ -191,6 +210,7 @@ export class QnaService {
         chargedCredits: credits,
         freeUsed: useFree,
         freeRemaining: useFree ? freeQ.remaining - 1 : freeQ.remaining,
+        moderationWarning,
       };
     } catch (e) {
       if (e instanceof ShortfallError) {
@@ -382,7 +402,8 @@ export class QnaService {
     if (post.first_reply_at == null) {
       await this.prisma.qna_post.update({ where: { id: postId }, data: { first_reply_at: new Date() } });
     }
-    return { id: ans.id, postId, accepted: false, simFlagged: sim.flagged, similarity: sim.maxSimilarity, simSummary: sim.summary };
+    const moderationWarning = await this.moderate(teacher, 'qna_answer', ans.id, dto.body);
+    return { id: ans.id, postId, accepted: false, simFlagged: sim.flagged, similarity: sim.maxSimilarity, simSummary: sim.summary, moderationWarning };
   }
 
   /** 답변 채택(질문 학생) — 채택 답변 급여 적격(pay_eligible), 질문 마감. */

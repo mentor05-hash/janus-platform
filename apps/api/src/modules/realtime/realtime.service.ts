@@ -164,6 +164,21 @@ export class RealtimeService {
     };
   }
 
+  /** C1 직거래·연락처 감지 기록 — audit_log 재사용(action='moderation_flag'). 실패해도 본 작업 비차단. */
+  async flagModeration(actor: AuthUser, context: string, refId: string, kinds: string[], text: string) {
+    try {
+      await this.prisma.audit_log.create({
+        data: {
+          actor_id: actor.id, actor_role: actor.role,
+          action: 'moderation_flag', target_type: context, target_id: refId,
+          summary: text.slice(0, 120),
+          meta: { kinds } as object,
+          center_id: actor.centerId ?? null,
+        },
+      });
+    } catch { /* 기록 실패는 삼킨다 */ }
+  }
+
   /** 이 사용자가 방을 열람 → 상대가 보낸 미확인 메시지를 읽음 처리. 반환: 처리 건수 + 시각. */
   async markRead(user: AuthUser, bookingId: string) {
     await this.assertRoomAccess(user, bookingId);
