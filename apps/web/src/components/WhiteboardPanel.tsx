@@ -62,6 +62,7 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
   const gridRef = useRef<GridMode>('none');
   const [wide, setWide] = useState(false); // 전체화면(넓게 보기)
   const [pop, setPop] = useState<'pen' | 'shape' | 'clear' | null>(null); // 툴바 팝오버(W-U1 — 1줄화)
+  const [archState, setArchState] = useState<'idle' | 'busy' | 'done'>('idle'); // 보드→채팅 기록 상태
   const [status, setStatus] = useState<'connecting' | 'ready' | 'off'>('connecting');
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'dirty' | 'saving' | 'saved'>('idle');
@@ -472,17 +473,60 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
     gridRef.current = next; setGrid(next); requestPaint();
     sockRef.current?.emit('wb:grid', { bookingId, grid: next });
   }
-  // 보드 PNG 내보내기 — 현재 화면(배경+필기) 그대로 저장.
-  function exportPng() {
-    const cv = canvasRef.current; if (!cv) return;
-    cv.toBlob((b) => {
-      if (!b) return;
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(b);
-      a.download = `whiteboard-${new Date().toISOString().slice(0, 10)}.png`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    }, 'image/png');
+  // 보드 전체(줌 무관, 원본 좌표 2배율)를 PNG 로 렌더 — 내보내기·기록 공용.
+  function renderBoardPng(): Promise<Blob | null> {
+    const S = 2;
+    const out = document.createElement('canvas'); out.width = W * S; out.height = H * S;
+    const octx = out.getContext('2d'); if (!octx) return Promise.resolve(null);
+    // 잉크는 별도 레이어에 — 지우개(destination-out)가 흰 바탕을 뚫지 않게.
+    const ink = document.createElement('canvas'); ink.width = out.width; ink.height = out.height;
+    const ictx = ink.getContext('2d')!;
+    ictx.setTransform(S, 0, 0, S, 0, 0); ictx.lineCap = 'round'; ictx.lineJoin = 'round';
+    for (const s of strokesRef.current) paintStroke(ictx, s);
+    octx.fillStyle = '#fff'; octx.fillRect(0, 0, out.width, out.height);
+    octx.setTransform(S, 0, 0, S, 0, 0);
+    if (!bgImgRef.current && gridRef.current !== 'none') {
+      octx.strokeStyle = '#dbe4ee'; octx.lineWidth = 1; octx.beginPath();
+      const step = 40;
+      if (gridRef.current === 'grid') for (let x = step; x < W; x += step) { octx.moveTo(x, 0); octx.lineTo(x, H); }
+      for (let y = step; y < H; y += step) { octx.moveTo(0, y); octx.lineTo(W, y); }
+      octx.stroke();
+    }
+    if (bgImgRef.current) {
+      const img = bgImgRef.current; const ir = img.width / img.height, cr = W / H;
+      let dw = W, dh = H, dx = 0, dy = 0;
+      if (ir > cr) { dh = W / ir; dy = (H - dh) / 2; } else { dw = H * ir; dx = (W - dw) / 2; }
+      octx.drawImage(img, dx, dy, dw, dh);
+    }
+    octx.setTransform(1, 0, 0, 1, 0, 0);
+    octx.drawImage(ink, 0, 0);
+    return new Promise((res) => out.toBlob(res, 'image/png'));
+  }
+  // 보드 PNG 내보내기(다운로드) — 전체 보드 기준.
+  async function exportPng() {
+    const b = await renderBoardPng(); if (!b) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(b);
+    a.download = `whiteboard-${new Date().toISOString().slice(0, 10)}.png`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+  // 보드를 상담 기록(채팅)에 이미지 메시지로 남긴다 — 수업 필기가 예약 기록에 영구 보존.
+  async function archiveToChat() {
+    if (archState !== 'idle' || strokesRef.current.length === 0 && !bgImgRef.current) return;
+    setArchState('busy');
+    try {
+      const png = await renderBoardPng(); if (!png) throw new Error('render');
+      const form = new FormData();
+      form.append('file', png, `board-${new Date().toISOString().slice(0, 10)}.png`);
+      const r = await api.upload<{ id: string }>('/files', form);
+      sockRef.current?.emit('chat:send', { bookingId, imageFileId: r.id });
+      setArchState('done');
+      setTimeout(() => setArchState('idle'), 2500);
+    } catch {
+      setArchState('idle');
+      alert('기록 남기기에 실패했어요. 잠시 후 다시 시도해 주세요.');
+    }
   }
   function save() {
     if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
@@ -668,7 +712,10 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
                     </div>
                   )}
                 </span>
-                <button className="btn ghost sm" onClick={exportPng} title="보드를 PNG 이미지로 저장">⬇ PNG</button>
+                <button className="btn ghost sm" onClick={() => void exportPng()} title="보드를 PNG 이미지로 저장">⬇ PNG</button>
+                <button className="btn ghost sm" disabled={!rw || archState === 'busy'} onClick={() => void archiveToChat()} title="보드를 채팅(상담 기록)에 이미지로 남기기">
+                  {archState === 'done' ? '기록됨 ✓' : archState === 'busy' ? '기록 중…' : '📎 기록'}
+                </button>
                 <button className="btn sm" disabled={!rw} onClick={save}>저장</button>
               </div>
             </div>
