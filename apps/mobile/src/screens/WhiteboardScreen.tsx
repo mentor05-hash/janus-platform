@@ -12,6 +12,11 @@ import { useSessionPhase, canInteract, sessionNotice, type SessionInfo } from '.
 
 type Pt = { x: number; y: number; p?: number };
 type Stroke = { points: Pt[]; color: string; width: number; erase?: boolean; highlight?: boolean; shape?: 'line' | 'arrow' | 'rect' | 'ellipse' };
+type GridMode = 'none' | 'grid' | 'lines' | 'wrongnote' | 'quad';
+type Tool = 'pen' | 'eraser' | 'highlighter' | 'laser' | 'line' | 'arrow' | 'rect' | 'ellipse';
+const SHAPE_TOOLS = ['line', 'arrow', 'rect', 'ellipse'] as const;
+const LASER_TTL = 900;        // 레이저 점 유지 시간(ms)
+const LASER_COLOR = '#F5333F';
 const COLORS = ['#1E3550', '#2F6FB3', '#E5484D', '#2A8A5F', '#CF9A3A'];
 const W = 720, H = 900;
 
@@ -40,7 +45,13 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
   const cacheDirtyRef = useRef(true); // 확정 집합/뷰 변경 시 캐시 재빌드 필요
   const colorRef = useRef(COLORS[0]);
   const widthRef = useRef(4);
-  const toolRef = useRef<'pen' | 'eraser' | 'highlighter'>('pen');
+  const toolRef = useRef<Tool>('pen');
+  // 레이저 궤적(비영구) + undo/redo + 안내선 — 웹 패널과 파리티(쌍둥이 4파일).
+  const laserRef = useRef<Map<string, { pts: Array<{ x: number; y: number; t: number }>; color: string }>>(new Map());
+  const laserFlushRef = useRef(0);
+  const laserPendingRef = useRef<Pt[]>([]);
+  const redoRef = useRef<Stroke[]>([]);
+  const gridRef = useRef<GridMode>('none');
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const bgImgRef = useRef<HTMLImageElement | null>(null);
   const bgFileIdRef = useRef<string | null>(null);
@@ -49,7 +60,10 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
   const call = useVoiceCall(() => sockRef.current, bookingId);
   const [color, setColor] = useState(COLORS[0]);
   const [width, setWidth] = useState(4);
-  const [tool, setTool] = useState<'pen' | 'eraser' | 'highlighter'>('pen');
+  const [tool, setTool] = useState<Tool>('pen');
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const [grid, setGrid] = useState<GridMode>('none');
   const [zoomPct, setZoomPct] = useState(100);
   const [pdf, setPdf] = useState<{ pdfId?: string; page: number; pageCount: number } | null>(null); // PDF 페이지 넘김
   const [status, setStatus] = useState<'connecting' | 'ready' | 'off'>(isWeb ? 'connecting' : 'off');
@@ -62,7 +76,7 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
   function paintStroke(ictx: CanvasRenderingContext2D, s: Stroke) {
     if (s.points.length < 1) return;
     ictx.globalCompositeOperation = s.erase ? 'destination-out' : 'source-over';
-    ictx.globalAlpha = s.highlight ? 0.32 : 1;
+    ictx.globalAlpha = s.highlight ? 0.42 : 1;
     ictx.strokeStyle = s.color;
     if (s.shape) { // 도형 렌더(웹에서 그린 직선·화살표·사각형·타원 표시 호환 — 작성 UI는 웹 전용)
       const a = s.points[0], b = s.points[s.points.length - 1] ?? a;
@@ -96,6 +110,69 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
     }
   }
 
+  // 안내선·템플릿 렌더(논리좌표) — 배경 이미지 없을 때만 호출측에서 사용.
+  function paintGuide(ctx: CanvasRenderingContext2D) {
+    const g = gridRef.current; if (g === 'none') return;
+    const step = 40;
+    ctx.strokeStyle = '#dbe4ee'; ctx.fillStyle = '#8fa3b8'; ctx.lineWidth = 1;
+    if (g === 'grid' || g === 'lines') {
+      ctx.beginPath();
+      if (g === 'grid') for (let x = step; x < W; x += step) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+      for (let y = step; y < H; y += step) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+      ctx.stroke();
+    } else if (g === 'wrongnote') {
+      ctx.beginPath(); ctx.moveTo(W / 2, 0); ctx.lineTo(W / 2, H); ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2); ctx.stroke();
+      ctx.font = '700 14px sans-serif';
+      ctx.fillText('\u2460 \ubb38\uc81c', 12, 22); ctx.fillText('\u2461 \ud480\uc774 \uacfc\uc815', W / 2 + 12, 22);
+      ctx.fillText('\u2462 \ud2c0\ub9b0 \uc774\uc720', 12, H / 2 + 22); ctx.fillText('\u2463 \ub2e4\uc2dc \ud480\uae30', W / 2 + 12, H / 2 + 22);
+    } else if (g === 'quad') {
+      ctx.strokeStyle = '#b9c6d6';
+      ctx.beginPath();
+      ctx.moveTo(W / 2, 8); ctx.lineTo(W / 2, H - 8); ctx.moveTo(8, H / 2); ctx.lineTo(W - 8, H / 2);
+      ctx.moveTo(W / 2, 8); ctx.lineTo(W / 2 - 5, 18); ctx.moveTo(W / 2, 8); ctx.lineTo(W / 2 + 5, 18);
+      ctx.moveTo(W - 8, H / 2); ctx.lineTo(W - 18, H / 2 - 5); ctx.moveTo(W - 8, H / 2); ctx.lineTo(W - 18, H / 2 + 5);
+      ctx.stroke();
+      ctx.strokeStyle = '#dbe4ee'; ctx.beginPath();
+      for (let x = (W / 2) % step; x < W; x += step) { ctx.moveTo(x, H / 2 - 4); ctx.lineTo(x, H / 2 + 4); }
+      for (let y = (H / 2) % step; y < H; y += step) { ctx.moveTo(W / 2 - 4, y); ctx.lineTo(W / 2 + 4, y); }
+      ctx.stroke();
+    }
+  }
+
+  // 레이저 궤적 페이드 렌더 + 만료 제거. 살아있으면 true.
+  function paintLasers(ctx: CanvasRenderingContext2D, v: { scale: number; tx: number; ty: number }): boolean {
+    if (laserRef.current.size === 0) return false;
+    const now = Date.now();
+    let alive = false;
+    ctx.setTransform(v.scale, 0, 0, v.scale, v.tx, v.ty);
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (const [id, tr] of laserRef.current) {
+      tr.pts = tr.pts.filter((q) => now - q.t < LASER_TTL);
+      if (tr.pts.length === 0) { laserRef.current.delete(id); continue; }
+      alive = true;
+      for (let i = 1; i < tr.pts.length; i++) {
+        const a = tr.pts[i - 1], b = tr.pts[i];
+        const k = Math.max(0, 1 - (now - b.t) / LASER_TTL);
+        ctx.globalAlpha = 0.12 + 0.78 * k; ctx.strokeStyle = tr.color; ctx.lineWidth = 3 + 5 * k;
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      }
+      const head = tr.pts[tr.pts.length - 1], hk = Math.max(0, 1 - (now - head.t) / LASER_TTL);
+      if (hk > 0) { ctx.globalAlpha = 0.9 * hk; ctx.fillStyle = tr.color; ctx.beginPath(); ctx.arc(head.x, head.y, 4 + 4 * hk, 0, Math.PI * 2); ctx.fill(); }
+    }
+    ctx.globalAlpha = 1;
+    return alive;
+  }
+  function addLaser(key: string, x: number, y: number) {
+    let tr = laserRef.current.get(key);
+    if (!tr) { tr = { pts: [], color: LASER_COLOR }; laserRef.current.set(key, tr); }
+    tr.pts.push({ x, y, t: Date.now() });
+  }
+  function flushLaser() {
+    if (laserPendingRef.current.length === 0) return;
+    sockRef.current?.emit('wb:laser', { bookingId, sid: sidRef.current, points: laserPendingRef.current.map((q) => ({ x: q.x, y: q.y })) });
+    laserPendingRef.current = [];
+  }
+
   // 확정 스트로크만 캐시에 재렌더 — 뷰 변환 반영(핫패스 아님).
   function rebuildCache() {
     const cv = canvasRef.current; if (!cv) return;
@@ -119,6 +196,7 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
     const v = viewRef.current;
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
     ctx.setTransform(v.scale, 0, 0, v.scale, v.tx, v.ty);
+    if (!bgImgRef.current) paintGuide(ctx); // 안내선·템플릿(배경 이미지 없을 때만)
     if (bgImgRef.current) {
       const img = bgImgRef.current, ir = img.width / img.height, cr = W / H;
       let dw = W, dh = H, dx = 0, dy = 0;
@@ -138,6 +216,10 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
     ictx.globalCompositeOperation = 'source-over'; ictx.globalAlpha = 1; // 잔여 상태 초기화
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
     ctx.drawImage(ink, 0, 0);
+    // 레이저 — 잉크 위에 얹고, 남아있으면 다음 프레임 자체 예약(페이드).
+    const laserAlive = paintLasers(ctx, v);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (laserAlive) rafRef.current = requestAnimationFrame(drawFrame);
   }
 
   function requestPaint() { if (!rafRef.current) rafRef.current = requestAnimationFrame(drawFrame); }
@@ -186,7 +268,7 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
       sockRef.current?.emit('wb:stroke:partial', { bookingId, sid: sidRef.current, meta: { color: st.color, width: st.width, erase: st.erase, highlight: st.highlight }, points: pendingRef.current });
       pendingRef.current = [];
     };
-    const finalize = () => { const st = drawingRef.current; drawingRef.current = null; if (!st || !st.points.length) { pendingRef.current = []; return; } strokesRef.current.push(st); redraw(); sockRef.current?.emit('wb:stroke', { bookingId, stroke: st, sid: sidRef.current }); pendingRef.current = []; scheduleAutosave(); };
+    const finalize = () => { const st = drawingRef.current; drawingRef.current = null; if (!st || !st.points.length) { pendingRef.current = []; return; } strokesRef.current.push(st); redraw(); setCanUndo(true); redoRef.current = []; setCanRedo(false); sockRef.current?.emit('wb:stroke', { bookingId, stroke: st, sid: sidRef.current }); pendingRef.current = []; scheduleAutosave(); };
     const beginPinch = () => { const p = [...pointersRef.current.values()]; if (p.length < 2) return; const [a, b] = p; pinchRef.current = { dist: Math.hypot(a.cx - b.cx, a.cy - b.cy) || 1, midCx: (a.cx + b.cx) / 2, midCy: (a.cy + b.cy) / 2, view: { ...viewRef.current } }; };
     const down = (e: PointerEvent) => {
       if (status !== 'ready') return; cv.setPointerCapture?.(e.pointerId);
@@ -195,12 +277,19 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
       if (!okRef.current) return; // 세션 시간창 밖 → 필기 불가(보기 전용)
       if (rejected(e)) return;
       const p0 = pt(e);
+      sidRef.current = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+      if (toolRef.current === 'laser') { // 레이저 — 비영구 궤적만 방송
+        laserPendingRef.current = []; laserFlushRef.current = 0; addLaser('me', p0.x, p0.y); laserPendingRef.current.push(p0); flushLaser(); requestPaint(); return;
+      }
+      if ((SHAPE_TOOLS as readonly string[]).includes(toolRef.current)) { // 도형 — 시작→끝 두 점
+        drawingRef.current = { points: [p0, p0], color: colorRef.current, width: widthRef.current, shape: toolRef.current as Stroke['shape'] };
+        pendingRef.current = []; lastFlushRef.current = 0; requestPaint(); return;
+      }
       drawingRef.current = toolRef.current === 'eraser'
         ? { points: [p0], color: '#000', width: Math.max(16, widthRef.current * 4), erase: true }
         : toolRef.current === 'highlighter'
           ? { points: [p0], color: colorRef.current, width: Math.max(14, widthRef.current * 4), highlight: true }
           : { points: [p0], color: colorRef.current, width: widthRef.current };
-      sidRef.current = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
       pendingRef.current = [p0]; lastFlushRef.current = 0; requestPaint();
     };
     const move = (e: PointerEvent) => {
@@ -213,6 +302,13 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
         v.scale = pin.view.scale * k; v.tx = midCx - (pin.midCx - pin.view.tx) * k; v.ty = midCy - (pin.midCy - pin.view.ty) * k;
         clampView(); setZoomPct(Math.round(v.scale * 100)); redraw(); return;
       }
+      if (toolRef.current === 'laser') {
+        if (!sidRef.current || pointersRef.current.size >= 2 || !okRef.current) return;
+        const q = pt(e); addLaser('me', q.x, q.y); laserPendingRef.current.push(q); requestPaint();
+        const nowL = Date.now(); if (nowL - laserFlushRef.current >= 50) { laserFlushRef.current = nowL; flushLaser(); }
+        return;
+      }
+      if (drawingRef.current?.shape) { drawingRef.current.points = [drawingRef.current.points[0], pt(e)]; requestPaint(); return; }
       if (!drawingRef.current || rejected(e)) return;
       const coalesced = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [];
       const evs = coalesced.length ? coalesced : [e];
@@ -221,7 +317,7 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
       const now = Date.now();
       if (now - lastFlushRef.current >= 50) { lastFlushRef.current = now; flush(); } // ~20fps 스트리밍
     };
-    const up = (e: PointerEvent) => { pointersRef.current.delete(e.pointerId); if (pointersRef.current.size < 2) pinchRef.current = null; finalize(); };
+    const up = (e: PointerEvent) => { pointersRef.current.delete(e.pointerId); if (pointersRef.current.size < 2) pinchRef.current = null; if (toolRef.current === 'laser') { flushLaser(); sidRef.current = ''; return; } finalize(); };
     const onWheel = (e: WheelEvent) => { e.preventDefault(); const { cx, cy } = cs(e as unknown as PointerEvent); if (e.ctrlKey || e.metaKey) zoomAt(cx, cy, e.deltaY < 0 ? 1.1 : 1 / 1.1); else { const v = viewRef.current; v.tx -= e.deltaX; v.ty -= e.deltaY; clampView(); redraw(); } };
     cv.addEventListener('pointerdown', down); cv.addEventListener('pointermove', move);
     cv.addEventListener('pointerup', up); cv.addEventListener('pointerleave', up);
@@ -232,7 +328,7 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
     sockRef.current = s;
     s.on('connect', () => s.emit('wb:join', { bookingId }, (r: { ok: boolean; strokes?: Stroke[]; backgroundFileId?: string | null; session?: SessionInfo }) => {
       if (!r?.ok) { setStatus('off'); return; }
-      strokesRef.current = Array.isArray(r.strokes) ? r.strokes : []; setSession(r.session ?? null); setStatus('ready'); redraw();
+      strokesRef.current = Array.isArray(r.strokes) ? r.strokes : []; setCanUndo(strokesRef.current.length > 0); setSession(r.session ?? null); setStatus('ready'); redraw();
       if (r.backgroundFileId) loadBg(r.backgroundFileId);
     }));
     s.on('wb:stroke:partial', ({ sid, meta, points }: { sid: string; meta: Partial<Stroke>; points: Pt[] }) => {
@@ -240,8 +336,11 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
       if (!st) { st = { color: meta.color ?? '#1E3550', width: meta.width ?? 4, erase: meta.erase, highlight: meta.highlight, points: [] }; liveRef.current.set(sid, st); }
       st.points.push(...points); requestPaint();
     });
-    s.on('wb:stroke', ({ stroke, sid }: { stroke: Stroke; sid?: string }) => { if (sid) liveRef.current.delete(sid); strokesRef.current.push(stroke); redraw(); });
-    s.on('wb:clear', () => { strokesRef.current = []; liveRef.current.clear(); redraw(); });
+    s.on('wb:stroke', ({ stroke, sid }: { stroke: Stroke; sid?: string }) => { if (sid) liveRef.current.delete(sid); strokesRef.current.push(stroke); redraw(); setCanUndo(true); });
+    s.on('wb:clear', () => { strokesRef.current = []; liveRef.current.clear(); redoRef.current = []; setCanRedo(false); redraw(); setCanUndo(false); });
+    s.on('wb:sync', ({ strokes }: { strokes: Stroke[] }) => { strokesRef.current = Array.isArray(strokes) ? strokes : []; liveRef.current.clear(); redraw(); setCanUndo(strokesRef.current.length > 0); });
+    s.on('wb:laser', ({ sid, points }: { sid?: string; points: Array<{ x: number; y: number }> }) => { if (!Array.isArray(points)) return; const key = `peer:${sid ?? ''}`; for (const q of points) addLaser(key, q.x, q.y); requestPaint(); });
+    s.on('wb:grid', ({ grid: g }: { grid: GridMode }) => { gridRef.current = g; setGrid(g); requestPaint(); });
     s.on('wb:image', ({ fileId, page, pageCount }: { fileId: string | null; page?: number; pageCount?: number }) => {
       loadBg(fileId);
       if (fileId && pageCount) setPdf({ page: page ?? 1, pageCount }); else if (!fileId) setPdf(null);
@@ -260,9 +359,33 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
   // 세션 강제 종료(폐장) 시 마지막 상태 저장 + 음성통화 자동 종료 후 열람 전용.
   useEffect(() => { if (phase === 'closed' && status === 'ready') save(); /* eslint-disable-line react-hooks/exhaustive-deps */ }, [phase]);
   useEffect(() => { if (!rw && call.inCall) call.hangup(); }, [rw, call.inCall]); // eslint-disable-line react-hooks/exhaustive-deps
-  function pick(c: string) { setColor(c); colorRef.current = c; if (toolRef.current === 'eraser') { setTool('pen'); toolRef.current = 'pen'; } }
+  function pick(c: string) { setColor(c); colorRef.current = c; if (toolRef.current === 'eraser' || toolRef.current === 'laser') { setTool('pen'); toolRef.current = 'pen'; } }
   function pickW(w: number) { setWidth(w); widthRef.current = w; }
-  function pickTool(t: 'pen' | 'eraser' | 'highlighter') { setTool(t); toolRef.current = t; }
+  function pickTool(t: Tool) { setTool(t); toolRef.current = t; }
+  // 되돌리기/다시 실행 — 전체 집합 재동기화(웹과 동일 규약).
+  function undo() {
+    if (!rw || strokesRef.current.length === 0) return;
+    redoRef.current.push(strokesRef.current[strokesRef.current.length - 1]); setCanRedo(true);
+    strokesRef.current = strokesRef.current.slice(0, -1); liveRef.current.clear(); redraw(); setCanUndo(strokesRef.current.length > 0);
+    sockRef.current?.emit('wb:sync', { bookingId, strokes: strokesRef.current }); scheduleAutosave();
+  }
+  function redo() {
+    if (!rw) return;
+    const st = redoRef.current.pop();
+    setCanRedo(redoRef.current.length > 0);
+    if (!st) return;
+    strokesRef.current.push(st); redraw(); setCanUndo(true);
+    sockRef.current?.emit('wb:sync', { bookingId, strokes: strokesRef.current }); scheduleAutosave();
+  }
+  // 필기만 지우기(배경 유지).
+  function clearInk() { strokesRef.current = []; liveRef.current.clear(); redoRef.current = []; setCanRedo(false); redraw(); setCanUndo(false); sockRef.current?.emit('wb:clear', { bookingId }); scheduleAutosave(); }
+  // 안내선·템플릿 순환(없음→모눈→줄→오답노트→4분면) — 상대와 동기화.
+  function cycleGuide() {
+    const order: GridMode[] = ['none', 'grid', 'lines', 'wrongnote', 'quad'];
+    const next = order[(order.indexOf(grid) + 1) % order.length];
+    gridRef.current = next; setGrid(next); requestPaint();
+    sockRef.current?.emit('wb:grid', { bookingId, grid: next });
+  }
   function clear() { strokesRef.current = []; setPdf(null); loadBg(null); redraw(); sockRef.current?.emit('wb:clear', { bookingId }); sockRef.current?.emit('wb:image', { bookingId, fileId: null }); scheduleAutosave(); }
   /** PDF 페이지 넘김(업로더만). */
   async function gotoPage(np: number) {
@@ -363,6 +486,11 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
               <TouchableOpacity onPress={() => pickTool('pen')} style={[styles.wbtn, { width: 40 }, tool === 'pen' && { borderColor: C.teal, borderWidth: 2 }]}><Text style={styles.wtxt}>✏️</Text></TouchableOpacity>
               <TouchableOpacity onPress={() => pickTool('highlighter')} style={[styles.wbtn, { width: 40 }, tool === 'highlighter' && { borderColor: C.teal, borderWidth: 2 }]}><Text style={styles.wtxt}>🖍</Text></TouchableOpacity>
               <TouchableOpacity onPress={() => pickTool('eraser')} style={[styles.wbtn, { width: 40 }, tool === 'eraser' && { borderColor: C.teal, borderWidth: 2 }]}><Text style={styles.wtxt}>🧽</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => pickTool('laser')} style={[styles.wbtn, { width: 40 }, tool === 'laser' && { borderColor: C.teal, borderWidth: 2 }]}><Text style={styles.wtxt}>🔦</Text></TouchableOpacity>
+              {(([['line', '╱'], ['arrow', '↗'], ['rect', '▭'], ['ellipse', '◯']]) as Array<[Tool, string]>).map(([t, icon]) => (
+                <TouchableOpacity key={t} onPress={() => pickTool(t)} style={[styles.wbtn, { width: 34 }, tool === t && { borderColor: C.teal, borderWidth: 2 }]}><Text style={styles.wtxt}>{icon}</Text></TouchableOpacity>
+              ))}
+              <TouchableOpacity onPress={cycleGuide} style={[styles.wbtn, { width: 34 }, grid !== 'none' && { borderColor: C.teal, borderWidth: 2 }]}><Text style={styles.wtxt}>{grid === 'lines' ? '▤' : grid === 'wrongnote' ? '📋' : grid === 'quad' ? '➕' : '⊞'}</Text></TouchableOpacity>
               <TouchableOpacity disabled={!rw} onPress={attachImage} style={[styles.wbtn, { width: 40, opacity: rw ? 1 : 0.4 }]}><Text style={styles.wtxt}>🖼</Text></TouchableOpacity>
               <TouchableOpacity disabled={!rw} onPress={openCamera} style={[styles.wbtn, { width: 40, opacity: rw ? 1 : 0.4 }]}><Text style={styles.wtxt}>📷</Text></TouchableOpacity>
               {/* 줌: 배경+필기 함께 확대/축소 (두 손가락 핀치도 가능) */}
@@ -376,7 +504,10 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
               </>)}
               <View style={{ flex: 1 }} />
               <Text style={{ fontSize: 10, color: C.muted, marginRight: 4 }}>{saveState === 'saving' ? '저장 중…' : saveState === 'saved' ? '자동저장 ✓' : saveState === 'dirty' ? '변경됨' : ''}</Text>
-              <TouchableOpacity disabled={!rw} onPress={clear} style={[styles.act, !rw && { opacity: 0.4 }]}><Text style={styles.actT}>전체 지우기</Text></TouchableOpacity>
+              <TouchableOpacity disabled={!rw || !canUndo} onPress={undo} style={[styles.wbtn, { width: 34 }, (!rw || !canUndo) && { opacity: 0.4 }]}><Text style={styles.wtxt}>↶</Text></TouchableOpacity>
+              <TouchableOpacity disabled={!rw || !canRedo} onPress={redo} style={[styles.wbtn, { width: 34 }, (!rw || !canRedo) && { opacity: 0.4 }]}><Text style={styles.wtxt}>↷</Text></TouchableOpacity>
+              <TouchableOpacity disabled={!rw} onPress={clearInk} style={[styles.act, !rw && { opacity: 0.4 }]}><Text style={styles.actT}>필기 지우기</Text></TouchableOpacity>
+              <TouchableOpacity disabled={!rw} onPress={clear} style={[styles.act, !rw && { opacity: 0.4 }]}><Text style={styles.actT}>전체</Text></TouchableOpacity>
               <TouchableOpacity disabled={!rw} onPress={save} style={[styles.act, styles.actP, !rw && { opacity: 0.4 }]}><Text style={[styles.actT, { color: '#fff' }]}>저장</Text></TouchableOpacity>
             </View>
             <View ref={hostRef} style={styles.canvasHost} />
