@@ -53,6 +53,7 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
   const [grid, setGrid] = useState<GridMode>('none'); // 배경 안내선(모눈/줄) — 상대와 동기화
   const gridRef = useRef<GridMode>('none');
   const [wide, setWide] = useState(false); // 전체화면(넓게 보기)
+  const [pop, setPop] = useState<'pen' | 'shape' | 'clear' | null>(null); // 툴바 팝오버(W-U1 — 1줄화)
   // 강의(1:다) 모드: 서버가 wb:join 으로 role·mode·roster 를 알려준다. viewer=학생(열람 전용).
   const [mode, setMode] = useState<'session' | 'lecture'>('session');
   const [role, setRole] = useState<string>('viewer');
@@ -445,32 +446,60 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
           <>
             {!rw && <div style={{ padding: '8px 14px', background: phase === 'closed' ? 'var(--line-soft,#eef2f7)' : 'var(--teal-50,#E8F0F9)', color: 'var(--muted)', fontSize: 12.5, textAlign: 'center', borderBottom: '1px solid var(--line)' }}>{phase === 'closed' ? '🔒 ' : '⏳ '}{notice} 필기는 예약 시간대에만 가능하고, 지금은 열람만 됩니다.</div>}
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '10px 14px', flexWrap: 'wrap', borderBottom: '1px solid var(--line)' }}>
+              {/* 팝오버 열림 중 바깥 클릭 → 닫기(캔버스 오입력 방지 겸용) */}
+              {pop && <div style={{ position: 'fixed', inset: 0, zIndex: 39 }} onClick={() => setPop(null)} />}
               {mode === 'lecture' && (
                 <span style={{ fontSize: 12, fontWeight: 800, padding: '4px 10px', borderRadius: 999, background: isViewer ? '#fbeae7' : '#e9f5ee', color: isViewer ? '#a64b37' : '#2a8a5f', border: `1px solid ${isViewer ? '#f0cfc9' : '#cfe6d8'}` }}>
                   {isViewer ? '🔴 강의 열람 중' : `🟢 강의 중 · 참석 ${roster.length}명`}
                 </span>
               )}
               {!isViewer && (<>
-                {COLORS.map((c) => {
-                  const active = color === c && (tool === 'pen' || tool === 'highlighter');
-                  return <button key={c} onClick={() => { setColor(c); setTool((t) => (t === 'pen' || t === 'highlighter' ? t : 'pen')); }} title={c} aria-label={`색상 ${c}`} aria-pressed={active} style={{ width: 24, height: 24, borderRadius: '50%', background: c, cursor: 'pointer', border: active ? '3px solid var(--teal)' : '2px solid var(--line)' }} />;
-                })}
-                {[2, 3, 6, 10].map((w) => (<button key={w} onClick={() => setWidth(w)} style={{ width: 28, height: 26, borderRadius: 6, cursor: 'pointer', border: width === w ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontWeight: 700, fontSize: 12 }}>{w}</button>))}
+                {/* 색상·굵기 팝오버(W-U1) — 스와치가 현재 색·굵기를 보여준다 */}
+                <span style={{ position: 'relative', display: 'inline-flex' }}>
+                  <button onClick={() => setPop((p) => (p === 'pen' ? null : 'pen'))} title="색상·굵기" aria-expanded={pop === 'pen'}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 8px', borderRadius: 6, cursor: 'pointer', border: pop === 'pen' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)' }}>
+                    <span style={{ width: 16, height: 16, borderRadius: '50%', background: color, display: 'inline-block', border: '1px solid var(--line)' }} />
+                    <span style={{ fontSize: 11, fontWeight: 800 }}>{width}</span>
+                    <span style={{ fontSize: 9, color: 'var(--muted)' }}>▾</span>
+                  </button>
+                  {pop === 'pen' && (
+                    <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 40, background: 'var(--surface, #fff)', border: '1px solid var(--line)', borderRadius: 10, padding: 10, boxShadow: '0 8px 24px rgba(0,0,0,.15)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        {COLORS.map((c) => (
+                          <button key={c} onClick={() => { setColor(c); setTool((t) => (t === 'pen' || t === 'highlighter' ? t : 'pen')); }} title={c} aria-label={`색상 ${c}`} aria-pressed={color === c}
+                            style={{ width: 24, height: 24, borderRadius: '50%', background: c, cursor: 'pointer', border: color === c ? '3px solid var(--teal)' : '2px solid var(--line)' }} />
+                        ))}
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        {[2, 3, 6, 10].map((w) => (<button key={w} onClick={() => setWidth(w)} style={{ width: 28, height: 26, borderRadius: 6, cursor: 'pointer', border: width === w ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontWeight: 700, fontSize: 12 }}>{w}</button>))}
+                      </div>
+                    </div>
+                  )}
+                </span>
                 <button onClick={() => setTool('pen')} aria-pressed={tool === 'pen'} title="펜" style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'pen' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>✏️</button>
                 <button onClick={() => setTool('highlighter')} aria-pressed={tool === 'highlighter'} title="형광펜" style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'highlighter' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>🖍</button>
                 <button onClick={() => setTool('eraser')} aria-pressed={tool === 'eraser'} title="지우개(영역만큼 지움)" style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'eraser' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>🧽</button>
                 <button onClick={() => setTool('laser')} aria-pressed={tool === 'laser'} title="레이저 포인터(잠시 후 사라짐)" style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === 'laser' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>🔦</button>
                 <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
-                {/* 도형: 드래그로 직선·화살표·사각형·타원 (묶음 — 줄바꿈 시 함께 이동) */}
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'nowrap' }}>
-                  {([['line', '╱', '직선'], ['arrow', '↗', '화살표'], ['rect', '▭', '사각형'], ['ellipse', '◯', '타원']] as const).map(([t, icon, name]) => (
-                    <button key={t} onClick={() => setTool(t)} aria-pressed={tool === t} title={name} style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: tool === t ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>{icon}</button>
-                  ))}
-                </div>
+                {/* 도형 팝오버(W-U1) — 현재 도형 도구가 켜져 있으면 그 아이콘 표시 */}
+                <span style={{ position: 'relative', display: 'inline-flex' }}>
+                  <button onClick={() => setPop((p) => (p === 'shape' ? null : 'shape'))} title="도형(직선·화살표·사각형·타원)" aria-expanded={pop === 'shape'}
+                    aria-pressed={(SHAPE_TOOLS as readonly string[]).includes(tool)}
+                    style={{ padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: (SHAPE_TOOLS as readonly string[]).includes(tool) || pop === 'shape' ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 13 }}>
+                    {tool === 'line' ? '╱' : tool === 'arrow' ? '↗' : tool === 'ellipse' ? '◯' : '▭'}<span style={{ fontSize: 9, color: 'var(--muted)' }}> ▾</span>
+                  </button>
+                  {pop === 'shape' && (
+                    <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 40, background: 'var(--surface, #fff)', border: '1px solid var(--line)', borderRadius: 10, padding: 10, boxShadow: '0 8px 24px rgba(0,0,0,.15)', display: 'flex', gap: 8 }}>
+                      {([['line', '╱', '직선'], ['arrow', '↗', '화살표'], ['rect', '▭', '사각형'], ['ellipse', '◯', '타원']] as const).map(([t, icon, name]) => (
+                        <button key={t} onClick={() => { setTool(t); setPop(null); }} aria-pressed={tool === t} title={name} style={{ padding: '5px 10px', borderRadius: 6, cursor: 'pointer', border: tool === t ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', fontSize: 14 }}>{icon}</button>
+                      ))}
+                    </div>
+                  )}
+                </span>
                 <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
                 <input ref={fileRef} type="file" accept="application/pdf,image/*" hidden onChange={onAttach} />
-                <button className="btn ghost sm" disabled={!rw} onClick={() => fileRef.current?.click()}>🖼 이미지</button>
-                <button className="btn ghost sm" disabled={!rw} onClick={openCamera}>📷 촬영</button>
+                <button className="btn ghost sm" disabled={!rw} onClick={() => fileRef.current?.click()} title="이미지 배경 올리기">🖼</button>
+                <button className="btn ghost sm" disabled={!rw} onClick={openCamera} title="카메라로 문제 촬영">📷</button>
                 <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
               </>)}
               {/* 줌·보기 묶음 — 줄바꿈 시에도 함께 이동(그룹 분리 방지) */}
@@ -491,8 +520,16 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'nowrap' }}>
                   <button className="btn ghost sm" disabled={!rw || !canUndo} onClick={undo} title="되돌리기 (⌘Z)">↶</button>
                   <button className="btn ghost sm" disabled={!rw || !canRedo} onClick={redo} title="다시 실행 (⌘⇧Z)">↷</button>
-                  <button className="btn ghost sm" disabled={!rw} onClick={clearInk} title="필기만 지우기(배경 유지)">필기 지우기</button>
-                  <button className="btn ghost sm" disabled={!rw} onClick={clearAll} title="배경까지 모두 지우기">배경까지</button>
+                  {/* 지우기 팝오버(W-U1) — 파괴적 동작 2종을 한 버튼으로 */}
+                  <span style={{ position: 'relative', display: 'inline-flex' }}>
+                    <button className="btn ghost sm" disabled={!rw} onClick={() => setPop((p) => (p === 'clear' ? null : 'clear'))} aria-expanded={pop === 'clear'}>지우기 ▾</button>
+                    {pop === 'clear' && (
+                      <div style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 40, background: 'var(--surface, #fff)', border: '1px solid var(--line)', borderRadius: 10, padding: 8, boxShadow: '0 8px 24px rgba(0,0,0,.15)', display: 'flex', flexDirection: 'column', gap: 6, minWidth: 170 }}>
+                        <button className="btn ghost sm" onClick={() => { clearInk(); setPop(null); }} title="배경 이미지는 유지">필기만 지우기</button>
+                        <button className="btn ghost sm" onClick={() => { clearAll(); setPop(null); }} title="필기+배경 모두 삭제">배경까지 모두 지우기</button>
+                      </div>
+                    )}
+                  </span>
                   <button className="btn ghost sm" onClick={exportPng} title="보드를 PNG 이미지로 저장">⬇ PNG</button>
                   <button className="btn sm" disabled={!rw} onClick={save}>저장</button>
                 </div>
