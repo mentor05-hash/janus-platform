@@ -59,6 +59,8 @@
 
 | O79 | 2026-07-18 | **화상 일정·M0 착수**: 실오픈 10월 이후 확정, 8~9월 유료상담은 줌 등 외부툴 → 현행 P2P 라인은 시즌 매출 비탑재(TURN 보강은 선택으로 격하). 9월을 화상 개발(M1 이관+화상→M2→M3)에 배정, 10월 초 시범 5건→오픈. 예상 순작업 9~14일(캘린더 3주). **M0 스파이크 착수**: compose LIVEKIT ENV 스위치(MEDIA_PROVIDER 등 4종), 데모 토큰 POST /media/demo-token(프로덕션 차단·media-demo 룸·publisher), 웹 /media/demo 화상 검증 페이지(두 기기 상호 영상·mock 미개통 안내 폴백). 잔여: LiveKit Cloud 가입·키 발급(사용자)→ENV 주입→맥·폰 상호 영상+LTE 실측 | api tsc0·web tsc0·build. P2P 실측 데이터(5G 딜레이·1분 끊김·재연결)로 A안 이관 근거 보강 |
 
+| O80 | 2026-07-19 | **M1 1차 실측 완료 — 상담 화상(미디어킷) E2E**: 구독(Premium 모의결제)→등급 승격→프리미엄 게이트(화이트보드 버튼)→상담룸 📹 화상통화(LiveKit·PIP·보드 필기 동시) 전 구간 실측 성공. 구성: packages/media-kit(useMediaSession)+POST /media/token(예약·시간창 게이팅)+WhiteboardPanel 플래그 전환(VITE_MEDIA_CONSULT=livekit·P2P 폴백 보존). 부수 수정: ①예약 채팅 정렬·IME 회귀(쌍둥이 ChatPanel 미수정 경로 — 4파일 경고주석+공용화 백로그) ②VIP 프리미엄 판정 탈락(tier≥3 기준으로) ③Dockerfile 3종 media-kit manifest ④구독플랜 500(0066~0068 적용). M1 잔여: 프리플라이트(모델배정 Sonnet)·마감 다듬기 → M2(화면공유·블러·모바일 세로) | 실측: 맥 2계정 상호 영상·음성·필기·채팅. 모델배정 운용(설계·통합=Fable/정형=Sonnet) 첫 사이클 완료 |
+
 
 ## 미결 (N) — 결정 대기
 
