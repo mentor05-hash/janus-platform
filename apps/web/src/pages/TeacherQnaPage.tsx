@@ -3,9 +3,10 @@ import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { PageHeader, Card, Button, Badge, ErrorText, Spinner, EmptyState, TextareaField } from '../components/ui';
 import { AuthImage } from '../components/AuthImage';
+import { AnswerBoard } from '../components/AnswerBoard';
 
 type Attachment = { id: string; name: string; type?: string };
-type Answer = { id: string; body: string; accepted: boolean; teacherName: string; createdAt: string };
+type Answer = { id: string; body: string; accepted: boolean; teacherName: string; createdAt: string ; attachments?: Attachment[] };
 type Post = { id: string; subject: string | null; difficulty: string | null; scope: string; assignedTeacherId: string | null; body: string; status: string; created_at: string; aiDraft?: string | null; attachments?: Attachment[]; answers: Answer[] };
 
 const isImage = (a: Attachment) => (a.type ?? '').startsWith('image/') || /\.(png|jpe?g|gif|webp|heic)$/i.test(a.name);
@@ -31,6 +32,11 @@ function AnswerList({ answers }: { answers: Answer[] }) {
       {answers.map((a) => (
         <div key={a.id} style={{ background: 'var(--fill,#f4f7fb)', borderRadius: 8, padding: 8, marginBottom: 6, fontSize: 13 }}>
           <b>{a.teacherName}</b>{a.accepted && <Badge kind="done">채택</Badge>}<div style={{ whiteSpace: 'pre-wrap', marginTop: 2 }}>{a.body}</div>
+          {(a.attachments ?? []).length > 0 && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
+              {(a.attachments ?? []).map((f) => <AuthImage key={f.id} fileId={f.id} alt={f.name} size={140} />)}
+            </div>
+          )}
         </div>
       ))}
     </div>
@@ -56,14 +62,30 @@ export function TeacherQnaPage() {
     } catch (e) { setError(e instanceof ApiError ? (e.status === 409 ? '다른 선생님이 먼저 가져갔어요.' : e.message) : '가져오기 실패'); load(); } finally { setBusy(null); }
   }
 
+  const [boardFor, setBoardFor] = useState<Post | null>(null); // P4 — 필기로 풀이 대상 질문
+  const [ansAtts, setAnsAtts] = useState<Record<string, Attachment[]>>({}); // 질문별 답변 첨부(보드 PNG)
+
+  /** P4: 필기 보드 확정 → 업로드 → 답변 첨부 목록에 추가. */
+  async function attachBoardPng(post: Post, png: Blob) {
+    setBoardFor(null);
+    try {
+      const form = new FormData();
+      form.append('file', png, `solution-${new Date().toISOString().slice(0, 10)}.png`);
+      const r = await api.upload<{ id: string }>('/files', form);
+      setAnsAtts((m) => ({ ...m, [post.id]: [...(m[post.id] ?? []), { id: r.id, name: '필기 풀이', type: 'image/png' }].slice(0, 3) }));
+      setMsg('필기 풀이가 답변에 첨부됐습니다. 답변 등록을 눌러 전송하세요.');
+    } catch { setError('필기 풀이 업로드에 실패했어요.'); }
+  }
+
   async function answer(id: string) {
-    const body = (draft[id] ?? '').trim();
+    const atts = ansAtts[id] ?? [];
+    const body = (draft[id] ?? '').trim() || (atts.length ? '필기 풀이를 확인해 주세요.' : '');
     if (!body) return;
     setBusy(id); setError(''); setMsg('');
     try {
-      const r = await api.post<{ simFlagged?: boolean; simSummary?: string }>(`/qna/posts/${id}/answers`, { body });
+      const r = await api.post<{ simFlagged?: boolean; simSummary?: string }>(`/qna/posts/${id}/answers`, { body, ...(atts.length ? { attachments: atts } : {}) });
       setMsg(r?.simFlagged ? `답변 등록됨 — ⚠️ ${r.simSummary}` : '답변이 등록되었습니다.');
-      setDraft((d) => ({ ...d, [id]: '' })); load();
+      setDraft((d) => ({ ...d, [id]: '' })); setAnsAtts((m) => ({ ...m, [id]: [] })); load();
     } catch (e) { setError(e instanceof ApiError ? e.message : '답변 실패'); } finally { setBusy(null); }
   }
 
@@ -121,11 +143,32 @@ export function TeacherQnaPage() {
               </div>
             )}
             <TextareaField label="답변 작성" rows={3} value={draft[p.id] ?? ''} onChange={(e) => setDraft((d) => ({ ...d, [p.id]: e.target.value }))} placeholder="풀이·설명을 작성하세요." />
-            <Button onClick={() => answer(p.id)} disabled={busy === p.id || !(draft[p.id] ?? '').trim()}>답변 등록</Button>
+            {(ansAtts[p.id] ?? []).length > 0 && (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '6px 0' }}>
+                {(ansAtts[p.id] ?? []).map((a, i) => (
+                  <span key={a.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <AuthImage fileId={a.id} alt={a.name} size={72} />
+                    <button type="button" onClick={() => setAnsAtts((m) => ({ ...m, [p.id]: (m[p.id] ?? []).filter((_, j) => j !== i) }))} title="첨부 제거"
+                      style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 13 }}>✕</button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button onClick={() => answer(p.id)} disabled={busy === p.id || (!(draft[p.id] ?? '').trim() && (ansAtts[p.id] ?? []).length === 0)}>답변 등록</Button>
+              <Button variant="ghost" onClick={() => setBoardFor(p)} disabled={(ansAtts[p.id] ?? []).length >= 3} title="질문 사진 위에 풀이를 필기해 이미지로 첨부">🖊 필기로 풀이</Button>
+            </div>
           </Card>
         ))
       )}
 
+      {boardFor && (
+        <AnswerBoard
+          bgFileId={(boardFor.attachments ?? []).find((a) => (a.type ?? '').startsWith('image/') || /\.(png|jpe?g|webp|gif)$/i.test(a.name))?.id ?? null}
+          onDone={(png) => void attachBoardPng(boardFor, png)}
+          onClose={() => setBoardFor(null)}
+        />
+      )}
       <h3 style={{ fontSize: 15, margin: '18px 0 8px' }}>답변 완료 / 마감</h3>
       {posts === null ? null : rest.length === 0 ? <Card><EmptyState>없음</EmptyState></Card> : (
         rest.map((p) => (

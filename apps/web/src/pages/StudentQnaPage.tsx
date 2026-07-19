@@ -4,7 +4,7 @@ import { PageHeader, Card, Button, Badge, ErrorText, Spinner, EmptyState, Textar
 import { AuthImage } from '../components/AuthImage';
 
 type Attachment = { id: string; name: string; type?: string };
-type Answer = { id: string; body: string; accepted: boolean; teacherName: string; teacherId?: string | null };
+type Answer = { id: string; body: string; accepted: boolean; teacherName: string; teacherId?: string | null; attachments?: Attachment[] };
 type Post = {
   id: string;
   subject: string | null;
@@ -254,6 +254,11 @@ export function StudentQnaPage() {
                       {!a.accepted && p.status !== 'resolved' && <Button size="sm" onClick={() => accept(a.id)}>채택</Button>}
                     </div>
                     <div style={{ fontSize: 14, whiteSpace: 'pre-wrap', marginTop: 4 }}>{a.body}</div>
+                    {(a.attachments ?? []).length > 0 && (
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
+                        {(a.attachments ?? []).map((f) => <AuthImage key={f.id} fileId={f.id} alt={f.name} size={160} />)}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

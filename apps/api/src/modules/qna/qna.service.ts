@@ -238,6 +238,9 @@ export class QnaService {
           teacherId: a.teacher_id ?? null,
           teacherName: a.teacher_profile?.account?.name ?? '선생님',
           createdAt: a.created_at,
+          attachments: Array.isArray((a as { attachments?: unknown }).attachments)
+            ? ((a as { attachments?: unknown }).attachments as { id: string; name: string; type?: string }[])
+            : [],
         })),
       }));
 
@@ -367,6 +370,7 @@ export class QnaService {
         post_id: postId,
         teacher_id: teacher.id,
         body: dto.body,
+        attachments: (dto.attachments ?? []) as unknown as Prisma.InputJsonValue, // P4 화이트보드 풀이 등
         accepted: false,
         pay_eligible: false,
         similarity: sim.maxSimilarity,

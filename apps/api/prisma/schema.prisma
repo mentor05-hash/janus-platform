@@ -623,6 +623,7 @@ model qna_answer {
   post_id         String          @db.Uuid
   teacher_id      String          @db.Uuid
   body            String?
+  attachments     Json?           // P4 답변 첨부(화이트보드 풀이 PNG 등) — [{id,name,type}]
   accepted        Boolean?        @default(false)
   pay_eligible    Boolean?        @default(false)
   similarity      Decimal?        @db.Decimal(3, 2)
