@@ -618,6 +618,19 @@ model pricing_policy {
   center                center?      @relation(fields: [center_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
+/** 보호자 동의 원장(본부 결정 2026-07-19) — 미성년 음성 외부 STT 전송은 동의 학생 한정. kind 확장형. */
+model consent_grant {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  student_id     String    @db.Uuid
+  guardian_id    String    @db.Uuid
+  kind           String    @default("recording_stt")
+  policy_version String    @default("v1")
+  granted_at     DateTime  @default(now()) @db.Timestamptz(6)
+  revoked_at     DateTime? @db.Timestamptz(6)
+
+  @@unique([student_id, kind])
+}
+
 /** R1 상담 오디오 녹음 원장(브리핑 v1) — 동의·egress·보관·파기 추적. booking 조인 키 전용(기존 테이블 무변경). */
 model consult_recording {
   id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid

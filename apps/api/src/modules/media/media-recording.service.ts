@@ -16,7 +16,7 @@ import type { MediaProvider } from './media.types';
 export class MediaRecordingService {
   private readonly logger = new Logger('MediaRecording');
   private static readonly FLAG_KEY = 'consult_recording';
-  private static readonly FLAG_DEFAULT = { enabled: false, retentionDays: 30, policyVersion: 'v1' }; // 🟡 설정 분리(하드코딩 금지)
+  private static readonly FLAG_DEFAULT = { enabled: false, retentionDays: 30, policyVersion: 'v1', sttRequiresGuardianConsent: true }; // sttRequiresGuardianConsent 는 본부 확정(2026-07-19) — 나머지 🟡
 
   constructor(
     private readonly prisma: PrismaService,
@@ -42,11 +42,21 @@ export class MediaRecordingService {
     return { b, side: isStudent ? ('student' as const) : ('teacher' as const) };
   }
 
+  /** 학생의 보호자 동의(recording_stt) 활성 여부 — 본부 결정: 미성년 음성 외부 STT 는 동의 학생 한정. */
+  private async guardianGranted(studentId: string): Promise<{ granted: boolean; grantedAt: Date | null }> {
+    const g = await this.prisma.consent_grant.findUnique({
+      where: { student_id_kind: { student_id: studentId, kind: 'recording_stt' } },
+    });
+    const granted = g != null && g.revoked_at == null;
+    return { granted, grantedAt: granted ? g!.granted_at : null };
+  }
+
   /** 동의 상태 조회(상담룸 UI 초기화). enabled=false 면 UI 는 녹음 요소 자체를 숨긴다. */
   async status(user: AuthUser, bookingId: string) {
     const f = await this.flags();
-    await this.assertParticipant(user, bookingId);
+    const { b } = await this.assertParticipant(user, bookingId);
     const r = await this.prisma.consult_recording.findUnique({ where: { booking_id: bookingId } });
+    const guardian = await this.guardianGranted(b.student_id!);
     return {
       enabled: f.enabled,
       policyVersion: f.policyVersion,
@@ -54,7 +64,46 @@ export class MediaRecordingService {
       status: r?.status ?? 'pending',
       studentConsented: r?.consent_student_at != null,
       teacherConsented: r?.consent_teacher_at != null,
+      guardianConsented: guardian.granted,
+      // 요약(STT 외부 전송) 가능 여부 — 보호자 동의 없으면 녹음은 되나 요약 파이프라인(R2)에서 제외.
+      sttAllowed: !f.sttRequiresGuardianConsent || guardian.granted,
     };
+  }
+
+  /** 보호자 동의 조회(학부모) — 링크된 자녀만. */
+  async guardianConsentStatus(guardian: AuthUser, studentId: string) {
+    if (guardian.role !== AccountRole.GUARDIAN) throw new ForbiddenException('보호자만 조회할 수 있습니다.');
+    const link = await this.prisma.guardian_student_link.findFirst({ where: { guardian_id: guardian.id, student_id: studentId } });
+    if (!link) throw new ForbiddenException('연결된 자녀가 아닙니다.');
+    const f = await this.flags();
+    const g = await this.guardianGranted(studentId);
+    return { granted: g.granted, grantedAt: g.grantedAt, policyVersion: f.policyVersion, retentionDays: f.retentionDays };
+  }
+
+  /** 보호자 동의 설정/철회(학부모) — 감사 기록 포함. 철회해도 기왕 녹음분 파기는 아님(향후 STT 만 차단). */
+  async setGuardianConsent(guardian: AuthUser, studentId: string, granted: boolean) {
+    if (guardian.role !== AccountRole.GUARDIAN) throw new ForbiddenException('보호자만 설정할 수 있습니다.');
+    const link = await this.prisma.guardian_student_link.findFirst({ where: { guardian_id: guardian.id, student_id: studentId } });
+    if (!link) throw new ForbiddenException('연결된 자녀가 아닙니다.');
+    const f = await this.flags();
+    await this.prisma.consent_grant.upsert({
+      where: { student_id_kind: { student_id: studentId, kind: 'recording_stt' } },
+      create: { student_id: studentId, guardian_id: guardian.id, kind: 'recording_stt', policy_version: f.policyVersion, ...(granted ? {} : { revoked_at: new Date() }) },
+      update: granted
+        ? { guardian_id: guardian.id, policy_version: f.policyVersion, granted_at: new Date(), revoked_at: null }
+        : { revoked_at: new Date() },
+    });
+    try {
+      await this.prisma.audit_log.create({
+        data: {
+          actor_id: guardian.id, actor_role: guardian.role,
+          action: granted ? 'guardian_consent_granted' : 'guardian_consent_revoked',
+          target_type: 'student', target_id: studentId,
+          summary: `상담 녹음·AI 요약(외부 STT) 보호자 동의 ${granted ? '설정' : '철회'} (${f.policyVersion})`,
+        },
+      });
+    } catch { /* 감사 기록 실패는 삼킨다 */ }
+    return { granted };
   }
 
   /** 동의/철회 — 양측 동의 성립 시에만 egress 시작. 철회는 즉시 중단+파기 마킹. */
@@ -101,9 +150,12 @@ export class MediaRecordingService {
     try {
       const started = await this.media.startRecording(`consult_${bookingId}`, { pathPrefix: 'consult-audio' });
       const expiresAt = new Date(Date.now() + f.retentionDays * 24 * 3600_000);
+      // 보호자 동의 스탬프(본부 결정) — 녹음 시점의 동의 상태를 원장에 고정(사후 철회와 무관한 증빙).
+      const { b } = await this.assertParticipant(user, bookingId);
+      const guardian = await this.guardianGranted(b.student_id!);
       await this.prisma.consult_recording.update({
         where: { booking_id: bookingId },
-        data: { status: 'recording', egress_id: started.recordingRef, expires_at: expiresAt },
+        data: { status: 'recording', egress_id: started.recordingRef, expires_at: expiresAt, consent_guardian_at: guardian.grantedAt },
       });
       return { status: 'recording', recordingStarted: true };
     } catch (e) {

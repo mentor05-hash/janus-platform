@@ -11,6 +11,11 @@ class ConsentDto {
   @IsBoolean() recording!: boolean;
 }
 
+class GuardianConsentDto {
+  @IsUUID() studentId!: string;
+  @IsBoolean() granted!: boolean;
+}
+
 /** R1 상담 녹음 — 동의(REST, 실사 차이① 보고분)·상태·egress webhook. */
 @Controller('media')
 export class MediaRecordingController {
@@ -26,6 +31,18 @@ export class MediaRecordingController {
   @Post('consent')
   consent(@Body() dto: ConsentDto, @CurrentUser() user: AuthUser) {
     return this.svc.consent(user, dto.bookingId, dto.recording);
+  }
+
+  /** GET /media/guardian-consent/:studentId — 자녀 녹음·AI 요약 동의 상태(학부모). */
+  @Get('guardian-consent/:studentId')
+  guardianStatus(@Param('studentId', ParseUUIDPipe) studentId: string, @CurrentUser() user: AuthUser) {
+    return this.svc.guardianConsentStatus(user, studentId);
+  }
+
+  /** POST /media/guardian-consent — 자녀 녹음·AI 요약(외부 STT) 동의 설정/철회(학부모·감사 기록). */
+  @Post('guardian-consent')
+  guardianSet(@Body() dto: GuardianConsentDto, @CurrentUser() user: AuthUser) {
+    return this.svc.setGuardianConsent(user, dto.studentId, dto.granted);
   }
 
   /** POST /media/egress-webhook — LiveKit webhook(서명 검증 필수·공개 엔드포인트). */

@@ -35,6 +35,9 @@ export function GuardianReportPage() {
   const [access, setAccess] = useState<{ showTrend: boolean; showPlacement: boolean } | null>(null);
   const [notes, setNotes] = useState<Note[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // 보호자 동의(본부 결정 2026-07-19) — 상담 녹음·AI 요약(외부 STT)은 동의 자녀에 한해 제공.
+  const [consent, setConsent] = useState<{ granted: boolean; grantedAt: string | null; retentionDays: number } | null>(null);
+  const [consentBusy, setConsentBusy] = useState(false);
 
   useEffect(() => {
     if (!user || user.role !== 'guardian') return;
@@ -57,6 +60,9 @@ export function GuardianReportPage() {
 
   useEffect(() => {
     if (!sel || !access?.showTrend) { setTrend(null); return; }
+    api.get<{ granted: boolean; grantedAt: string | null; retentionDays: number }>(`/media/guardian-consent/${encodeURIComponent(sel)}`)
+      .then(setConsent)
+      .catch(() => setConsent(null));
     api.get<Trend>(`/guardian/scores/trend?studentId=${encodeURIComponent(sel)}`)
       .then(setTrend).catch(() => setTrend(null));
   }, [sel, access?.showTrend]);
@@ -72,6 +78,17 @@ export function GuardianReportPage() {
         <Link to="/login" className="btn gold">로그인 →</Link>
       </div>
     );
+  }
+
+  async function toggleConsent(next: boolean) {
+    if (!sel || consentBusy) return;
+    if (!next && !window.confirm('동의를 철회하면 이후 상담의 AI 요약 리포트가 제공되지 않습니다(녹음 자체는 상담 당사자 동의 체계를 따릅니다). 철회할까요?')) return;
+    setConsentBusy(true);
+    try {
+      await api.post('/media/guardian-consent', { studentId: sel, granted: next });
+      const r = await api.get<{ granted: boolean; grantedAt: string | null; retentionDays: number }>(`/media/guardian-consent/${encodeURIComponent(sel)}`);
+      setConsent(r);
+    } catch { /* 실패 시 상태 유지 */ } finally { setConsentBusy(false); }
   }
 
   const a = report?.sections.attendance;
@@ -174,6 +191,26 @@ export function GuardianReportPage() {
       {!report && !err && children !== null && children.length > 0 && (
         <div style={{ color: 'var(--muted)', fontSize: 13 }}>리포트를 불러오는 중…</div>
       )}
+      {/* 상담 녹음·AI 요약 보호자 동의(본부 결정) — 미성년 음성의 외부 STT 처리는 동의 자녀 한정 */}
+      {consent !== null && (
+        <div className="card" style={{ marginTop: 16, padding: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 240 }}>
+              <b style={{ fontSize: 14.5 }}>🎙 상담 녹음·AI 요약 동의</b>
+              <div style={{ fontSize: 12.5, color: 'var(--muted,#5a6b83)', lineHeight: 1.6, marginTop: 4 }}>
+                동의하시면 자녀의 1:1 상담 음성이 요약 리포트 생성을 위해 녹음·문자화(외부 AI 처리 포함)됩니다.
+                영상은 저장되지 않으며, 음성 원본은 {consent.retentionDays}일 후 자동 파기됩니다. 언제든 철회할 수 있어요.
+                {consent.granted && consent.grantedAt && <> · 동의일 {new Date(consent.grantedAt).toLocaleDateString('ko-KR')}</>}
+              </div>
+            </div>
+            <button className={consent.granted ? 'btn ghost' : 'btn gold'} disabled={consentBusy} onClick={() => toggleConsent(!consent.granted)}
+              style={{ minWidth: 110 }}>
+              {consentBusy ? '처리 중…' : consent.granted ? '동의 철회' : '동의하기'}
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

@@ -59,7 +59,7 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
   const [archState, setArchState] = useState<'idle' | 'busy' | 'done'>('idle'); // 보드→채팅 기록 상태
   const [textBox, setTextBox] = useState<{ x: number; y: number; value: string } | null>(null); // 텍스트 입력 오버레이(논리좌표)
   // R1 상담 녹음 — 동의·상태(기능 플래그 OFF 면 UI 자체 비노출). 브리핑 §5 동의 UX.
-  const [rec, setRec] = useState<{ enabled: boolean; status: string; studentConsented: boolean; teacherConsented: boolean; retentionDays?: number } | null>(null);
+  const [rec, setRec] = useState<{ enabled: boolean; status: string; studentConsented: boolean; teacherConsented: boolean; retentionDays?: number; sttAllowed?: boolean } | null>(null);
   const loadRec = () => { if (LK_ON) api.get<typeof rec>(`/media/consent/${bookingId}`).then(setRec).catch(() => setRec(null)); };
   useEffect(() => { loadRec(); const t = window.setInterval(loadRec, 20_000); return () => window.clearInterval(t); }, [bookingId]); // eslint-disable-line react-hooks/exhaustive-deps
   async function setRecConsent(on: boolean) {
@@ -569,7 +569,7 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
                           <button className="btn ghost sm" style={{ marginLeft: 4 }} onClick={() => void setRecConsent(false)} title="녹음 철회 — 즉시 중단되고 이 세션 녹음분은 파기됩니다">철회</button>
                         </span>
                       : <button className="btn ghost sm" onClick={() => void setRecConsent(true)}
-                          title={`상담 요약 리포트 제공을 위해 음성만 녹음합니다(영상 아님). 보관 ${rec?.retentionDays ?? 30}일 후 자동 파기. 양측 모두 동의해야 시작됩니다.`}>
+                          title={`상담 요약 리포트 제공을 위해 음성만 녹음합니다(영상 아님). 보관 ${rec?.retentionDays ?? 30}일 후 자동 파기. 양측 모두 동의해야 시작됩니다.${rec?.sttAllowed === false ? ' ⚠️ 보호자 동의 전 — 녹음은 되지만 AI 요약 리포트는 제공되지 않아요(학부모 리포트 화면에서 동의 가능).' : ''}`}>
                           {rec.studentConsented && rec.teacherConsented ? '⏺ 녹음 대기' : '⏺ 녹음 동의'}
                         </button>)}
                     <button className="btn ghost sm" onClick={() => void lk.toggleCam()}>{lk.camOn ? '📷 켜짐' : '📷 끔'}</button>
