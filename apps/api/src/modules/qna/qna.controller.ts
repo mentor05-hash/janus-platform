@@ -12,6 +12,7 @@ import {
 import { Type } from 'class-transformer';
 import { IsBoolean, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { AccountRole } from '../../config/enums';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { QnaService } from './qna.service';
@@ -67,7 +68,7 @@ export class QnaController {
   @Get('pricing')
   @Roles('student')
   pricing(@CurrentUser() user: AuthUser) {
-    return this.qna.pricingInfo(user.centerId ?? null);
+    return this.qna.pricingInfo(user.centerId ?? null, user.role === AccountRole.STUDENT ? user.id : undefined);
   }
 
   @Get('posts')

@@ -57,10 +57,10 @@ export function StudentQnaPage() {
   const set = (k: keyof typeof f, v: string) => setF((p) => ({ ...p, [k]: v }));
   // 난이도별 답변블록 시간(정책) + 질문 요금(정책)
   const [durPol, setDurPol] = useState<Record<string, number> | null>(null);
-  const [fee, setFee] = useState<{ itemFee: number; generalFee: number } | null>(null);
+  const [fee, setFee] = useState<{ itemFee: number; generalFee: number; freeQuota?: { quota: number; used: number; remaining: number; resetsAt: string } | null } | null>(null);
   useEffect(() => {
     api.get<Record<string, number>>('/bookings/question-duration/policy').then(setDurPol).catch(() => { /* 기본값 */ });
-    api.get<{ itemFee: number; generalFee: number }>('/qna/pricing').then(setFee).catch(() => { /* 요금 조회 실패 */ });
+    api.get<{ itemFee: number; generalFee: number; freeQuota?: { quota: number; used: number; remaining: number; resetsAt: string } | null }>('/qna/pricing').then(setFee).catch(() => { /* 요금 조회 실패 */ });
   }, []);
   const tierOf = (d: string) => (d === '하' ? '기초' : d === '상' ? '심화' : '중급');
   const blockMin = durPol?.[tierOf(f.difficulty)] ?? ({ 하: 10, 중: 20, 상: 30 } as Record<string, number>)[f.difficulty] ?? 20;
@@ -132,9 +132,12 @@ export function StudentQnaPage() {
     setError(''); setMsg('');
     if (!f.body.trim()) { setError('질문 내용을 입력하세요.'); return; }
     try {
-      await api.post('/qna/posts', { subject: f.subject, qType: f.qType, scope: f.scope, difficulty: f.difficulty, body: f.body, attachments: atts });
-      setMsg('질문이 등록되었습니다(건당 크레딧 차감).');
+      const r = await api.post<{ freeUsed?: boolean; freeRemaining?: number; chargedCredits?: number }>('/qna/posts', { subject: f.subject, qType: f.qType, scope: f.scope, difficulty: f.difficulty, body: f.body, attachments: atts });
+      setMsg(r.freeUsed
+        ? `질문이 등록되었습니다 — 무료 질문권 사용(이번 주 ${r.freeRemaining ?? 0}건 남음).`
+        : `질문이 등록되었습니다(${(r.chargedCredits ?? 0).toLocaleString()} 크레딧 차감).`);
       setF({ ...f, body: '' }); setAtts([]); setOpen(false); load();
+      api.get<{ itemFee: number; generalFee: number; freeQuota?: { quota: number; used: number; remaining: number; resetsAt: string } | null }>('/qna/pricing').then(setFee).catch(() => { /* noop */ });
     } catch (e) {
       setError(e instanceof ApiError ? (e.status === 402 ? '크레딧이 부족합니다.' : e.message) : '등록 실패');
     }
@@ -160,7 +163,9 @@ export function StudentQnaPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--teal-50,#EEF4FB)', borderRadius: 8, padding: '8px 12px', marginTop: 8 }}>
             <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--teal)' }}>답변블록 약 {blockMin}분</span>
             <span style={{ fontSize: 12.5, color: 'var(--muted)' }}>
-              · 건당 {(f.qType === 'item' ? fee?.itemFee : fee?.generalFee)?.toLocaleString() ?? '—'} 크레딧
+              {fee?.freeQuota && fee.freeQuota.remaining > 0
+                ? <>· <b style={{ color: 'var(--teal)' }}>이번 주 무료 질문 {fee.freeQuota.remaining}건 남음</b>(소진 후 건당 {(f.qType === 'item' ? fee?.itemFee : fee?.generalFee)?.toLocaleString() ?? '—'} 크레딧)</>
+                : <>· 건당 {(f.qType === 'item' ? fee?.itemFee : fee?.generalFee)?.toLocaleString() ?? '—'} 크레딧{fee?.freeQuota && fee.freeQuota.quota > 0 ? ' · 이번 주 무료 질문권 소진' : ''}</>}
               {' · '}난이도가 높을수록 답변블록이 길어져요.
             </span>
           </div>

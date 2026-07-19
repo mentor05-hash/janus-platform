@@ -81,13 +81,45 @@ export class QnaService {
     @Optional() private readonly realtime?: RealtimeGateway,
   ) {}
 
-  /** 질문 요금 안내(학생) — 문항형/일반형 건당 크레딧. 센터별 정책 반영. */
-  async pricingInfo(centerId: string | null) {
+  /** 질문 요금 안내(학생) — 문항형/일반형 건당 크레딧 + 주간 무료 질문권 잔여. 센터별 정책 반영. */
+  async pricingInfo(centerId: string | null, studentId?: string) {
     const [item, general] = await Promise.all([
       this.pricing.quoteBoard('item', centerId),
       this.pricing.quoteBoard('general', centerId),
     ]);
-    return { itemFee: item.credits, generalFee: general.credits };
+    const free = studentId ? await this.freeQuotaStatus(studentId) : null;
+    return { itemFee: item.credits, generalFee: general.credits, freeQuota: free };
+  }
+
+  // ── P1(큐브 벤치마크): 주간 무료 질문권 — 구독 등급 번들. 수치는 system_setting(관리자 조정) ──
+  private static readonly FREE_QUOTA_KEY = 'qa_free_quota';
+  private static readonly FREE_QUOTA_DEFAULT = { premiumWeekly: 3, defaultWeekly: 0 }; // N23~25 확정 시 조정
+
+  /** 이번 주(KST 월요일 00:00) 시작 시각. */
+  private weekStartKst(): Date {
+    const kst = new Date(Date.now() + 9 * 3600_000);
+    const day = (kst.getUTCDay() + 6) % 7; // 월=0
+    const monday = Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate() - day);
+    return new Date(monday - 9 * 3600_000);
+  }
+
+  /** 주간 무료 질문권 상태 — 프리미엄 등급(tier≥3·이름 폴백, realtime 게이팅과 동일 규칙) 기준. */
+  async freeQuotaStatus(studentId: string): Promise<{ quota: number; used: number; remaining: number; resetsAt: string }> {
+    const row = await this.prisma.system_setting.findUnique({ where: { key: QnaService.FREE_QUOTA_KEY } });
+    const cfg = { ...QnaService.FREE_QUOTA_DEFAULT, ...((row?.value as object) ?? {}) } as { premiumWeekly: number; defaultWeekly: number };
+    const sp = await this.prisma.student_profile.findUnique({
+      where: { account_id: studentId },
+      select: { membership_grade: { select: { name: true, tier: true } } },
+    });
+    const g = sp?.membership_grade;
+    const premium = (g?.tier ?? 0) >= 3 || /premium|프리미엄/i.test(g?.name ?? '');
+    const quota = Math.max(0, premium ? cfg.premiumWeekly : cfg.defaultWeekly);
+    const weekStart = this.weekStartKst();
+    const used = quota > 0
+      ? await this.prisma.qna_post.count({ where: { student_id: studentId, free_used: true, created_at: { gte: weekStart } } })
+      : 0;
+    const resetsAt = new Date(weekStart.getTime() + 7 * 24 * 3600_000).toISOString();
+    return { quota, used, remaining: Math.max(0, quota - used), resetsAt };
   }
 
   /** 질문 등록(학생) — 게시판 건당 과금. 부족 시 결제요청+402. */
@@ -114,7 +146,10 @@ export class QnaService {
       dto.qType ?? 'general',
       sp.center_id,
     );
-    const credits = quote.credits;
+    // P1: 주간 무료 질문권 먼저 소진, 그다음 크레딧 과금. (동시 등록 레이스는 소폭 초과 허용 — 쿼터는 혜택이지 하드캡 아님)
+    const freeQ = await this.freeQuotaStatus(student.id);
+    const useFree = freeQ.remaining > 0;
+    const credits = useFree ? 0 : quote.credits;
 
     try {
       const post = await this.prisma.$transaction(async (tx) => {
@@ -128,6 +163,7 @@ export class QnaService {
               dto.scope === 'assigned' ? dto.assignedTeacherId! : null,
             body: dto.body,
             status: 'open',
+            free_used: useFree,
             attachments: (dto.attachments ?? []) as unknown as Prisma.InputJsonValue,
           },
         });
@@ -153,6 +189,8 @@ export class QnaService {
         scope: post.scope,
         status: post.status,
         chargedCredits: credits,
+        freeUsed: useFree,
+        freeRemaining: useFree ? freeQ.remaining - 1 : freeQ.remaining,
       };
     } catch (e) {
       if (e instanceof ShortfallError) {
