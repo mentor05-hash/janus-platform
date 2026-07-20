@@ -63,6 +63,7 @@ const AdminReversePage = lazy(() => import('./pages/AdminReversePage').then((m) 
 const TeacherDashboardPage = lazy(() => import('./pages/TeacherDashboardPage').then((m) => ({ default: m.TeacherDashboardPage })));
 import { StudentLayout } from './components/StudentLayout';
 import { GuardianLayout } from './components/GuardianLayout';
+import { GuardianPayPage } from './pages/GuardianPayPage';
 const StudentBookingsPage = lazy(() => import('./pages/StudentBookingsPage').then((m) => ({ default: m.StudentBookingsPage })));
 const StudentSearchPage = lazy(() => import('./pages/StudentSearchPage').then((m) => ({ default: m.StudentSearchPage })));
 const GlobalSearchPage = lazy(() => import('./pages/GlobalSearchPage').then((m) => ({ default: m.GlobalSearchPage })));
@@ -144,6 +145,7 @@ export function App() {
       >
         <Route index element={<Navigate to="report" replace />} />
         <Route path="report" element={<GuardianReportPage />} />
+        <Route path="pay" element={<GuardianPayPage />} />
         <Route path="community" element={<CommunityBoardPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
       </Route>
