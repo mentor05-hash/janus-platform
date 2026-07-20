@@ -321,7 +321,7 @@ export function RoomChatPanel({ session: rs, title, onClose }: { bookingId: stri
               <input ref={docRef} type="file" hidden onChange={onDoc} />
               <button onClick={() => docRef.current?.click()} title="파일 첨부(PDF·문서)" aria-label="파일 첨부" style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer' }}>📎</button>
               <button onClick={toggleRec} title={recOn ? '녹음 중지·전송' : '음성 메시지'} aria-label="음성 메시지"
-                style={{ border: 'none', background: recOn ? 'var(--danger,#dc2626)' : 'none', borderRadius: 999, fontSize: recOn ? 14 : 20, cursor: 'pointer', padding: recOn ? '4px 10px' : 0, color: '#fff' }}>
+                style={{ border: 'none', background: recOn ? 'var(--danger,#dc2626)' : 'none', borderRadius: 999, fontSize: recOn ? 13 : 20, fontWeight: recOn ? 700 : 400, cursor: 'pointer', padding: recOn ? '6px 12px' : 0, color: '#fff', whiteSpace: 'nowrap', flex: 'none' }}>
                 {recOn ? '⏺ 전송' : '🎤'}
               </button>
               <input className="input" value={text} onChange={(e) => onType(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) send(); }} placeholder={recOn ? '녹음 중… 버튼을 다시 누르면 전송돼요' : reply ? '답장 입력…' : '메시지 입력…'} aria-label="메시지 입력" />
