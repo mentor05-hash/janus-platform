@@ -394,6 +394,7 @@ export function StudentSearchPage() {
 
   const [note, setNote] = useState('');
   const [favIds, setFavIds] = useState<Set<string>>(new Set());
+  const [favOnly, setFavOnly] = useState(false);
   async function fav(t: Teacher) {
     setNote('');
     const on = favIds.has(t.id);
@@ -419,7 +420,9 @@ export function StudentSearchPage() {
   if (picked && phase === 'book') return <BookingForm teacher={picked} initialMode={modeFilter ?? undefined} consultType={consultType ?? undefined} initialSubType={subType ?? undefined} onBack={() => window.history.back()} onDone={() => { setPicked(null); setPhase('detail'); }} />;
   if (picked) return <TeacherDetailView teacher={picked} onBook={openBook} onBack={() => window.history.back()} />;
 
-  const rows = (teachers ?? []).filter((t) => !q.trim() || t.name.toLowerCase().includes(q.toLowerCase()) || t.subjects.join(',').includes(q));
+  const rows = (teachers ?? [])
+    .filter((t) => !favOnly || favIds.has(t.id))
+    .filter((t) => !q.trim() || t.name.toLowerCase().includes(q.toLowerCase()) || t.subjects.join(',').includes(q));
   return (
     <div>
       <PageHeader title="선생님 찾기" sub={credit ? `보유 크레딧 ${credit.total.toLocaleString()}` : '선생님을 고르고 상담을 신청하세요.'} />
@@ -516,6 +519,9 @@ export function StudentSearchPage() {
         <div style={{ flex: '1 1 220px', minWidth: 180 }}><TextField label="검색" placeholder="이름·과목" value={q} onChange={(e) => setQ(e.target.value)} /></div>
         <div style={{ minWidth: 140 }}><SelectField label="카테고리" value={category} onChange={(e) => setCategory(e.target.value)} options={['전체', ...cats.map((c) => c.name)].map((c) => ({ value: c, label: c }))} /></div>
         <div style={{ minWidth: 160 }}><SelectField label="정렬" value={sort} onChange={(e) => setSort(e.target.value)} options={[{ value: 'grade', label: '기본(등급)' }, { value: 'rating', label: '만족도순' }, { value: 'consult', label: '상담횟수순' }, { value: 'question', label: '질문답변순' }, { value: 'offline', label: '오프라인 가능' }]} /></div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: favOnly ? '#A97D24' : 'var(--ink-soft,#5a6472)', cursor: 'pointer', padding: '9px 0' }}>
+          <input type="checkbox" checked={favOnly} onChange={(e) => setFavOnly(e.target.checked)} /> ⭐ 찜한 선생님만
+        </label>
       </div>
       {note && <p style={{ color: 'var(--chip-done)', fontSize: 13 }}>{note}</p>}
 
@@ -551,7 +557,7 @@ export function StudentSearchPage() {
         ))}
       </Card>
 
-      {teachers === null ? <SkeletonList rows={4} cols={2} /> : rows.length === 0 ? <Card><EmptyState>선생님이 없어요.</EmptyState></Card> : (
+      {teachers === null ? <SkeletonList rows={4} cols={2} /> : rows.length === 0 ? <Card><EmptyState>{favOnly ? '아직 찜한 선생님이 없어요 — 목록에서 ☆ 찜을 눌러 추가해 보세요.' : '선생님이 없어요.'}</EmptyState></Card> : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
           {rows.map((t) => (
             <Card key={t.id}>
