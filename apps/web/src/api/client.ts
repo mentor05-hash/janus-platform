@@ -78,6 +78,12 @@ async function tryRefresh(): Promise<boolean> {
     return true;
   } catch {
     tokens.clear();
+    // 세션 완전 만료 — 페이지마다 'Unauthorized' 를 흩뿌리는 대신 로그인으로 안내(1회).
+    try {
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+        window.location.assign('/login');
+      }
+    } catch { /* 무시 */ }
     return false;
   }
 }

@@ -219,12 +219,13 @@ export function BookingsScreen({ myId }: { myId?: string }) {
       ) : (
         shown.map((b) => {
           const st = STATUS[b.status] ?? { label: b.status, bg: C.mutedChipBg, fg: C.mutedChip };
+          const isToday = !!b.start && new Date(b.start).toDateString() === new Date().toDateString() && ['new', 'confirmed'].includes(b.status);
           return (
-            <View key={b.id} style={[ui.card, { marginBottom: 8 }]}>
+            <View key={b.id} style={[ui.card, { marginBottom: 8 }, isToday && { borderWidth: 2, borderColor: C.teal, backgroundColor: C.teal50 }]}>
               <TouchableOpacity onPress={() => setOpen(open === b.id ? null : b.id)} activeOpacity={0.7}>
                 <View style={styles.row}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.name}>{tName(b.teacherId)}{b.direction === 'reverse' ? ' · 역상담' : ''}</Text>
+                    <Text style={styles.name}>{isToday ? '📅 오늘 · ' : ''}{tName(b.teacherId)}{b.direction === 'reverse' ? ' · 역상담' : ''}</Text>
                     <Text style={styles.sub}>{KST(b.start)} · {b.consultType ?? ''} · {b.mode} · {b.chargedCredits.toLocaleString()}크레딧</Text>
                   </View>
                   <View style={[styles.chip, { backgroundColor: st.bg }]}><Text style={[styles.chipT, { color: st.fg }]}>{st.label}</Text></View>

@@ -272,10 +272,13 @@ export function StudentBookingsPage() {
       {bookings === null ? <Spinner /> : mine.length === 0 ? (
         <Card><EmptyState>예약 내역이 없어요.</EmptyState></Card>
       ) : (
-        mine.map((b) => (
-          <Card key={b.id} style={{ marginBottom: 8 }}>
+        mine.map((b) => {
+          const isToday = !!b.start && new Date(b.start).toDateString() === new Date().toDateString() && ['new', 'confirmed'].includes(b.status);
+          return (
+          <Card key={b.id} style={{ marginBottom: 8, ...(isToday ? { border: '2px solid var(--teal)', background: 'var(--teal-50,#EEF4FB)' } : {}) }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <div>
+                {isToday && <Badge kind="confirmed">📅 오늘</Badge>}{' '}
                 <b>{tName(b.teacherId)}</b>
                 {b.direction === 'reverse' && <Badge kind="soft">역상담</Badge>}
                 <div style={{ fontSize: 13, color: 'var(--muted)' }}>{KST(b.start)} · {b.consultType ?? ''} · {b.mode} · {b.chargedCredits.toLocaleString()}크레딧</div>
@@ -304,7 +307,8 @@ export function StudentBookingsPage() {
             {rescheduling === b.id && <RescheduleBox booking={b} onDone={() => { setRescheduling(null); setMsg('시간이 변경되었습니다. 선생님 재확인 후 확정됩니다.'); load(); }} />}
             {open === b.id && <Detail bookingId={b.id} status={b.status} />}
           </Card>
-        ))
+          );
+        })
       )}
       {chatId && user && <SessionChatPanel bookingId={chatId} myId={user.id} title="상담 채팅" onClose={() => { setChatId(null); loadUnread(); }} />}
       {wbId && <SessionWhiteboardPanel bookingId={wbId} title="공유 화이트보드" onClose={() => setWbId(null)} />}
