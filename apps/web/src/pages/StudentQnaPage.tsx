@@ -2,6 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { PageHeader, Card, Button, Badge, ErrorText, Spinner, EmptyState, TextareaField, SelectField } from '../components/ui';
 import { AuthImage } from '../components/AuthImage';
+import { track } from '../utils/track';
+
+// P3 — 유사 질문 제안
+type SimItem = { id: string; subject: string | null; similarity: number; bodyPreview: string; answerPreview: string };
+type SimDetail = { id: string; subject: string | null; body: string; createdAt: string; answers: { body: string; accepted: boolean; teacherName: string }[] };
 
 type Attachment = { id: string; name: string; type?: string };
 type Followup = { id: string; byTeacher: boolean; body: string; createdAt: string };
@@ -150,16 +155,62 @@ export function StudentQnaPage() {
     if (!f.body.trim()) { setError('질문 내용을 입력하세요.'); return; }
     if (f.scope === 'assigned' && !assignedTeacherId) { setError('지정 질문은 선생님을 선택해야 합니다.'); return; }
     try {
-      const r = await api.post<{ freeUsed?: boolean; freeRemaining?: number; chargedCredits?: number; moderationWarning?: string | null }>('/qna/posts', { subject: f.subject, qType: f.qType, scope: f.scope, difficulty: f.difficulty, body: f.body, attachments: atts, ...(f.scope === 'assigned' ? { assignedTeacherId } : {}) });
-      const base = r.freeUsed
-        ? `질문이 등록되었습니다 — 무료 질문권 사용(이번 주 ${r.freeRemaining ?? 0}건 남음).`
-        : `질문이 등록되었습니다(${(r.chargedCredits ?? 0).toLocaleString()} 크레딧 차감).`;
+      // P2: 등록은 무료(AI 1층) — 과금은 [선생님 답변 받기] 시점.
+      const r = await api.post<{ moderationWarning?: string | null }>('/qna/posts', { subject: f.subject, qType: f.qType, scope: f.scope, difficulty: f.difficulty, body: f.body, attachments: atts, ...(f.scope === 'assigned' ? { assignedTeacherId } : {}) });
+      const base = '질문이 등록됐어요 — AI 풀이가 곧 도착합니다. 부족하면 [선생님 답변 받기]를 눌러주세요.';
       setMsg(r.moderationWarning ? `${base} ⚠️ ${r.moderationWarning}` : base);
-      setF({ ...f, body: '' }); setAtts([]); setOpen(false); load();
-      api.get<{ itemFee: number; generalFee: number; freeQuota?: { quota: number; used: number; remaining: number; resetsAt: string } | null; expectedFirstReplyMin?: number | null }>('/qna/pricing').then(setFee).catch(() => { /* noop */ });
+      setF({ ...f, body: '' }); setAtts([]); setSimilar([]); setOpen(false); load();
     } catch (e) {
-      setError(e instanceof ApiError ? (e.status === 402 ? '크레딧이 부족합니다.' : e.message) : '등록 실패');
+      setError(e instanceof ApiError ? e.message : '등록 실패');
     }
+  }
+
+  // P2 — AI 1층 퍼널 액션
+  async function resolveAi(postId: string) {
+    setError(''); setMsg('');
+    try {
+      await api.post(`/qna/posts/${postId}/resolve-ai`, {});
+      track('qna_funnel', 'cta', 'ai_enough', { ev: 'ai_enough', postId });
+      setMsg('AI 풀이로 해결했어요 — 무료 질문권·크레딧이 사용되지 않았습니다.'); load();
+    } catch (e) { setError(e instanceof ApiError ? e.message : '처리 실패'); }
+  }
+  async function requestTeacher(postId: string) {
+    setError(''); setMsg('');
+    try {
+      const r = await api.post<{ freeUsed?: boolean; freeRemaining?: number; chargedCredits?: number }>(`/qna/posts/${postId}/request-teacher`, {});
+      track('qna_funnel', 'cta', 'human_requested', { ev: 'human_requested', postId });
+      setMsg(r.freeUsed
+        ? `선생님 답변을 요청했어요 — 무료 질문권 사용(이번 주 ${r.freeRemaining ?? 0}건 남음).`
+        : `선생님 답변을 요청했어요(${(r.chargedCredits ?? 0).toLocaleString()} 크레딧 차감).`);
+      load();
+      api.get<typeof fee>('/qna/pricing').then((v) => setFee(v)).catch(() => { /* noop */ });
+    } catch (e) {
+      setError(e instanceof ApiError ? (e.status === 402 ? '크레딧이 부족합니다 — 결제요청이 생성되었어요.' : e.message) : '요청 실패');
+    }
+  }
+
+  // P3 — 작성 중 유사 질문 제안(디바운스)
+  const [similar, setSimilar] = useState<SimItem[]>([]);
+  const [simView, setSimView] = useState<SimDetail | null>(null);
+  const simTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    if (simTimer.current) clearTimeout(simTimer.current);
+    const body = f.body.trim();
+    if (body.length < 12) { setSimilar([]); return; }
+    simTimer.current = setTimeout(() => {
+      api.post<{ items: SimItem[] }>('/qna/similar', { subject: f.subject, body })
+        .then((r) => { setSimilar(r.items ?? []); if ((r.items ?? []).length) track('qna_funnel', 'view', undefined, { ev: 'similar_shown', n: r.items.length }); })
+        .catch(() => setSimilar([]));
+    }, 700);
+    return () => { if (simTimer.current) clearTimeout(simTimer.current); };
+  }, [f.body, f.subject, open]); // eslint-disable-line react-hooks/exhaustive-deps
+  async function openSimilar(id: string) {
+    try {
+      const d = await api.get<SimDetail>(`/qna/similar/${id}`);
+      setSimView(d);
+      track('qna_funnel', 'view', undefined, { ev: 'similar_opened', postId: id });
+    } catch { /* 무시 */ }
   }
 
   return (
@@ -210,6 +261,22 @@ export function StudentQnaPage() {
           </div>
           <TextareaField label="질문 내용" rows={4} value={f.body} onChange={(e) => set('body', e.target.value)} placeholder="예: 미적분 30번, 합성함수 미분에서 왜 이렇게 전개되나요?" />
 
+          {/* P3 — 비슷한 해결 질문 무료 열람 제안 */}
+          {similar.length > 0 && (
+            <div style={{ border: '1px solid var(--teal)', background: 'var(--teal-50,#EEF4FB)', borderRadius: 10, padding: '10px 12px', marginBottom: 10 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--teal)', marginBottom: 6 }}>💡 비슷한 질문이 이미 해결됐어요 — 무료로 답변을 볼 수 있어요</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {similar.map((s) => (
+                  <button key={s.id} type="button" onClick={() => openSimilar(s.id)}
+                    style={{ textAlign: 'left', border: '1px solid var(--line)', background: 'var(--surface)', borderRadius: 8, padding: '8px 10px', cursor: 'pointer' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.subject ? `[${s.subject}] ` : ''}{s.bodyPreview}…</div>
+                    {s.answerPreview && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>답변: {s.answerPreview}…</div>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* 이미지 첨부 (문제 사진) — 최대 3장, 한 문항만 */}
           <label className="label" style={{ marginTop: 4 }}>문제 이미지 (최대 {MAX_IMG}장)</label>
           <p style={{ fontSize: 12, color: 'var(--chip-confirmed)', background: 'var(--chip-confirmed-bg,#FAF1E2)', borderRadius: 8, padding: '7px 10px', margin: '0 0 8px' }}>
@@ -243,7 +310,9 @@ export function StudentQnaPage() {
                 <Badge kind="soft">{p.subject ?? '질문'}</Badge>
                 <Badge kind="soft">{p.scope === 'open' ? '공개' : '지정'}</Badge>
                 {p.difficulty && <Badge kind="soft">난이도 {p.difficulty}</Badge>}
-                <Badge kind={p.status === 'resolved' ? 'done' : (p.answers?.length ?? 0) > 0 ? 'confirmed' : 'new'}>{p.status === 'resolved' ? '채택완료' : (p.answers?.length ?? 0) > 0 ? '답변옴' : '답변대기'}</Badge>
+                <Badge kind={p.status === 'resolved' ? 'done' : p.status === 'ai_pending' ? 'soft' : (p.answers?.length ?? 0) > 0 ? 'confirmed' : 'new'}>
+                  {p.status === 'resolved' ? '채택완료' : p.status === 'ai_pending' ? '✦ AI 즉답' : (p.answers?.length ?? 0) > 0 ? '답변옴' : '답변대기'}
+                </Badge>
               </div>
               <span style={{ fontSize: 12, color: 'var(--muted)' }}>{new Date(p.created_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}</span>
             </div>
@@ -253,11 +322,23 @@ export function StudentQnaPage() {
                 {p.attachments!.filter(isImage).map((a) => <AuthImage key={a.id} fileId={a.id} alt={a.name} size={92} />)}
               </div>
             )}
-            {p.aiDraft && (
+            {(p.aiDraft || p.status === 'ai_pending') && (
               <div style={{ background: 'var(--teal-50,#EEF4FB)', border: '1px solid var(--input-border)', borderRadius: 8, padding: 10, marginBottom: 8 }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--teal)', marginBottom: 4 }}>✦ AI 초안 <span style={{ fontWeight: 500, color: 'var(--muted)' }}>· 참고용, 선생님 검토 후 확정</span></div>
-                <div style={{ fontSize: 13.5, whiteSpace: 'pre-wrap' }}>{p.aiDraft}</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>AI가 생성한 초안입니다 — 심리·건강 관련은 전문가 상담을 권합니다.</div>
+                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--teal)', marginBottom: 4 }}>✦ AI 풀이 <span style={{ fontWeight: 500, color: 'var(--muted)' }}>· 참고용 무료 즉답</span></div>
+                {p.aiDraft
+                  ? <div style={{ fontSize: 13.5, whiteSpace: 'pre-wrap' }}>{p.aiDraft}</div>
+                  : <div style={{ fontSize: 13, color: 'var(--muted)' }}>AI 풀이를 만드는 중이에요… 잠시 후 새로고침해 주세요.</div>}
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>AI가 생성한 풀이입니다 — 심리·건강 관련은 전문가 상담을 권합니다.</div>
+                {/* P2 퍼널: 충분하면 무료 종료, 부족하면 이 시점에 무료질문권/크레딧으로 사람 답변 */}
+                {p.status === 'ai_pending' && (
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <Button size="sm" onClick={() => requestTeacher(p.id)}>👩‍🏫 선생님 답변 받기{fee?.freeQuota && fee.freeQuota.remaining > 0 ? ` (무료 ${fee.freeQuota.remaining}건 남음)` : fee ? ` (${(p.q_type === 'item' ? fee.itemFee : fee.generalFee).toLocaleString()} 크레딧)` : ''}</Button>
+                    <button type="button" onClick={() => resolveAi(p.id)}
+                      style={{ fontSize: 12.5, border: '1px solid var(--input-border)', background: 'var(--surface)', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', color: 'var(--muted)' }}>
+                      충분해요 — 해결로 표시
+                    </button>
+                  </div>
+                )}
               </div>
             )}
             {(p.answers?.length ?? 0) > 0 && (
@@ -323,6 +404,29 @@ export function StudentQnaPage() {
             </div>
           ))}
         </Card>
+      )}
+
+      {/* P3 — 유사 질문 익명 열람 모달 */}
+      {simView && (
+        <div onClick={() => setSimView(null)} style={{ position: 'fixed', inset: 0, zIndex: 960, background: 'rgba(8,16,20,0.5)', display: 'grid', placeItems: 'center', padding: 16 }}>
+          <div onClick={(e) => e.stopPropagation()} className="card" style={{ width: '100%', maxWidth: 560, maxHeight: '80vh', overflowY: 'auto', padding: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <b style={{ fontSize: 15 }}>💡 비슷한 질문의 답변 (무료 열람)</b>
+              <button onClick={() => setSimView(null)} aria-label="닫기" style={{ border: 'none', background: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--muted)' }}>✕</button>
+            </div>
+            <div style={{ background: 'var(--fill,#f4f7fb)', borderRadius: 8, padding: 10, marginBottom: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', marginBottom: 4 }}>{simView.subject ? `[${simView.subject}] ` : ''}질문 (익명)</div>
+              <div style={{ fontSize: 13.5, whiteSpace: 'pre-wrap' }}>{simView.body}</div>
+            </div>
+            {simView.answers.map((a, i) => (
+              <div key={i} style={{ border: '1px solid var(--line)', borderRadius: 8, padding: 10, marginBottom: 8 }}>
+                <b style={{ fontSize: 12.5 }}>{a.teacherName} 선생님 {a.accepted && <Badge kind="done">채택</Badge>}</b>
+                <div style={{ fontSize: 13.5, whiteSpace: 'pre-wrap', marginTop: 4 }}>{a.body}</div>
+              </div>
+            ))}
+            <p style={{ fontSize: 12, color: 'var(--muted)', margin: '8px 0 0' }}>이 답변으로 부족하면 작성 중인 질문을 그대로 등록하세요 — AI 풀이가 먼저 무료로 제공됩니다.</p>
+          </div>
+        </div>
       )}
     </div>
   );

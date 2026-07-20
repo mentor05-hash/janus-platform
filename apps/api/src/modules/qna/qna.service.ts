@@ -91,7 +91,7 @@ export class QnaService {
     const free = studentId ? await this.freeQuotaStatus(studentId) : null;
     // C3 응답 예상 시간 — 최근 30일 전체 풀 평균 첫응답(분). 데이터 없으면 null(표시 생략).
     const rows = await this.prisma.$queryRaw<Array<{ avg_min: number | null }>>`
-      SELECT avg(EXTRACT(EPOCH FROM (first_reply_at - created_at)) / 60) AS avg_min
+      SELECT avg(EXTRACT(EPOCH FROM (first_reply_at - COALESCE(escalated_at, created_at))) / 60) AS avg_min
       FROM qna_post WHERE first_reply_at IS NOT NULL AND created_at > now() - interval '30 days'`;
     const expectedFirstReplyMin = rows[0]?.avg_min != null ? Math.max(1, Math.round(Number(rows[0].avg_min))) : null;
     return { itemFee: item.credits, generalFee: general.credits, freeQuota: free, expectedFirstReplyMin };
@@ -165,63 +165,71 @@ export class QnaService {
     });
     if (!sp) throw new NotFoundException('학생 프로필이 없습니다.');
 
-    const quote = await this.pricing.quoteBoard(
-      dto.qType ?? 'general',
-      sp.center_id,
-    );
-    // P1: 주간 무료 질문권 먼저 소진, 그다음 크레딧 과금. (동시 등록 레이스는 소폭 초과 허용 — 쿼터는 혜택이지 하드캡 아님)
+    // P2(AI 즉답 1층): 등록은 무료 — AI 초안이 먼저 제공되고, 과금·선생님 노출은
+    // 학생이 [선생님 답변 받기](escalate) 를 눌렀을 때 일어난다(자연 과금 퍼널 §1-4 동형).
+    const post = await this.prisma.qna_post.create({
+      data: {
+        student_id: student.id,
+        subject: dto.subject ?? null,
+        difficulty: dto.difficulty ?? null,
+        scope: dto.scope,
+        assigned_teacher_id:
+          dto.scope === 'assigned' ? dto.assignedTeacherId! : null,
+        body: dto.body,
+        status: 'ai_pending',
+        free_used: false,
+        attachments: (dto.attachments ?? []) as unknown as Prisma.InputJsonValue,
+      },
+    });
+    // Q3: 질문 등록 즉시 AI 1차 초안 자동 생성(비동기·비용상한·실패 무해).
+    void this.generateAiDraft(post.id, { subject: dto.subject ?? null, difficulty: dto.difficulty ?? null, body: dto.body });
+    const moderationWarning = await this.moderate(student, 'qna_post', post.id, dto.body);
+    const freeQ = await this.freeQuotaStatus(student.id);
+    return {
+      id: post.id,
+      scope: post.scope,
+      status: post.status,
+      chargedCredits: 0,
+      freeUsed: false,
+      freeRemaining: freeQ.remaining,
+      moderationWarning,
+    };
+  }
+
+  /** P2 — [선생님 답변 받기]: 이 시점에 무료질문권/크레딧을 소진하고 선생님에게 노출(open). */
+  async escalateToHuman(student: AuthUser, postId: string) {
+    const post = await this.prisma.qna_post.findUnique({ where: { id: postId } });
+    if (!post || post.student_id !== student.id) throw new NotFoundException('질문을 찾을 수 없습니다.');
+    if (post.status !== 'ai_pending') throw new BadRequestException('이미 선생님 답변이 진행 중이거나 종료된 질문입니다.');
+    const sp = await this.prisma.student_profile.findUnique({ where: { account_id: student.id } });
+    if (!sp) throw new NotFoundException('학생 프로필이 없습니다.');
+    const quote = await this.pricing.quoteBoard('general', sp.center_id);
+    // P1: 주간 무료 질문권 먼저 소진, 그다음 크레딧 과금.
     const freeQ = await this.freeQuotaStatus(student.id);
     const useFree = freeQ.remaining > 0;
     const credits = useFree ? 0 : quote.credits;
-
     try {
-      const post = await this.prisma.$transaction(async (tx) => {
-        const p = await tx.qna_post.create({
-          data: {
-            student_id: student.id,
-            subject: dto.subject ?? null,
-            difficulty: dto.difficulty ?? null,
-            scope: dto.scope,
-            assigned_teacher_id:
-              dto.scope === 'assigned' ? dto.assignedTeacherId! : null,
-            body: dto.body,
-            status: 'open',
-            free_used: useFree,
-            attachments: (dto.attachments ?? []) as unknown as Prisma.InputJsonValue,
-          },
+      await this.prisma.$transaction(async (tx) => {
+        const upd = await tx.qna_post.updateMany({
+          where: { id: postId, status: 'ai_pending' },
+          data: { status: 'open', free_used: useFree, escalated_at: new Date() },
         });
+        if (upd.count !== 1) throw new BadRequestException('이미 처리된 질문입니다.');
         if (credits > 0) {
-          const outcome = await this.credit.consumeWithin(
-            tx,
-            student.id,
-            credits,
-            {
-              refType: 'qna',
-              refId: p.id,
-              description: 'Q&A 질문 등록',
-            },
-          );
+          const outcome = await this.credit.consumeWithin(tx, student.id, credits, {
+            refType: 'qna', refId: postId, description: 'Q&A 선생님 답변 요청',
+          });
           if (!outcome.ok) throw new ShortfallError(outcome.shortfall);
         }
-        return p;
       });
-      // Q3: 질문 등록 즉시 AI 1차 초안 자동 생성(비동기·비용상한·실패 무해).
-      void this.generateAiDraft(post.id, { subject: dto.subject ?? null, difficulty: dto.difficulty ?? null, body: dto.body });
-      const moderationWarning = await this.moderate(student, 'qna_post', post.id, dto.body);
-      return {
-        id: post.id,
-        scope: post.scope,
-        status: post.status,
-        chargedCredits: credits,
-        freeUsed: useFree,
-        freeRemaining: useFree ? freeQ.remaining - 1 : freeQ.remaining,
-        moderationWarning,
-      };
+      // 지정 질문이면 이 시점에 선생님에게 알림(그 전에는 선생님에게 보이지 않음).
+      if (post.scope === 'assigned' && post.assigned_teacher_id) {
+        void this.notify?.notify(post.assigned_teacher_id, 'qna_assigned', { postId });
+      }
+      return { ok: true, status: 'open', chargedCredits: credits, freeUsed: useFree, freeRemaining: useFree ? freeQ.remaining - 1 : freeQ.remaining };
     } catch (e) {
       if (e instanceof ShortfallError) {
-        await this.credit.createPaymentRequest(student.id, e.shortfall, {
-          refType: 'qna',
-        });
+        await this.credit.createPaymentRequest(student.id, e.shortfall, { refType: 'qna' });
         throw new HttpException(
           `크레딧이 ${e.shortfall} 부족합니다. 결제요청이 생성되었습니다.`,
           HttpStatus.PAYMENT_REQUIRED,
@@ -229,6 +237,83 @@ export class QnaService {
       }
       throw e;
     }
+  }
+
+  // ── P3 유사 질문 재사용 — 아카이브의 자산화(문자 bigram Jaccard — 한국어 안전) ──
+  private static bigrams(s: string): Set<string> {
+    const t = s.replace(/\s+/g, ' ').replace(/[^\p{L}\p{N} ]/gu, '').trim();
+    const out = new Set<string>();
+    for (let i = 0; i < t.length - 1; i++) out.add(t.slice(i, i + 2));
+    return out;
+  }
+  private static jaccard(a: Set<string>, b: Set<string>): number {
+    if (!a.size || !b.size) return 0;
+    let inter = 0;
+    for (const x of a) if (b.has(x)) inter++;
+    return inter / (a.size + b.size - inter);
+  }
+
+  /** P3 — 작성 중 질문과 유사한 "해결된" 질문 상위 3건(무료 열람 제안용). */
+  async findSimilar(user: AuthUser, dto: { subject?: string | null; body: string }) {
+    if (!dto.body || dto.body.trim().length < 10) return { items: [] };
+    const cands = await this.prisma.qna_post.findMany({
+      where: {
+        status: 'resolved', hidden: false, community: false,
+        ...(dto.subject ? { subject: dto.subject } : {}),
+      },
+      orderBy: { created_at: 'desc' }, take: 300,
+      select: { id: true, subject: true, body: true, created_at: true },
+    });
+    const q = QnaService.bigrams(dto.body);
+    const scored = cands
+      .map((c) => ({ c, score: QnaService.jaccard(q, QnaService.bigrams(c.body ?? '')) }))
+      .filter((x) => x.score >= 0.18)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3);
+    if (!scored.length) return { items: [] };
+    const answers = await this.prisma.qna_answer.findMany({
+      where: { post_id: { in: scored.map((x) => x.c.id) }, accepted: true },
+      select: { post_id: true, body: true },
+    });
+    const amap = new Map(answers.map((a) => [a.post_id, a.body ?? '']));
+    return {
+      items: scored.map(({ c, score }) => ({
+        id: c.id, subject: c.subject, similarity: Math.round(score * 100) / 100,
+        bodyPreview: (c.body ?? '').slice(0, 90),
+        answerPreview: (amap.get(c.id) ?? '').slice(0, 120),
+      })),
+    };
+  }
+
+  /** P3 — 유사 질문 익명 열람(해결 건만·첨부 제외·질문자 비노출). 로그인 학생 무료. */
+  async similarDetail(user: AuthUser, postId: string) {
+    const post = await this.prisma.qna_post.findUnique({
+      where: { id: postId },
+      select: { id: true, subject: true, body: true, status: true, hidden: true, community: true, created_at: true },
+    });
+    if (!post || post.status !== 'resolved' || post.hidden) throw new NotFoundException('열람할 수 없는 질문입니다.');
+    const answers = await this.prisma.qna_answer.findMany({
+      where: { post_id: postId },
+      orderBy: { created_at: 'asc' },
+      include: { teacher_profile: { include: { account: { select: { name: true } } } } },
+    });
+    return {
+      id: post.id, subject: post.subject, body: post.body ?? '', createdAt: post.created_at,
+      answers: answers.map((a) => ({
+        body: a.body ?? '', accepted: !!a.accepted,
+        teacherName: a.teacher_profile?.account?.name ?? '선생님',
+      })),
+    };
+  }
+
+  /** P2 — [충분해요]: AI 답으로 해결 종료(과금 없음). */
+  async resolveWithAi(student: AuthUser, postId: string) {
+    const upd = await this.prisma.qna_post.updateMany({
+      where: { id: postId, student_id: student.id, status: 'ai_pending' },
+      data: { status: 'resolved', resolved_at: new Date() },
+    });
+    if (upd.count !== 1) throw new BadRequestException('AI 즉답 대기 상태의 질문만 해결로 표시할 수 있습니다.');
+    return { ok: true, status: 'resolved' };
   }
 
   /** 목록: 학생=본인 질문, 교사=공개(open)+나에게 지정된 것, 관리자=전체. 답변 포함. */
@@ -285,7 +370,8 @@ export class QnaService {
       return shape(await this.prisma.qna_post.findMany({
         where: {
           AND: [
-            { OR: [{ scope: 'open', status: 'open' }, { assigned_teacher_id: user.id }] },
+            // P2: ai_pending(AI 1층 대기)은 선생님에게 노출하지 않는다 — escalate 후에만.
+            { OR: [{ scope: 'open', status: 'open' }, { assigned_teacher_id: user.id, status: { not: 'ai_pending' } }] },
             ...(blockedStudents.length ? [{ student_id: { notIn: blockedStudents } }] : []),
           ],
         },
@@ -535,7 +621,7 @@ export class QnaService {
       this.prisma.$queryRaw<Array<{ tid: string; answered: number; avg_first_min: number | null; avg_rating: number | null }>>`
         SELECT p.assigned_teacher_id AS tid,
                count(*) FILTER (WHERE p.first_reply_at IS NOT NULL)::int AS answered,
-               avg(EXTRACT(EPOCH FROM (p.first_reply_at - p.created_at)) / 60) FILTER (WHERE p.first_reply_at IS NOT NULL) AS avg_first_min,
+               avg(EXTRACT(EPOCH FROM (p.first_reply_at - COALESCE(p.escalated_at, p.created_at))) / 60) FILTER (WHERE p.first_reply_at IS NOT NULL) AS avg_first_min,
                avg(p.rating) FILTER (WHERE p.rating IS NOT NULL) AS avg_rating
         FROM qna_post p
         WHERE p.assigned_teacher_id IS NOT NULL
@@ -574,7 +660,7 @@ export class QnaService {
   async myOpenQuestions(student: AuthUser) {
     if (student.role !== AccountRole.STUDENT) return { posts: [] };
     const rows = await this.prisma.qna_post.findMany({
-      where: { student_id: student.id, status: 'open' },
+      where: { student_id: student.id, status: { in: ['open', 'ai_pending'] } },
       orderBy: { created_at: 'desc' }, take: 5,
       select: {
         id: true, subject: true, scope: true, created_at: true, first_reply_at: true,

@@ -63,6 +63,34 @@ export class QnaController {
     return this.qna.createQuestion(user, dto);
   }
 
+  /** POST /qna/posts/:id/request-teacher — P2: AI 1층 → 선생님 답변 요청(이 시점 과금·노출). */
+  @Post('posts/:id/request-teacher')
+  @Roles('student')
+  requestTeacher(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.qna.escalateToHuman(user, id);
+  }
+
+  /** POST /qna/posts/:id/resolve-ai — P2: AI 답으로 충분(해결 종료, 과금 없음). */
+  @Post('posts/:id/resolve-ai')
+  @Roles('student')
+  resolveAi(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.qna.resolveWithAi(user, id);
+  }
+
+  /** POST /qna/similar — P3: 작성 중 질문과 유사한 해결 질문 상위 3건. */
+  @Post('similar')
+  @Roles('student')
+  similar(@Body() dto: { subject?: string | null; body: string }, @CurrentUser() user: AuthUser) {
+    return this.qna.findSimilar(user, { subject: dto?.subject ?? null, body: String(dto?.body ?? '') });
+  }
+
+  /** GET /qna/similar/:id — P3: 유사 질문 익명 열람(해결 건·첨부 제외). */
+  @Get('similar/:id')
+  @Roles('student')
+  similarDetail(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.qna.similarDetail(user, id);
+  }
+
   /** GET /qna/posts — 역할별 목록. */
   /** GET /qna/pricing — 질문 건당 요금(문항/일반) 안내(학생). 난이도별 답변블록 시간은 /bookings/question-duration/policy. */
   @Get('pricing')
