@@ -10,7 +10,9 @@ import { dirname, join } from 'node:path';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-execSync('npx expo export -p web', {
+// -c(캐시 클리어) 필수: metro 변환 캐시가 EXPO_PUBLIC_* 인라인 값을 기억해,
+// env 를 바꿔도 이전 값(예: DEMO_MODE 미설정)으로 빌드되는 문제 방지.
+execSync('npx expo export -p web -c', {
   cwd: root,
   stdio: 'inherit',
   env: {
