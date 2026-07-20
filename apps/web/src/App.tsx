@@ -21,6 +21,8 @@ const TeacherMaterialsPage = lazy(() => import('./pages/TeacherMaterialsPage').t
 const TeacherLecturesPage = lazy(() => import('./pages/TeacherLecturesPage').then((m) => ({ default: m.TeacherLecturesPage })));
 const TeacherQnaPage = lazy(() => import('./pages/TeacherQnaPage').then((m) => ({ default: m.TeacherQnaPage })));
 const TeacherRecordsPage = lazy(() => import('./pages/TeacherRecordsPage').then((m) => ({ default: m.TeacherRecordsPage })));
+const TeacherReportsPage = lazy(() => import('./pages/TeacherReportsPage').then((m) => ({ default: m.TeacherReportsPage })));
+const StudentReportsPage = lazy(() => import('./pages/StudentReportsPage').then((m) => ({ default: m.StudentReportsPage })));
 const TeacherProfilePage = lazy(() => import('./pages/TeacherProfilePage').then((m) => ({ default: m.TeacherProfilePage })));
 const ClassroomPage = lazy(() => import('./pages/ClassroomPage').then((m) => ({ default: m.ClassroomPage })));
 const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage').then((m) => ({ default: m.AdminDashboardPage })));
@@ -169,6 +171,7 @@ export function App() {
         <Route path="materials" element={<TeacherMaterialsPage />} />
         <Route path="lectures" element={<TeacherLecturesPage />} />
         <Route path="records" element={<TeacherRecordsPage />} />
+        <Route path="reports" element={<TeacherReportsPage />} />
         <Route path="profile" element={<TeacherProfilePage />} />
         <Route path="classes" element={<ClassroomPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
@@ -226,6 +229,7 @@ export function App() {
         <Route path="search-all" element={<GlobalSearchPage />} />
         <Route path="search" element={<StudentSearchPage />} />
         <Route path="bookings" element={<StudentBookingsPage />} />
+        <Route path="reports" element={<StudentReportsPage />} />
         <Route path="materials" element={<StudentMaterialsPage />} />
         <Route path="qna" element={<StudentQnaPage />} />
         <Route path="community" element={<StudentCommunityPage />} />

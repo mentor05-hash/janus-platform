@@ -5,6 +5,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { AccountRole } from '../../config/enums';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { ConsultReportService } from './consult-report.service';
 import { MEDIA_PROVIDER } from './media.types';
 import type { MediaProvider } from './media.types';
 
@@ -24,6 +25,7 @@ export class MediaRecordingService {
     private readonly config: ConfigService,
     @Inject(MEDIA_PROVIDER) private readonly media: MediaProvider,
     @Optional() private readonly realtime?: RealtimeGateway, // 채팅 시스템 메시지(녹음 시작/중단 안내)
+    @Optional() private readonly reports?: ConsultReportService, // R2 — stored 후 전사·요약 파이프라인
   ) {}
 
   private async flags() {
@@ -208,6 +210,8 @@ export class MediaRecordingService {
         size_bytes: file?.size != null ? BigInt(file.size) : null,
       },
     });
+    // R2 — 산출물 확정 즉시 전사·요약 파이프라인(플래그·보호자 동의 게이트는 내부에서 검사).
+    void this.reports?.process(r.id);
     return { ok: true };
   }
 

@@ -11,6 +11,7 @@ const LABEL: Record<string, string> = {
   booking_reminder: '곧 상담이 시작돼요.',
   booking_new: '새 상담 신청이 들어왔어요.',
   note_shared: '상담 기록이 공유되었어요.',
+  consult_report: '상담 요약 리포트가 도착했어요 📋',
   reverse_proposed: '역상담 제안이 도착했어요.',
   reverse_accepted: '역상담 제안이 수락되었어요.',
   qna_answered: '질문에 답변이 달렸어요.',

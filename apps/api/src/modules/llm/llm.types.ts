@@ -89,6 +89,21 @@ export interface QnaDraftResult {
   body: string; // AI 초안 본문("AI 생성" 라벨과 함께 노출)
 }
 
+// ── 상담 요약 리포트(R3 · 녹음 브리핑 §4) ──
+// 입력에 식별정보(이름·연락처)를 넣지 않는다. 산출물은 선생님 전건 검수용 "초안".
+export interface ConsultSummaryInput {
+  transcript: string;
+  durationSec?: number | null;
+  subject?: string | null; // 상담 카테고리/과목(있으면)
+  scoreHint?: string | null; // janus_score 요지(읽기 전용 — 예: "종합 72점, 수학 취약")
+}
+export interface ConsultSummaryResult {
+  covered: string[]; // 오늘 다룬 내용(3~6개)
+  diagnosis: string; // 진단·관찰(2~4문장)
+  nextActions: string[]; // 다음 액션(2~5개)
+  demo?: boolean; // mock 산출물 표시
+}
+
 export interface LlmProvider {
   reviewReport(input: ReportReviewInput): Promise<ReportReviewResult>;
   checkAnswerSimilarity(input: AnswerSimilarityInput): Promise<AnswerSimilarityResult>;
@@ -98,4 +113,6 @@ export interface LlmProvider {
   analyzeConsulting(input: ConsultingAnalysisInput): Promise<ConsultingAnalysisResult>;
   /** 관문 자유서술 해석. 미구성/실패 시 예외 → 호출측(gateway)이 규칙 폴백. */
   interpretGateway(input: GatewayInterpretInput): Promise<GatewayLlmResult>;
+  /** 상담 전사문 → 요약 리포트 초안(R3). 미구성/실패 시 예외 → 호출측이 재시도·수동 폴백. */
+  consultSummary(input: ConsultSummaryInput): Promise<ConsultSummaryResult>;
 }

@@ -4,6 +4,8 @@ import {
   AnswerSimilarityResult,
   ConsultingAnalysisInput,
   ConsultingAnalysisResult,
+  ConsultSummaryInput,
+  ConsultSummaryResult,
   GatewayInterpretInput,
   GatewayLlmResult,
   LlmProvider,
@@ -91,6 +93,26 @@ export class ClaudeLlmProvider implements LlmProvider {
       this.logger.warn(`유사도 검사 실패: ${(e as Error).message}`);
       return { flagged: false, maxSimilarity: 0, summary: '자동 유사도 검사 실패' };
     }
+  }
+
+  /**
+   * 상담 전사문 → 요약 리포트 초안(R3). 가드레일(브리핑 §4):
+   * 전사문에 있는 사실만 사용(창작·과장 금지), 개인 식별정보(이름·연락처·학교명) 미기재,
+   * 진단은 관찰 근거와 함께, 학생·학부모가 읽는 문서이므로 존중하는 어조.
+   */
+  async consultSummary(input: ConsultSummaryInput): Promise<ConsultSummaryResult> {
+    const prompt =
+      '너는 교육 플랫폼의 상담 요약 작성자다. 아래 상담 전사문을 요약해 **JSON만** 출력(설명 금지).\n' +
+      '가드레일(위반 금지): ①전사문에 실제로 언급된 내용만 쓴다 — 없는 사실 창작·추정 금지 ②이름·연락처·학교명 등 개인 식별정보를 쓰지 않는다(호칭은 "학생"/"선생님") ' +
+      '③진단(diagnosis)은 전사문의 관찰 근거를 함께 언급한다 ④학생·학부모가 읽는 문서다 — 존중하는 어조, 낙인 표현 금지 ⑤확실하지 않으면 항목을 비워라.\n' +
+      '형식: {"covered":["다룬 내용 3~6개"],"diagnosis":"진단·관찰 2~4문장","nextActions":["다음 액션 2~5개"]}\n' +
+      (input.subject ? `상담 분야: ${input.subject}\n` : '') +
+      (input.durationSec ? `상담 길이: 약 ${Math.round(input.durationSec / 60)}분\n` : '') +
+      (input.scoreHint ? `참고(성적 요지, 읽기 전용): ${input.scoreHint}\n` : '') +
+      `전사문:\n${input.transcript.slice(0, 12000)}`;
+    const r = await this.completeJson<ConsultSummaryResult>(prompt, 1200);
+    const arr = (v: unknown, max: number) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string' && x.trim()).slice(0, max) : []);
+    return { covered: arr(r.covered, 6), diagnosis: (r.diagnosis ?? '').trim(), nextActions: arr(r.nextActions, 5) };
   }
 
   async draftAnswer(input: QnaDraftInput): Promise<QnaDraftResult> {

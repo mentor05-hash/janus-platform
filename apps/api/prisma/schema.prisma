@@ -652,6 +652,44 @@ model consult_recording {
   @@index([status, expires_at])
 }
 
+// R2 — 상담 전사문(STT 산출). 녹음당 1건(재실행 시 교체). 보관은 정책값 retentionDays 준용.
+model consult_transcript {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recording_id String   @unique @db.Uuid
+  engine       String
+  lang         String   @default("ko")
+  text         String
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+}
+
+// R3~R4 — 상담 요약 리포트. body = {covered[], diagnosis, next_actions[]}. 전건 검수(draft→approved→sent).
+model consult_report {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  booking_id    String    @unique @db.Uuid
+  transcript_id String?   @db.Uuid
+  body          Json
+  status        String    @default("draft")
+  approved_by   String?   @db.Uuid
+  sent_at       DateTime? @db.Timestamptz(6)
+  opened_at     DateTime? @db.Timestamptz(6)
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([status])
+}
+
+// R5 — 민감 산출물(녹음·전사·리포트) 접근 감사 로그.
+model media_access_log {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  target_type String
+  target_id   String   @db.Uuid
+  actor_id    String?  @db.Uuid
+  action      String
+  at          DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([target_type, target_id, at])
+}
+
 model qna_followup {
   id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   answer_id  String     @db.Uuid

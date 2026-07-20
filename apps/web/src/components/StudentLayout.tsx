@@ -22,6 +22,7 @@ const NAV: NavItem[] = [
   { to: '/student/lectures', label: '강좌' },
   { to: '/student/search', label: '선생님 찾기' },
   { to: '/student/bookings', label: '내 예약·상담' },
+  { to: '/student/reports', label: '상담 리포트' },
   { to: '/student/materials', label: '자료실' },
   { to: '/student/qna', label: '질문 게시판' },
   { section: '커뮤니티' },

@@ -24,6 +24,7 @@ const NAV = [
   { to: '/app/lectures', label: '내 강좌' },
   { to: '/app/classes', label: '강의실' },
   { to: '/app/records', label: '상담 기록' },
+  { to: '/app/reports', label: '상담 리포트' },
   { to: '/app/notifications', label: '알림' },
   { to: '/app/legal', label: '약관·개인정보' },
 ];

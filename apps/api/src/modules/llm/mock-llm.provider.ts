@@ -163,4 +163,15 @@ export class MockLlmProvider implements LlmProvider {
       model: 'mock',
     };
   }
+
+  /** 상담 요약(R3) — 휴리스틱 stub: 전사문 문장 일부를 발췌해 초안 뼈대만 제공(검수 전제). */
+  async consultSummary(input: import('./llm.types').ConsultSummaryInput): Promise<import('./llm.types').ConsultSummaryResult> {
+    const sents = input.transcript.split(/(?<=[.!?다요])\s+/).map((s) => s.trim()).filter((s) => s.length > 8);
+    return {
+      demo: true,
+      covered: sents.slice(0, 4).map((s) => s.slice(0, 60)),
+      diagnosis: '[데모 초안] 실모델(LLM_PROVIDER) 미구성 — 전사문 발췌 기반 뼈대입니다. 검수 시 직접 작성해 주세요.',
+      nextActions: ['다음 상담 전까지 이번 상담 내용 복습', '궁금한 점은 Q&A 로 질문'],
+    };
+  }
 }
