@@ -65,18 +65,28 @@ async function raw<T>(
   return (unwrap ? (json?.data ?? json) : json) as T;
 }
 
+// refresh 는 서버측 회전(구 토큰 무효화)이라 동시 갱신이 경합하면 자기 로그아웃이 된다.
+// → single-flight: 동시 401 들이 하나의 갱신을 공유(새로고침 직후 다발 요청 안전).
+let refreshInflight: Promise<boolean> | null = null;
 async function tryRefresh(): Promise<boolean> {
-  if (!tokens.refresh) return false;
+  if (!refreshInflight) refreshInflight = doRefresh().finally(() => { refreshInflight = null; });
+  return refreshInflight;
+}
+async function doRefresh(): Promise<boolean> {
+  const rt = tokens.refresh;
+  if (!rt) return false;
   try {
     const data = await raw<{ accessToken: string; refreshToken: string }>(
       'POST',
       '/auth/refresh',
-      { refreshToken: tokens.refresh },
+      { refreshToken: rt },
       false,
     );
     tokens.set(data.accessToken, data.refreshToken);
     return true;
   } catch {
+    // 다른 탭이 먼저 회전시켰을 수 있음 — 저장소에 새 토큰이 생겼으면 그걸로 계속.
+    if (tokens.refresh && tokens.refresh !== rt) return true;
     tokens.clear();
     // 세션 완전 만료 — 페이지마다 'Unauthorized' 를 흩뿌리는 대신 로그인으로 안내(1회).
     try {

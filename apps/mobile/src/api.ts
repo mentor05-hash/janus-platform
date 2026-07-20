@@ -90,13 +90,21 @@ interface Tokens {
 }
 
 /** 401 → refresh 1회 시도(바이너리·업로드 경로 공용 — request() 와 동일 정책). */
+// refresh 는 서버측 회전(구 토큰 무효화) — 동시 갱신 경합 시 자기 로그아웃 방지(single-flight).
+let refreshInflight: Promise<boolean> | null = null;
 async function tryRefresh(): Promise<boolean> {
-  if (!refreshToken) return false;
+  if (!refreshInflight) refreshInflight = doRefresh().finally(() => { refreshInflight = null; });
+  return refreshInflight;
+}
+async function doRefresh(): Promise<boolean> {
+  const rt = refreshToken;
+  if (!rt) return false;
   try {
-    const d = await raw<Tokens>('POST', '/auth/refresh', { refreshToken }, false);
+    const d = await raw<Tokens>('POST', '/auth/refresh', { refreshToken: rt }, false);
     await setTokens(d.accessToken, d.refreshToken);
     return true;
   } catch {
+    if (refreshToken && refreshToken !== rt) return true; // 이미 다른 경로가 갱신함
     await clearTokens();
     return false;
   }

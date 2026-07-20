@@ -32,8 +32,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 다른 탭의 토큰 변경을 감지하면 즉시 리로드해 두 탭을 같은 계정으로 동기화한다.
   // (두 역할 동시 테스트는 시크릿 창·다른 브라우저 사용 — 저장소가 분리되어 충돌 없음)
   useEffect(() => {
+    // JWT sub(계정 id) 추출 — 토큰 '회전'(같은 계정 재발급)은 무시하고 계정 변경·로그아웃만 동기화.
+    const subOf = (t: string | null): string | null => {
+      try {
+        const b64 = (t ?? '').split('.')[1]?.replace(/-/g, '+').replace(/_/g, '/');
+        return b64 ? (JSON.parse(atob(b64)) as { sub?: string }).sub ?? null : null;
+      } catch { return null; }
+    };
     const h = (e: StorageEvent) => {
-      if (e.key === 'mp_access' && e.oldValue !== e.newValue) window.location.reload();
+      if (e.key !== 'mp_access') return;
+      if (subOf(e.oldValue) !== subOf(e.newValue)) window.location.reload();
     };
     window.addEventListener('storage', h);
     return () => window.removeEventListener('storage', h);
