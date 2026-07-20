@@ -136,7 +136,11 @@ export function RoomChatPanel({ session: rs, title, onClose }: { bookingId: stri
       const res = await fetch(`${rs.url}/api/rt/v1/files`, { method: 'POST', headers: { Authorization: `Bearer ${rs.token}` }, body: form });
       if (!res.ok) throw new Error(String(res.status));
       return (await res.json()) as { fileUrl: string };
-    } catch { alert('파일 업로드에 실패했어요.'); return null; }
+    } catch (e) {
+      const st = (e as Error).message;
+      alert(`파일 업로드에 실패했어요.${st === '413' ? ' (파일이 너무 큽니다)' : /^\d+$/.test(st) ? ` (오류 ${st})` : ' (네트워크 오류)'}`);
+      return null;
+    }
   }
   // ①② 이미지(여러 장)·파일 첨부
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {

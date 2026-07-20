@@ -202,7 +202,10 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
         try {
           const r = await api.upload<{ id: string }>('/files', form);
           sockRef.current?.emit('chat:send', { bookingId, audioFileId: r.id, fileName: '음성 메시지' });
-        } catch { alert('음성 메시지 전송에 실패했어요.'); }
+        } catch (e) {
+          const st = (e as { status?: number }).status;
+          alert(`음성 메시지 전송에 실패했어요.${st === 413 ? ' (녹음이 너무 깁니다)' : st ? ` (오류 ${st})` : ' (네트워크 오류)'}`);
+        }
       };
       rec.start(); recRef.current = rec; setRecOn(true);
       // 상대 화면에 "🎤 녹음 중…" 표시 — 표시 타임아웃(3.5s)보다 짧게 주기 재전송
