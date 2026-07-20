@@ -6,6 +6,7 @@ import { useWebBack } from '../webBack';
 import { AutomatchScreen } from './AutomatchScreen';
 import { AutoAssignScreen } from './AutoAssignScreen';
 import { RecordsScreen } from './RecordsScreen';
+import { ChatInboxScreen } from './ChatInboxScreen';
 import { ReportsScreen } from './ReportsScreen';
 import { ClassifyScreen } from './ClassifyScreen';
 import { LegalScreen } from './LegalScreen';
@@ -26,8 +27,9 @@ const makeTxMeta = (C: Palette): Record<Tx['type'], { label: string; sign: 1 | -
   weekly_expire: { label: '주간 크레딧 소멸', sign: -1, color: C.confirmed },
 });
 
-type Sub = 'automatch' | 'autoassign' | 'records' | 'reports' | 'classify' | 'legal' | 'scores';
+type Sub = 'automatch' | 'autoassign' | 'records' | 'reports' | 'classify' | 'legal' | 'scores' | 'chats';
 const MENU: { key: Sub; icon: string; title: string; desc: string }[] = [
+  { key: 'chats', icon: '💬', title: '채팅', desc: '상담 대화 모아보기 — 안 읽은 메시지 확인' },
   { key: 'automatch', icon: '⚡', title: '30분 자동 매칭', desc: '유형·방식만 고르면 7일 내 가장 빠른 30분' },
   { key: 'autoassign', icon: '🗓', title: '자동배정 신청', desc: '시간 안 정해도 전임 선생님 근무시간에 배정' },
   { key: 'scores', icon: '📈', title: '내 성적·배치', desc: '성적 추이 + 예상 대학·학과 라인' },
@@ -52,6 +54,7 @@ export function MyScreen() {
   const [reverse, setReverse] = useState<boolean | null>(null);
   const [payMethod, setPayMethod] = useState<'card' | 'voucher'>('card');
   const [access, setAccess] = useState<{ showTrend: boolean; showPlacement: boolean } | null>(null);
+  const [chatUnread, setChatUnread] = useState(0);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
@@ -65,10 +68,12 @@ export function MyScreen() {
     api.get<Tx[]>('/credits/transactions').then((r) => setTxs(Array.isArray(r) ? r : [])).catch(() => {});
     api.get<{ reverseSelf: boolean }>('/bookings/reverse/self').then((r) => setReverse(r.reverseSelf)).catch(() => {});
     api.get<{ showTrend: boolean; showPlacement: boolean }>('/me/scores/access').then(setAccess).catch(() => setAccess({ showTrend: false, showPlacement: false }));
+    api.get<Record<string, number>>('/chat/unread').then((u) => setChatUnread(Object.values(u).reduce((a, b) => a + b, 0))).catch(() => {});
   }
   useEffect(load, []);
   useWebBack(sub !== null, () => setSub(null));
 
+  if (sub === 'chats') return <ChatInboxScreen onBack={() => { setSub(null); load(); }} />;
   if (sub === 'automatch') return <AutomatchScreen onBack={() => setSub(null)} onBooked={() => { setSub(null); setMsg('자동 매칭으로 예약이 신청되었습니다. 내 예약에서 확인하세요.'); load(); }} />;
   if (sub === 'autoassign') return <AutoAssignScreen onBack={() => setSub(null)} />;
   if (sub === 'records') return <RecordsScreen onBack={() => setSub(null)} />;
@@ -120,7 +125,7 @@ export function MyScreen() {
         <TouchableOpacity key={m.key} style={[ui.card, styles.menuRow]} onPress={() => setSub(m.key)} activeOpacity={0.7}>
           <Text style={styles.menuIc}>{m.icon}</Text>
           <View style={{ flex: 1 }}>
-            <Text style={styles.menuT}>{m.title}</Text>
+            <Text style={styles.menuT}>{m.title}{m.key === 'chats' && chatUnread > 0 ? `  🔴 ${chatUnread > 99 ? '99+' : chatUnread}` : ''}</Text>
             <Text style={styles.sub}>{m.desc}</Text>
           </View>
           <Text style={styles.chev}>›</Text>

@@ -3,6 +3,7 @@ import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TextInput, To
 import { api, ApiError, Booking } from '../api';
 import { useTheme, type Palette } from '../theme';
 import { useSessionHost, SessionHost } from './SessionHost';
+import { ChatInboxScreen } from './ChatInboxScreen';
 import { queueNote, flushNotes, queuedCount, onlineFlush } from '../offlineQueue';
 
 // ── 공통 ──
@@ -28,6 +29,7 @@ export function TeacherInbox() {
   const [msg, setMsg] = useState('');
   const [ansFor, setAnsFor] = useState<string | null>(null);
   const [ansText, setAnsText] = useState('');
+  const [chatsOpen, setChatsOpen] = useState(false); // 채팅 인박스 오버레이 — '새 메시지' 탭
 
   const load = useCallback(() => { api.get<Inbox>('/me/inbox').then((r) => setD(unwrap(r))).catch(() => setD(null)); }, []);
   useEffect(() => { load(); }, [load]);
@@ -47,6 +49,7 @@ export function TeacherInbox() {
     } catch (e) { setMsg(e instanceof ApiError ? e.message : '답변 실패'); } finally { setBusy(null); }
   }
 
+  if (chatsOpen) return <ChatInboxScreen onBack={() => { setChatsOpen(false); load(); }} />;
   if (!d) return <Center C={C} />;
   const show = (f: Filter) => filter === 'all' || filter === f;
   const chips: { k: Filter; label: string; n?: number }[] = [
@@ -63,7 +66,9 @@ export function TeacherInbox() {
       <View style={s.summary}>
         <Sum label="대기 상담" n={d.counts.requests} C={C} />
         <Sum label="답변 대기" n={d.counts.questions} C={C} />
-        <Sum label="새 메시지" n={d.counts.unreadChats} C={C} accent />
+        <TouchableOpacity style={{ flex: 1 }} activeOpacity={0.7} onPress={() => setChatsOpen(true)}>
+          <Sum label="새 메시지 ›" n={d.counts.unreadChats} C={C} accent />
+        </TouchableOpacity>
       </View>
       <View style={s.chips}>
         {chips.map((c) => (
