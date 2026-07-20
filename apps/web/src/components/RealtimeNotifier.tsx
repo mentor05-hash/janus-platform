@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useT } from '../i18n';
 
@@ -30,11 +31,12 @@ const LABEL: Record<string, string> = {
   qna_pool_new: '새 공개질문이 도착했어요.',
 };
 
-type Toast = { id: number; text: string };
+type Toast = { id: number; text: string; type?: string; bookingId?: string };
 
 /** 로그인 사용자용 전역 실시간 알림 수신기. notif:new 이벤트를 토스트로 표시. */
 export function RealtimeNotifier() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const t = useT();
   const [toasts, setToasts] = useState<Toast[]>([]);
   const seq = useRef(0);
@@ -50,7 +52,8 @@ export function RealtimeNotifier() {
       // 서버 템플릿 렌더(body) 우선, 없으면 클라이언트 폴백.
       const text = n?.body || (typeof n?.payload?.message === 'string' && n.payload.message) || LABEL[n?.type] || t('notif.new');
       const id = ++seq.current;
-      setToasts((p) => [...p, { id, text }]);
+      const bookingId = typeof n?.payload?.bookingId === 'string' ? n.payload.bookingId : undefined;
+      setToasts((p) => [...p, { id, text, type: n?.type, bookingId }]);
       // 배지 갱신용 커스텀 이벤트(알림 페이지·레이아웃이 구독 가능)
       window.dispatchEvent(new CustomEvent('mp:notif', { detail: n }));
       setTimeout(() => setToasts((p) => p.filter((x) => x.id !== id)), 5000);
@@ -65,7 +68,14 @@ export function RealtimeNotifier() {
         <button
           type="button"
           key={toast.id}
-          onClick={() => setToasts((p) => p.filter((x) => x.id !== toast.id))}
+          onClick={() => {
+            setToasts((p) => p.filter((x) => x.id !== toast.id));
+            // 채팅 알림 → 해당 예약 채팅방으로 직행(역할별 예약 화면)
+            if (toast.type === 'chat_message' && toast.bookingId) {
+              const base = user.role === 'teacher' ? '/app/bookings' : '/student/bookings';
+              navigate(`${base}?chat=${toast.bookingId}`);
+            }
+          }}
           style={{ textAlign: 'left', border: 'none', background: 'var(--teal)', color: '#fff', borderRadius: 10, padding: '12px 14px', fontSize: 13.5, boxShadow: '0 6px 20px rgba(8,16,20,0.25)', cursor: 'pointer', display: 'flex', gap: 8, alignItems: 'center' }}
         >
           <span aria-hidden="true" style={{ fontSize: 16 }}>🔔</span>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import type { Booking, ConsultationNote, Slot, Teacher } from '../api/types';
@@ -175,10 +176,24 @@ export function StudentBookingsPage() {
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
 
+  const [unread, setUnread] = useState<Record<string, number>>({}); // 예약별 미확인 채팅 수
+  function loadUnread() { api.get<Record<string, number>>('/chat/unread').then(setUnread).catch(() => { /* 무시 */ }); }
   function load() {
     api.get<Booking[]>('/bookings?role=student').then(setBookings).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
     api.get<{ chat: boolean; whiteboard: boolean }>('/realtime/features').then((f) => { setChatOn(!!f.chat); setWbOn(!!f.whiteboard); }).catch(() => {});
+    loadUnread();
   }
+  // 알림 '채팅 열기' 딥링크(?chat=) + 새 채팅 알림 시 배지 갱신.
+  const loc = useLocation();
+  useEffect(() => {
+    const cid = new URLSearchParams(loc.search).get('chat');
+    if (cid) setChatId(cid);
+  }, [loc.search]);
+  useEffect(() => {
+    const h = (e: Event) => { if ((e as CustomEvent<{ type?: string }>).detail?.type === 'chat_message') loadUnread(); };
+    window.addEventListener('janus:notif', h);
+    return () => window.removeEventListener('janus:notif', h);
+  }, []);
   useEffect(() => {
     load();
     api.get<{ data?: Teacher[] } | Teacher[]>('/teachers').then((r) => {
@@ -275,7 +290,13 @@ export function StudentBookingsPage() {
                 {UPCOMING.has(b.status) && <Button variant="ghost" size="sm" disabled={busy === b.id} onClick={() => cancel(b.id)} style={{ color: 'var(--danger)' }}>예약 취소</Button>}
                 {b.status === 'done' && <Button variant="ghost" size="sm" disabled={busy === b.id} onClick={() => reportNoshow(b.id)} style={{ color: 'var(--danger)' }}>미진행 신고</Button>}
                 {b.mode === 'zoom' && b.meetingUrl && b.status !== 'new' && <Button size="sm" onClick={() => window.open(b.meetingUrl!, '_blank', 'noopener')}>🎥 줌 입장</Button>}
-                {chatOn && <Button variant="ghost" size="sm" onClick={() => setChatId(b.id)}>💬 채팅</Button>}
+                {chatOn && (
+                  <Button variant="ghost" size="sm" onClick={() => setChatId(b.id)} style={{ position: 'relative' }}>
+                    💬 채팅{(unread[b.id] ?? 0) > 0 && (
+                      <span style={{ position: 'absolute', top: -6, right: -6, minWidth: 16, height: 16, padding: '0 4px', borderRadius: 999, background: 'var(--danger,#dc2626)', color: '#fff', fontSize: 10, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{unread[b.id]! > 99 ? '99+' : unread[b.id]}</span>
+                    )}
+                  </Button>
+                )}
                 {wbOn && b.status !== 'new' && <Button variant="ghost" size="sm" onClick={() => setWbId(b.id)}>🖊 화이트보드</Button>}
                 <Button variant="ghost" size="sm" onClick={() => setOpen(open === b.id ? null : b.id)}>{open === b.id ? '접기' : '상세'}</Button>
               </div>
@@ -285,7 +306,7 @@ export function StudentBookingsPage() {
           </Card>
         ))
       )}
-      {chatId && user && <SessionChatPanel bookingId={chatId} myId={user.id} title="상담 채팅" onClose={() => setChatId(null)} />}
+      {chatId && user && <SessionChatPanel bookingId={chatId} myId={user.id} title="상담 채팅" onClose={() => { setChatId(null); loadUnread(); }} />}
       {wbId && <SessionWhiteboardPanel bookingId={wbId} title="공유 화이트보드" onClose={() => setWbId(null)} />}
     </div>
   );

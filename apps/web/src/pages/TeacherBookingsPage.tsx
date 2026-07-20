@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
@@ -27,6 +28,8 @@ export function TeacherBookingsPage() {
   const [wbId, setWbId] = useState<string | null>(null);
   const [wbOn, setWbOn] = useState(false);
   const [tab, setTab] = useState('today');
+  const [unread, setUnread] = useState<Record<string, number>>({}); // 예약별 미확인 채팅 수
+  const loadUnread = useCallback(() => { api.get<Record<string, number>>('/chat/unread').then(setUnread).catch(() => { /* 무시 */ }); }, []);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -52,15 +55,25 @@ export function TeacherBookingsPage() {
     }
   }, [teacherId]);
 
-  useEffect(() => { void load(); }, [load]);
-  // 실시간 갱신 — 신규 예약(질문승격·자동배정 포함) 알림·탭 재클릭 시 리로드.
+  useEffect(() => { void load(); loadUnread(); }, [load, loadUnread]);
+  // 알림에서 '채팅 열기'로 진입(?chat=) — 해당 예약 채팅 자동 오픈.
+  const loc = useLocation();
   useEffect(() => {
-    const h = (e: Event) => { const t = (e as CustomEvent<{ type?: string }>).detail?.type ?? ''; if (t.startsWith('booking_')) void load(); };
-    const r = () => void load();
+    const cid = new URLSearchParams(loc.search).get('chat');
+    if (cid) setChatId(cid);
+  }, [loc.search]);
+  // 실시간 갱신 — 신규 예약(질문승격·자동배정 포함)·새 채팅 알림·탭 재클릭 시 리로드.
+  useEffect(() => {
+    const h = (e: Event) => {
+      const t = (e as CustomEvent<{ type?: string }>).detail?.type ?? '';
+      if (t.startsWith('booking_')) void load();
+      if (t === 'chat_message') loadUnread();
+    };
+    const r = () => { void load(); loadUnread(); };
     window.addEventListener('janus:notif', h);
     window.addEventListener('janus:refresh', r);
     return () => { window.removeEventListener('janus:notif', h); window.removeEventListener('janus:refresh', r); };
-  }, [load]);
+  }, [load, loadUnread]);
 
   async function act(id: string, action: string) {
     try {
@@ -113,7 +126,13 @@ export function TeacherBookingsPage() {
           )}
           {b.status === 'done' && <Link className="btn ghost sm" to={`/app/bookings/${b.id}/note`}>기록</Link>}
           {b.mode === 'zoom' && b.meetingUrl && b.status !== 'new' && <Button size="sm" onClick={() => window.open(b.meetingUrl!, '_blank', 'noopener')}>🎥 줌</Button>}
-          {chatOn && b.status !== 'new' && <Button size="sm" variant="ghost" onClick={() => setChatId(b.id)}>💬</Button>}
+          {chatOn && b.status !== 'new' && (
+            <Button size="sm" variant="ghost" onClick={() => setChatId(b.id)} style={{ position: 'relative' }}>
+              💬{(unread[b.id] ?? 0) > 0 && (
+                <span style={{ position: 'absolute', top: -6, right: -6, minWidth: 16, height: 16, padding: '0 4px', borderRadius: 999, background: 'var(--danger,#dc2626)', color: '#fff', fontSize: 10, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{unread[b.id]! > 99 ? '99+' : unread[b.id]}</span>
+              )}
+            </Button>
+          )}
           {wbOn && b.status !== 'new' && <Button size="sm" variant="ghost" onClick={() => setWbId(b.id)}>🖊</Button>}
         </span>
       ),
@@ -142,7 +161,7 @@ export function TeacherBookingsPage() {
         )}
         <Table columns={columns} rows={rows} rowKey={(b) => b.id} empty="해당 기간 예약이 없습니다." />
       </div>
-      {chatId && <SessionChatPanel bookingId={chatId} myId={teacherId} title="상담 채팅" onClose={() => setChatId(null)} />}
+      {chatId && <SessionChatPanel bookingId={chatId} myId={teacherId} title="상담 채팅" onClose={() => { setChatId(null); loadUnread(); }} />}
       {wbId && <SessionWhiteboardPanel bookingId={wbId} title="공유 화이트보드" onClose={() => setWbId(null)} />}
     </div>
   );

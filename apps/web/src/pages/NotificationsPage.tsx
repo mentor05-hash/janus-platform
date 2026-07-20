@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext';
 import { api, ApiError } from '../api/client';
 import type { Notification } from '../api/types';
 import { PageHeader, Card, Button, Spinner, ErrorText, EmptyState } from '../components/ui';
 
 export function NotificationsPage() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [rows, setRows] = useState<Notification[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -51,11 +55,19 @@ export function NotificationsPage() {
                   <span style={{ color: 'var(--muted)', fontSize: 12 }}>{new Date(n.created_at).toLocaleString('ko-KR')}</span>
                   {n.body && <div style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2 }}>{n.body}</div>}
                 </div>
-                {!n.read_at && (
-                  <Button size="sm" variant="ghost" onClick={() => read(n.id)}>
-                    읽음
-                  </Button>
-                )}
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {n.type === 'chat_message' && typeof n.payload?.bookingId === 'string' && (
+                    <Button size="sm" onClick={() => {
+                      if (!n.read_at) void api.patch(`/notifications/${n.id}/read`, {}).catch(() => { /* 무시 */ });
+                      navigate(`${user?.role === 'teacher' ? '/app/bookings' : '/student/bookings'}?chat=${n.payload!.bookingId}`);
+                    }}>💬 채팅 열기</Button>
+                  )}
+                  {!n.read_at && (
+                    <Button size="sm" variant="ghost" onClick={() => read(n.id)}>
+                      읽음
+                    </Button>
+                  )}
+                </div>
               </div>
             </Card>
           ))}
