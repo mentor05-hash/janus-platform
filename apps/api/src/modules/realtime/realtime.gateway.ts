@@ -26,20 +26,20 @@ export class RealtimeGateway implements OnGatewayConnection {
   // 세션 종료 시스템 메시지 예약 타이머(예약당 1회 — DB 중복검사로 재기동·다중 join 에도 멱등).
   private readonly closeTimers = new Map<string, NodeJS.Timeout>();
   private static readonly CLOSE_NOTICE = '🔒 상담 시간이 종료되었습니다. 채팅은 열람만 가능해요.';
-  // 채팅형(mode='chat')은 상시 개방 유지 — 잠그지 않고 정보성 안내만(O88 결정 B안).
-  private static readonly CHAT_END_NOTICE = '📅 예약 상담 시간이 지났어요. 채팅은 계속 열려 있지만 답변이 늦을 수 있어요.';
+  // 채팅형(mode='chat')은 종료 시 정보성 안내(O88 결정 B안) — 이후 유예일 경과 시 읽기 전용(O88 보강).
+  private static readonly CHAT_END_NOTICE = '📅 예약 상담 시간이 지났어요. 채팅은 당분간 열려 있지만 답변이 늦을 수 있고, 일정 기간이 지나면 열람만 가능해요.';
 
   constructor(private readonly jwt: JwtService, private readonly svc: RealtimeService) {}
 
   private rememberWindow(bookingId: string, b: { mode: string | null; start_at: Date | null; end_at: Date | null }) {
     const w = this.svc.sessionWindow(b);
     this.windows.set(bookingId, { restricted: w.restricted, opensMs: w.opensAt?.getTime() ?? 0, closesMs: w.closesAt?.getTime() ?? 0, voice: b.mode === 'zoom' });
-    if (w.restricted) {
+    if (b.mode === 'chat') {
+      // 채팅형: 예약 종료 시각에 정보성 안내(즉시 잠금 없음 — 유예일 경과 시 서버 게이트가 읽기 전용 처리)
+      if (b.end_at) this.scheduleNotice(bookingId, b.end_at.getTime(), RealtimeGateway.CHAT_END_NOTICE);
+    } else if (w.restricted) {
       // 시간제한형: 유예창 마감(종료+5분)에 잠금 안내
       this.scheduleNotice(bookingId, w.closesAt!.getTime(), RealtimeGateway.CLOSE_NOTICE);
-    } else if (b.mode === 'chat' && b.end_at) {
-      // 채팅형: 예약 종료 시각에 정보성 안내(잠금 없음)
-      this.scheduleNotice(bookingId, b.end_at.getTime(), RealtimeGateway.CHAT_END_NOTICE);
     }
   }
 

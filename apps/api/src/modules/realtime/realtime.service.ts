@@ -74,19 +74,40 @@ export class RealtimeService {
   }
 
   // 라이브 세션(줌·오프라인·필기·보드)은 예약 시간대에만 실시간 상호작용 허용.
-  // 채팅형 상담(mode='chat')은 무제한 유지. 창 = [시작−5분, 종료+5분].
+  // 채팅형 상담(mode='chat')은 O88(b) 상시 개방 — 단, 종료 후 유예일이 지나면 읽기 전용(O88 보강).
   private static readonly PRE_MS = 5 * 60 * 1000;
   private static readonly POST_MS = 5 * 60 * 1000;
+  // 채팅형 유예(일) — system_setting 'chat_session' {lockAfterDays} 로 조정, 0 = 무기한(구 O88 그대로).
+  private static readonly CHAT_LOCK_DAYS_DEFAULT = 7;
+  private chatLockDays = RealtimeService.CHAT_LOCK_DAYS_DEFAULT;
+  private chatLockLoadedAt = 0;
+  private refreshChatLockDays() {
+    if (Date.now() - this.chatLockLoadedAt < 60_000) return; // 1분 캐시 — 조회 폭주 방지
+    this.chatLockLoadedAt = Date.now();
+    void this.prisma.system_setting.findUnique({ where: { key: 'chat_session' } })
+      .then((row) => {
+        const v = (row?.value as { lockAfterDays?: number } | null)?.lockAfterDays;
+        this.chatLockDays = typeof v === 'number' && v >= 0 ? v : RealtimeService.CHAT_LOCK_DAYS_DEFAULT;
+      })
+      .catch(() => { /* 설정 조회 실패 — 기본값 유지 */ });
+  }
 
-  /** 세션 시간창 계산. restricted=false 면 상시 개방(채팅형·시간미정). */
+  /** 세션 시간창 계산. restricted=false 면 상시 개방(시간미정 채팅형 등). */
   sessionWindow(b: { mode: string | null; start_at: Date | null; end_at: Date | null }): {
     restricted: boolean; state: 'before' | 'open' | 'closed'; opensAt: Date | null; closesAt: Date | null;
   } {
-    const restricted = b.mode !== 'chat' && !!b.start_at && !!b.end_at;
+    const now = Date.now();
+    if (b.mode === 'chat') {
+      // 채팅형: 시작 전에도 열려 있고(안내·사전 질문 허용), 종료 + 유예일 후에만 읽기 전용.
+      this.refreshChatLockDays();
+      if (!b.end_at || this.chatLockDays === 0) return { restricted: false, state: 'open', opensAt: null, closesAt: null };
+      const closesAt = new Date(b.end_at.getTime() + this.chatLockDays * 86_400_000);
+      return { restricted: true, state: now > closesAt.getTime() ? 'closed' : 'open', opensAt: null, closesAt };
+    }
+    const restricted = !!b.start_at && !!b.end_at;
     if (!restricted) return { restricted: false, state: 'open', opensAt: null, closesAt: null };
     const opensAt = new Date(b.start_at!.getTime() - RealtimeService.PRE_MS);
     const closesAt = new Date(b.end_at!.getTime() + RealtimeService.POST_MS);
-    const now = Date.now();
     const state = now < opensAt.getTime() ? 'before' : now > closesAt.getTime() ? 'closed' : 'open';
     return { restricted: true, state, opensAt, closesAt };
   }
