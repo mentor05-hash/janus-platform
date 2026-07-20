@@ -68,12 +68,17 @@ echo "$SV" | jq -e '.student.covered | length > 0' >/dev/null || fail "학생 �
 echo "$SV" | jq -e '.guardian.progress | length > 0' >/dev/null || fail "학부모 뷰(학생 계정 노출) 없음"
 echo "  ✓ 학생 2뷰 열람"
 
-echo "▶ 6) 학부모 공유 전 — guardian 접근 차단 확인"
-$PSQL -c "INSERT INTO guardian_student_link (guardian_id, student_id, relation, status) VALUES ('00000000-0000-4000-8000-0000000000a5','00000000-0000-4000-8000-0000000000a1','모','active') ON CONFLICT (guardian_id, student_id) DO NOTHING;" >/dev/null 2>&1
+echo "▶ 6) 미승인(pending) 링크 — guardian 접근 차단(승인만 인정)"
+$PSQL -c "INSERT INTO guardian_student_link (guardian_id, student_id, relation, status) VALUES ('00000000-0000-4000-8000-0000000000a5','00000000-0000-4000-8000-0000000000a1','모','pending') ON CONFLICT (guardian_id, student_id) DO UPDATE SET status='pending';" >/dev/null 2>&1
+CODEP=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $G" "$API/media/reports/guardian/00000000-0000-4000-8000-0000000000a1")
+[ "$CODEP" = "403" ] || fail "미승인 링크가 차단되지 않음(코드 $CODEP) — 미성년 데이터 보호 위반"
+echo "  ✓ pending 링크 403"
+
+echo "▶ 6-1) 승인(approved) 링크로 전환 — 공유 전 목록 0건"
+$PSQL -c "UPDATE guardian_student_link SET status='approved' WHERE guardian_id='00000000-0000-4000-8000-0000000000a5' AND student_id='00000000-0000-4000-8000-0000000000a1';" >/dev/null 2>&1
 GL0=$(authget "$G" "/media/reports/guardian/00000000-0000-4000-8000-0000000000a1")
 N0=$(echo "$GL0" | jq -r 'if type=="array" then length else 0 end')
-[ "$N0" = "0" ] || echo "  · (주의) 공유 전인데 목록 ${N0}건 — 이전 회차 잔존 가능"
-echo "  ✓ 공유 전 목록 ${N0}건"
+echo "  ✓ 승인 링크 · 공유 전 목록 ${N0}건"
 
 echo "▶ 7) 학생 → 학부모 공유"
 SH=$(authpost "$S" "/media/reports/$BID/share-guardian")
@@ -104,4 +109,23 @@ else
   echo "  · 별도 예약 없음 — 오디오 분기 스킵(비차단)"
 fi
 
-echo "✅ 상담 요약 2뷰 E2E 통과: 메모 폴백 → 2뷰 생성 → 검수·발송 → 학생 열람·공유 → 학부모 열람 + 오디오 원천 분기 (내부 메모 미유입·접근통제 검증 포함)"
+echo "▶ 11) guardian_visible=false 노트 — 학부모 뷰 미생성(보호자 비공개 신호 존중)"
+BID3=$($PSQL -c "SELECT b.id FROM booking b JOIN account sa ON sa.id=b.student_id JOIN account ta ON ta.id=b.teacher_id WHERE sa.login_id='student01' AND ta.login_id='teacher01' AND b.status <> 'cancelled' AND b.id NOT IN ('$BID'::uuid) ORDER BY b.created_at ASC LIMIT 1;" | tr -d '[:space:]')
+if [ -n "$BID3" ]; then
+  $PSQL -c "DELETE FROM consult_report_view v USING consult_report cr WHERE v.report_id=cr.id AND cr.booking_id='$BID3'::uuid; DELETE FROM consult_report WHERE booking_id='$BID3'::uuid;" >/dev/null 2>&1
+  authput "$T" "/bookings/$BID3/note" '{"coreSummary":"가정사 관련 민감 내용 — 보호자 비공개","homework":"없음","futureDir":"경과 관찰","guardianVisible":false,"saveState":"final"}' >/dev/null
+  authpost "$T" "/media/reports/$BID3/views/generate" >/dev/null
+  VD3=$(authget "$T" "/media/reports/$BID3/views")
+  GNULL=$(echo "$VD3" | jq -r '.guardian == null')
+  [ "$GNULL" = "true" ] || fail "guardian_visible=false 인데 학부모 뷰가 생성됨(보호자 비공개 위반)"
+  # 승인·발송 후 학생이 공유 시도 → 학부모 뷰 없어 404
+  authpost "$T" "/media/reports/$BID3/views/approve" >/dev/null
+  authpost "$T" "/media/reports/$BID3/views/send" >/dev/null
+  SHCODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Authorization: Bearer $S" "$API/media/reports/$BID3/share-guardian" -d '{}')
+  [ "$SHCODE" = "404" ] && echo "  ✓ 학부모 뷰 미생성 + 공유 404" || echo "  · 공유 응답 $SHCODE(404 기대)"
+  $PSQL -c "DELETE FROM consult_report_view v USING consult_report cr WHERE v.report_id=cr.id AND cr.booking_id='$BID3'::uuid; DELETE FROM consult_report WHERE booking_id='$BID3'::uuid;" >/dev/null 2>&1
+else
+  echo "  · 별도 예약 없음 — guardian_visible 분기 스킵(비차단)"
+fi
+
+echo "✅ 상담 요약 2뷰 E2E 통과: 메모 폴백 → 2뷰 → 검수·발송 → 학생 열람·공유 → 학부모 열람 + 오디오 분기 + pending 링크 차단 + guardian_visible 존중 (내부 메모 미유입·접근통제 검증)"

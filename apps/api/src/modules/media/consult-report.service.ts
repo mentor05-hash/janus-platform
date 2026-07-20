@@ -252,8 +252,10 @@ export class ConsultReportService {
     if (!isTeacher) throw new ForbiddenException('담당 선생님만 발송할 수 있습니다.');
     const report = await this.prisma.consult_report.findUnique({ where: { booking_id: bookingId } });
     if (!report || report.status !== 'approved') throw new ForbiddenException('승인된 리포트만 발송할 수 있습니다.');
-    await this.prisma.consult_report.update({ where: { id: report.id }, data: { status: 'sent', sent_at: new Date(), updated_at: new Date() } });
-    void this.notify?.notify(b.student_id, 'consult_report', { bookingId });
+    // 조건부 전이 — approved 를 실제로 소비한 요청만 알림(동시 발송 중복 알림 방지).
+    const res = await this.prisma.consult_report.updateMany({ where: { id: report.id, status: 'approved' }, data: { status: 'sent', sent_at: new Date(), updated_at: new Date() } });
+    if (res.count === 0) return { ok: true, status: 'sent' };
+    if (b.student_id) void this.notify?.notify(b.student_id, 'consult_report', { bookingId });
     return { ok: true, status: 'sent' };
   }
 
@@ -283,17 +285,17 @@ export class ConsultReportService {
    * 요약 원천 추상화 — 오디오 유래 요약(transcript 있는 리포트)을 우선 반환, 없으면 상담사 메모(consultation_note) 폴백.
    * ⚠ 메모의 `memo` 필드는 내부용 — 폴백 원천에서 제외하고 공개 필드(core_summary·homework·future_dir)만 쓴다.
    */
-  async getSummarySource(bookingId: string): Promise<{ origin: 'audio' | 'fallback'; covered: string[]; diagnosis: string; nextActions: string[]; subject: string | null; hasParent: boolean } | null> {
+  async getSummarySource(bookingId: string): Promise<{ origin: 'audio' | 'fallback'; covered: string[]; diagnosis: string; nextActions: string[]; subject: string | null; hasParent: boolean; guardianAllowed: boolean } | null> {
     const report = await this.prisma.consult_report.findUnique({ where: { booking_id: bookingId } });
     const b = await this.prisma.booking.findUnique({ where: { id: bookingId }, select: { sub_type: true, consult_type: true } });
     const subject = b?.sub_type ?? (b?.consult_type != null ? String(b.consult_type) : null);
     if (report?.transcript_id) {
       const body = (report.body ?? {}) as ReportBody;
       if ((body.covered?.length ?? 0) > 0 || body.diagnosis) {
-        return { origin: 'audio', covered: body.covered ?? [], diagnosis: body.diagnosis ?? '', nextActions: body.next_actions ?? [], subject, hasParent: true };
+        return { origin: 'audio', covered: body.covered ?? [], diagnosis: body.diagnosis ?? '', nextActions: body.next_actions ?? [], subject, hasParent: true, guardianAllowed: true };
       }
     }
-    // 폴백 — 상담사 메모(공개 필드만)
+    // 폴백 — 상담사 메모(공개 필드만). guardian_visible=false 는 "보호자 비공개" 신호 → 학부모 뷰 생성 차단.
     const note = await this.prisma.consultation_note.findUnique({ where: { booking_id: bookingId } });
     if (note && (note.core_summary || note.homework || note.future_dir)) {
       const lines = (s: string | null) => (s ?? '').split(/\n+/).map((x) => x.trim()).filter(Boolean);
@@ -304,25 +306,33 @@ export class ConsultReportService {
         nextActions: [note.homework, note.future_dir].map((x) => (x ?? '').trim()).filter(Boolean),
         subject,
         hasParent: !!report,
+        guardianAllowed: note.guardian_visible !== false,
       };
     }
     // 폴백 파생 리포트(transcript 없이 body 만 있는 경우)도 원천으로 인정
     if (report) {
       const body = (report.body ?? {}) as ReportBody;
       if ((body.covered?.length ?? 0) > 0 || body.diagnosis) {
-        return { origin: 'fallback', covered: body.covered ?? [], diagnosis: body.diagnosis ?? '', nextActions: body.next_actions ?? [], subject, hasParent: true };
+        return { origin: 'fallback', covered: body.covered ?? [], diagnosis: body.diagnosis ?? '', nextActions: body.next_actions ?? [], subject, hasParent: true, guardianAllowed: true };
       }
     }
     return null;
   }
 
-  /** 부모 리포트 확보(멱등) — 없으면 폴백 원천으로 consult_report draft 생성. 반환: reportId. */
+  /** 부모 리포트 확보(멱등) — 없으면 폴백 원천으로 consult_report draft 생성. 반환: reportId. 동시 생성 경합(P2002)은 재조회로 흡수. */
   private async ensureParentReport(bookingId: string, src: { origin: 'audio' | 'fallback'; covered: string[]; diagnosis: string; nextActions: string[] }): Promise<string> {
     const existing = await this.prisma.consult_report.findUnique({ where: { booking_id: bookingId } });
     if (existing) return existing.id;
     const body: ReportBody = { covered: src.covered, diagnosis: src.diagnosis, next_actions: src.nextActions, source: 'fallback' };
-    const created = await this.prisma.consult_report.create({ data: { booking_id: bookingId, transcript_id: null, body } });
-    return created.id;
+    try {
+      const created = await this.prisma.consult_report.create({ data: { booking_id: bookingId, transcript_id: null, body } });
+      return created.id;
+    } catch (e) {
+      // booking_id unique 경합 — 다른 요청이 먼저 생성. 재조회.
+      const again = await this.prisma.consult_report.findUnique({ where: { booking_id: bookingId } });
+      if (again) return again.id;
+      throw e;
+    }
   }
 
   /** 2뷰 생성(선생님) — 원천(오디오 or 메모)에서 학생용/학부모용 뷰 초안을 만든다. 오디오 플래그와 무관. */
@@ -344,11 +354,18 @@ export class ConsultReportService {
     }
     const demo = views.demo === true;
     const studentBody: StudentViewBody = { ...views.student, ...(demo ? { demo: true } : {}) };
-    const guardianBody: GuardianViewBody = { ...views.guardian, ...(demo ? { demo: true } : {}) };
     await this.upsertView(reportId, 'student', studentBody);
-    await this.upsertView(reportId, 'guardian', guardianBody);
+    if (src.guardianAllowed) {
+      const guardianBody: GuardianViewBody = { ...views.guardian, ...(demo ? { demo: true } : {}) };
+      await this.upsertView(reportId, 'guardian', guardianBody);
+    } else {
+      // 보호자 비공개(guardian_visible=false) — 학부모 뷰를 만들지 않고, 남아 있으면 제거.
+      await this.prisma.consult_report_view.deleteMany({ where: { report_id: reportId, audience: 'guardian' } });
+    }
+    // 재생성은 검수 상태를 초기화 — 미승인 초안이 approved 상태로 발송되는 것을 막는다(전건 검수 원칙).
+    await this.prisma.consult_report.update({ where: { id: reportId }, data: { status: 'draft', updated_at: new Date() } });
     await this.recordFunnel('cta', 'generated', { bookingId, origin: src.origin });
-    return { ok: true, origin: src.origin, demo };
+    return { ok: true, origin: src.origin, demo, guardianView: src.guardianAllowed };
   }
 
   private async upsertView(reportId: string, audience: Audience, body: StudentViewBody | GuardianViewBody) {
@@ -403,15 +420,19 @@ export class ConsultReportService {
     const merged = { ...prev, ...patch };
     delete (merged as { demo?: boolean }).demo; // 사람이 손댔으니 데모 마크 해제
     await this.prisma.consult_report_view.update({ where: { id: cur.id }, data: { body: merged as object, status: 'draft', updated_at: new Date() } });
+    // 편집은 검수 상태를 초기화 — 승인 후 몰래 바뀐 본문이 재검수 없이 발송되지 않게(전건 검수 원칙).
+    if (report.status === 'approved') await this.prisma.consult_report.update({ where: { id: report.id }, data: { status: 'draft', updated_at: new Date() } });
     return { ok: true };
   }
 
-  /** 승인(선생님) — 2뷰 모두 존재 시 부모 리포트 approved + 뷰 approved. */
+  private hasStudentView(views: Array<{ audience: string }>) { return views.some((v) => v.audience === 'student'); }
+
+  /** 승인(선생님) — 학생용 뷰 필수(+있으면 학부모용). 부모 리포트·뷰 approved. */
   async approveViews(user: AuthUser, bookingId: string) {
     const { isTeacher } = await this.assertBooking(user, bookingId);
     if (!isTeacher) throw new ForbiddenException('담당 선생님만 승인할 수 있습니다.');
     const { report, views } = await this.parentAndViews(bookingId);
-    if (!report || views.length < 2) throw new ForbiddenException('학생용·학부모용 뷰가 모두 있어야 승인할 수 있습니다.');
+    if (!report || !this.hasStudentView(views)) throw new ForbiddenException('학생용 뷰가 있어야 승인할 수 있습니다.');
     if (report.status === 'sent') throw new ForbiddenException('이미 발송되었습니다.');
     await this.prisma.consult_report_view.updateMany({ where: { report_id: report.id }, data: { status: 'approved', approved_by: user.id, updated_at: new Date() } });
     await this.prisma.consult_report.update({ where: { id: report.id }, data: { status: 'approved', approved_by: user.id, updated_at: new Date() } });
@@ -419,14 +440,16 @@ export class ConsultReportService {
     return { ok: true, status: 'approved' };
   }
 
-  /** 발송(선생님) — 승인된 2뷰를 학생 계정에 노출(기본). 학부모 전달은 학생 주도 공유(§5). 직접 push 는 플래그 OFF. */
+  /** 발송(선생님) — 승인된 뷰를 학생 계정에 노출(기본). 학부모 전달은 학생 주도 공유(§5). 직접 push 는 플래그 OFF. */
   async sendViews(user: AuthUser, bookingId: string) {
     const { b, isTeacher } = await this.assertBooking(user, bookingId);
     if (!isTeacher) throw new ForbiddenException('담당 선생님만 발송할 수 있습니다.');
     const { report, views } = await this.parentAndViews(bookingId);
-    if (!report || views.length < 2) throw new ForbiddenException('승인된 2뷰가 필요합니다.');
+    if (!report || !this.hasStudentView(views)) throw new ForbiddenException('승인된 학생용 뷰가 필요합니다.');
     if (report.status !== 'approved') throw new ForbiddenException('승인된 리포트만 발송할 수 있습니다.');
-    await this.prisma.consult_report.update({ where: { id: report.id }, data: { status: 'sent', sent_at: new Date(), updated_at: new Date() } });
+    // 조건부 전이 — approved 상태를 실제로 소비한 요청만 알림 발송(동시 발송 시 중복 알림 방지).
+    const res = await this.prisma.consult_report.updateMany({ where: { id: report.id, status: 'approved' }, data: { status: 'sent', sent_at: new Date(), updated_at: new Date() } });
+    if (res.count === 0) return { ok: true, status: 'sent' }; // 다른 요청이 먼저 발송 — 멱등 응답
     if (b.student_id) void this.notify?.notify(b.student_id, 'consult_report', { bookingId });
     return { ok: true, status: 'sent' };
   }
@@ -462,7 +485,8 @@ export class ConsultReportService {
   // ── 학부모 열람(연결된 자녀의 공유된 guardian 뷰만) ──
   private async assertGuardianOfStudent(guardian: AuthUser, studentId: string) {
     if (guardian.role !== AccountRole.GUARDIAN) throw new ForbiddenException('학부모만 사용할 수 있습니다.');
-    const link = await this.prisma.guardian_student_link.findFirst({ where: { guardian_id: guardian.id, student_id: studentId } });
+    // 승인된 연결만 인정 — pending/rejected/revoked 는 무단 열람으로 차단(미성년 데이터 보호, 타 가디언 게이트와 동일).
+    const link = await this.prisma.guardian_student_link.findFirst({ where: { guardian_id: guardian.id, student_id: studentId, status: 'approved' } });
     if (!link) throw new ForbiddenException('연결된 자녀가 아닙니다.');
   }
 
