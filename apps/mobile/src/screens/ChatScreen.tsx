@@ -292,7 +292,8 @@ export function ChatScreen({ bookingId, myId, title, onClose, embedded }: { book
                 <Text style={{ fontSize: 16, opacity: view === 'media' ? 1 : 0.6 }}>🗂</Text>
               </TouchableOpacity>
             )}
-            {status === 'ready' && call.supported && (call.inCall
+            {/* 음성 통화는 화상(zoom) 예약에서만 노출(O89 — 방식 축 게이팅) */}
+            {status === 'ready' && call.supported && session?.mode === 'zoom' && (call.inCall
               ? <>
                   <TouchableOpacity onPress={call.toggleMute}><Text style={{ fontSize: 18 }}>{call.muted ? '🔇' : '🎙'}</Text></TouchableOpacity>
                   <TouchableOpacity onPress={call.hangup}><Text style={{ color: '#E5484D', fontWeight: '800', fontSize: 13 }}>종료</Text></TouchableOpacity>

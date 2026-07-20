@@ -97,10 +97,10 @@ export class RealtimeService {
     return !w.restricted || w.state === 'open';
   }
 
-  /** 클라이언트 전달용(ISO). */
+  /** 클라이언트 전달용(ISO). mode 는 도구 노출 게이팅(음성/화상=zoom 전용, O89)에 사용. */
   sessionInfo(b: { mode: string | null; start_at: Date | null; end_at: Date | null }) {
     const w = this.sessionWindow(b);
-    return { restricted: w.restricted, state: w.state, opensAt: w.opensAt?.toISOString() ?? null, closesAt: w.closesAt?.toISOString() ?? null };
+    return { restricted: w.restricted, state: w.state, opensAt: w.opensAt?.toISOString() ?? null, closesAt: w.closesAt?.toISOString() ?? null, mode: b.mode ?? null };
   }
 
   /** 예약 참여자(학생/담당 선생님)만 방 접근. 반환: 예약 + 상대 정보. */

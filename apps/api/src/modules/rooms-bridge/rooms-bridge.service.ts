@@ -31,7 +31,8 @@ export class RoomsBridgeService {
     if (!isStudent && !isTeacher) return { enabled: false as const };
 
     const access = await this.realtime.featureAccess(user, b.student_id ?? undefined);
-    const features = { chat: access.chat, whiteboard: access.whiteboard, voice: access.chat };
+    // 음성/화상은 방식 축 게이팅(O89) — 화상(zoom) 예약에서만. 룸 서버가 features.voice 로 서버 권위 차단.
+    const features = { chat: access.chat, whiteboard: access.whiteboard, voice: access.chat && b.mode === 'zoom' };
     const win = this.realtime.sessionWindow(b);
     const opensAt = win.opensAt?.toISOString() ?? null;
     const closesAt = win.closesAt?.toISOString() ?? null;

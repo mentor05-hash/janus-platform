@@ -21,7 +21,8 @@ export class RealtimeGateway implements OnGatewayConnection {
   private readonly logger = new Logger('Realtime');
   @WebSocketServer() server!: Server;
   // 예약별 세션 시간창 캐시(고빈도 wb:stroke 경로의 DB 조회 회피). 창은 예약당 불변 → 캐시 안전.
-  private readonly windows = new Map<string, { restricted: boolean; opensMs: number; closesMs: number }>();
+  // voice: 음성/화상 허용 여부(mode='zoom' 전용, O89) — call:signal 게이팅용.
+  private readonly windows = new Map<string, { restricted: boolean; opensMs: number; closesMs: number; voice: boolean }>();
   // 세션 종료 시스템 메시지 예약 타이머(예약당 1회 — DB 중복검사로 재기동·다중 join 에도 멱등).
   private readonly closeTimers = new Map<string, NodeJS.Timeout>();
   private static readonly CLOSE_NOTICE = '🔒 상담 시간이 종료되었습니다. 채팅은 열람만 가능해요.';
@@ -32,7 +33,7 @@ export class RealtimeGateway implements OnGatewayConnection {
 
   private rememberWindow(bookingId: string, b: { mode: string | null; start_at: Date | null; end_at: Date | null }) {
     const w = this.svc.sessionWindow(b);
-    this.windows.set(bookingId, { restricted: w.restricted, opensMs: w.opensAt?.getTime() ?? 0, closesMs: w.closesAt?.getTime() ?? 0 });
+    this.windows.set(bookingId, { restricted: w.restricted, opensMs: w.opensAt?.getTime() ?? 0, closesMs: w.closesAt?.getTime() ?? 0, voice: b.mode === 'zoom' });
     if (w.restricted) {
       // 시간제한형: 유예창 마감(종료+5분)에 잠금 안내
       this.scheduleNotice(bookingId, w.closesAt!.getTime(), RealtimeGateway.CLOSE_NOTICE);
@@ -258,6 +259,8 @@ export class RealtimeGateway implements OnGatewayConnection {
     const user = this.user(client);
     const b = await this.svc.assertRoomAccess(user, bookingId);
     this.rememberWindow(bookingId, b); // 시그널 중계(call:signal) 게이팅용 창 캐시 — 거부되더라도 먼저 확보
+    // 음성/화상은 방식으로 구분(O89) — 화상(zoom) 예약에서만. UI 숨김 우회 방지의 서버 권위 게이트.
+    if (b.mode !== 'zoom') return { ok: false, error: '음성 통화는 화상 상담 예약에서만 사용할 수 있어요.' };
     if (!this.svc.sessionOpen(b)) return { ok: false, closed: true, error: '상담 세션 시간이 아닙니다.' };
     client.join(`booking:${bookingId}`);
     client.to(`booking:${bookingId}`).emit('call:peer-join', { userId: user.id });
@@ -267,6 +270,7 @@ export class RealtimeGateway implements OnGatewayConnection {
   @SubscribeMessage('call:signal')
   callSignal(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, kind, data }: { bookingId: string; kind: 'offer' | 'answer' | 'ice'; data: unknown }) {
     if (!this.openNow(bookingId)) return { ok: false, closed: true };
+    if (this.windows.get(bookingId)?.voice === false) return { ok: false }; // 비화상 예약 시그널 무시(O89)
     const user = this.user(client);
     client.to(`booking:${bookingId}`).emit('call:signal', { from: user.id, kind, data }); // 발신자 제외 중계
     return { ok: true };

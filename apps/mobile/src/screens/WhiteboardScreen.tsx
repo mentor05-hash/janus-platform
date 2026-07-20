@@ -363,7 +363,8 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
         <View style={styles.head}>
           <Text style={styles.headT}>🖊 {title}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            {status !== 'off' && call.supported && (call.inCall
+            {/* 음성 통화는 화상(zoom) 예약에서만 노출(O89) */}
+            {status !== 'off' && call.supported && session?.mode === 'zoom' && (call.inCall
               ? <>
                   <TouchableOpacity onPress={call.toggleMute}><Text style={{ fontSize: 18 }}>{call.muted ? '🔇' : '🎙'}</Text></TouchableOpacity>
                   <TouchableOpacity onPress={call.hangup}><Text style={{ color: '#E5484D', fontWeight: '800', fontSize: 13 }}>종료</Text></TouchableOpacity>

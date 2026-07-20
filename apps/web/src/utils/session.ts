@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 /** 서버가 chat:join / wb:join 에서 내려주는 세션 시간창 정보. */
-export type SessionInfo = { restricted: boolean; state: 'before' | 'open' | 'closed'; opensAt: string | null; closesAt: string | null };
+export type SessionInfo = { restricted: boolean; state: 'before' | 'open' | 'closed'; opensAt: string | null; closesAt: string | null; mode?: string | null };
 export type Phase = 'unrestricted' | 'before' | 'open' | 'closed';
 
 export function phaseOf(s: SessionInfo | null): Phase {

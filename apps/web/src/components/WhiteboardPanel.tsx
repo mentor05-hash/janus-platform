@@ -558,7 +558,8 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--line)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <b style={{ fontSize: 15 }}>🖊 {title ?? '공유 화이트보드'}</b>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {status !== 'off' && (LK_ON
+            {/* 음성/화상은 화상(zoom) 예약에서만 노출(O89 — 방식 축 게이팅, 서버 권위는 media/token·call:join) */}
+            {status !== 'off' && session?.mode === 'zoom' && (LK_ON
               ? (lk.status !== 'idle'
                 ? <>
                     <span style={{ fontSize: 12, color: lk.status === 'connected' ? 'var(--chip-done)' : lk.status === 'reconnecting' ? 'var(--chip-confirmed, #d97706)' : 'var(--muted)' }}>
