@@ -115,6 +115,14 @@ async function upload<T>(path: string, form: FormData): Promise<T> {
   }
 }
 
+/** 인증 GET(바이너리) — request() 와 동일하게 401 이면 refresh 후 1회 재시도(이미지·다운로드 공용). */
+async function authedFetch(url: string): Promise<Response> {
+  const go = () => fetch(url, { headers: tokens.access ? { Authorization: `Bearer ${tokens.access}` } : {} });
+  let res = await go();
+  if (res.status === 401 && tokens.refresh && (await tryRefresh())) res = await go();
+  return res;
+}
+
 export const api = {
   get: <T>(p: string) => request<T>('GET', p),
   /** 페이지네이션 목록: {data,meta} 봉투를 그대로 반환(§7). */
@@ -126,17 +134,13 @@ export const api = {
   upload,
   /** 인증 헤더로 파일을 받아 object URL 반환(이미지 인라인 표시용). 사용 후 revoke 권장. */
   fileBlobUrl: async (id: string): Promise<string> => {
-    const res = await fetch(`${BASE}/files/${id}`, {
-      headers: tokens.access ? { Authorization: `Bearer ${tokens.access}` } : {},
-    });
+    const res = await authedFetch(`${BASE}/files/${id}`);
     if (!res.ok) throw new ApiError('ERROR', '이미지 로드 실패', res.status);
     return URL.createObjectURL(await res.blob());
   },
   /** 인증 헤더 포함 파일 다운로드 → 브라우저 저장(첨부 열람용). */
   downloadFile: async (id: string, filename?: string) => {
-    const res = await fetch(`${BASE}/files/${id}`, {
-      headers: tokens.access ? { Authorization: `Bearer ${tokens.access}` } : {},
-    });
+    const res = await authedFetch(`${BASE}/files/${id}`);
     if (!res.ok) throw new ApiError('ERROR', '다운로드 실패', res.status);
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
@@ -150,9 +154,7 @@ export const api = {
   },
   /** 인증 헤더 포함 임의 경로 다운로드(내 데이터 내보내기 등). */
   downloadPath: async (path: string, filename: string) => {
-    const res = await fetch(`${BASE}${path}`, {
-      headers: tokens.access ? { Authorization: `Bearer ${tokens.access}` } : {},
-    });
+    const res = await authedFetch(`${BASE}${path}`);
     if (!res.ok) throw new ApiError('ERROR', '다운로드 실패', res.status);
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
