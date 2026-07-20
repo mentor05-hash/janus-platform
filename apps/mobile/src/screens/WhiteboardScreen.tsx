@@ -151,10 +151,16 @@ export function WhiteboardScreen({ bookingId, title, onClose, embedded }: { book
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => save(), 1500);
   }
-  function loadBg(fileId: string | null) {
+  function loadBg(fileId: string | null, attempt = 0) {
     bgFileIdRef.current = fileId;
     if (!fileId || typeof document === 'undefined') { bgImgRef.current = null; requestPaint(); return; }
-    api.fileBlobUrl(fileId).then((url) => { const img = new Image(); img.onload = () => { bgImgRef.current = img; requestPaint(); }; img.src = url; }).catch(() => {});
+    api.fileBlobUrl(fileId).then((url) => {
+      if (bgFileIdRef.current !== fileId) return; // 그 사이 배경이 바뀜 — 폐기
+      const img = new Image(); img.onload = () => { if (bgFileIdRef.current === fileId) { bgImgRef.current = img; requestPaint(); } }; img.src = url;
+    }).catch(() => {
+      // 공유 직후엔 상대 자동저장(스냅샷 ACL 편입, ~1.5s) 전이라 403 — 잠시 후 재시도
+      if (attempt < 6 && bgFileIdRef.current === fileId) setTimeout(() => { if (bgFileIdRef.current === fileId) loadBg(fileId, attempt + 1); }, 1200);
+    });
   }
 
   useEffect(() => {

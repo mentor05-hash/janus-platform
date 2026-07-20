@@ -173,14 +173,20 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
   // 확정 집합/뷰 변경 → 캐시 재빌드 표시 후 재합성(둘 다 코얼레싱).
   function redraw() { cacheDirtyRef.current = true; requestPaint(); }
 
-  function loadBg(fileId: string | null) {
+  function loadBg(fileId: string | null, attempt = 0) {
     bgFileIdRef.current = fileId;
     if (!fileId) { bgImgRef.current = null; requestPaint(); return; }
     api.fileBlobUrl(fileId).then((url) => {
+      if (bgFileIdRef.current !== fileId) return; // 그 사이 배경이 바뀜 — 이 응답은 폐기
       const img = new Image();
-      img.onload = () => { bgImgRef.current = img; requestPaint(); };
+      img.onload = () => { if (bgFileIdRef.current === fileId) { bgImgRef.current = img; requestPaint(); } };
       img.src = url;
-    }).catch(() => {});
+    }).catch(() => {
+      // 공유 직후엔 상대 자동저장(스냅샷 ACL 편입, ~1.5s) 전이라 403 — 잠시 후 재시도
+      if (attempt < 6 && bgFileIdRef.current === fileId) {
+        setTimeout(() => { if (bgFileIdRef.current === fileId) loadBg(fileId, attempt + 1); }, 1200);
+      }
+    });
   }
 
   function scheduleAutosave() {
