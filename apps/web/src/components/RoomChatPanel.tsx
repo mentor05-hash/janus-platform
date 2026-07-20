@@ -56,6 +56,8 @@ export function RoomChatPanel({ session: rs, title, onClose }: { bookingId: stri
   const [recOn, setRecOn] = useState(false); // ④ 음성 메시지
   const recRef = useRef<MediaRecorder | null>(null);
   const recStreamRef = useRef<MediaStream | null>(null);
+  const recTypingRef = useRef<ReturnType<typeof setInterval> | null>(null); // 녹음 중 상대 표시 keep-alive
+  const [peerVoice, setPeerVoice] = useState(false); // 상대가 음성 녹음 중
   const fileRef = useRef<HTMLInputElement>(null);
   const docRef = useRef<HTMLInputElement>(null);
   const sockRef = useRef<Socket | null>(null);
@@ -85,11 +87,12 @@ export function RoomChatPanel({ session: rs, title, onClose }: { bookingId: stri
     });
     s.on('chat:reaction', ({ messageId, reactions }: { messageId: string; reactions: Reactions }) => setMsgs((p) => p.map((m) => (m.id === messageId ? { ...m, reactions } : m))));
     s.on('chat:read', ({ readerId, at }: { readerId: string; at: string }) => setMsgs((p) => p.map((m) => (m.senderId !== readerId && !m.readAt ? { ...m, readAt: at } : m))));
-    s.on('chat:typing', ({ participantId, typing }: { participantId: string; typing: boolean }) => {
+    s.on('chat:typing', ({ participantId, typing, mode }: { participantId: string; typing: boolean; mode?: string }) => {
       if (participantId === myPid) return;
       setPeerTyping(typing);
+      setPeerVoice(typing && mode === 'voice');
       if (peerTypingOffRef.current) clearTimeout(peerTypingOffRef.current);
-      if (typing) peerTypingOffRef.current = setTimeout(() => setPeerTyping(false), 3500);
+      if (typing) peerTypingOffRef.current = setTimeout(() => { setPeerTyping(false); setPeerVoice(false); }, 3500);
     });
     s.on('chat:deleted', ({ messageId }: { messageId: string }) => {
       setMsgs((p) => p.map((mm) => (mm.id === messageId ? { ...mm, kind: 'deleted', body: null, fileUrl: null, reactions: {}, replyTo: null, replyToId: null } : mm)));
@@ -158,15 +161,20 @@ export function RoomChatPanel({ session: rs, title, onClose }: { bookingId: stri
       rec.onstop = async () => {
         recStreamRef.current?.getTracks().forEach((t) => t.stop()); recStreamRef.current = null;
         setRecOn(false); recRef.current = null;
+        if (recTypingRef.current) { clearInterval(recTypingRef.current); recTypingRef.current = null; }
+        sockRef.current?.emit('chat:typing', { typing: false });
         const blob = new Blob(chunks, { type: mime ?? 'audio/webm' });
         if (blob.size < 800) return;
         const up = await uploadRoom(blob, 'voice.webm');
         if (up) sockRef.current?.emit('chat:send', { fileUrl: up.fileUrl, kind: 'audio', body: '음성 메시지' });
       };
       rec.start(); recRef.current = rec; setRecOn(true);
+      // 상대 화면에 "🎤 녹음 중…" 표시 — 표시 타임아웃(3.5s)보다 짧게 주기 재전송
+      sockRef.current?.emit('chat:typing', { typing: true, mode: 'voice' });
+      recTypingRef.current = setInterval(() => sockRef.current?.emit('chat:typing', { typing: true, mode: 'voice' }), 2000);
     } catch { alert('마이크를 사용할 수 없어요. 권한을 확인해 주세요.'); }
   }
-  useEffect(() => () => { recRef.current?.stop(); recStreamRef.current?.getTracks().forEach((t) => t.stop()); }, []);
+  useEffect(() => () => { recRef.current?.stop(); recStreamRef.current?.getTracks().forEach((t) => t.stop()); if (recTypingRef.current) clearInterval(recTypingRef.current); }, []);
   // ⑥ 자주 쓰는 문구 관리
   function addPhrase() {
     const v = prompt('자주 쓰는 문구를 입력하세요 (최대 8개)');
@@ -286,7 +294,7 @@ export function RoomChatPanel({ session: rs, title, onClose }: { bookingId: stri
                 </div>
               );
             })}
-          {peerTyping && <div style={{ alignSelf: 'flex-start', fontSize: 12, color: 'var(--muted)', fontStyle: 'italic', padding: '2px 4px' }}>입력 중…</div>}
+          {peerTyping && <div style={{ alignSelf: 'flex-start', fontSize: 12, color: 'var(--muted)', fontStyle: 'italic', padding: '2px 4px' }}>{peerVoice ? '🎤 음성 메시지 녹음 중…' : '입력 중…'}</div>}
           <div ref={endRef} />
         </div>
         )}

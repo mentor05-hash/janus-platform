@@ -162,10 +162,11 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   // ── 채팅 ──
+  /** 입력 중 표시 — mode='voice' 는 음성 녹음 중 표시. */
   @SubscribeMessage('chat:typing')
-  chatTyping(@ConnectedSocket() client: Socket, @MessageBody() { typing }: { typing: boolean }) {
+  chatTyping(@ConnectedSocket() client: Socket, @MessageBody() { typing, mode }: { typing: boolean; mode?: string }) {
     const c = this.ctx(client);
-    client.to(this.room(client)).emit('chat:typing', { participantId: c.participantId, typing: !!typing });
+    client.to(this.room(client)).emit('chat:typing', { participantId: c.participantId, typing: !!typing, mode: mode === 'voice' ? 'voice' : undefined });
     return { ok: true };
   }
 

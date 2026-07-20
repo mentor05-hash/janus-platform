@@ -77,6 +77,8 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
   const [recOn, setRecOn] = useState(false); // ④ 음성 메시지 녹음 중
   const recRef = useRef<MediaRecorder | null>(null);
   const recStreamRef = useRef<MediaStream | null>(null);
+  const recTypingRef = useRef<ReturnType<typeof setInterval> | null>(null); // 녹음 중 상대 표시 keep-alive
+  const [peerVoice, setPeerVoice] = useState(false); // 상대가 음성 녹음 중
   const fileRef = useRef<HTMLInputElement>(null);
   const docRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -123,11 +125,12 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
     s.on('chat:reaction', ({ messageId, reactions }: { messageId: string; reactions: Reactions }) => {
       setMsgs((p) => p.map((mm) => (mm.id === messageId ? { ...mm, reactions } : mm)));
     });
-    s.on('chat:typing', ({ userId, typing }: { userId: string; typing: boolean }) => {
+    s.on('chat:typing', ({ userId, typing, mode }: { userId: string; typing: boolean; mode?: string }) => {
       if (userId === myId) return;
       setPeerTyping(typing);
+      setPeerVoice(typing && mode === 'voice');
       if (peerTypingOffRef.current) clearTimeout(peerTypingOffRef.current);
-      if (typing) peerTypingOffRef.current = setTimeout(() => setPeerTyping(false), 3500);
+      if (typing) peerTypingOffRef.current = setTimeout(() => { setPeerTyping(false); setPeerVoice(false); }, 3500);
     });
     // ③ 삭제(회수) 통지 — 묘비로 교체(내용 제거)
     s.on('chat:deleted', ({ messageId }: { messageId: string }) => {
@@ -190,6 +193,9 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
       rec.onstop = async () => {
         recStreamRef.current?.getTracks().forEach((t) => t.stop()); recStreamRef.current = null;
         setRecOn(false); recRef.current = null;
+        // 상대 "녹음 중" 표시 해제
+        if (recTypingRef.current) { clearInterval(recTypingRef.current); recTypingRef.current = null; }
+        sockRef.current?.emit('chat:typing', { bookingId, typing: false });
         const blob = new Blob(chunks, { type: mime ?? 'audio/webm' });
         if (blob.size < 800) return; // 잘못 눌러 즉시 중단한 빈 녹음은 버림
         const form = new FormData(); form.append('file', blob, 'voice.webm');
@@ -199,9 +205,12 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
         } catch { alert('음성 메시지 전송에 실패했어요.'); }
       };
       rec.start(); recRef.current = rec; setRecOn(true);
+      // 상대 화면에 "🎤 녹음 중…" 표시 — 표시 타임아웃(3.5s)보다 짧게 주기 재전송
+      sockRef.current?.emit('chat:typing', { bookingId, typing: true, mode: 'voice' });
+      recTypingRef.current = setInterval(() => sockRef.current?.emit('chat:typing', { bookingId, typing: true, mode: 'voice' }), 2000);
     } catch { alert('마이크를 사용할 수 없어요. 권한을 확인해 주세요.'); }
   }
-  useEffect(() => () => { recRef.current?.stop(); recStreamRef.current?.getTracks().forEach((t) => t.stop()); }, []);
+  useEffect(() => () => { recRef.current?.stop(); recStreamRef.current?.getTracks().forEach((t) => t.stop()); if (recTypingRef.current) clearInterval(recTypingRef.current); }, []);
   // ⑥ 자주 쓰는 문구 관리
   function addPhrase() {
     const v = prompt('자주 쓰는 문구를 입력하세요 (최대 8개)');
@@ -358,7 +367,7 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
                 </div>
               );
             })}
-          {peerTyping && <div style={{ alignSelf: 'flex-start', fontSize: 12, color: 'var(--muted)', fontStyle: 'italic', padding: '2px 4px' }}>입력 중…</div>}
+          {peerTyping && <div style={{ alignSelf: 'flex-start', fontSize: 12, color: 'var(--muted)', fontStyle: 'italic', padding: '2px 4px' }}>{peerVoice ? '🎤 음성 메시지 녹음 중…' : '입력 중…'}</div>}
           <div ref={endRef} />
           {unseen > 0 && <button onClick={jumpBottom} style={{ position: 'sticky', bottom: 6, alignSelf: 'center', fontSize: 12, fontWeight: 700, color: '#fff', background: 'var(--teal)', border: 'none', borderRadius: 999, padding: '5px 12px', cursor: 'pointer', boxShadow: '0 3px 10px rgba(0,0,0,.18)' }}>새 메시지 {unseen} ↓</button>}
         </div>

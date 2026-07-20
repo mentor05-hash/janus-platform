@@ -96,11 +96,11 @@ export class RealtimeGateway implements OnGatewayConnection {
     return { ok: true, access, messages: hist.messages, session: this.svc.sessionInfo(b) };
   }
 
-  /** 입력 중 표시 — 방의 상대에게만 전달(영속 없음). */
+  /** 입력 중 표시 — 방의 상대에게만 전달(영속 없음). mode='voice' 는 음성 녹음 중 표시. */
   @SubscribeMessage('chat:typing')
-  chatTyping(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, typing }: { bookingId: string; typing: boolean }) {
+  chatTyping(@ConnectedSocket() client: Socket, @MessageBody() { bookingId, typing, mode }: { bookingId: string; typing: boolean; mode?: string }) {
     const user = this.user(client);
-    client.to(`booking:${bookingId}`).emit('chat:typing', { bookingId, userId: user.id, typing: !!typing });
+    client.to(`booking:${bookingId}`).emit('chat:typing', { bookingId, userId: user.id, typing: !!typing, mode: mode === 'voice' ? 'voice' : undefined });
     return { ok: true };
   }
 
