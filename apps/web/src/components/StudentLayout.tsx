@@ -80,7 +80,8 @@ export function StudentLayout() {
               {n.section}
             </div>
           ) : (
-            <NavLink key={n.to} to={n.to} className={navCls} end={'end' in n && n.end}>
+            <NavLink key={n.to} to={n.to} className={navCls} end={'end' in n && n.end}
+              onClick={() => { if (window.location.pathname === n.to) window.dispatchEvent(new CustomEvent('janus:refresh')); }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 {n.label}
                 {n.to === '/student/notifications' && unread > 0 && (

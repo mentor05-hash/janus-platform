@@ -81,7 +81,17 @@ export function TeacherQnaPage() {
       if (['qna_assigned', 'qna_followup'].includes(type)) load();
     };
     window.addEventListener('janus:notif', h);
-    return () => window.removeEventListener('janus:notif', h);
+    // 현재 탭 재클릭·공개 큐 신규 유입(알림 없는 open 질문) 대비: 새로고침 이벤트 + 30초 폴링 + 탭 복귀 시 리로드.
+    window.addEventListener('janus:refresh', load);
+    const iv = setInterval(load, 30_000);
+    const vis = () => { if (document.visibilityState === 'visible') load(); };
+    document.addEventListener('visibilitychange', vis);
+    return () => {
+      window.removeEventListener('janus:notif', h);
+      window.removeEventListener('janus:refresh', load);
+      clearInterval(iv);
+      document.removeEventListener('visibilitychange', vis);
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function claim(id: string) {

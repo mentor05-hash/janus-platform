@@ -108,7 +108,8 @@ export function StudentQnaPage() {
       if (['qna_answered', 'qna_claimed', 'qna_followup', 'qna_community_answer'].includes(type)) load();
     };
     window.addEventListener('janus:notif', h);
-    return () => window.removeEventListener('janus:notif', h);
+    window.addEventListener('janus:refresh', load); // 현재 탭 재클릭 = 새로고침
+    return () => { window.removeEventListener('janus:notif', h); window.removeEventListener('janus:refresh', load); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [fuDraft, setFuDraft] = useState<Record<string, string>>({}); // C2 — 답변별 이어 묻기 초안
@@ -169,6 +170,8 @@ export function StudentQnaPage() {
     setError(''); setMsg('');
     if (!f.body.trim()) { setError('질문 내용을 입력하세요.'); return; }
     if (f.scope === 'assigned' && !assignedTeacherId) { setError('지정 질문은 선생님을 선택해야 합니다.'); return; }
+    // 실수 등록 방지 — 첨부·과목을 요약해 한 번 더 확인(사진 올리다 등록되는 VOC 대비).
+    if (!confirm(`이 상태로 질문을 등록할까요?\n\n· 과목: ${f.subject} (${f.scope === 'assigned' ? '지정' : '공개'} · 난이도 ${f.difficulty})\n· 사진 첨부: ${atts.length}장\n\n등록은 무료예요 — 질문권·크레딧은 [선생님 답변 받기]를 누를 때만 사용됩니다.`)) return;
     try {
       // P2: 등록은 무료(AI 1층) — 과금은 [선생님 답변 받기] 시점.
       const r = await api.post<{ moderationWarning?: string | null }>('/qna/posts', { subject: f.subject, qType: f.qType, scope: f.scope, difficulty: f.difficulty, body: f.body, attachments: atts, ...(f.scope === 'assigned' ? { assignedTeacherId } : {}) });
@@ -191,6 +194,10 @@ export function StudentQnaPage() {
   }
   async function requestTeacher(postId: string) {
     setError(''); setMsg('');
+    // 질문권·크레딧이 실제로 소진되는 지점 — 반드시 확인 받는다.
+    const freeLeft = fee?.freeQuota?.remaining ?? 0;
+    const cost = freeLeft > 0 ? `무료 질문권 1건이 사용됩니다(이번 주 ${freeLeft}건 남음).` : `크레딧 ${(fee?.generalFee ?? 0).toLocaleString()}이 차감됩니다.`;
+    if (!confirm(`선생님 답변을 요청할까요?\n\n${cost}`)) return;
     try {
       const r = await api.post<{ freeUsed?: boolean; freeRemaining?: number; chargedCredits?: number }>(`/qna/posts/${postId}/request-teacher`, {});
       track('qna_funnel', 'cta', 'human_requested', { ev: 'human_requested', postId });

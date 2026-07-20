@@ -51,7 +51,8 @@ export function AppLayout() {
         </Link>
         <nav className="sidebar-nav">
           {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} className={navCls}>
+            <NavLink key={n.to} to={n.to} className={navCls}
+              onClick={() => { if (window.location.pathname === n.to) window.dispatchEvent(new CustomEvent('janus:refresh')); }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 {n.label}
                 {n.to === '/app/notifications' && unread > 0 && (
