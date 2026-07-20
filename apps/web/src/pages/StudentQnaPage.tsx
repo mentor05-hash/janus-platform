@@ -77,6 +77,15 @@ export function StudentQnaPage() {
   const [durPol, setDurPol] = useState<Record<string, number> | null>(null);
   const [teachers, setTeachers] = useState<TeacherDir[]>([]); // P5 — 지정 질문 선생님 디렉터리(SLA 배지)
   const [assignedTeacherId, setAssignedTeacherId] = useState('');
+  // O95 — 유예 채팅 CTA 이월: ?teacher=&draft= 로 진입하면 지정 질문 폼을 프리필해 연다(쓰던 내용 보존).
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const t = q.get('teacher'); const d = q.get('draft');
+    if (!t && !d) return;
+    if (t) { setAssignedTeacherId(t); setF((p) => ({ ...p, scope: 'assigned', body: d ?? p.body })); }
+    else if (d) setF((p) => ({ ...p, body: d }));
+    setOpen(true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [escOnly, setEscOnly] = useState(false); // 이어서 상담 가능한 선생님만 보기
   const [favOnly, setFavOnly] = useState(false); // F2 — 찜한 선생님만 보기
   // F1 — 폼 과목과 선생님 과목 매칭(탐구=과학·사회)

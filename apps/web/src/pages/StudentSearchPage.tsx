@@ -394,6 +394,13 @@ export function StudentSearchPage() {
     setTeachers(null); setPageMeta(null);
     void fetchPage(1, true);
   }, [category, sort, subjectFilter, consultType, modeFilter, qs, favOnly]); // eslint-disable-line react-hooks/exhaustive-deps
+  // O95 — 유예 채팅 '이어서 상담 예약' CTA: ?teacher= 로 진입하면 해당 선생님 상세를 자동으로 연다.
+  const [pendingTeacher, setPendingTeacher] = useState<string | null>(() => new URLSearchParams(window.location.search).get('teacher'));
+  useEffect(() => {
+    if (!pendingTeacher || !teachers) return;
+    const t = teachers.find((x) => x.id === pendingTeacher);
+    if (t) { openDetail(t); setPendingTeacher(null); }
+  }, [pendingTeacher, teachers]); // eslint-disable-line react-hooks/exhaustive-deps
   async function loadMore() {
     if (!pageMeta || loadingMore) return;
     setLoadingMore(true);

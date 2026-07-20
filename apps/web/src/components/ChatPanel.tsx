@@ -62,6 +62,9 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
   const [text, setText] = useState('');
   const [status, setStatus] = useState<'connecting' | 'ready' | 'off'>('connecting');
   const [session, setSession] = useState<SessionInfo | null>(null);
+  // O95 — 채팅형 종료 후 학생 무료 발신 현황(서버 권위). null = 게이트 비활성(진행 중·선생님 등).
+  const [postFree, setPostFree] = useState<{ used: number; limit: number } | null>(null);
+  const [chatTeacherId, setChatTeacherId] = useState<string | null>(null);
   const [peerTyping, setPeerTyping] = useState(false);
   const [reply, setReply] = useState<Msg | null>(null);
   const [reactFor, setReactFor] = useState<string | null>(null);
@@ -96,7 +99,9 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
     const s = io(window.location.origin, { path: '/api/v1/socket.io', auth: { token }, transports: ['websocket'] });
     sockRef.current = s;
     s.on('connect', () => {
-      s.emit('chat:join', { bookingId }, (r: { ok: boolean; access?: { chat: boolean }; messages?: Msg[]; session?: SessionInfo }) => {
+      s.emit('chat:join', { bookingId }, (r: { ok: boolean; access?: { chat: boolean }; messages?: Msg[]; session?: SessionInfo & { teacherId?: string | null; postFree?: { used: number; limit: number } | null } }) => {
+        setPostFree(r.session?.postFree ?? null);
+        setChatTeacherId(r.session?.teacherId ?? null);
         if (!r?.access?.chat) { setStatus('off'); return; }
         setMsgs((r.messages ?? []).map((m) => ({ ...m, mine: mineOf(m, myId) })));
         setSession(r.session ?? null);
@@ -105,6 +110,7 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
     });
     s.on('chat:message', (m: Msg) => {
     s.on('chat:moderation', ({ warning }: { warning: string }) => { setModWarn(warning); setTimeout(() => setModWarn(''), 10_000); });
+    s.on('chat:postfree', (pf: { used: number; limit: number }) => setPostFree(pf));
       setMsgs((p) => {
         if (p.some((x) => x.id === m.id)) return p; // 중복 방지
         let base = p;
@@ -410,6 +416,18 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
                 <button onClick={() => setPhraseEdit((v) => !v)} title="문구 관리" style={{ fontSize: 11, border: 'none', background: 'none', color: phraseEdit ? 'var(--teal)' : 'var(--caption)', cursor: 'pointer' }}>{phraseEdit ? '완료' : '관리'}</button>
               </div>
             )}
+            {/* O95 — 유예 채팅: 학생 무료 발신 소진 시 입력 대신 전환 CTA(입력 중 텍스트를 질문으로 이월) */}
+            {!isTeacher && postFree && postFree.used >= postFree.limit ? (
+              <div style={{ borderTop: '1px solid var(--line)', padding: 12, background: 'var(--teal-50,#EEF4FB)' }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--teal)', marginBottom: 8 }}>
+                  📝 상담 종료 후 무료 마무리 메시지({postFree.limit}건)를 모두 사용했어요. 추가 질문은 아래로 이어가 주세요 — 쓰던 내용은 그대로 가져가요.
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <a className="btn sm" href={`/student/qna?teacher=${chatTeacherId ?? ''}&draft=${encodeURIComponent(text)}`}>✍️ 질문 올리기(질문권)</a>
+                  <a className="btn ghost sm" href={`/student/search?teacher=${chatTeacherId ?? ''}`}>📅 이어서 상담 예약</a>
+                </div>
+              </div>
+            ) : (
             <div style={{ display: 'flex', gap: 6, padding: 10, borderTop: '1px solid var(--line)', alignItems: 'center' }}>
               <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={onFile} />
               <button onClick={() => fileRef.current?.click()} title="이미지 첨부(여러 장 가능)" aria-label="이미지 첨부" style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer' }}>🖼</button>
@@ -420,9 +438,10 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
                 style={{ border: 'none', background: recOn ? 'var(--danger,#dc2626)' : 'none', borderRadius: 999, fontSize: recOn ? 13 : 20, fontWeight: recOn ? 700 : 400, cursor: 'pointer', padding: recOn ? '6px 12px' : 0, color: '#fff', whiteSpace: 'nowrap', flex: 'none' }}>
                 {recOn ? '⏺ 전송' : '🎤'}
               </button>
-              <input className="input" value={text} onChange={(e) => onType(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) send(); }} placeholder={recOn ? '녹음 중… 버튼을 다시 누르면 전송돼요' : reply ? '답장 입력…' : '메시지 입력…'} aria-label="메시지 입력" />
+              <input className="input" value={text} onChange={(e) => onType(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) send(); }} placeholder={recOn ? '녹음 중… 버튼을 다시 누르면 전송돼요' : reply ? '답장 입력…' : !isTeacher && postFree ? `마무리 메시지 ${Math.max(0, postFree.limit - postFree.used)}건 남음` : '메시지 입력…'} aria-label="메시지 입력" />
               <button className="btn sm" onClick={send} disabled={!text.trim()}>전송</button>
             </div>
+            )}
           </>
         )}
         {camOn && (

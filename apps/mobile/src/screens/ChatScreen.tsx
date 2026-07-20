@@ -95,6 +95,7 @@ export function ChatScreen({ bookingId, myId, title, onClose, embedded }: { book
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [unseen, setUnseen] = useState(0);
   const [modWarn, setModWarn] = useState(''); // C1 직거래 감지 경고(서버 발신)
+  const [postFree, setPostFree] = useState<{ used: number; limit: number } | null>(null); // O95 — 유예 중 학생 무료 발신 현황
   const [myRole, setMyRole] = useState<string>(''); // ⑥ 자주 쓰는 문구 노출용(선생님만)
   const [view, setView] = useState<'chat' | 'media'>('chat'); // ⑦ 모아보기
   const [phrases, setPhrases] = useState<string[]>(loadPhrases);
@@ -120,10 +121,11 @@ export function ChatScreen({ bookingId, myId, title, onClose, embedded }: { book
     const s = io(origin, { path: '/api/v1/socket.io', auth: { token }, transports: ['websocket'] });
     sockRef.current = s;
     s.on('connect', () => {
-      s.emit('chat:join', { bookingId }, (r: { ok: boolean; access?: { chat: boolean }; messages?: Msg[]; session?: SessionInfo }) => {
+      s.emit('chat:join', { bookingId }, (r: { ok: boolean; access?: { chat: boolean }; messages?: Msg[]; session?: SessionInfo & { postFree?: { used: number; limit: number } | null } }) => {
         if (!r?.access?.chat) { setStatus('off'); return; }
         setMsgs((r.messages ?? []).map((m) => ({ ...m, mine: mineOf(m, myId) })));
         setSession(r.session ?? null);
+        setPostFree(r.session?.postFree ?? null);
         setStatus('ready');
       });
     });
@@ -143,6 +145,7 @@ export function ChatScreen({ bookingId, myId, title, onClose, embedded }: { book
       setMsgs((p) => p.map((mm) => (mm.senderId !== readerId && !mm.readAt ? { ...mm, readAt: at } : mm)));
     });
     s.on('chat:moderation', ({ warning }: { warning: string }) => { setModWarn(warning); setTimeout(() => setModWarn(''), 10_000); });
+    s.on('chat:postfree', (pf: { used: number; limit: number }) => setPostFree(pf));
     s.on('chat:reaction', ({ messageId, reactions }: { messageId: string; reactions: Reactions }) => {
       setMsgs((p) => p.map((mm) => (mm.id === messageId ? { ...mm, reactions } : mm)));
     });
@@ -446,6 +449,12 @@ export function ChatScreen({ bookingId, myId, title, onClose, embedded }: { book
               </View>
             )}
             {modWarn ? <Text style={{ marginHorizontal: 12, marginTop: 6, padding: 8, borderRadius: 8, backgroundColor: '#FEF3CD', color: '#8a6d1a', fontSize: 12 }}>⚠️ {modWarn}</Text> : null}
+            {/* O95 — 유예 채팅: 학생 무료 발신 현황·소진 안내(초과분은 질문 게시판·이어상담으로) */}
+            {myRole !== 'teacher' && postFree ? (
+              postFree.used >= postFree.limit
+                ? <Text style={{ marginHorizontal: 12, marginTop: 6, padding: 8, borderRadius: 8, backgroundColor: C.teal50, color: C.teal, fontSize: 12, fontWeight: '700' }}>📝 무료 마무리 메시지({postFree.limit}건)를 모두 사용했어요. 추가 질문은 [질문 게시판]에서 이 선생님 지정 질문으로, 또는 [선생님 찾기]에서 이어서 상담을 예약해 주세요.</Text>
+                : <Text style={{ marginHorizontal: 12, marginTop: 6, fontSize: 11, color: C.caption }}>마무리 메시지 {Math.max(0, postFree.limit - postFree.used)}건 남음</Text>
+            ) : null}
             <View style={styles.inputRow}>
               <TouchableOpacity onPress={pickImage} style={styles.imgBtn}><Text style={{ fontSize: 20 }}>🖼</Text></TouchableOpacity>
               <TouchableOpacity onPress={openCamera} style={styles.imgBtn}><Text style={{ fontSize: 20 }}>📷</Text></TouchableOpacity>

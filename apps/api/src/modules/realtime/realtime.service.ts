@@ -77,19 +77,32 @@ export class RealtimeService {
   // 채팅형 상담(mode='chat')은 O88(b) 상시 개방 — 단, 종료 후 유예일(기본 3일)이 지나면 읽기 전용(O88 보강·O94).
   private static readonly PRE_MS = 5 * 60 * 1000;
   private static readonly POST_MS = 5 * 60 * 1000;
-  // 채팅형 유예(일) — system_setting 'chat_session' {lockAfterDays} 로 조정, 0 = 무기한(구 O88 그대로).
+  // 채팅형 유예 정책 — system_setting 'chat_session' {lockAfterDays, postFreeMsgs}.
+  // lockAfterDays: 종료 후 읽기 전용까지의 유예(0=무기한). postFreeMsgs: 유예 중 학생 무료 발신 한도(O95 A안, 0=무제한).
   private static readonly CHAT_LOCK_DAYS_DEFAULT = 3;
+  private static readonly POST_FREE_MSGS_DEFAULT = 5;
   private chatLockDays = RealtimeService.CHAT_LOCK_DAYS_DEFAULT;
+  private postFreeMsgs = RealtimeService.POST_FREE_MSGS_DEFAULT;
   private chatLockLoadedAt = 0;
   private refreshChatLockDays() {
     if (Date.now() - this.chatLockLoadedAt < 60_000) return; // 1분 캐시 — 조회 폭주 방지
     this.chatLockLoadedAt = Date.now();
     void this.prisma.system_setting.findUnique({ where: { key: 'chat_session' } })
       .then((row) => {
-        const v = (row?.value as { lockAfterDays?: number } | null)?.lockAfterDays;
-        this.chatLockDays = typeof v === 'number' && v >= 0 ? v : RealtimeService.CHAT_LOCK_DAYS_DEFAULT;
+        const v = row?.value as { lockAfterDays?: number; postFreeMsgs?: number } | null;
+        this.chatLockDays = typeof v?.lockAfterDays === 'number' && v.lockAfterDays >= 0 ? v.lockAfterDays : RealtimeService.CHAT_LOCK_DAYS_DEFAULT;
+        this.postFreeMsgs = typeof v?.postFreeMsgs === 'number' && v.postFreeMsgs >= 0 ? v.postFreeMsgs : RealtimeService.POST_FREE_MSGS_DEFAULT;
       })
       .catch(() => { /* 설정 조회 실패 — 기본값 유지 */ });
+  }
+  get postFreeLimit(): number { this.refreshChatLockDays(); return this.postFreeMsgs; }
+
+  /** 종료 후 학생 발신 수(O95 게이트) — 시스템·삭제 제외. */
+  async countPostEndStudentMsgs(b: { id?: string; student_id?: string | null; end_at: Date | null }, bookingId: string): Promise<number> {
+    if (!b.end_at || !b.student_id) return 0;
+    return this.prisma.chat_message.count({
+      where: { booking_id: bookingId, sender_id: b.student_id, created_at: { gt: b.end_at }, deleted_at: null, kind: { not: 'system' } },
+    });
   }
 
   /** 세션 시간창 계산. restricted=false 면 상시 개방(시간미정 채팅형 등). */

@@ -111,7 +111,13 @@ export class RealtimeGateway implements OnGatewayConnection {
     // 입장 = 열람: 상대가 보낸 미확인 메시지를 읽음 처리 후 방에 읽음 통지(상대 '읽음' 표시).
     const read = await this.svc.markRead(user, bookingId);
     if (read.count > 0) client.to(`booking:${bookingId}`).emit('chat:read', { bookingId, readerId: read.readerId, at: read.at });
-    return { ok: true, access, messages: hist.messages, session: this.svc.sessionInfo(b) };
+    // O95 — 유예 중 학생 무료 발신 현황(채팅형·종료 후에만 의미). CTA·남은 건수 표시용.
+    let postFree: { used: number; limit: number } | null = null;
+    if (b.mode === 'chat' && b.end_at && Date.now() > b.end_at.getTime()) {
+      const limit = this.svc.postFreeLimit;
+      if (limit > 0) postFree = { used: await this.svc.countPostEndStudentMsgs(b, bookingId), limit };
+    }
+    return { ok: true, access, messages: hist.messages, session: { ...this.svc.sessionInfo(b), teacherId: b.teacher_id, postFree } };
   }
 
   /** 입력 중 표시 — 방의 상대에게만 전달(영속 없음). mode='voice' 는 음성 녹음 중 표시. */
@@ -139,6 +145,17 @@ export class RealtimeGateway implements OnGatewayConnection {
     if (!access.chat) return { ok: false, error: '채팅이 비활성화되어 있습니다.' };
     if (!this.svc.sessionOpen(b)) return { ok: false, closed: true, error: '상담 세션 시간이 아닙니다. 예약 시간대에만 메시지를 보낼 수 있어요.' };
     if (!body?.trim() && !imageFileId && !fileId && !audioFileId) return { ok: false };
+    // O95(A안) — 채팅형 종료 후 학생 무료 발신 한도(기본 5건). 초과분은 질문권·이어상담으로 유도(선생님은 무제한).
+    let postUsedNow: number | null = null;
+    if (b.mode === 'chat' && b.end_at && Date.now() > b.end_at.getTime() && user.id === b.student_id) {
+      const limit = this.svc.postFreeLimit;
+      if (limit > 0) {
+        postUsedNow = await this.svc.countPostEndStudentMsgs(b, bookingId);
+        if (postUsedNow >= limit) {
+          return { ok: false, postLimit: true, error: '상담 종료 후 무료 마무리 메시지를 모두 사용했어요. 추가 질문은 [질문 올리기] 또는 [이어서 상담]으로 부탁드려요.' };
+        }
+      }
+    }
     // 파일(PDF·문서)·음성은 kind 만 다르고 image_file_id 재사용, body 에 파일명 저장(표시용)
     const kind = imageFileId ? 'image' : audioFileId ? 'audio' : fileId ? 'file' : 'text';
     const savedBody = audioFileId ? (fileName ?? '음성 메시지') : fileId ? (fileName ?? '첨부파일') : (body?.trim() || null);
@@ -154,6 +171,14 @@ export class RealtimeGateway implements OnGatewayConnection {
     for (const sock of sockets) {
       const viewerId = (sock.data.user as { id?: string } | undefined)?.id;
       sock.emit('chat:message', { ...msg, mine: msg.senderId === viewerId });
+    }
+    // O95 — 이번 발신으로 무료 한도 도달 시 시스템 안내 1회 + 발신자 잔여 갱신.
+    if (postUsedNow != null) {
+      const limit = this.svc.postFreeLimit;
+      client.emit('chat:postfree', { used: postUsedNow + 1, limit });
+      if (postUsedNow + 1 === limit) {
+        void this.systemMessage(bookingId, '📝 상담 종료 후 무료 마무리 메시지를 모두 사용했어요. 추가 질문은 [질문 올리기]나 [이어서 상담]으로 이어가 주세요.', { once: true });
+      }
     }
     // 부재중 알림 — 상대가 이 채팅방에 없으면(지난 채팅의 추가 질문 포함) 토스트 + 알림 원장(10분 스로틀).
     const counterpart = user.id === b.teacher_id ? b.student_id : b.teacher_id;
