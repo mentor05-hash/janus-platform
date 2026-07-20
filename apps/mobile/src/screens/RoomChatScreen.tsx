@@ -95,6 +95,11 @@ export function RoomChatScreen({ title, onClose, embedded, session: rs }: { book
     }));
     s.on('chat:message', (m: Msg) => { setMsgs((p) => (p.some((x) => x.id === m.id) ? p : [...p, m])); if (!m.mine) s.emit('chat:read'); });
     s.on('chat:moderation', ({ warning }: { warning: string }) => { setModWarn(warning); setTimeout(() => setModWarn(''), 10_000); });
+    // 유예 무료 한도(O95 동형) — 잔여 안내(소진 시 시스템 메시지는 서버가 브로드캐스트).
+    s.on('chat:postfree', ({ used, limit }: { used: number; limit: number }) => {
+      const left = Math.max(0, limit - used);
+      setModWarn(left > 0 ? `상담 종료 후 무료 마무리 메시지 ${left}건 남았어요.` : '');
+    });
     s.on('chat:deleted', ({ messageId }: { messageId: string }) => {
       setMsgs((p) => p.map((mm) => (mm.id === messageId ? { ...mm, kind: 'deleted', body: null, fileUrl: null, reactions: {}, replyTo: null, replyToId: null } : mm)));
     });
@@ -126,7 +131,10 @@ export function RoomChatScreen({ title, onClose, embedded, session: rs }: { book
   }
   function send() {
     const body = text.trim(); if (!body || !canInteract(phaseOf(live))) return;
-    sockRef.current?.emit('chat:send', { body, replyToId: reply?.id });
+    sockRef.current?.emit('chat:send', { body, replyToId: reply?.id }, (r?: { ok?: boolean; postLimit?: boolean; error?: string }) => {
+      // 유예 무료 한도 초과 등 서버 거부 — 사유를 보여주고 입력을 되살린다(작성 내용 보존).
+      if (r && r.ok === false && r.error) { setModWarn(r.error); setText(body); }
+    });
     sockRef.current?.emit('chat:typing', { typing: false });
     setText(''); setReply(null);
   }

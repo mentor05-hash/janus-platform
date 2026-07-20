@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { EventsService } from './events.service';
 import { FilesController } from './files.controller';
 import { MetricsService } from './metrics.service';
 import { RoomsController } from './rooms.controller';
@@ -10,7 +11,7 @@ import { TokenService } from './token.service';
 
 @Module({
   controllers: [RoomsController, FilesController],
-  providers: [RoomsService, RoomsGateway, TokenService, MetricsService, StorageService, RoomTokenGuard],
+  providers: [RoomsService, RoomsGateway, TokenService, MetricsService, StorageService, RoomTokenGuard, EventsService],
   exports: [RoomsService, TokenService],
 })
 export class RoomsModule {}

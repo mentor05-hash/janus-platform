@@ -99,6 +99,11 @@ export function RoomChatPanel({ session: rs, title, onClose }: { bookingId: stri
       setMsgs((p) => p.map((mm) => (mm.id === messageId ? { ...mm, kind: 'deleted', body: null, fileUrl: null, reactions: {}, replyTo: null, replyToId: null } : mm)));
     });
     s.on('chat:moderation', ({ warning }: { warning: string }) => { setModWarn(warning); setTimeout(() => setModWarn(''), 10_000); });
+    // 유예 무료 한도(O95 동형) — 잔여 안내(소진 시 시스템 메시지는 서버가 브로드캐스트).
+    s.on('chat:postfree', ({ used, limit }: { used: number; limit: number }) => {
+      const left = Math.max(0, limit - used);
+      setModWarn(left > 0 ? `상담 종료 후 무료 마무리 메시지 ${left}건 남았어요.` : '');
+    });
     s.on('presence', ({ online }: { online: string[] }) => setPeerOnline(online.some((id) => id !== myPid)));
     s.on('session:closed', (e: { closesAt?: string }) => setLive((v) => ({ ...v, state: 'closed', closesAt: e.closesAt ?? v.closesAt })));
     s.on('session:revoked', () => setStatus('off'));
@@ -119,7 +124,10 @@ export function RoomChatPanel({ session: rs, title, onClose }: { bookingId: stri
   }
   function send() {
     const body = text.trim(); if (!body || !canInteract(phaseOf(live))) return;
-    sockRef.current?.emit('chat:send', { body, replyToId: reply?.id }, () => { /* 서버 broadcast 로 반영 */ });
+    sockRef.current?.emit('chat:send', { body, replyToId: reply?.id }, (r?: { ok?: boolean; postLimit?: boolean; error?: string }) => {
+      // 유예 무료 한도 초과 등 서버 거부 — 사유를 보여주고 입력을 되살린다(작성 내용 보존).
+      if (r && r.ok === false && r.error) { setModWarn(r.error); setText(body); }
+    });
     sockRef.current?.emit('chat:typing', { typing: false });
     setText(''); setReply(null);
   }

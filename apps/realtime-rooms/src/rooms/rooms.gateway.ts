@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { EventsService } from './events.service';
 import { MetricsService } from './metrics.service';
 import { detectDirectContact, DIRECT_CONTACT_WARNING } from './moderation';
 import { RoomsService, type RoomRow, type Feature } from './rooms.service';
@@ -18,7 +19,12 @@ const MAX_BODY = 4000; // 채팅 본문 길이 상한(저장 폭주 방지)
 export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger('RoomsRT');
   @WebSocketServer() server!: Server;
-  private readonly windows = new Map<string, { restricted: boolean; opensMs: number; closesMs: number; features: RoomRow['features']; lecture: boolean }>();
+  private readonly windows = new Map<string, {
+    restricted: boolean; opensMs: number; closesMs: number; features: RoomRow['features']; lecture: boolean;
+    externalRef: string | null;
+    // 유예 무료 한도(호스트가 metadata 로 지정: { endAt, postFree: { limit, roles } }) — O95 동형.
+    endAtMs: number; postFreeLimit: number; postFreeRoles: string[];
+  }>();
   // 접속자(참가자별 소켓 수) — 채팅·화이트보드·음성이 각각 소켓을 열어도 참가자 단위로 집계.
   private readonly presence = new Map<string, Map<string, number>>();
   // 참가자 표시정보(이름·역할) — roster(참석자 명단) 브로드캐스트용. key=`${roomId}:${pid}`.
@@ -26,7 +32,7 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   // 서버발 강제 종료 예약(룸당 1회). 다중 인스턴스에선 인스턴스별 예약 → 클라 멱등 처리로 중복 무해.
   private readonly closeTimers = new Map<string, NodeJS.Timeout>();
 
-  constructor(private readonly svc: RoomsService, private readonly tokens: TokenService, private readonly metrics: MetricsService) {}
+  constructor(private readonly svc: RoomsService, private readonly tokens: TokenService, private readonly metrics: MetricsService, private readonly events: EventsService) {}
 
   async handleConnection(client: Socket) {
     try {
@@ -87,8 +93,23 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private remember(room: RoomRow) {
     const w = this.svc.sessionWindow(room);
-    this.windows.set(room.id, { restricted: w.restricted, opensMs: w.opensAt?.getTime() ?? 0, closesMs: w.closesAt?.getTime() ?? 0, features: room.features, lecture: this.svc.lectureMode(room) });
+    const meta = (room.metadata ?? {}) as { endAt?: string; postFree?: { limit?: number; roles?: string[] } };
+    const endAtMs = meta.endAt ? Date.parse(meta.endAt) : 0;
+    this.windows.set(room.id, {
+      restricted: w.restricted, opensMs: w.opensAt?.getTime() ?? 0, closesMs: w.closesAt?.getTime() ?? 0,
+      features: room.features, lecture: this.svc.lectureMode(room),
+      externalRef: room.external_ref,
+      endAtMs: Number.isFinite(endAtMs) ? endAtMs : 0,
+      postFreeLimit: Math.max(0, meta.postFree?.limit ?? 0),
+      postFreeRoles: Array.isArray(meta.postFree?.roles) ? meta.postFree!.roles!.filter((r): r is string => typeof r === 'string') : [],
+    });
     this.scheduleClose(room.id);
+  }
+
+  /** 호스트가 시간창·정책을 갱신했을 때 캐시·종료 타이머 재적재(컨트롤러에서 호출). */
+  async refreshRoom(roomId: string) {
+    const room = await this.svc.getRoom(roomId);
+    if (room) this.remember(room);
   }
 
   // 강의 모드 판서 권한: 비강의 룸은 누구나, 강의 룸은 host/presenter 만(서버 권위).
@@ -117,7 +138,10 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   /** 폐장 시각에 방 전체로 session:closed 브로드캐스트(유휴 상대도 열람 전용 전환). */
   private scheduleClose(roomId: string) {
     const w = this.windows.get(roomId);
-    if (!w || !w.restricted || this.closeTimers.has(roomId)) return;
+    // 창이 갱신될 수 있으므로(유예일 변경 등) 기존 예약을 지우고 다시 잡는다.
+    const prev = this.closeTimers.get(roomId);
+    if (prev) { clearTimeout(prev); this.closeTimers.delete(roomId); }
+    if (!w || !w.restricted || !w.closesMs) return;
     const delay = w.closesMs - Date.now();
     if (delay <= 0) return; // 이미 종료 — 쓰기 거부로 충분
     const t = setTimeout(() => {
@@ -131,7 +155,9 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const w = this.windows.get(roomId);
     if (!w || !w.restricted) return true;
     const now = Date.now();
-    return now >= w.opensMs && now <= w.closesMs;
+    if (w.opensMs && now < w.opensMs) return false;
+    if (w.closesMs && now > w.closesMs) return false;
+    return true;
   }
   private featureOn(roomId: string, f: Feature): boolean {
     const w = this.windows.get(roomId);
@@ -186,6 +212,15 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (!this.openNow(c.roomId)) return { ok: false, closed: true, error: '룸 활성 시간이 아닙니다.' };
     if (body && body.length > MAX_BODY) return { ok: false, error: `메시지가 너무 깁니다(최대 ${MAX_BODY}자).` };
     if (!body?.trim() && !fileUrl) return { ok: false };
+    // 유예 무료 한도(O95 동형) — 호스트가 지정한 역할(예: student)은 endAt 이후 limit 건까지만 무료 발신.
+    const w = this.windows.get(c.roomId);
+    let postUsedNow: number | null = null;
+    if (w && w.endAtMs && w.postFreeLimit > 0 && Date.now() > w.endAtMs && w.postFreeRoles.includes(c.role ?? '')) {
+      postUsedNow = await this.svc.countPostEndByRoles(c.roomId, new Date(w.endAtMs), w.postFreeRoles);
+      if (postUsedNow >= w.postFreeLimit) {
+        return { ok: false, postLimit: true, error: '상담 종료 후 무료 마무리 메시지를 모두 사용했어요. 추가 질문은 [질문 올리기] 또는 [이어서 상담]으로 부탁드려요.' };
+      }
+    }
     const k = kind || (fileUrl ? 'file' : 'text');
     const msg = await this.svc.saveMessage(c.roomId, c.participantId, k, body?.trim() || null, fileUrl ?? null, replyToId ?? null);
     // C1 직거래·연락처 감지(API 채팅 동형) — 차단 없음: 발신자 경고 + 기록만.
@@ -199,7 +234,32 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const viewer = (s.data.ctx as Ctx | undefined)?.participantId;
       s.emit('chat:message', { ...msg, mine: msg.senderId === viewer });
     }
+    // 유예 무료 한도 — 이번 발신으로 도달 시 시스템 안내 1회 + 발신자 잔여 갱신(O95 동형).
+    if (postUsedNow != null && w) {
+      client.emit('chat:postfree', { used: postUsedNow + 1, limit: w.postFreeLimit });
+      if (postUsedNow + 1 === w.postFreeLimit) {
+        const sys = await this.svc.saveSystem(c.roomId, '📝 상담 종료 후 무료 마무리 메시지를 모두 사용했어요. 추가 질문은 [질문 올리기]나 [이어서 상담]으로 이어가 주세요.', { once: true });
+        if (sys) this.server.to(this.room(client)).emit('chat:message', { ...sys, mine: false });
+      }
+    }
+    // 부재중 통지 — 방에 소켓이 없는 참가자는 호스트 웹훅으로 알림 위임(원장·토스트는 호스트 몫).
+    void this.notifyMissed(c, k, body?.trim() || null);
     return { ok: true, id: msg.id };
+  }
+
+  /** 오프라인 참가자에게 새 메시지 통지(호스트 웹훅) — 실패·미설정 시 무동작. */
+  private async notifyMissed(c: Ctx, kind: string, body: string | null) {
+    try {
+      const w = this.windows.get(c.roomId);
+      if (!w?.externalRef) return;
+      const online = new Set(this.presence.get(c.roomId)?.keys() ?? []);
+      const parts = await this.svc.participantsOf(c.roomId);
+      const preview = kind === 'text' ? (body ?? '').slice(0, 40) : kind === 'image' ? '📷 사진' : kind === 'audio' ? '🎤 음성 메시지' : '📎 파일';
+      for (const p of parts) {
+        if (p.id === c.participantId || online.has(p.id) || !p.ext_user_id) continue;
+        this.events.chatMissed({ roomId: c.roomId, externalRef: w.externalRef, recipientExtUserId: p.ext_user_id, senderName: c.name, preview });
+      }
+    } catch { /* 통지 실패는 삼킨다 */ }
   }
 
   /** 메시지 삭제(회수) — 본인 발신만, soft delete(원문 보존). 방 전체에 통지. */

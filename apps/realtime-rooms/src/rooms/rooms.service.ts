@@ -100,19 +100,59 @@ export class RoomsService {
     return (r.rowCount ?? 0) > 0;
   }
 
+  /** 시간창·메타데이터 갱신 — 호스트 정책 변경(유예일 등)을 기존 룸에 반영(멱등). metadata 는 병합. */
+  async updateRoom(roomId: string, patch: { opensAt?: string | null; closesAt?: string | null; metadata?: Record<string, unknown> }): Promise<RoomRow | null> {
+    const sets: string[] = []; const params: unknown[] = [roomId];
+    if (patch.opensAt !== undefined) { params.push(patch.opensAt); sets.push(`opens_at = $${params.length}`); }
+    if (patch.closesAt !== undefined) { params.push(patch.closesAt); sets.push(`closes_at = $${params.length}`); }
+    if (patch.metadata !== undefined) { params.push(JSON.stringify(patch.metadata)); sets.push(`metadata = COALESCE(metadata, '{}'::jsonb) || $${params.length}::jsonb`); }
+    if (!sets.length) return this.getRoom(roomId);
+    await this.pool.query(`UPDATE room SET ${sets.join(', ')} WHERE id = $1`, params);
+    return this.getRoom(roomId);
+  }
+
+  /** 룸 참가자 전원(이탈 통지·오프라인 판정용). */
+  async participantsOf(roomId: string): Promise<Array<{ id: string; ext_user_id: string | null; role: string | null }>> {
+    const r = await this.pool.query<{ id: string; ext_user_id: string | null; role: string | null }>(
+      `SELECT id, ext_user_id, role FROM room_participant WHERE room_id = $1`, [roomId]);
+    return r.rows;
+  }
+
+  /** 특정 역할 참가자들이 endAt 이후 보낸 메시지 수 — 유예 무료 한도(O95 동형) 게이트용. */
+  async countPostEndByRoles(roomId: string, endAt: Date, roles: string[]): Promise<number> {
+    const r = await this.pool.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM room_message m JOIN room_participant p ON p.id = m.sender_id
+       WHERE m.room_id = $1 AND m.created_at > $2 AND m.deleted_at IS NULL AND m.kind <> 'system' AND p.role = ANY($3::text[])`,
+      [roomId, endAt, roles]);
+    return r.rows[0]?.n ?? 0;
+  }
+
+  /** 시스템 안내 메시지(sender 없음). once=true 면 같은 본문이 이미 있으면 생략. */
+  async saveSystem(roomId: string, body: string, opts?: { once?: boolean }) {
+    if (opts?.once) {
+      const dup = await this.pool.query(`SELECT 1 FROM room_message WHERE room_id = $1 AND kind = 'system' AND body = $2 LIMIT 1`, [roomId, body]);
+      if ((dup.rowCount ?? 0) > 0) return null;
+    }
+    const r = await this.pool.query<MsgRow>(
+      `INSERT INTO room_message (room_id, sender_id, kind, body) VALUES ($1, NULL, 'system', $2) RETURNING *`, [roomId, body]);
+    return this.shape(r.rows[0], '', null);
+  }
+
   /** 토큰 폐기 — epoch 증가로 기존 토큰 일괄 무효화. 반환: 새 epoch. */
   async revoke(roomId: string): Promise<number | null> {
     const r = await this.pool.query<{ token_epoch: number }>(`UPDATE room SET token_epoch = token_epoch + 1 WHERE id = $1 RETURNING token_epoch`, [roomId]);
     return r.rows[0]?.token_epoch ?? null;
   }
 
-  // ── 시간창(호스트가 opens/closes 를 지정; 둘 다 있으면 제한, 강제 종료) ──
+  // ── 시간창(호스트가 opens/closes 를 지정 — 한쪽만 있어도 제한: opens 만=그때부터 상시,
+  //    closes 만=상시 개방하다 그 시각 이후 읽기 전용. 채팅형 유예(O94) 지원) ──
   sessionWindow(room: RoomRow): { restricted: boolean; state: 'before' | 'open' | 'closed'; opensAt: Date | null; closesAt: Date | null } {
-    const restricted = !!room.opens_at && !!room.closes_at;
+    const restricted = !!room.opens_at || !!room.closes_at;
     if (!restricted) return { restricted: false, state: 'open', opensAt: null, closesAt: null };
     const now = Date.now();
-    const o = room.opens_at!.getTime(), c = room.closes_at!.getTime();
-    return { restricted: true, state: now < o ? 'before' : now > c ? 'closed' : 'open', opensAt: room.opens_at, closesAt: room.closes_at };
+    const state = room.opens_at && now < room.opens_at.getTime() ? 'before'
+      : room.closes_at && now > room.closes_at.getTime() ? 'closed' : 'open';
+    return { restricted: true, state, opensAt: room.opens_at, closesAt: room.closes_at };
   }
   sessionOpen(room: RoomRow): boolean { const w = this.sessionWindow(room); return !w.restricted || w.state === 'open'; }
   sessionInfo(room: RoomRow) { const w = this.sessionWindow(room); return { restricted: w.restricted, state: w.state, opensAt: w.opensAt?.toISOString() ?? null, closesAt: w.closesAt?.toISOString() ?? null }; }

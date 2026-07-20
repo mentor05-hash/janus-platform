@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsIn, IsInt, IsISO8601, IsObject, IsOptional, IsString, MaxLength, Min, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsIn, IsInt, IsISO8601, IsObject, IsOptional, IsString, MaxLength, Min, ValidateIf, ValidateNested } from 'class-validator';
 
 class FeaturesDto {
   @IsOptional() @IsBoolean() chat?: boolean;
@@ -23,6 +23,13 @@ export class CreateRoomDto {
   @IsOptional() @IsObject() metadata?: Record<string, unknown>;
   @IsOptional() @IsIn(['session', 'lecture']) mode?: string; // lecture=1:다 강의(host만 판서)
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(300) @ValidateNested({ each: true }) @Type(() => ParticipantDto) participants!: ParticipantDto[];
+}
+
+/** 시간창·정책 메타 갱신 — null 은 해당 경계 해제, 생략은 유지. metadata 는 병합. */
+export class UpdateWindowDto {
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsISO8601() opensAt?: string | null;
+  @IsOptional() @ValidateIf((_, v) => v !== null) @IsISO8601() closesAt?: string | null;
+  @IsOptional() @IsObject() metadata?: Record<string, unknown>;
 }
 
 export class MintTokenDto {

@@ -36,8 +36,15 @@ export class RoomsBridgeService {
     const win = this.realtime.sessionWindow(b);
     const opensAt = win.opensAt?.toISOString() ?? null;
     const closesAt = win.closesAt?.toISOString() ?? null;
+    // 채팅형 유예 정책(O94·O95)을 룸 메타로 위임 — 룸 서버가 서버 권위로 잠금·무료 한도를 집행.
+    const metadata = b.mode === 'chat' && b.end_at
+      ? { endAt: b.end_at.toISOString(), postFree: { limit: this.realtime.postFreeLimit, roles: ['student'] } }
+      : undefined;
 
-    const map = await this.ensureRoom(bookingId, b.student_id!, b.teacher_id!, features, opensAt, closesAt);
+    const existed = await this.getMapping(bookingId);
+    const map = existed ?? await this.ensureRoom(bookingId, b.student_id!, b.teacher_id!, features, opensAt, closesAt, metadata);
+    // 기존 룸은 정책이 바뀌었을 수 있으니 시간창·메타를 동기화(멱등, 실패 비차단 — 구버전 룸 서버 호환).
+    if (existed) await this.rooms.updateWindow(map.room_id, { opensAt, closesAt, metadata }).catch(() => {});
     const participantId = isStudent ? map.student_participant_id : map.teacher_participant_id;
     const token = await this.rooms.mintToken(map.room_id, participantId);
     return {
@@ -52,12 +59,12 @@ export class RoomsBridgeService {
   }
 
   /** 예약당 룸 1개(멱등). 없으면 프로비저닝 후 매핑 저장(경합은 ON CONFLICT 로 흡수). */
-  private async ensureRoom(bookingId: string, studentId: string, teacherId: string, features: { chat: boolean; whiteboard: boolean; voice: boolean }, opensAt: string | null, closesAt: string | null): Promise<Mapping> {
+  private async ensureRoom(bookingId: string, studentId: string, teacherId: string, features: { chat: boolean; whiteboard: boolean; voice: boolean }, opensAt: string | null, closesAt: string | null, metadata?: Record<string, unknown>): Promise<Mapping> {
     const existing = await this.getMapping(bookingId);
     if (existing) return existing;
 
     const created = await this.rooms.createRoom({
-      externalRef: bookingId, features, opensAt, closesAt,
+      externalRef: bookingId, features, opensAt, closesAt, metadata,
       participants: [
         { extUserId: studentId, role: 'student', displayName: '학생' },
         { extUserId: teacherId, role: 'teacher', displayName: '선생님' },

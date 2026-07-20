@@ -108,6 +108,8 @@ services:
       ROOMS_JWT_SECRET: dev-rooms-secret-change    # 실서비스에선 시크릿으로 교체
       ROOMS_API_KEY: dev-rooms-api-key             # 호스트 백엔드↔룸서비스 서버-투-서버 키
       ROOMS_STORAGE_DIR: /data/rooms-storage
+      # 부재중 채팅 등 룸 이벤트를 호스트(API)로 통지 — 키는 ROOMS_API_KEY 재사용
+      EVENTS_WEBHOOK_URL: ${EVENTS_WEBHOOK_URL:-http://api:3000/api/v1/internal/rooms/events}
     depends_on:
       postgres:
         condition: service_healthy
