@@ -53,6 +53,14 @@ export function TeacherBookingsPage() {
   }, [teacherId]);
 
   useEffect(() => { void load(); }, [load]);
+  // 실시간 갱신 — 신규 예약(질문승격·자동배정 포함) 알림·탭 재클릭 시 리로드.
+  useEffect(() => {
+    const h = (e: Event) => { const t = (e as CustomEvent<{ type?: string }>).detail?.type ?? ''; if (t.startsWith('booking_')) void load(); };
+    const r = () => void load();
+    window.addEventListener('janus:notif', h);
+    window.addEventListener('janus:refresh', r);
+    return () => { window.removeEventListener('janus:notif', h); window.removeEventListener('janus:refresh', r); };
+  }, [load]);
 
   async function act(id: string, action: string) {
     try {
@@ -76,6 +84,8 @@ export function TeacherBookingsPage() {
 
   const now = new Date();
   const rows = bookings.filter((b) => (tab === 'today' ? isSameDay(b.start, now) : tab === 'week' ? inThisWeek(b.start) : true));
+  // 현재 탭에 안 보이는 미인지(ack 전) 예약 — '오늘' 탭만 보다가 내일 이후 신규 예약(질문승격 등)을 놓치는 것 방지.
+  const hiddenUnacked = bookings.filter((b) => b.status === 'confirmed' && !b.teacherAckAt && !rows.some((r) => r.id === b.id)).length;
 
   const columns: Column<Booking>[] = [
     { key: 'time', header: '시간', render: (b) => timeOf(b.start) },
@@ -124,6 +134,12 @@ export function TeacherBookingsPage() {
       </StatGrid>
       <div style={{ marginTop: 16 }}>
         <Tabs items={TABS} value={tab} onChange={setTab} />
+        {hiddenUnacked > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#FEE2E2', border: '1px solid #FCA5A5', borderRadius: 10, padding: '9px 12px', margin: '10px 0 4px' }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#B91C1C' }}>🆕 이 탭에 안 보이는 확인 전 예약 {hiddenUnacked}건이 있어요(다른 날짜 — 질문승격·자동배정 포함).</span>
+            <button onClick={() => setTab('all')} style={{ cursor: 'pointer', border: '1px solid #B91C1C', background: '#fff', color: '#B91C1C', borderRadius: 8, padding: '4px 12px', fontSize: 12.5, fontWeight: 700 }}>전체 보기</button>
+          </div>
+        )}
         <Table columns={columns} rows={rows} rowKey={(b) => b.id} empty="해당 기간 예약이 없습니다." />
       </div>
       {chatId && <SessionChatPanel bookingId={chatId} myId={teacherId} title="상담 채팅" onClose={() => setChatId(null)} />}
