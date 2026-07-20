@@ -99,6 +99,20 @@ export class QnaController {
     return this.qna.pricingInfo(user.centerId ?? null, user.role === AccountRole.STUDENT ? user.id : undefined);
   }
 
+  /** GET /qna/tickets — B1 보유 질문권 잔여 + 판매 묶음(학생). */
+  @Get('tickets')
+  @Roles('student')
+  tickets(@CurrentUser() user: AuthUser) {
+    return this.qna.ticketInfo(user);
+  }
+
+  /** POST /qna/tickets/purchase — B1 묶음 구매(크레딧 차감, 부족 시 402). */
+  @Post('tickets/purchase')
+  @Roles('student')
+  purchaseTickets(@Body() dto: { count: number }, @CurrentUser() user: AuthUser) {
+    return this.qna.purchaseTickets(user, Number(dto?.count ?? 0));
+  }
+
   @Get('posts')
   list(@CurrentUser() user: AuthUser) {
     return this.qna.listPosts(user);

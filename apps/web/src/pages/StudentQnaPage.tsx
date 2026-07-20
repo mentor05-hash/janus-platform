@@ -92,12 +92,28 @@ export function StudentQnaPage() {
       setTeachers((p) => p.map((x) => (x.teacherId === t.teacherId ? { ...x, favorite: !t.favorite } : x)));
     } catch { /* 무시 */ }
   }
-  const [fee, setFee] = useState<{ itemFee: number; generalFee: number; freeQuota?: { quota: number; used: number; remaining: number; resetsAt: string } | null; expectedFirstReplyMin?: number | null } | null>(null);
+  type FeeInfo = { itemFee: number; generalFee: number; freeQuota?: { quota: number; used: number; remaining: number; resetsAt: string } | null; ticketRemaining?: number | null; expectedFirstReplyMin?: number | null };
+  const [fee, setFee] = useState<FeeInfo | null>(null);
+  type TicketProduct = { count: number; discountPct: number; price: number; unitPrice: number; listPrice: number };
+  const [ticketProducts, setTicketProducts] = useState<TicketProduct[]>([]);
   useEffect(() => {
     api.get<Record<string, number>>('/bookings/question-duration/policy').then(setDurPol).catch(() => { /* 기본값 */ });
-    api.get<{ itemFee: number; generalFee: number; freeQuota?: { quota: number; used: number; remaining: number; resetsAt: string } | null; expectedFirstReplyMin?: number | null }>('/qna/pricing').then(setFee).catch(() => { /* 요금 조회 실패 */ });
+    api.get<FeeInfo>('/qna/pricing').then(setFee).catch(() => { /* 요금 조회 실패 */ });
+    api.get<{ remaining: number; products: TicketProduct[] }>('/qna/tickets').then((r) => setTicketProducts(r.products ?? [])).catch(() => { /* 상품 조회 실패 */ });
     loadTeachers();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // B1 — 질문권 묶음 구매(크레딧 선차감). 성공 시 요금 정보 재조회로 잔여 반영.
+  async function buyTickets(p: TicketProduct) {
+    if (!confirm(`질문권 ${p.count}회 묶음을 구매할까요?\n\n· 가격: ${p.price.toLocaleString()} 크레딧 (정가 ${p.listPrice.toLocaleString()} → ${p.discountPct}% 할인)\n· 회당 ${p.unitPrice.toLocaleString()} 크레딧`)) return;
+    setError(''); setMsg('');
+    try {
+      const r = await api.post<{ ticketRemaining: number; paid: number }>('/qna/tickets/purchase', { count: p.count });
+      setMsg(`질문권 ${p.count}회 묶음을 구매했어요 — 보유 질문권 ${r.ticketRemaining}건.`);
+      api.get<FeeInfo>('/qna/pricing').then(setFee).catch(() => { /* noop */ });
+    } catch (e) {
+      setError(e instanceof ApiError ? (e.status === 402 ? '크레딧이 부족합니다 — 결제요청이 생성되었어요.' : e.message) : '구매 실패');
+    }
+  }
   function loadTeachers() {
     api.get<{ teachers: TeacherDir[] }>('/qna/teachers').then((r) => setTeachers(r.teachers ?? [])).catch(() => { /* 디렉터리 조회 실패 */ });
   }
@@ -221,16 +237,23 @@ export function StudentQnaPage() {
   }
   async function requestTeacher(postId: string) {
     setError(''); setMsg('');
-    // 질문권·크레딧이 실제로 소진되는 지점 — 반드시 확인 받는다.
+    // 질문권·크레딧이 실제로 소진되는 지점 — 반드시 확인 받는다. 소진 순서: 주간무료→묶음→크레딧(B1).
     const freeLeft = fee?.freeQuota?.remaining ?? 0;
-    const cost = freeLeft > 0 ? `무료 질문권 1건이 사용됩니다(이번 주 ${freeLeft}건 남음).` : `크레딧 ${(fee?.generalFee ?? 0).toLocaleString()}이 차감됩니다.`;
+    const ticketLeft = fee?.ticketRemaining ?? 0;
+    const cost = freeLeft > 0
+      ? `무료 질문권 1건이 사용됩니다(이번 주 ${freeLeft}건 남음).`
+      : ticketLeft > 0
+        ? `보유 질문권 1건이 사용됩니다(${ticketLeft}건 보유).`
+        : `크레딧 ${(fee?.generalFee ?? 0).toLocaleString()}이 차감됩니다.`;
     if (!confirm(`선생님 답변을 요청할까요?\n\n${cost}`)) return;
     try {
-      const r = await api.post<{ freeUsed?: boolean; freeRemaining?: number; chargedCredits?: number }>(`/qna/posts/${postId}/request-teacher`, {});
+      const r = await api.post<{ freeUsed?: boolean; freeRemaining?: number; usedTicket?: boolean; ticketRemaining?: number; chargedCredits?: number }>(`/qna/posts/${postId}/request-teacher`, {});
       track('qna_funnel', 'cta', 'human_requested', { ev: 'human_requested', postId });
       setMsg(r.freeUsed
         ? `선생님 답변을 요청했어요 — 무료 질문권 사용(이번 주 ${r.freeRemaining ?? 0}건 남음).`
-        : `선생님 답변을 요청했어요(${(r.chargedCredits ?? 0).toLocaleString()} 크레딧 차감).`);
+        : r.usedTicket
+          ? `선생님 답변을 요청했어요 — 보유 질문권 사용(${r.ticketRemaining ?? 0}건 남음).`
+          : `선생님 답변을 요청했어요(${(r.chargedCredits ?? 0).toLocaleString()} 크레딧 차감).`);
       load();
       api.get<typeof fee>('/qna/pricing').then((v) => setFee(v)).catch(() => { /* noop */ });
     } catch (e) {
@@ -322,10 +345,23 @@ export function StudentQnaPage() {
               {fee?.freeQuota && fee.freeQuota.remaining > 0
                 ? <>· <b style={{ color: 'var(--teal)' }}>이번 주 무료 질문 {fee.freeQuota.remaining}건 남음</b>(소진 후 건당 {(f.qType === 'item' ? fee?.itemFee : fee?.generalFee)?.toLocaleString() ?? '—'} 크레딧)</>
                 : <>· 건당 {(f.qType === 'item' ? fee?.itemFee : fee?.generalFee)?.toLocaleString() ?? '—'} 크레딧{fee?.freeQuota && fee.freeQuota.quota > 0 ? ' · 이번 주 무료 질문권 소진' : ''}</>}
+              {(fee?.ticketRemaining ?? 0) > 0 && <> · <b style={{ color: '#A97D24' }}>보유 질문권 {fee!.ticketRemaining}건</b></>}
               {fee?.expectedFirstReplyMin != null && <> · ⚡ 보통 첫 답변까지 약 {fee.expectedFirstReplyMin >= 60 ? `${Math.round(fee.expectedFirstReplyMin / 60)}시간` : `${fee.expectedFirstReplyMin}분`}</>}
               {' · '}난이도가 높을수록 답변블록이 길어져요.
             </span>
           </div>
+          {/* B1 — 질문권 묶음 구매(할인 선구매). 소진 순서: 주간무료 → 묶음 → 크레딧 */}
+          {ticketProducts.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 8, fontSize: 12.5 }}>
+              <span style={{ color: 'var(--muted)', fontWeight: 700 }}>🎟️ 질문권 묶음</span>
+              {ticketProducts.map((p) => (
+                <button key={p.count} type="button" onClick={() => void buyTickets(p)}
+                  style={{ cursor: 'pointer', border: '1px solid #EDDCB8', background: 'var(--chip-confirmed-bg,#FAF1E2)', color: '#A97D24', borderRadius: 999, padding: '4px 12px', fontSize: 12.5, fontWeight: 700 }}>
+                  {p.count}회 {p.price.toLocaleString()}크레딧 ({p.discountPct}%↓)
+                </button>
+              ))}
+            </div>
+          )}
           <TextareaField label="질문 내용" rows={4} value={f.body} onChange={(e) => set('body', e.target.value)} placeholder="예: 미적분 30번, 합성함수 미분에서 왜 이렇게 전개되나요?" />
 
           {/* P3 — 비슷한 해결 질문 무료 열람 제안 */}
@@ -403,7 +439,7 @@ export function StudentQnaPage() {
                 {/* P2 퍼널: 충분하면 무료 종료, 부족하면 이 시점에 무료질문권/크레딧으로 사람 답변 */}
                 {p.status === 'ai_pending' && (
                   <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <Button size="sm" onClick={() => requestTeacher(p.id)}>👩‍🏫 선생님 답변 받기{fee?.freeQuota && fee.freeQuota.remaining > 0 ? ` (무료 ${fee.freeQuota.remaining}건 남음)` : fee ? ` (${(p.q_type === 'item' ? fee.itemFee : fee.generalFee).toLocaleString()} 크레딧)` : ''}</Button>
+                    <Button size="sm" onClick={() => requestTeacher(p.id)}>👩‍🏫 선생님 답변 받기{fee?.freeQuota && fee.freeQuota.remaining > 0 ? ` (무료 ${fee.freeQuota.remaining}건 남음)` : (fee?.ticketRemaining ?? 0) > 0 ? ` (질문권 ${fee!.ticketRemaining}건 보유)` : fee ? ` (${(p.q_type === 'item' ? fee.itemFee : fee.generalFee).toLocaleString()} 크레딧)` : ''}</Button>
                     <button type="button" onClick={() => resolveAi(p.id)}
                       style={{ fontSize: 12.5, border: '1px solid var(--input-border)', background: 'var(--surface)', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', color: 'var(--muted)' }}>
                       충분해요 — 해결로 표시

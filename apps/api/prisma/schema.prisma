@@ -751,6 +751,20 @@ model qna_post {
   student_profile     student_profile  @relation(fields: [student_id], references: [account_id], onDelete: NoAction, onUpdate: NoAction)
 }
 
+/** B1 질문권 묶음 — 크레딧으로 선구매한 질문권 잔여 관리(FIFO 소진). 소진 순서: 주간무료→묶음→크레딧. */
+model qna_ticket_bundle {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  student_id   String    @db.Uuid
+  count        Int
+  remaining    Int
+  credits_paid Int
+  unit_credits Int
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  expires_at   DateTime? @db.Timestamptz(6)
+
+  @@index([student_id])
+}
+
 /** Q3 커뮤니티 답변(무료·전원 답변) — 유료 qna_answer 와 분리. 작성자=임의 계정(학생·교사). */
 model qna_community_answer {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid

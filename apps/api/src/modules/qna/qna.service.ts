@@ -85,7 +85,8 @@ export class QnaService {
       SELECT avg(EXTRACT(EPOCH FROM (first_reply_at - COALESCE(escalated_at, created_at))) / 60) AS avg_min
       FROM qna_post WHERE first_reply_at IS NOT NULL AND created_at > now() - interval '30 days'`;
     const expectedFirstReplyMin = rows[0]?.avg_min != null ? Math.max(1, Math.round(Number(rows[0].avg_min))) : null;
-    return { itemFee: item.credits, generalFee: general.credits, freeQuota: free, expectedFirstReplyMin };
+    const ticketRemaining = studentId ? await this.ticketRemaining(studentId) : null;
+    return { itemFee: item.credits, generalFee: general.credits, freeQuota: free, ticketRemaining, expectedFirstReplyMin };
   }
 
   /** C1 직거래·연락처 감지 기록(audit_log 재사용) — 실패 비차단. 반환: 경고 문구 또는 null. */
@@ -134,6 +135,97 @@ export class QnaService {
       : 0;
     const resetsAt = new Date(weekStart.getTime() + 7 * 24 * 3600_000).toISOString();
     return { quota, used, remaining: Math.max(0, quota - used), resetsAt };
+  }
+
+  // ── B1 질문권 묶음 상품 — 크레딧 선구매·FIFO 소진. 구성은 system_setting(관리자 조정) ──
+  private static readonly TICKET_BUNDLE_KEY = 'qa_ticket_bundles';
+  private static readonly TICKET_BUNDLE_DEFAULT = [
+    { count: 5, discountPct: 10 },
+    { count: 10, discountPct: 20 },
+  ];
+
+  /** 판매 중인 묶음 구성(정책) — 단가는 general 시세 기준 할인 적용. */
+  private async ticketBundleProducts(centerId: string | null) {
+    const row = await this.prisma.system_setting.findUnique({ where: { key: QnaService.TICKET_BUNDLE_KEY } });
+    const cfg = (Array.isArray(row?.value) ? row.value : QnaService.TICKET_BUNDLE_DEFAULT) as Array<{ count: number; discountPct: number }>;
+    const quote = await this.pricing.quoteBoard('general', centerId);
+    return cfg
+      .filter((b) => b.count > 0)
+      .map((b) => {
+        const price = Math.round((quote.credits * b.count * (100 - b.discountPct)) / 100);
+        return { count: b.count, discountPct: b.discountPct, price, unitPrice: Math.round(price / b.count), listPrice: quote.credits * b.count };
+      });
+  }
+
+  /** 보유 질문권 잔여(미만료 묶음 합). */
+  async ticketRemaining(studentId: string): Promise<number> {
+    const agg = await this.prisma.qna_ticket_bundle.aggregate({
+      _sum: { remaining: true },
+      where: { student_id: studentId, remaining: { gt: 0 }, OR: [{ expires_at: null }, { expires_at: { gt: new Date() } }] },
+    });
+    return agg._sum.remaining ?? 0;
+  }
+
+  /** 질문권 현황 + 판매 상품(학생). */
+  async ticketInfo(student: AuthUser) {
+    const sp = await this.prisma.student_profile.findUnique({ where: { account_id: student.id } });
+    if (!sp) throw new NotFoundException('학생 프로필이 없습니다.');
+    const [remaining, products] = await Promise.all([
+      this.ticketRemaining(student.id),
+      this.ticketBundleProducts(sp.center_id),
+    ]);
+    return { remaining, products };
+  }
+
+  /** 묶음 구매 — 크레딧 차감과 묶음 생성을 원자 처리. 부족 시 결제요청+402. */
+  async purchaseTickets(student: AuthUser, count: number) {
+    if (student.role !== AccountRole.STUDENT) throw new ForbiddenException('학생만 구매할 수 있습니다.');
+    const sp = await this.prisma.student_profile.findUnique({ where: { account_id: student.id } });
+    if (!sp) throw new NotFoundException('학생 프로필이 없습니다.');
+    const products = await this.ticketBundleProducts(sp.center_id);
+    const item = products.find((p) => p.count === count);
+    if (!item) throw new BadRequestException('판매 중인 묶음이 아닙니다.');
+    try {
+      const bundle = await this.prisma.$transaction(async (tx) => {
+        const outcome = await this.credit.consumeWithin(tx, student.id, item.price, {
+          refType: 'qna_ticket', description: `Q&A 질문권 ${item.count}회 묶음 구매`,
+        });
+        if (!outcome.ok) throw new ShortfallError(outcome.shortfall);
+        return tx.qna_ticket_bundle.create({
+          data: {
+            student_id: student.id, count: item.count, remaining: item.count,
+            credits_paid: item.price, unit_credits: item.unitPrice,
+          },
+        });
+      });
+      const remaining = await this.ticketRemaining(student.id);
+      return { ok: true, bundleId: bundle.id, count: item.count, paid: item.price, ticketRemaining: remaining };
+    } catch (e) {
+      if (e instanceof ShortfallError) {
+        await this.credit.createPaymentRequest(student.id, e.shortfall, { refType: 'qna_ticket' });
+        throw new HttpException(
+          `크레딧이 ${e.shortfall} 부족합니다. 결제요청이 생성되었습니다.`,
+          HttpStatus.PAYMENT_REQUIRED,
+        );
+      }
+      throw e;
+    }
+  }
+
+  /** 트랜잭션 내 질문권 1건 소진(FIFO — 만료 임박·오래된 묶음 먼저). 성공 시 true. */
+  private async consumeTicketWithin(tx: Prisma.TransactionClient, studentId: string): Promise<boolean> {
+    const bundles = await tx.qna_ticket_bundle.findMany({
+      where: { student_id: studentId, remaining: { gt: 0 }, OR: [{ expires_at: null }, { expires_at: { gt: new Date() } }] },
+      orderBy: { created_at: 'asc' },
+    });
+    for (const b of bundles) {
+      const upd = await tx.qna_ticket_bundle.updateMany({
+        where: { id: b.id, remaining: { gt: 0 } },
+        data: { remaining: { decrement: 1 } },
+      });
+      if (upd.count === 1) return true;
+    }
+    return false;
   }
 
   /** 질문 등록(학생) — 게시판 건당 과금. 부족 시 결제요청+402. */
@@ -195,10 +287,11 @@ export class QnaService {
     const sp = await this.prisma.student_profile.findUnique({ where: { account_id: student.id } });
     if (!sp) throw new NotFoundException('학생 프로필이 없습니다.');
     const quote = await this.pricing.quoteBoard('general', sp.center_id);
-    // P1: 주간 무료 질문권 먼저 소진, 그다음 크레딧 과금.
+    // 소진 순서(B1): 주간 무료 질문권 → 묶음 질문권 → 크레딧 과금.
     const freeQ = await this.freeQuotaStatus(student.id);
     const useFree = freeQ.remaining > 0;
-    const credits = useFree ? 0 : quote.credits;
+    let usedTicket = false;
+    let credits = 0;
     try {
       await this.prisma.$transaction(async (tx) => {
         const upd = await tx.qna_post.updateMany({
@@ -206,18 +299,23 @@ export class QnaService {
           data: { status: 'open', free_used: useFree, escalated_at: new Date() },
         });
         if (upd.count !== 1) throw new BadRequestException('이미 처리된 질문입니다.');
-        if (credits > 0) {
-          const outcome = await this.credit.consumeWithin(tx, student.id, credits, {
-            refType: 'qna', refId: postId, description: 'Q&A 선생님 답변 요청',
-          });
-          if (!outcome.ok) throw new ShortfallError(outcome.shortfall);
+        if (!useFree) {
+          usedTicket = await this.consumeTicketWithin(tx, student.id);
+          if (!usedTicket) {
+            credits = quote.credits;
+            const outcome = await this.credit.consumeWithin(tx, student.id, credits, {
+              refType: 'qna', refId: postId, description: 'Q&A 선생님 답변 요청',
+            });
+            if (!outcome.ok) throw new ShortfallError(outcome.shortfall);
+          }
         }
       });
       // 지정 질문이면 이 시점에 선생님에게 알림(그 전에는 선생님에게 보이지 않음).
       if (post.scope === 'assigned' && post.assigned_teacher_id) {
         void this.notify?.notify(post.assigned_teacher_id, 'qna_assigned', { postId });
       }
-      return { ok: true, status: 'open', chargedCredits: credits, freeUsed: useFree, freeRemaining: useFree ? freeQ.remaining - 1 : freeQ.remaining };
+      const ticketRemaining = usedTicket ? await this.ticketRemaining(student.id) : undefined;
+      return { ok: true, status: 'open', chargedCredits: credits, freeUsed: useFree, usedTicket, ticketRemaining, freeRemaining: useFree ? freeQ.remaining - 1 : freeQ.remaining };
     } catch (e) {
       if (e instanceof ShortfallError) {
         await this.credit.createPaymentRequest(student.id, e.shortfall, { refType: 'qna' });
