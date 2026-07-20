@@ -489,6 +489,7 @@ model payroll_estimate {
   settled_by       String?         @db.Uuid
   period_start     DateTime?       @db.Date
   period_end       DateTime?       @db.Date
+  tutor_source     String?         // 고용유형 스냅샷(freelance|salaried) — 계측 차원, 금액 계산 무관
   teacher_profile  teacher_profile @relation(fields: [teacher_id], references: [account_id], onDelete: Cascade, onUpdate: NoAction)
 }
 

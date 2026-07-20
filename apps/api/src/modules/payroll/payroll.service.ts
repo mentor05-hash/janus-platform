@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { tutorSourceOf } from '../metrics/tutor-source';
 import {
   hhmmToMin,
   kstDateString,
@@ -212,6 +213,8 @@ export class PayrollService {
       Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0),
     );
     const deductions = computeDeductions(est.confirmedAmount);
+    // tutor_source 스냅샷(계측 차원) — 정산 시점 고용유형 박제. ⚠ 금액·계산에 무관, 순수 라벨.
+    const prof = await this.prisma.teacher_profile.findUnique({ where: { account_id: teacherId }, select: { employment_type: true } });
     const data = {
       cycle: 'monthly',
       confirmed_amount: est.confirmedAmount,
@@ -223,6 +226,7 @@ export class PayrollService {
       settled_by: actor.id,
       period_start: periodStart,
       period_end: periodEnd,
+      tutor_source: tutorSourceOf(prof?.employment_type ?? null),
     };
     // 멱등: 같은 교사·기간 정산은 갱신(중복 행 방지)
     const existing = await this.prisma.payroll_estimate.findFirst({

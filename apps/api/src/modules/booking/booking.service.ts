@@ -33,6 +33,7 @@ import { permAtLeast } from '../../config/perm';
 import { resolveStudentType, STUDENT_TYPE_LABEL, type StudentType } from '../../common/student-type';
 import { DEFAULT_CONSULT_DURATION, CONSULT_TYPES, isFullTime, DEFAULT_QUESTION_DURATION, QUESTION_TIERS, difficultyTier } from '../../common/consult-assignment';
 import { AvailabilityService } from '../availability/availability.service';
+import { TUTOR_SOURCE_PAGE, tutorSourceOf } from '../metrics/tutor-source';
 import { CreditService } from '../billing/credit.service';
 import { evaluatePenalty } from '../pricing-policy/domain/penalty';
 import { PricingService } from '../pricing-policy/pricing.service';
@@ -1189,7 +1190,26 @@ export class BookingService {
       await this.notify.notify(b.student_id, 'booking_noshow', {
         bookingId: id,
       });
+    // tutor_source 계측(관측 전용·비차단) — 완주 스냅샷 + 재이용(재결제) 판정. 정산·상태에 개입하지 않음.
+    if (to === BookingStatus.DONE) void this.tagTutorSourceCompletion(b.teacher_id, b.student_id, id);
     return { id, status: to, refunded: refund ? b.charged_credits : 0 };
+  }
+
+  /**
+   * tutor_source 스냅샷 계측 — 완주 시점의 고용유형을 funnel_event 에 박제(소급 변경 방지).
+   * 이 학생의 이전 완주가 있으면 재이용(repurchase)도 함께 기록. 실패는 삼킨다(관측이 본 로직을 막지 않음).
+   */
+  private async tagTutorSourceCompletion(teacherId: string | null, studentId: string | null, bookingId: string) {
+    if (!teacherId) return;
+    try {
+      const p = await this.prisma.teacher_profile.findUnique({ where: { account_id: teacherId }, select: { employment_type: true } });
+      const meta = { tutorSource: tutorSourceOf(p?.employment_type ?? null), bookingId, teacherId, studentId };
+      await this.prisma.funnel_event.create({ data: { page: TUTOR_SOURCE_PAGE, event: 'completed', cta: 'completed', meta } });
+      if (studentId) {
+        const priorDone = await this.prisma.booking.count({ where: { student_id: studentId, status: BookingStatus.DONE, id: { not: bookingId } } });
+        if (priorDone > 0) await this.prisma.funnel_event.create({ data: { page: TUTOR_SOURCE_PAGE, event: 'repurchase', cta: 'repurchase', meta } });
+      }
+    } catch { /* 계측 실패 비차단 */ }
   }
 
   /** §5-7 가중 제한: 노쇼·과다거절 임계 초과 학생은 신규 예약 차단. */
