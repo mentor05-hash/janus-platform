@@ -25,24 +25,31 @@ export class RealtimeGateway implements OnGatewayConnection {
   // 세션 종료 시스템 메시지 예약 타이머(예약당 1회 — DB 중복검사로 재기동·다중 join 에도 멱등).
   private readonly closeTimers = new Map<string, NodeJS.Timeout>();
   private static readonly CLOSE_NOTICE = '🔒 상담 시간이 종료되었습니다. 채팅은 열람만 가능해요.';
+  // 채팅형(mode='chat')은 상시 개방 유지 — 잠그지 않고 정보성 안내만(O88 결정 B안).
+  private static readonly CHAT_END_NOTICE = '📅 예약 상담 시간이 지났어요. 채팅은 계속 열려 있지만 답변이 늦을 수 있어요.';
 
   constructor(private readonly jwt: JwtService, private readonly svc: RealtimeService) {}
 
   private rememberWindow(bookingId: string, b: { mode: string | null; start_at: Date | null; end_at: Date | null }) {
     const w = this.svc.sessionWindow(b);
     this.windows.set(bookingId, { restricted: w.restricted, opensMs: w.opensAt?.getTime() ?? 0, closesMs: w.closesAt?.getTime() ?? 0 });
-    this.scheduleCloseNotice(bookingId);
+    if (w.restricted) {
+      // 시간제한형: 유예창 마감(종료+5분)에 잠금 안내
+      this.scheduleNotice(bookingId, w.closesAt!.getTime(), RealtimeGateway.CLOSE_NOTICE);
+    } else if (b.mode === 'chat' && b.end_at) {
+      // 채팅형: 예약 종료 시각에 정보성 안내(잠금 없음)
+      this.scheduleNotice(bookingId, b.end_at.getTime(), RealtimeGateway.CHAT_END_NOTICE);
+    }
   }
 
-  /** 시간창이 닫히는 시각에 세션 종료 시스템 메시지 1회 게시(시간창 제한 예약만). */
-  private scheduleCloseNotice(bookingId: string) {
-    const w = this.windows.get(bookingId);
-    if (!w || !w.restricted || this.closeTimers.has(bookingId)) return;
-    const delay = w.closesMs - Date.now();
-    if (delay <= 0 || delay > 2 ** 31 - 1) return; // 이미 종료(안내 불필요) 또는 과도한 지연
+  /** 지정 시각에 시스템 메시지 1회 게시(예약당 타이머 1개, DB 중복검사로 멱등). */
+  private scheduleNotice(bookingId: string, atMs: number, body: string) {
+    if (this.closeTimers.has(bookingId)) return;
+    const delay = atMs - Date.now();
+    if (delay <= 0 || delay > 2 ** 31 - 1) return; // 이미 지남(뒷북 안내 금지) 또는 과도한 지연
     const t = setTimeout(() => {
       this.closeTimers.delete(bookingId);
-      void this.systemMessage(bookingId, RealtimeGateway.CLOSE_NOTICE, { once: true });
+      void this.systemMessage(bookingId, body, { once: true });
     }, delay);
     if (typeof t.unref === 'function') t.unref();
     this.closeTimers.set(bookingId, t);
