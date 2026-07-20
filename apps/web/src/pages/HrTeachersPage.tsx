@@ -3,7 +3,7 @@ import { api, ApiError } from '../api/client';
 import type { HrTeacher } from '../api/types';
 import { PageHeader, Card, Button, Badge, GradeBadge, Spinner, ErrorText, EmptyState, Pager, TextField, SelectField } from '../components/ui';
 
-const SUBJECTS = ['국어', '수학', '영어', '과학', '사회', '입시'];
+const SUBJECTS = ['국어', '수학', '영어', '과학', '사회', '입시', '학습법', '진로'];
 const GRADES = ['S', 'A', 'B'];
 const CATEGORIES = ['교과 코치', '명문대 멘토', '입시 소장', '심리 코치'];
 const PAGE_SIZE = 20;

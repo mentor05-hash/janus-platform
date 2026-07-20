@@ -7,7 +7,9 @@ import { R, SP, useTheme, useUI, type Palette } from '../theme';
 type Attachment = { id: string; name: string; type?: string };
 type Answer = { id: string; body: string; accepted: boolean; teacherName: string; escalationOk?: boolean };
 type Post = { id: string; subject: string | null; difficulty: string | null; scope: string; body: string; status: string; created_at: string; aiDraft?: string | null; claimedAt?: string | null; firstReplyAt?: string | null; assignedTeacherId?: string | null; attachments?: Attachment[]; answers?: Answer[] };
-const SUBJECTS = ['국어', '수학', '영어', '탐구'];
+// P6 — 교과 + 비교과(학습법·입시·진로). 비교과는 입시 컨설턴트 풀로 매칭.
+const SUBJECTS = ['국어', '수학', '영어', '탐구', '학습법', '입시', '진로'];
+const NON_ACADEMIC = ['학습법', '입시', '진로'];
 const MAX_IMG = 3;
 const isImage = (a: Attachment) => (a.type ?? '').startsWith('image/') || /\.(png|jpe?g|gif|webp|heic)$/i.test(a.name);
 
@@ -186,6 +188,12 @@ export function QnaScreen() {
               <TouchableOpacity key={s} style={[styles.pill, subject === s && styles.pillOn]} onPress={() => setSubject(s)}><Text style={[styles.pillT, subject === s && { color: C.white }]}>{s}</Text></TouchableOpacity>
             ))}
           </View>
+          {/* P6 — 진로·입시 질문은 성적·배치 데이터가 있으면 답변이 깊어짐(웹 CTA 파리티 — 성적은 마이>내 성적·배치) */}
+          {NON_ACADEMIC.includes(subject) && (
+            <Text style={{ fontSize: 12, color: C.teal, marginBottom: 8, lineHeight: 17 }}>
+              🎓 {subject} 질문은 입시 컨설턴트 선생님에게 연결돼요. 마이 › 내 성적·배치에서 성적을 먼저 입력해두면 답변이 훨씬 구체적이에요.
+            </Text>
+          )}
           <Text style={styles.lbl}>공개범위</Text>
           <View style={styles.pills}>
             {[['open', '공개'], ['assigned', '지정']].map(([v, l]) => (

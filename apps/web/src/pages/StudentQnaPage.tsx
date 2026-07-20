@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { PageHeader, Card, Button, Badge, ErrorText, Spinner, EmptyState, TextareaField, SelectField } from '../components/ui';
 import { AuthImage } from '../components/AuthImage';
@@ -42,7 +43,9 @@ const T = (iso?: string | null) => {
 };
 const MAX_IMG = 3;
 
-const SUBJECTS = ['국어', '수학', '영어', '탐구'];
+// P6 — 교과 + 비교과(학습법·입시·진로). 비교과는 입시 컨설턴트 풀로 매칭.
+const SUBJECTS = ['국어', '수학', '영어', '탐구', '학습법', '입시', '진로'];
+const NON_ACADEMIC = ['학습법', '입시', '진로'];
 
 /** Q1 해결 피드백 — 별점 + "계속 받을까요". 그만 받으면 소프트 블록. */
 function FeedbackPanel({ onSubmit }: { onSubmit: (rating: number, cont: boolean) => void }) {
@@ -88,11 +91,13 @@ export function StudentQnaPage() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [escOnly, setEscOnly] = useState(false); // 이어서 상담 가능한 선생님만 보기
   const [favOnly, setFavOnly] = useState(false); // F2 — 찜한 선생님만 보기
-  // F1 — 폼 과목과 선생님 과목 매칭(탐구=과학·사회)
+  // F1 — 폼 과목과 선생님 과목 매칭(탐구=과학·사회, 비교과=입시 컨설턴트 풀)
   const subjectMatch = (t: TeacherDir) => {
     const subs = t.subjects ?? [];
     if (!subs.length) return true; // 과목 미설정 선생님은 전 과목 취급
     if (f.subject === '탐구') return subs.some((x) => ['과학', '사회', '탐구'].includes(x));
+    // P6 — 학습법·입시·진로는 해당 카테고리 또는 '입시'(컨설턴트)를 가진 선생님과 매칭.
+    if (NON_ACADEMIC.includes(f.subject)) return subs.some((x) => [f.subject, '입시'].includes(x));
     return subs.includes(f.subject);
   };
   async function toggleFav(t: TeacherDir) {
@@ -311,6 +316,16 @@ export function StudentQnaPage() {
             <div style={{ minWidth: 120 }}><SelectField label="공개범위" value={f.scope} onChange={(e) => set('scope', e.target.value)} options={[{ value: 'open', label: '공개' }, { value: 'assigned', label: '지정' }]} /></div>
             <div style={{ minWidth: 100 }}><SelectField label="난이도" value={f.difficulty} onChange={(e) => set('difficulty', e.target.value)} options={['하', '중', '상'].map((d) => ({ value: d, label: d }))} /></div>
           </div>
+          {/* P6 — 진로·입시 질문은 배치표·진단 데이터와 함께면 답변이 깊어짐(버티컬 교차 CTA) */}
+          {NON_ACADEMIC.includes(f.subject) && (
+            <div style={{ marginTop: 8, padding: '10px 12px', borderRadius: 10, background: 'var(--teal-50,#EEF4FB)', fontSize: 12.5, color: 'var(--ink-body)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span>🎓 {f.subject} 질문은 입시 컨설턴트 선생님에게 연결돼요. 내 성적·배치 데이터를 먼저 만들어두면 답변이 훨씬 구체적이에요.</span>
+              <span style={{ display: 'flex', gap: 8 }}>
+                <Link to="/student/placement/hub" style={{ fontWeight: 700, color: 'var(--teal)' }}>배치표 허브 →</Link>
+                <Link to="/student/diagnostic" style={{ fontWeight: 700, color: 'var(--teal)' }}>실력진단 →</Link>
+              </span>
+            </div>
+          )}
           {f.scope === 'assigned' && (
             <div style={{ marginTop: 8 }}>
               <label className="label">지정할 선생님 <span style={{ color: 'var(--muted)', fontWeight: 400 }}>— 평균 첫응답·만족도는 지정 질문 실적 기준</span></label>

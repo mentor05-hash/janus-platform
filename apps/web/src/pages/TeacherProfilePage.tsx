@@ -22,7 +22,8 @@ type Profile = {
 };
 
 const STRENGTH_POOL = ['개념정리', '문제풀이', '내신대비', '수능대비', '오답관리', '동기부여', '기초탄탄', '심화학습', '입시전략', '멘탈관리'];
-const SUBJECTS = ['국어', '수학', '영어', '과학', '사회', '입시'];
+// P6 — 비교과(학습법·진로) 포함: 입시 컨설턴트·멘토가 담당 카테고리로 선택.
+const SUBJECTS = ['국어', '수학', '영어', '과학', '사회', '입시', '학습법', '진로'];
 const MODE_OPTIONS: { value: string; label: string; icon: string; desc: string }[] = [
   { value: 'zoom', label: '줌 화상', icon: '📹', desc: '얼굴 보며 화상 상담' },
   { value: 'chat', label: '실시간 채팅', icon: '💬', desc: '텍스트·이미지 실시간 대화' },
@@ -126,7 +127,7 @@ export function TeacherProfilePage() {
         {qnaRecv && (
           <>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
-              {['국어', '수학', '영어', '과학', '사회', '입시'].map((sub) => (
+              {SUBJECTS.map((sub) => (
                 <button key={sub} type="button" onClick={() => setQnaSubs((p2) => (p2.includes(sub) ? p2.filter((x) => x !== sub) : [...p2, sub]))}
                   style={{ fontSize: 12.5, borderRadius: 999, padding: '4px 12px', cursor: 'pointer', border: qnaSubs.includes(sub) ? '1px solid var(--teal)' : '1px solid var(--line)', background: qnaSubs.includes(sub) ? 'var(--teal-50,#E8F0F9)' : 'var(--surface)', color: qnaSubs.includes(sub) ? 'var(--teal)' : 'var(--muted)', fontWeight: 700 }}>
                   {sub}
