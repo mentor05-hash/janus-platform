@@ -184,6 +184,8 @@ export interface Booking {
   content?: string | null;
   attachments?: Attachment[];
   meetingUrl?: string | null; // zoom 입장 URL(확정 시 발급)
+  studentName?: string | null; // 상대방 표시용(선생님 뷰) — UUID 대신 이름
+  teacherName?: string | null; // 상대방 표시용(학생 뷰)
 }
 export interface Me {
   id: string;

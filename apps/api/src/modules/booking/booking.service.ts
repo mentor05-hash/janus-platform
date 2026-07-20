@@ -716,7 +716,17 @@ export class BookingService {
         reviewed = new Set(revs.map((r) => r.booking_id));
       }
     }
-    return rows.map((b) => ({ ...this.toBookingDto(b), reviewed: reviewed.has(b.id) }));
+    // 상대방 표시용 이름 — 선생님 목록엔 학생 이름, 학생 목록엔 선생님 이름(당사자 간이므로 신규 노출 아님).
+    const names = await this.accountNames(rows.flatMap((b) => [b.student_id, b.teacher_id]));
+    return rows.map((b) => ({ ...this.toBookingDto(b), reviewed: reviewed.has(b.id), studentName: names.get(b.student_id) ?? null, teacherName: names.get(b.teacher_id) ?? null }));
+  }
+
+  /** 상대방 표시용 이름(학생·선생님) 배치 조회 — id → name. UUID 노출 대신 이름 표기용. */
+  private async accountNames(ids: Array<string | null | undefined>): Promise<Map<string, string>> {
+    const uniq = [...new Set(ids.filter((x): x is string => !!x))];
+    if (!uniq.length) return new Map();
+    const accts = await this.prisma.account.findMany({ where: { id: { in: uniq } }, select: { id: true, name: true } });
+    return new Map(accts.map((a) => [a.id, a.name]));
   }
 
   /** POST /bookings/reverse — 선생님이 학생에게 역상담 제안(첫 상담 한정). 슬롯 점유, 크레딧은 학생 수락 시 차감. */
@@ -1381,7 +1391,8 @@ export class BookingService {
     if (user.role === AccountRole.STUDENT && b.status === BookingStatus.DONE) {
       reviewed = !!(await this.prisma.review.findUnique({ where: { booking_id: id }, select: { booking_id: true } }));
     }
-    return { ...this.toBookingDto(b), reviewed };
+    const names = await this.accountNames([b.student_id, b.teacher_id]);
+    return { ...this.toBookingDto(b), reviewed, studentName: names.get(b.student_id) ?? null, teacherName: names.get(b.teacher_id) ?? null };
   }
 
   /**

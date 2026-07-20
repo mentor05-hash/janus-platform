@@ -258,8 +258,8 @@ export function TeacherRecords() {
       {mode === 'booking' ? (
         targets.length === 0 ? <Text style={s.empty}>기록할 상담이 없어요.</Text> : targets.map((b) => (
           <TouchableOpacity key={b.id} style={[s.card, detail?.kind === 'edit' && detail.booking.id === b.id && s.cardSel]} onPress={() => setDetail({ kind: 'edit', booking: b })}>
-            <View style={s.row}><Text style={s.title}>{b.consultType ?? '상담'} · {modeLabel(b.mode)}</Text><Text style={s.time}>{KST(b.start)}</Text></View>
-            <Text style={s.body}>{statusLabel(b.status)} · 기록 {b.status === 'done' ? '완료' : '작성/수정'} ›</Text>
+            <View style={s.row}><Text style={s.title}>{b.studentName ?? `학생 ${b.studentId.slice(0, 6)}`} · {b.consultType ?? '상담'}</Text><Text style={s.time}>{KST(b.start)}</Text></View>
+            <Text style={s.body}>{modeLabel(b.mode)} · {statusLabel(b.status)} · 기록 {b.status === 'done' ? '완료' : '작성/수정'} ›</Text>
           </TouchableOpacity>
         ))
       ) : (

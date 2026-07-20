@@ -102,7 +102,7 @@ export function TeacherBookingsPage() {
 
   const columns: Column<Booking>[] = [
     { key: 'time', header: '시간', render: (b) => timeOf(b.start) },
-    { key: 'student', header: '학생', render: (b) => `학생 ${b.studentId.slice(0, 6)}` },
+    { key: 'student', header: '학생', render: (b) => b.studentName ?? `학생 ${b.studentId.slice(0, 6)}` },
     { key: 'subject', header: '과목', render: (b) => b.consultType ?? '-' },
     { key: 'mode', header: '방식', render: (b) => <Badge kind="soft">{b.mode}</Badge> },
     { key: 'status', header: '상태', render: (b) => <Badge kind={(b.status as 'confirmed') ?? 'new'}>{STATUS_LABEL[b.status] ?? b.status}</Badge> },

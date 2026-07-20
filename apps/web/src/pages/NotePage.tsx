@@ -64,6 +64,13 @@ export function NotePage() {
           {f.saveState === 'final' ? '최종' : '임시'}
         </Badge>
       </h2>
+      {booking && (
+        <p style={{ margin: '-4px 0 12px', fontSize: 13.5, color: 'var(--muted)' }}>
+          <b style={{ color: 'var(--ink)' }}>{booking.studentName ?? `학생 ${booking.studentId.slice(0, 6)}`}</b>
+          {booking.consultType ? ` · ${booking.consultType}` : ''}
+          {booking.start ? ` · ${new Date(booking.start).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''} 상담
+        </p>
+      )}
       {booking && (booking.content || (booking.attachments?.length ?? 0) > 0) && (
         <Card style={{ marginBottom: 12, background: 'var(--teal-50, #eef4fb)' }}>
           <h4 style={{ margin: '0 0 8px', fontSize: 14, color: 'var(--ink)' }}>학생 상담 요청</h4>
