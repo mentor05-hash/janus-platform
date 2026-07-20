@@ -74,11 +74,11 @@ export class RealtimeService {
   }
 
   // 라이브 세션(줌·오프라인·필기·보드)은 예약 시간대에만 실시간 상호작용 허용.
-  // 채팅형 상담(mode='chat')은 O88(b) 상시 개방 — 단, 종료 후 유예일이 지나면 읽기 전용(O88 보강).
+  // 채팅형 상담(mode='chat')은 O88(b) 상시 개방 — 단, 종료 후 유예일(기본 3일)이 지나면 읽기 전용(O88 보강·O94).
   private static readonly PRE_MS = 5 * 60 * 1000;
   private static readonly POST_MS = 5 * 60 * 1000;
   // 채팅형 유예(일) — system_setting 'chat_session' {lockAfterDays} 로 조정, 0 = 무기한(구 O88 그대로).
-  private static readonly CHAT_LOCK_DAYS_DEFAULT = 7;
+  private static readonly CHAT_LOCK_DAYS_DEFAULT = 3;
   private chatLockDays = RealtimeService.CHAT_LOCK_DAYS_DEFAULT;
   private chatLockLoadedAt = 0;
   private refreshChatLockDays() {
