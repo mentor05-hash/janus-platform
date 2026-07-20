@@ -191,7 +191,7 @@ export function QnaScreen() {
           {/* P6 — 진로·입시 질문은 성적·배치 데이터가 있으면 답변이 깊어짐(웹 CTA 파리티 — 성적은 마이>내 성적·배치) */}
           {NON_ACADEMIC.includes(subject) && (
             <Text style={{ fontSize: 12, color: C.teal, marginBottom: 8, lineHeight: 17 }}>
-              🎓 {subject} 질문은 입시 컨설턴트 선생님에게 연결돼요. 마이 › 내 성적·배치에서 성적을 먼저 입력해두면 답변이 훨씬 구체적이에요.
+              🎓 {subject} 질문은 입시 컨설턴트 선생님에게 연결돼요. 내정보 › 내 성적·배치에서 성적을 먼저 입력해두면 답변이 훨씬 구체적이에요.
             </Text>
           )}
           <Text style={styles.lbl}>공개범위</Text>

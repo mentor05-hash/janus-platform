@@ -5,6 +5,8 @@ import { api, Child, hasSession, loadTokens, Me, Teacher } from './src/api';
 import { backStack } from './src/webBack';
 import { registerPushToken } from './src/push';
 import { LoginScreen } from './src/screens/LoginScreen';
+import { HomeScreen } from './src/screens/HomeScreen';
+import { DiagnosticScreen } from './src/screens/DiagnosticScreen';
 import { SearchScreen } from './src/screens/SearchScreen';
 import { GlobalSearchScreen } from './src/screens/GlobalSearchScreen';
 import { TeacherDetailScreen } from './src/screens/TeacherDetailScreen';
@@ -74,6 +76,11 @@ function AppInner() {
     });
   }, []);
 
+  // N30 — 학생 로그인/복귀 시 첫 화면은 홈('h'). me 가 바뀔 때 1회만 보정(이후 탭 이동은 그대로).
+  useEffect(() => {
+    if (me?.role === 'student') setTab('h');
+  }, [me?.id, me?.role]);
+
   useEffect(() => {
     if (me?.role === 'guardian') {
       api.get<Child[]>('/guardian/children').then((cs) => {
@@ -95,7 +102,8 @@ function AppInner() {
     if (backStack.pop()) return true; // 하위 화면(자동매칭·기록·분류·시간변경 등) 닫기
     if (booking) { setBooking(false); return true; }
     if (teacher) { setTeacher(null); return true; }
-    if (tab !== 'a') { setTab(tabHist.current.pop() ?? 'a'); return true; } // 직전 탭으로 복귀(없으면 홈)
+    const homeTab = me?.role === 'student' ? 'h' : 'a'; // N30 — 학생 홈은 'h'
+    if (tab !== homeTab) { setTab(tabHist.current.pop() ?? homeTab); return true; } // 직전 탭으로 복귀(없으면 홈)
     // 홈 최상위: 첫 뒤로가기는 종료 안내 후 유지, 2초 내 다시 누르면 종료 허용.
     if (exitArmed.current) {
       exitArmed.current = false;
@@ -144,13 +152,14 @@ function AppInner() {
   const isGuardian = me.role === 'guardian';
   const isStudent = me.role === 'student';
   const isTeacher = me.role === 'teacher';
-  const tabs = isGuardian ? ['a', 'b', 'g', 'c', 'd'] : isTeacher ? ['ti', 'to', 'ts', 'tr', 'tm'] : ['a', 'b', 'r', 'e', 'c', 'f', 'd'];
+  // N30 — 학생 하단 탭 7→5(홈/질문/진단/일정/내정보). 탭에서 빠진 화면(a/r/e/f)은 홈 바로가기로 보존(기능 보존).
+  const tabs = isGuardian ? ['a', 'b', 'g', 'c', 'd'] : isTeacher ? ['ti', 'to', 'ts', 'tr', 'tm'] : ['h', 'c', 'dg', 'b', 'd'];
   const guardianLabel: Record<string, string> = { a: '홈', b: '상담', g: '멤버십', c: '결제', d: '충전' };
-  const studentLabel: Record<string, string> = { a: '선생님', b: '내 예약', r: '강의실', e: '자료실', c: 'Q&A', f: '커뮤니티', d: '마이' };
+  const studentLabel: Record<string, string> = { h: '홈', dg: '진단', a: '선생님 찾기', b: '일정', r: '강의실', e: '자료실', c: '질문', f: '커뮤니티', d: '내정보' };
   const teacherLabel: Record<string, string> = { ti: '인박스', to: '오늘', ts: '상담', tr: '기록', tm: '마이' };
   // 시안(janus_app_v1) 하단 탭: 아이콘+라벨 — 도메인 아이콘 슬롯 규칙
   const guardianIcon: Record<string, string> = { a: '⌂', b: '◇', g: '◈', c: '₩', d: '⊕' };
-  const studentIcon: Record<string, string> = { a: '◇', b: '▤', r: '▶', e: '▦', c: '✎', f: '◫', d: '◯' };
+  const studentIcon: Record<string, string> = { h: '⌂', dg: '◱', a: '◇', b: '▤', r: '▶', e: '▦', c: '✎', f: '◫', d: '◯' };
   const teacherIcon: Record<string, string> = { ti: '✎', to: '▤', ts: '◇', tr: '▦', tm: '◯' };
   const tabLabel = (t: string) => (isGuardian ? guardianLabel[t] ?? '' : isTeacher ? teacherLabel[t] ?? '' : studentLabel[t] ?? '');
   const tabIcon = (t: string) => (isGuardian ? guardianIcon[t] ?? '' : isTeacher ? teacherIcon[t] ?? '' : studentIcon[t] ?? '');
@@ -193,7 +202,11 @@ function AppInner() {
         {isTeacher && (tTab === 'ti' ? <TeacherInbox /> : tTab === 'to' ? <TeacherToday myId={me.id} /> : tTab === 'ts' ? <TeacherSessions myId={me.id} /> : tTab === 'tr' ? <TeacherRecords /> : <TeacherMy myId={me.id} />)}
 
         {isStudent &&
-          (tab === 'a' ? (
+          (tab === 'h' ? (
+            <HomeScreen name={me.name} goTab={goTab} />
+          ) : tab === 'dg' ? (
+            <DiagnosticScreen onGoQna={() => goTab('c')} />
+          ) : tab === 'a' ? (
             teacher ? (
               booking ? (
                 <SlotsScreen teacher={teacher} initialMode={bookMode} consultType={bookType} initialSubType={bookSub} onBack={() => setBooking(false)} />
