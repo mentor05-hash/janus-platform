@@ -27,6 +27,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, []);
 
+  // 세션 충돌 방지 — 같은 브라우저의 다른 탭에서 다른 계정으로 로그인하면 토큰(localStorage)이
+  // 공유되어 이 탭이 "화면은 이전 계정, 통신은 새 계정"인 유령 상태가 된다(채팅 좌우·읽음이 뒤섞임).
+  // 다른 탭의 토큰 변경을 감지하면 즉시 리로드해 두 탭을 같은 계정으로 동기화한다.
+  // (두 역할 동시 테스트는 시크릿 창·다른 브라우저 사용 — 저장소가 분리되어 충돌 없음)
+  useEffect(() => {
+    const h = (e: StorageEvent) => {
+      if (e.key === 'mp_access' && e.oldValue !== e.newValue) window.location.reload();
+    };
+    window.addEventListener('storage', h);
+    return () => window.removeEventListener('storage', h);
+  }, []);
+
   // 접합계약 C2 — 로그인 사용자의 진입/해제 서비스 목록을 localStorage.janus_sso 로 동기화.
   // 계산기(카이로스·알레아) iframe 이 같은 출처에서 이 값을 읽어 잠금 해제. 비로그인 시 제거.
   useEffect(() => {
