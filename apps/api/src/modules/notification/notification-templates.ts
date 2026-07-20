@@ -57,6 +57,7 @@ const TEMPLATES: Record<string, Tmpl> = {
   entitlement_expiring: { title: '이용권 만료 임박', body: '{product} 이용권이 {days}일 뒤 만료돼요. 내 이용권에서 확인·연장하세요.' },
   qna_answered: { title: '질문 답변', body: '등록한 질문에 답변이 달렸어요.' },
   qna_claimed: { title: '선생님 확인 중', body: '선생님이 내 질문을 확인하고 있어요. 곧 답변이 도착합니다.' },
+  chat_message: { title: '새 채팅 메시지', body: '상담 채팅에 새 메시지가 도착했어요. 채팅방에서 확인하세요.' },
   // ── 커뮤니티·리그(Q3) ──
   qna_community_answer: { title: '커뮤니티 새 답변', body: '내 커뮤니티 질문에 새 답변이 달렸어요. 확인하고 채택해 보세요.' },
   qna_community_accepted: { title: '답변 채택 🎉', body: '내 커뮤니티 답변이 채택됐어요! 리그 실적에 반영됩니다.' },

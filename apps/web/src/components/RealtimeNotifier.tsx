@@ -26,6 +26,8 @@ const LABEL: Record<string, string> = {
   announcement: '새 공지가 있어요.',
   announcement_reminder: '예약 공지 발송 예정이에요.',
   score_uploaded: '성적이 업데이트되었어요.',
+  chat_message: '새 채팅 메시지가 도착했어요 💬',
+  qna_pool_new: '새 공개질문이 도착했어요.',
 };
 
 type Toast = { id: number; text: string };

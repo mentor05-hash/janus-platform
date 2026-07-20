@@ -137,6 +137,24 @@ export class RealtimeService {
     return b;
   }
 
+  // 부재중 채팅 알림 스로틀 — 예약·수신자당 10분에 1건(원장 폭주 방지). 키: bookingId:recipientId
+  private readonly chatNotifiedAt = new Map<string, number>();
+  private static readonly CHAT_NOTIFY_GAP_MS = 10 * 60 * 1000;
+
+  /** 방에 없는 상대에게 새 채팅 알림 원장 기록(스로틀) — 알림 목록·뱃지에서 확인용. 반환: 기록 여부. */
+  async recordChatUnread(bookingId: string, recipientId: string): Promise<boolean> {
+    const key = `${bookingId}:${recipientId}`;
+    const last = this.chatNotifiedAt.get(key) ?? 0;
+    if (Date.now() - last < RealtimeService.CHAT_NOTIFY_GAP_MS) return false;
+    this.chatNotifiedAt.set(key, Date.now());
+    try {
+      await this.prisma.notification.create({
+        data: { recipient_id: recipientId, type: 'chat_message', channels: ['app'], payload: { bookingId } as object },
+      });
+      return true;
+    } catch { return false; }
+  }
+
   /** 선생님 상담 인지 자동 스탬프 — 채팅·보드 입장 = 인지(ack). 최초 1회만 true 반환. */
   async stampTeacherAck(bookingId: string, teacherId: string): Promise<boolean> {
     const r = await this.prisma.booking.updateMany({

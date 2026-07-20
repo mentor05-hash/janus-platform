@@ -155,6 +155,13 @@ export class RealtimeGateway implements OnGatewayConnection {
       const viewerId = (sock.data.user as { id?: string } | undefined)?.id;
       sock.emit('chat:message', { ...msg, mine: msg.senderId === viewerId });
     }
+    // 부재중 알림 — 상대가 이 채팅방에 없으면(지난 채팅의 추가 질문 포함) 토스트 + 알림 원장(10분 스로틀).
+    const counterpart = user.id === b.teacher_id ? b.student_id : b.teacher_id;
+    if (counterpart && !sockets.some((sk) => (sk.data.user as { id?: string } | undefined)?.id === counterpart)) {
+      const preview = kind === 'text' ? (savedBody ?? '').slice(0, 40) : kind === 'image' ? '📷 사진' : kind === 'audio' ? '🎤 음성 메시지' : '📎 파일';
+      this.emitToUser(counterpart, 'notif:new', { type: 'chat_message', payload: { bookingId }, title: '새 채팅 메시지', body: preview });
+      void this.svc.recordChatUnread(bookingId, counterpart);
+    }
     return { ok: true, id: msg.id };
   }
 
