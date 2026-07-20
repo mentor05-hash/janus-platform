@@ -14,6 +14,7 @@ type Profile = {
   intro: string | null;
   strengths: string[];
   modes?: string[];
+  qnaEscalation?: boolean;
   reRequestRate?: number | null;
   avgResponseMin?: number | null;
 };
@@ -34,12 +35,13 @@ export function TeacherProfilePage() {
   const [subjects, setSubjects] = useState<string[]>([]);
   const [career, setCareer] = useState('');
   const [modes, setModes] = useState<string[]>([]);
+  const [qnaEsc, setQnaEsc] = useState(true); // Q&A 후 "이어서 상담" 제공 여부
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
 
   function hydrate(d: Profile) {
-    setP(d); setIntro(d.intro ?? ''); setStrengths(d.strengths ?? []); setSubjects(d.subjects ?? []); setCareer(d.career ?? ''); setModes(d.modes ?? []);
+    setP(d); setIntro(d.intro ?? ''); setStrengths(d.strengths ?? []); setSubjects(d.subjects ?? []); setCareer(d.career ?? ''); setModes(d.modes ?? []); setQnaEsc(d.qnaEscalation !== false);
   }
   useEffect(() => {
     api.get<Profile>('/teachers/me/profile').then(hydrate).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
@@ -50,7 +52,7 @@ export function TeacherProfilePage() {
   async function save() {
     setBusy(true); setMsg(''); setError('');
     try {
-      const d = await api.put<Profile>('/teachers/me/profile', { intro, strengths, subjects, career, modes });
+      const d = await api.put<Profile>('/teachers/me/profile', { intro, strengths, subjects, career, modes, qnaEscalation: qnaEsc });
       hydrate(d); setMsg('프로필이 저장되었습니다. 학생 검색·추천에 반영됩니다.');
     } catch (e) { setError(e instanceof ApiError ? e.message : '저장 실패'); } finally { setBusy(false); }
   }
@@ -111,6 +113,13 @@ export function TeacherProfilePage() {
         </div>
 
         <TextField label="경력(선택)" value={career} onChange={(e) => setCareer(e.target.value)} placeholder="예: 대치 5년 · 강남대성 출강" />
+        {/* Q&A 후 이어서 상담 제공 여부 — 학생 질문 폼의 선생님 선별에 반영 */}
+        <label className="label" style={{ marginTop: 12 }}>Q&A 이어서 상담</label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, cursor: 'pointer', marginBottom: 4 }}>
+          <input type="checkbox" checked={qnaEsc} onChange={(e) => setQnaEsc(e.target.checked)} />
+          질문 답변 후 학생이 상담으로 이어가는 것(질문승격)을 받습니다
+        </label>
+        <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 8px' }}>끄면 학생 질문 화면에서 "이어서 상담 가능" 표시가 빠지고, 상담 이어가기 요청이 차단됩니다.</p>
         <Button onClick={save} loading={busy} style={{ marginTop: 8 }}>프로필 저장</Button>
       </Card>
 

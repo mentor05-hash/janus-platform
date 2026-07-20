@@ -10,7 +10,7 @@ type SimDetail = { id: string; subject: string | null; body: string; createdAt: 
 
 type Attachment = { id: string; name: string; type?: string };
 type Followup = { id: string; byTeacher: boolean; body: string; createdAt: string };
-type Answer = { id: string; body: string; accepted: boolean; teacherName: string; teacherId?: string | null; createdAt?: string; attachments?: Attachment[]; followups?: Followup[] };
+type Answer = { id: string; body: string; accepted: boolean; teacherName: string; teacherId?: string | null; createdAt?: string; escalationOk?: boolean; attachments?: Attachment[]; followups?: Followup[] };
 type Post = {
   id: string;
   subject: string | null;
@@ -30,7 +30,7 @@ type Post = {
   answers?: Answer[];
 };
 type Block = { teacherId: string; teacherName: string; since: string };
-type TeacherDir = { teacherId: string; name: string; avgFirstReplyMin: number | null; avgRating: number | null; answers: number; accepted: number };
+type TeacherDir = { teacherId: string; name: string; avgFirstReplyMin: number | null; avgRating: number | null; answers: number; accepted: number; escalationOk?: boolean };
 const isImage = (a: Attachment) => (a.type ?? '').startsWith('image/') || /\.(png|jpe?g|gif|webp|heic)$/i.test(a.name);
 /** 시각 표시 — 오늘이면 "14:32", 아니면 "7/20 14:32" (KST). */
 const T = (iso?: string | null) => {
@@ -77,6 +77,7 @@ export function StudentQnaPage() {
   const [durPol, setDurPol] = useState<Record<string, number> | null>(null);
   const [teachers, setTeachers] = useState<TeacherDir[]>([]); // P5 — 지정 질문 선생님 디렉터리(SLA 배지)
   const [assignedTeacherId, setAssignedTeacherId] = useState('');
+  const [escOnly, setEscOnly] = useState(false); // 이어서 상담 가능한 선생님만 보기
   const [fee, setFee] = useState<{ itemFee: number; generalFee: number; freeQuota?: { quota: number; used: number; remaining: number; resetsAt: string } | null; expectedFirstReplyMin?: number | null } | null>(null);
   useEffect(() => {
     api.get<Record<string, number>>('/bookings/question-duration/policy').then(setDurPol).catch(() => { /* 기본값 */ });
@@ -263,9 +264,13 @@ export function StudentQnaPage() {
           {f.scope === 'assigned' && (
             <div style={{ marginTop: 8 }}>
               <label className="label">지정할 선생님 <span style={{ color: 'var(--muted)', fontWeight: 400 }}>— 평균 첫응답·만족도는 지정 질문 실적 기준</span></label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--muted)', cursor: 'pointer', margin: '2px 0 6px' }}>
+                <input type="checkbox" checked={escOnly} onChange={(e) => setEscOnly(e.target.checked)} />
+                답변 후 이어서 상담까지 가능한 선생님만 보기
+              </label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto', border: '1px solid var(--line)', borderRadius: 10, padding: 8 }}>
                 {teachers.length === 0 && <span style={{ fontSize: 13, color: 'var(--muted)' }}>선택 가능한 선생님이 없습니다.</span>}
-                {teachers.map((t) => (
+                {teachers.filter((t) => !escOnly || t.escalationOk !== false).map((t) => (
                   <button key={t.teacherId} type="button" onClick={() => setAssignedTeacherId(t.teacherId)}
                     style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, textAlign: 'left', padding: '8px 10px', borderRadius: 8, cursor: 'pointer', border: assignedTeacherId === t.teacherId ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)' }}>
                     <span style={{ fontSize: 13.5, fontWeight: 700 }}>{t.name} 선생님</span>
@@ -273,6 +278,7 @@ export function StudentQnaPage() {
                       {t.avgFirstReplyMin != null ? `⚡ 평균 첫응답 ${t.avgFirstReplyMin >= 60 ? `${Math.round(t.avgFirstReplyMin / 60)}시간` : `${t.avgFirstReplyMin}분`}` : '신규'}
                       {t.avgRating != null && ` · ★${t.avgRating}`}
                       {t.answers > 0 && ` · 답변 ${t.answers}건`}
+                      {t.escalationOk !== false && ' · 💬 이어상담 가능'}
                     </span>
                   </button>
                 ))}
@@ -413,7 +419,9 @@ export function StudentQnaPage() {
             {(p.answers?.length ?? 0) > 0 && p.status === 'open' && (
               <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                 <button type="button" onClick={() => reanswer(p.id)} style={{ fontSize: 12.5, border: '1px solid var(--input-border)', background: 'var(--surface)', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', color: 'var(--muted)' }}>🔁 다른 답변 받기</button>
-                <button type="button" onClick={() => escalate(p.id)} style={{ fontSize: 12.5, border: '1px solid var(--teal)', background: 'var(--teal-50,#EEF4FB)', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', color: 'var(--teal)', fontWeight: 700 }}>💬 상담으로 이어가기</button>
+                {(p.answers?.[p.answers.length - 1]?.escalationOk !== false) && (
+                  <button type="button" onClick={() => escalate(p.id)} style={{ fontSize: 12.5, border: '1px solid var(--teal)', background: 'var(--teal-50,#EEF4FB)', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', color: 'var(--teal)', fontWeight: 700 }}>💬 상담으로 이어가기</button>
+                )}
               </div>
             )}
             {/* 상담 이어가기 — 가까운 후보 시간대 선택 */}

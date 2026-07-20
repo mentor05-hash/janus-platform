@@ -343,6 +343,7 @@ export class QnaService {
           accepted: !!a.accepted,
           teacherId: a.teacher_id ?? null,
           teacherName: a.teacher_profile?.account?.name ?? '선생님',
+          escalationOk: (a.teacher_profile as { qna_escalation?: boolean } | undefined)?.qna_escalation !== false,
           createdAt: a.created_at,
           attachments: Array.isArray((a as { attachments?: unknown }).attachments)
             ? ((a as { attachments?: unknown }).attachments as { id: string; name: string; type?: string }[])
@@ -610,7 +611,7 @@ export class QnaService {
     });
     const blockedSet = new Set(blocked.map((b) => b.teacher_id));
     const teachers = await this.prisma.teacher_profile.findMany({
-      select: { account_id: true, account: { select: { name: true } } },
+      select: { account_id: true, qna_escalation: true, account: { select: { name: true } } },
       take: 100,
     });
     // 풀별 원칙(§2): 배지는 지정(assigned) 풀 기준 첫응답·만족도 + 전체 답변 실적(채택 수).
@@ -641,6 +642,7 @@ export class QnaService {
             avgRating: s?.avg_rating != null ? Math.round(Number(s.avg_rating) * 10) / 10 : null,
             answers: a?.answers ?? 0,
             accepted: a?.accepted ?? 0,
+            escalationOk: t.qna_escalation !== false, // "이어서 상담 가능" 선별 옵션용
           };
         })
         // 실적 있는 선생님 우선(첫응답 빠른 순), 무실적은 뒤에 이름순
@@ -793,8 +795,11 @@ export class QnaService {
     const ans = post.qna_answer[0];
     const teacherId = ans?.teacher_id ?? post.assigned_teacher_id;
     if (!teacherId) throw new BadRequestException('답변한 선생님이 없어 상담으로 이어갈 수 없습니다.');
-    const tp = await this.prisma.teacher_profile.findUnique({ where: { account_id: teacherId }, select: { center_id: true, grade: true } });
+    const tp = await this.prisma.teacher_profile.findUnique({ where: { account_id: teacherId }, select: { center_id: true, grade: true, qna_escalation: true } });
     if (!tp) throw new NotFoundException('선생님 정보를 찾을 수 없습니다.');
+    if (tp.qna_escalation === false) {
+      return { ok: false, reason: 'not_offered', message: '이 선생님은 Q&A 후 이어서 상담을 제공하지 않아요. 상담 예약에서 다른 선생님을 찾아보세요.' };
+    }
 
     const minutes = await this.booking.defaultMinutes('subject');
     const need = Math.max(1, Math.round(minutes / ESCALATE_SLOT_MIN));

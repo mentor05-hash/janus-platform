@@ -971,6 +971,7 @@ model teacher_profile {
   strengths                                                          String[]                       @default([])
   consult_types                                                      String[]                       @default([])
   modes                                                              String[]                       @default([])
+  qna_escalation                                                     Boolean                        @default(true) // Q&A 후 "이어서 상담" 제공 여부(선생님 옵트아웃)
   rating                                                             Decimal?                       @default(0) @db.Decimal(2, 1)
   total_consult                                                      Int?                           @default(0)
   re_request_rate                                                    Decimal?                       @db.Decimal(4, 1)
