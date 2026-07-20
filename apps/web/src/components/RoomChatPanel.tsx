@@ -214,7 +214,10 @@ export function RoomChatPanel({ session: rs, title, onClose }: { bookingId: stri
                     <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', margin: '2px 0 8px' }}>📷 사진</div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))', gap: 8, marginBottom: 16 }}>
                       {mediaMsgs.filter((m) => m.kind === 'image').map((m) => (
-                        <img key={m.id} src={fileSrc(m.fileUrl!)} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)' }} />
+                        <div key={m.id} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <img src={fileSrc(m.fileUrl!)} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line)' }} />
+                          <span style={{ fontSize: 10, color: 'var(--caption)' }}>{dayLabel(m.createdAt)} {KST(m.createdAt)}</span>
+                        </div>
                       ))}
                     </div>
                   </>
@@ -228,7 +231,7 @@ export function RoomChatPanel({ session: rs, title, onClose }: { bookingId: stri
                           style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid var(--line)', background: 'var(--surface)', borderRadius: 8, padding: '8px 10px', cursor: 'pointer', textAlign: 'left', font: 'inherit', fontSize: 13 }}>
                           <span>{m.kind === 'audio' ? '🎤' : '📎'}</span>
                           <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.body ?? '첨부파일'}</span>
-                          <span style={{ fontSize: 11, color: 'var(--caption)' }}>{dayLabel(m.createdAt)}</span>
+                          <span style={{ fontSize: 11, color: 'var(--caption)', whiteSpace: 'nowrap' }}>{dayLabel(m.createdAt)} {KST(m.createdAt)}</span>
                         </button>
                       ))}
                     </div>

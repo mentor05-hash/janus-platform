@@ -309,7 +309,12 @@ export function ChatScreen({ bookingId, myId, title, onClose, embedded }: { book
                   <>
                     <Text style={{ fontSize: 12, fontWeight: '800', color: C.muted, marginBottom: 8 }}>📷 사진</Text>
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                      {mediaMsgs.filter((m) => m.kind === 'image').map((m) => <ChatImage key={m.id} fileId={m.imageFileId!} />)}
+                      {mediaMsgs.filter((m) => m.kind === 'image').map((m) => (
+                        <View key={m.id} style={{ gap: 2 }}>
+                          <ChatImage fileId={m.imageFileId!} />
+                          <Text style={{ fontSize: 10, color: C.caption }}>{dayLabel(m.createdAt)} {KST(m.createdAt)}</Text>
+                        </View>
+                      ))}
                     </View>
                   </>
                 )}
@@ -322,7 +327,7 @@ export function ChatScreen({ bookingId, myId, title, onClose, embedded }: { book
                           style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: C.line, backgroundColor: C.white, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 }}>
                           <Text>{m.kind === 'audio' ? '🎤' : '📎'}</Text>
                           <Text numberOfLines={1} style={{ flex: 1, fontSize: 13, color: C.ink }}>{m.body ?? '첨부파일'}</Text>
-                          <Text style={{ fontSize: 11, color: C.caption }}>{dayLabel(m.createdAt)}</Text>
+                          <Text style={{ fontSize: 11, color: C.caption }}>{dayLabel(m.createdAt)} {KST(m.createdAt)}</Text>
                         </TouchableOpacity>
                       ))}
                     </View>
