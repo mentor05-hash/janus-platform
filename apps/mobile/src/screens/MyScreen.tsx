@@ -6,6 +6,7 @@ import { useWebBack } from '../webBack';
 import { AutomatchScreen } from './AutomatchScreen';
 import { AutoAssignScreen } from './AutoAssignScreen';
 import { RecordsScreen } from './RecordsScreen';
+import { ReportsScreen } from './ReportsScreen';
 import { ClassifyScreen } from './ClassifyScreen';
 import { LegalScreen } from './LegalScreen';
 import { ScoresScreen } from './ScoresScreen';
@@ -25,12 +26,13 @@ const makeTxMeta = (C: Palette): Record<Tx['type'], { label: string; sign: 1 | -
   weekly_expire: { label: '주간 크레딧 소멸', sign: -1, color: C.confirmed },
 });
 
-type Sub = 'automatch' | 'autoassign' | 'records' | 'classify' | 'legal' | 'scores';
+type Sub = 'automatch' | 'autoassign' | 'records' | 'reports' | 'classify' | 'legal' | 'scores';
 const MENU: { key: Sub; icon: string; title: string; desc: string }[] = [
   { key: 'automatch', icon: '⚡', title: '30분 자동 매칭', desc: '유형·방식만 고르면 7일 내 가장 빠른 30분' },
   { key: 'autoassign', icon: '🗓', title: '자동배정 신청', desc: '시간 안 정해도 전임 선생님 근무시간에 배정' },
   { key: 'scores', icon: '📈', title: '내 성적·배치', desc: '성적 추이 + 예상 대학·학과 라인' },
   { key: 'records', icon: '📝', title: '내 상담 기록', desc: '공개된 핵심요약·숙제·향후방향 확인' },
+  { key: 'reports', icon: '📋', title: '상담 리포트', desc: '녹음 동의 상담의 검수된 요약 리포트' },
   { key: 'classify', icon: '💚', title: '선생님 분류', desc: '나와 맞는 / 맞지 않는 선생님 관리' },
   { key: 'legal', icon: '🔒', title: '약관·개인정보', desc: '약관·방침·동의·데이터 내보내기·회원 탈퇴' },
 ];
@@ -70,6 +72,7 @@ export function MyScreen() {
   if (sub === 'automatch') return <AutomatchScreen onBack={() => setSub(null)} onBooked={() => { setSub(null); setMsg('자동 매칭으로 예약이 신청되었습니다. 내 예약에서 확인하세요.'); load(); }} />;
   if (sub === 'autoassign') return <AutoAssignScreen onBack={() => setSub(null)} />;
   if (sub === 'records') return <RecordsScreen onBack={() => setSub(null)} />;
+  if (sub === 'reports') return <ReportsScreen onBack={() => setSub(null)} />;
   if (sub === 'classify') return <ClassifyScreen onBack={() => setSub(null)} />;
   if (sub === 'legal') return <LegalScreen onBack={() => setSub(null)} onWithdrawn={() => { if (typeof window !== 'undefined') window.location.reload(); }} />;
   if (sub === 'scores') return <ScoresScreen onBack={() => setSub(null)} showPlacement={access?.showPlacement ?? false} />;
