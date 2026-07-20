@@ -11,6 +11,7 @@ const navCls = ({ isActive }: { isActive: boolean }) => (isActive ? 'nav-item ac
 
 const NAV = [
   { to: '/guardian/report', label: '주간 리포트' },
+  { to: '/guardian/consult-reports', label: '상담 리포트' },
   { to: '/guardian/pay', label: '결제·충전' },
   { to: '/guardian/community', label: '커뮤니티 Q&A' },
   { to: '/guardian/notifications', label: '알림' },

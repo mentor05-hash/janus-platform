@@ -679,6 +679,23 @@ model consult_report {
   @@index([status])
 }
 
+// 상담 요약 리포트 2뷰(학생용/학부모용) — 원 consult_report 무변경, audience별 검수·공유·열람 상태 보유.
+model consult_report_view {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  report_id   String    @db.Uuid
+  audience    String
+  body        Json
+  status      String    @default("draft")
+  approved_by String?   @db.Uuid
+  shared_at   DateTime? @db.Timestamptz(6)
+  opened_at   DateTime? @db.Timestamptz(6)
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@unique([report_id, audience])
+  @@index([report_id])
+}
+
 // R5 — 민감 산출물(녹음·전사·리포트) 접근 감사 로그.
 model media_access_log {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid

@@ -56,6 +56,7 @@ const KairosPage = lazy(() => import('./pages/CalculatorPage').then((m) => ({ de
 const AleaPage = lazy(() => import('./pages/CalculatorPage').then((m) => ({ default: m.AleaPage })));
 const GapReportPage = lazy(() => import('./pages/GapReportPage').then((m) => ({ default: m.GapReportPage })));
 const GuardianReportPage = lazy(() => import('./pages/GuardianReportPage').then((m) => ({ default: m.GuardianReportPage })));
+const GuardianConsultReportsPage = lazy(() => import('./pages/GuardianConsultReportsPage').then((m) => ({ default: m.GuardianConsultReportsPage })));
 const AdminAuditPage = lazy(() => import('./pages/AdminAuditPage').then((m) => ({ default: m.AdminAuditPage })));
 const AdminPayrollPage = lazy(() => import('./pages/AdminPayrollPage').then((m) => ({ default: m.AdminPayrollPage })));
 const AdminScoresPage = lazy(() => import('./pages/AdminScoresPage').then((m) => ({ default: m.AdminScoresPage })));
@@ -147,6 +148,7 @@ export function App() {
       >
         <Route index element={<Navigate to="report" replace />} />
         <Route path="report" element={<GuardianReportPage />} />
+        <Route path="consult-reports" element={<GuardianConsultReportsPage />} />
         <Route path="pay" element={<GuardianPayPage />} />
         <Route path="community" element={<CommunityBoardPage />} />
         <Route path="notifications" element={<NotificationsPage />} />

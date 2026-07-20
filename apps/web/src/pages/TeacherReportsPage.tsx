@@ -2,67 +2,84 @@ import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { track } from '../utils/track';
 
-type Item = { bookingId: string; status: string; updatedAt: string; sentAt: string | null; openedAt: string | null; startAt: string | null; studentName: string | null; category: string | null; demo: boolean };
-type Detail = { bookingId: string; status: string; covered: string[]; diagnosis: string; nextActions: string[]; demo: boolean; transcript: string | null; sentAt: string | null; openedAt: string | null };
+type Item = { bookingId: string; status: string; updatedAt: string; sentAt: string | null; openedAt: string | null; startAt: string | null; studentName: string | null; category: string | null; demo: boolean; hasViews: boolean };
+type StudentView = { covered: string[]; reviewPoints: string[]; nextLearning: string[]; demo?: boolean };
+type GuardianView = { progress: string; recommendedActions: string[]; effort: string; demo?: boolean };
+type Views = { bookingId: string; status: string; source: string; sentAt: string | null; student: StudentView | null; guardian: GuardianView | null; guardianShared: boolean; demo: boolean };
 
 const D = (iso: string | null) => (iso ? new Date(iso).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—');
 const CHIP: Record<string, { label: string; bg: string; fg: string }> = {
+  note: { label: '메모 기반 · 리포트 생성 가능', bg: '#EEF2F7', fg: '#5b6b82' },
   draft: { label: '초안(검수 대기)', bg: '#FEF3CD', fg: '#8a6d1a' },
   approved: { label: '승인됨', bg: 'var(--teal-50,#E8F0F9)', fg: 'var(--teal)' },
   sent: { label: '발송됨', bg: '#E7F6EC', fg: '#2A8A5F' },
 };
+const lines = (v: string) => v.split('\n').map((s) => s.trim()).filter(Boolean);
 
-/** R4 — 선생님 상담 리포트 검수함: AI 초안(전건 검수) → 수정 → 승인 → 발송. */
+/** 상담 리포트 검수함 — 요약 원천(오디오 or 상담 기록) → 학생용/학부모용 2뷰 생성 → 검수 → 승인 → 발송. */
 export function TeacherReportsPage() {
   const [items, setItems] = useState<Item[]>([]);
   const [sel, setSel] = useState<string | null>(null);
-  const [det, setDet] = useState<Detail | null>(null);
-  const [covered, setCovered] = useState('');
-  const [diagnosis, setDiagnosis] = useState('');
-  const [next, setNext] = useState('');
-  const [showTr, setShowTr] = useState(false);
+  const [views, setViews] = useState<Views | null>(null);
+  const [noViews, setNoViews] = useState(false);
+  // 학생 뷰 편집 버퍼
+  const [sCovered, setSCovered] = useState(''); const [sReview, setSReview] = useState(''); const [sNext, setSNext] = useState('');
+  // 학부모 뷰 편집 버퍼
+  const [gProgress, setGProgress] = useState(''); const [gActions, setGActions] = useState(''); const [gEffort, setGEffort] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
 
   const load = () => api.get<Item[]>('/media/reports/mine').then(setItems).catch(() => setItems([]));
   useEffect(() => { load(); track('consult_report', 'view', undefined, { ev: 'review_inbox' }); }, []);
 
-  async function open(bookingId: string) {
-    setSel(bookingId); setMsg(''); setShowTr(false);
-    try {
-      const d = await api.get<Detail>(`/media/reports/${bookingId}`);
-      setDet(d); setCovered(d.covered.join('\n')); setDiagnosis(d.diagnosis); setNext(d.nextActions.join('\n'));
-    } catch { setDet(null); setMsg('리포트를 불러오지 못했어요.'); }
+  function fillBuffers(v: Views) {
+    setSCovered((v.student?.covered ?? []).join('\n')); setSReview((v.student?.reviewPoints ?? []).join('\n')); setSNext((v.student?.nextLearning ?? []).join('\n'));
+    setGProgress(v.guardian?.progress ?? ''); setGActions((v.guardian?.recommendedActions ?? []).join('\n')); setGEffort(v.guardian?.effort ?? '');
   }
-  const lines = (v: string) => v.split('\n').map((s) => s.trim()).filter(Boolean);
-  async function saveEdit() {
+  async function open(bookingId: string) {
+    setSel(bookingId); setMsg(''); setViews(null); setNoViews(false);
+    try {
+      const v = await api.get<Views>(`/media/reports/${bookingId}/views`);
+      setViews(v); fillBuffers(v);
+    } catch { setNoViews(true); } // 아직 2뷰 없음(메모 기반 or 미생성) → 생성 버튼
+  }
+  async function generate() {
+    if (!sel) return; setBusy(true); setMsg('');
+    try {
+      const r = await api.post<{ ok: boolean; origin: string; demo: boolean }>(`/media/reports/${sel}/views/generate`, {});
+      setMsg(`2뷰를 생성했어요(원천: ${r.origin === 'audio' ? '녹음 요약' : '상담 기록'}${r.demo ? ' · 데모' : ''}). 검수 후 승인·발송하세요.`);
+      await open(sel); await load();
+    } catch (e) { setMsg((e as Error).message || '생성 실패'); } finally { setBusy(false); }
+  }
+  async function saveView(audience: 'student' | 'guardian') {
     if (!sel) return; setBusy(true);
-    try { await api.patch(`/media/reports/${sel}`, { covered: lines(covered), diagnosis: diagnosis.trim(), nextActions: lines(next) }); setMsg('저장했어요.'); await load(); }
+    const patch = audience === 'student'
+      ? { audience, covered: lines(sCovered), reviewPoints: lines(sReview), nextLearning: lines(sNext) }
+      : { audience, progress: gProgress.trim(), recommendedActions: lines(gActions), effort: gEffort.trim() };
+    try { await api.patch(`/media/reports/${sel}/views`, patch); setMsg('저장했어요.'); }
     catch (e) { setMsg((e as Error).message || '저장 실패'); } finally { setBusy(false); }
   }
-  async function doApprove() {
+  async function approve() {
     if (!sel) return; setBusy(true);
-    try { await saveEdit(); await api.post(`/media/reports/${sel}/approve`); setMsg('승인했어요. 발송을 누르면 학생에게 전달됩니다.'); await load(); await open(sel); }
+    try { await saveView('student'); await saveView('guardian'); await api.post(`/media/reports/${sel}/views/approve`, {}); setMsg('승인했어요. 발송을 누르면 학생 계정에 노출됩니다.'); await open(sel); await load(); }
     catch (e) { setMsg((e as Error).message || '승인 실패'); } finally { setBusy(false); }
   }
-  async function doSend() {
-    if (!sel || !confirm('학생에게 리포트를 발송할까요? 발송 후에는 수정할 수 없어요.')) return; setBusy(true);
-    try { await api.post(`/media/reports/${sel}/send`); track('consult_report', 'cta', 'send', { ev: 'report_sent', bookingId: sel }); setMsg('발송했어요.'); await load(); await open(sel); }
+  async function send() {
+    if (!sel || !confirm('학생 계정에 리포트를 발송할까요? 발송 후에는 수정할 수 없어요.\n(학부모 전달은 학생이 직접 공유합니다 — 플랫폼이 학부모에게 직접 보내지 않습니다.)')) return; setBusy(true);
+    try { await api.post(`/media/reports/${sel}/views/send`, {}); track('consult_report', 'cta', 'send', { ev: 'report_sent', bookingId: sel }); setMsg('발송했어요.'); await open(sel); await load(); }
     catch (e) { setMsg((e as Error).message || '발송 실패'); } finally { setBusy(false); }
   }
-  async function doRebuild() {
-    if (!sel || !confirm('AI 초안을 다시 생성할까요? 현재 편집 내용은 초안으로 대체됩니다.')) return; setBusy(true);
-    try { await api.post(`/media/reports/${sel}/rebuild`); setMsg('재생성을 요청했어요. 잠시 후 새로고침해 주세요.'); }
-    catch (e) { setMsg((e as Error).message || '재생성 실패'); } finally { setBusy(false); }
-  }
+
+  const editable = views && views.status !== 'sent';
+  const box: React.CSSProperties = { width: '100%', marginTop: 4, marginBottom: 12, resize: 'vertical' };
 
   return (
     <div>
       <h1 className="page-title">상담 리포트</h1>
-      <p className="page-sub">녹음 상담의 AI 요약 초안을 검수하고 학생에게 발송합니다. 모든 리포트는 선생님 검수 후에만 발송돼요.</p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 340px) 1fr', gap: 16, alignItems: 'start' }}>
+      <p className="page-sub">요약(녹음 또는 상담 기록)에서 <b>학생용·학부모용 2뷰</b>를 만들어 검수·발송합니다. 학부모 전달은 학생 주도 공유예요 — 플랫폼이 학부모에게 직접 보내지 않습니다.</p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 320px) 1fr', gap: 16, alignItems: 'start' }}>
         <div className="card" style={{ padding: 10 }}>
-          {items.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 13, padding: 10 }}>아직 리포트가 없어요. 녹음 동의된 상담이 끝나면 초안이 생성됩니다.</p>}
+          {items.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 13, padding: 10 }}>리포트가 없어요. 녹음 상담이 끝나거나 상담 기록을 저장하면 여기서 2뷰를 생성할 수 있어요.</p>}
           {items.map((it) => {
             const c = CHIP[it.status] ?? CHIP.draft;
             return (
@@ -73,7 +90,7 @@ export function TeacherReportsPage() {
                   <span style={{ fontSize: 11, background: c.bg, color: c.fg, borderRadius: 999, padding: '2px 8px', fontWeight: 700 }}>{c.label}</span>
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
-                  {D(it.startAt)}{it.category ? ` · ${it.category}` : ''}{it.demo && it.status === 'draft' ? ' · ⚠ 데모 초안' : ''}
+                  {D(it.startAt)}{it.category ? ` · ${it.category}` : ''}{it.hasViews ? ' · 2뷰 있음' : ''}
                   {it.status === 'sent' && (it.openedAt ? ' · 열람됨' : ' · 미열람')}
                 </div>
               </button>
@@ -81,35 +98,54 @@ export function TeacherReportsPage() {
           })}
         </div>
         <div className="card" style={{ padding: 16 }}>
-          {!sel ? <p style={{ color: 'var(--muted)', fontSize: 13 }}>왼쪽에서 리포트를 선택하세요.</p>
-            : !det ? <p style={{ color: 'var(--muted)', fontSize: 13 }}>{msg || '불러오는 중…'}</p>
+          {!sel ? <p style={{ color: 'var(--muted)', fontSize: 13 }}>왼쪽에서 상담을 선택하세요.</p>
+            : noViews ? (
+              <div>
+                <p style={{ fontSize: 13.5, color: 'var(--ink)' }}>아직 2뷰 리포트가 없어요. 요약 원천(녹음 요약 또는 상담 기록의 핵심 요약)에서 학생용·학부모용 뷰를 생성하세요.</p>
+                <button className="btn sm" disabled={busy} onClick={generate}>✨ 학생·학부모 2뷰 생성</button>
+                {msg && <p style={{ fontSize: 12.5, color: 'var(--teal)', marginTop: 8 }}>{msg}</p>}
+              </div>
+            )
+            : !views ? <p style={{ color: 'var(--muted)', fontSize: 13 }}>불러오는 중…</p>
             : (
               <>
-                {det.demo && det.status === 'draft' && (
+                {views.demo && views.status !== 'sent' && (
                   <div style={{ marginBottom: 12, padding: '8px 12px', borderRadius: 8, background: '#FEF3CD', border: '1px solid #F5D889', color: '#8a6d1a', fontSize: 12.5 }}>
-                    ⚠ STT/AI 실엔진 미연동 상태의 데모 초안입니다 — 내용을 직접 작성해 주세요.
+                    ⚠ LLM 실엔진 미연동 상태의 데모 초안입니다 — 내용을 직접 검수해 주세요.
                   </div>
                 )}
-                <label style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--muted)' }}>오늘 다룬 내용 (줄바꿈으로 구분)</label>
-                <textarea className="input" rows={4} value={covered} onChange={(e) => setCovered(e.target.value)} disabled={det.status === 'sent'} style={{ width: '100%', marginTop: 4, marginBottom: 12, resize: 'vertical' }} />
-                <label style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--muted)' }}>진단·관찰</label>
-                <textarea className="input" rows={4} value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} disabled={det.status === 'sent'} style={{ width: '100%', marginTop: 4, marginBottom: 12, resize: 'vertical' }} />
-                <label style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--muted)' }}>다음 액션 (줄바꿈으로 구분)</label>
-                <textarea className="input" rows={4} value={next} onChange={(e) => setNext(e.target.value)} disabled={det.status === 'sent'} style={{ width: '100%', marginTop: 4, marginBottom: 12, resize: 'vertical' }} />
-                {det.transcript != null && (
-                  <div style={{ marginBottom: 12 }}>
-                    <button className="btn ghost sm" onClick={() => setShowTr((v) => !v)}>{showTr ? '전사문 접기' : '전사문 보기'}</button>
-                    {showTr && <pre style={{ marginTop: 8, maxHeight: 220, overflow: 'auto', fontSize: 12.5, whiteSpace: 'pre-wrap', background: 'var(--surface-2,#f4f7fb)', borderRadius: 8, padding: 12 }}>{det.transcript}</pre>}
+                <div style={{ fontSize: 12, color: 'var(--caption)', marginBottom: 12 }}>원천: {views.source === 'audio' ? '녹음 요약' : '상담 기록(메모)'} · 상태: {CHIP[views.status]?.label ?? views.status}{views.sentAt ? ` · 발송 ${D(views.sentAt)}` : ''}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+                  {/* 학생용 뷰 */}
+                  <div>
+                    <h3 style={{ fontSize: 14, margin: '0 0 8px' }}>🎓 학생용 뷰</h3>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>오늘 다룬 내용</label>
+                    <textarea className="input" rows={4} value={sCovered} onChange={(e) => setSCovered(e.target.value)} disabled={!editable} style={box} />
+                    <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>복습 포인트</label>
+                    <textarea className="input" rows={3} value={sReview} onChange={(e) => setSReview(e.target.value)} disabled={!editable} style={box} />
+                    <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>다음 학습</label>
+                    <textarea className="input" rows={3} value={sNext} onChange={(e) => setSNext(e.target.value)} disabled={!editable} style={box} />
+                    {editable && <button className="btn ghost sm" disabled={busy} onClick={() => saveView('student')}>학생 뷰 저장</button>}
                   </div>
-                )}
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                  {det.status !== 'sent' && <>
-                    <button className="btn ghost sm" disabled={busy} onClick={saveEdit}>저장</button>
-                    <button className="btn ghost sm" disabled={busy} onClick={doRebuild}>초안 재생성</button>
-                    {det.status === 'draft' && <button className="btn sm" disabled={busy} onClick={doApprove}>승인</button>}
-                    {det.status === 'approved' && <button className="btn sm" disabled={busy} onClick={doSend}>📤 학생에게 발송</button>}
+                  {/* 학부모용 뷰 */}
+                  <div>
+                    <h3 style={{ fontSize: 14, margin: '0 0 8px' }}>👪 학부모용 뷰 <span style={{ fontSize: 11, color: 'var(--caption)', fontWeight: 400 }}>(가격·상품 단정 없이 "권장"까지)</span></h3>
+                    <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>진척 요지</label>
+                    <textarea className="input" rows={4} value={gProgress} onChange={(e) => setGProgress(e.target.value)} disabled={!editable} style={box} />
+                    <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>권장 다음 액션</label>
+                    <textarea className="input" rows={3} value={gActions} onChange={(e) => setGActions(e.target.value)} disabled={!editable} style={box} />
+                    <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>소요·권장 안내</label>
+                    <textarea className="input" rows={2} value={gEffort} onChange={(e) => setGEffort(e.target.value)} disabled={!editable} style={box} />
+                    {editable && <button className="btn ghost sm" disabled={busy} onClick={() => saveView('guardian')}>학부모 뷰 저장</button>}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 14, borderTop: '1px solid var(--line-soft)', paddingTop: 14 }}>
+                  {views.status !== 'sent' && <>
+                    <button className="btn ghost sm" disabled={busy} onClick={generate}>초안 재생성</button>
+                    {views.status === 'draft' && <button className="btn sm" disabled={busy} onClick={approve}>승인</button>}
+                    {views.status === 'approved' && <button className="btn sm" disabled={busy} onClick={send}>📤 학생에게 발송</button>}
                   </>}
-                  {det.status === 'sent' && <span style={{ fontSize: 13, color: 'var(--muted)' }}>발송됨 · {D(det.sentAt)} {det.openedAt ? `· 학생 열람 ${D(det.openedAt)}` : '· 아직 열람 전'}</span>}
+                  {views.status === 'sent' && <span style={{ fontSize: 13, color: 'var(--muted)' }}>발송됨 · {D(views.sentAt)}{views.guardianShared ? ' · 학생이 학부모에게 공유함' : ''}</span>}
                   {msg && <span style={{ fontSize: 12.5, color: 'var(--teal)' }}>{msg}</span>}
                 </div>
               </>

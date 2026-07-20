@@ -22,6 +22,7 @@ done
 SCRIPTS=(
   journey-e2e.sh
   score-ocr-e2e.sh
+  consult-report-views-e2e.sh
   qna-community-e2e.sh
   qna-league-e2e.sh
   score-input-e2e.sh

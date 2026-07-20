@@ -6,6 +6,8 @@ import {
   ConsultingAnalysisResult,
   ConsultSummaryInput,
   ConsultSummaryResult,
+  ConsultReportViewsInput,
+  ConsultReportViewsResult,
   GatewayInterpretInput,
   GatewayLlmResult,
   LlmProvider,
@@ -113,6 +115,31 @@ export class ClaudeLlmProvider implements LlmProvider {
     const r = await this.completeJson<ConsultSummaryResult>(prompt, 1200);
     const arr = (v: unknown, max: number) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string' && x.trim()).slice(0, max) : []);
     return { covered: arr(r.covered, 6), diagnosis: (r.diagnosis ?? '').trim(), nextActions: arr(r.nextActions, 5) };
+  }
+
+  /**
+   * 요약 → 학생용/학부모용 2뷰. 가드레일: 아래 원천 요약에 없는 사실 생성 금지,
+   * 가격·상품 단정 금지("권장" 수준까지), 본인 자녀 정보만, 권장 액션은 상담사가 실제 언급한 것에 한정.
+   */
+  async consultReportViews(input: ConsultReportViewsInput): Promise<ConsultReportViewsResult> {
+    const src = `다룬 내용: ${input.covered.join(' / ') || '(없음)'}\n진단·관찰: ${input.diagnosis || '(없음)'}\n상담사가 언급한 다음 액션: ${input.nextActions.join(' / ') || '(없음)'}`;
+    const prompt =
+      '너는 교육 플랫폼의 상담 리포트 편집자다. 아래 "요약 원천"을 바탕으로 학생용 뷰와 학부모용 뷰를 각각 작성해 **JSON만** 출력(설명 금지).\n' +
+      '가드레일(위반 금지): ①요약 원천에 없는 사실을 새로 만들지 않는다 ②합격 가능성 단정·과장 금지("반드시 오른다" 류 금지) ③가격·상품·단가를 쓰지 않는다 — 학부모 뷰의 권장은 "다음 상담/과외를 권장드립니다" 수준까지만 ' +
+      '④권장 다음 액션은 상담사가 실제 언급한 것에 한정 ⑤이름·연락처·학교명 등 식별정보 미기재(호칭 "학생"/"선생님") ⑥존중하는 어조, 낙인 표현 금지 ⑦확실하지 않으면 항목을 비워라.\n' +
+      '학생용(student): {"covered":["오늘 다룬 내용"],"reviewPoints":["복습 포인트"],"nextLearning":["다음 학습"]}\n' +
+      '학부모용(guardian): {"progress":"진척 요지 2~4문장","recommendedActions":["권장 다음 액션(가격 없이)"],"effort":"소요·권장 안내 1~2문장(단가 금지)"}\n' +
+      '형식: {"student":{...},"guardian":{...}}\n' +
+      (input.subject ? `상담 분야: ${input.subject}\n` : '') +
+      `요약 원천(${input.origin === 'audio' ? '녹음 요약' : '상담사 메모'}):\n${src}`;
+    const r = await this.completeJson<ConsultReportViewsResult>(prompt, 1400);
+    const arr = (v: unknown, max: number) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string' && x.trim()).slice(0, max) : []);
+    const st = (r.student ?? {}) as Partial<ConsultReportViewsResult['student']>;
+    const gu = (r.guardian ?? {}) as Partial<ConsultReportViewsResult['guardian']>;
+    return {
+      student: { covered: arr(st.covered, 6), reviewPoints: arr(st.reviewPoints, 6), nextLearning: arr(st.nextLearning, 6) },
+      guardian: { progress: (gu.progress ?? '').trim(), recommendedActions: arr(gu.recommendedActions, 5), effort: (gu.effort ?? '').trim() },
+    };
   }
 
   async draftAnswer(input: QnaDraftInput): Promise<QnaDraftResult> {

@@ -174,4 +174,23 @@ export class MockLlmProvider implements LlmProvider {
       nextActions: ['다음 상담 전까지 이번 상담 내용 복습', '궁금한 점은 Q&A 로 질문'],
     };
   }
+
+  /** 2뷰(학생/학부모) — 데모 stub: 원천 요약을 그대로 재배치만(없는 사실 생성 금지·가격 금지 준수). 검수 전제. */
+  async consultReportViews(input: import('./llm.types').ConsultReportViewsInput): Promise<import('./llm.types').ConsultReportViewsResult> {
+    const covered = input.covered.slice(0, 6);
+    const actions = input.nextActions.slice(0, 5);
+    return {
+      demo: true,
+      student: {
+        covered,
+        reviewPoints: covered.slice(0, 3).map((c) => `복습: ${c}`),
+        nextLearning: actions.length ? actions : ['다음 상담 전까지 이번 내용 복습'],
+      },
+      guardian: {
+        progress: input.diagnosis || '[데모] 이번 상담의 진척 요지입니다 — 검수 시 상담사가 직접 작성해 주세요.',
+        recommendedActions: actions.length ? actions : ['다음 상담을 권장드립니다'],
+        effort: '꾸준한 학습이 이어지도록 다음 상담을 권장드립니다.',
+      },
+    };
+  }
 }

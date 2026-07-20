@@ -104,6 +104,31 @@ export interface ConsultSummaryResult {
   demo?: boolean; // mock 산출물 표시
 }
 
+// ── 상담 요약 2뷰 생성(학생용/학부모용 — 발송·수신 레이어 브리핑 v1 §4) ──
+// 원천(전사문 or 상담사 메모)에 없는 사실 생성 금지. 가격·상품 단정 금지(⛔). 본인 자녀 정보만.
+export interface ConsultReportViewsInput {
+  origin: 'audio' | 'fallback'; // 요약 원천 유형(감사·프롬프트 톤)
+  covered: string[]; // 원천 요약: 다룬 내용
+  diagnosis: string; // 원천 요약: 진단·관찰
+  nextActions: string[]; // 원천 요약: 상담사가 실제 언급한 다음 액션(가격·상품 제외)
+  subject?: string | null; // 상담 분야
+}
+export interface StudentReportView {
+  covered: string[]; // 오늘 다룬 내용
+  reviewPoints: string[]; // 복습 포인트
+  nextLearning: string[]; // 다음 학습
+}
+export interface GuardianReportView {
+  progress: string; // 진척 요지(2~4문장, 낙인·과장 없이)
+  recommendedActions: string[]; // 권장 다음 액션(상담사 언급 한정, 가격·상품 단정 금지)
+  effort: string; // 소요·권장(문장 — "다음 상담/과외를 권장드립니다" 수준까지, 단가 금지)
+}
+export interface ConsultReportViewsResult {
+  student: StudentReportView;
+  guardian: GuardianReportView;
+  demo?: boolean;
+}
+
 export interface LlmProvider {
   reviewReport(input: ReportReviewInput): Promise<ReportReviewResult>;
   checkAnswerSimilarity(input: AnswerSimilarityInput): Promise<AnswerSimilarityResult>;
@@ -115,4 +140,6 @@ export interface LlmProvider {
   interpretGateway(input: GatewayInterpretInput): Promise<GatewayLlmResult>;
   /** 상담 전사문 → 요약 리포트 초안(R3). 미구성/실패 시 예외 → 호출측이 재시도·수동 폴백. */
   consultSummary(input: ConsultSummaryInput): Promise<ConsultSummaryResult>;
+  /** 요약 → 학생용/학부모용 2뷰(발송·수신 레이어). 미구성/실패 시 예외 → 호출측이 규칙 폴백. */
+  consultReportViews(input: ConsultReportViewsInput): Promise<ConsultReportViewsResult>;
 }
