@@ -41,6 +41,17 @@ export function SlotsScreen({ teacher, onBack, initialMode, consultType, initial
       .then((pol) => { const min = pol?.[ctype]; if (min && min > 0) setDefaultSlots(Math.max(MIN_LEN, Math.round(min / 10))); })
       .catch(() => { /* 정책 없으면 기본 30분 */ });
   }, [ctype]);
+  const [faved, setFaved] = useState(false);
+  useEffect(() => {
+    api.get<{ fit: string[] }>('/me/teacher-lists').then((r) => setFaved((r.fit ?? []).includes(teacher.id))).catch(() => { /* 찜 목록 조회 실패 */ });
+  }, [teacher.id]);
+  async function toggleFav() {
+    try {
+      if (faved) { await api.del(`/me/teacher-lists/${teacher.id}`); Alert.alert('찜 해제', '내 선생님(찜)에서 제거했어요.'); }
+      else { await api.post('/me/teacher-lists', { teacherId: teacher.id, listKind: 'fit' }); Alert.alert('찜', '내 선생님(찜)에 추가했어요.'); }
+      setFaved(!faved);
+    } catch (e) { Alert.alert('실패', e instanceof ApiError ? e.message : '오류'); }
+  }
   // 선생님이 제공하는 방식만 노출(방식 먼저 선택 흐름). 비어 있으면 전체.
   const modeList = teacher.modes?.length ? MODES.filter((m) => teacher.modes!.includes(m.mode)) : MODES;
   const modeVals = modeList.map((m) => m.mode);
@@ -217,8 +228,8 @@ export function SlotsScreen({ teacher, onBack, initialMode, consultType, initial
 
       {/* 선생님 액션: 찜·차단·신고 */}
       <View style={styles.actRow}>
-        <TouchableOpacity style={styles.actBtn} onPress={async () => { try { await api.post('/me/teacher-lists', { teacherId: teacher.id, listKind: 'fit' }); Alert.alert('찜', '내 선생님(찜)에 추가했어요.'); } catch (e) { Alert.alert('실패', e instanceof ApiError ? e.message : '오류'); } }}>
-          <Text style={styles.actT}>☆ 찜</Text>
+        <TouchableOpacity style={styles.actBtn} onPress={() => void toggleFav()}>
+          <Text style={[styles.actT, faved && { color: '#CF9A3A' }]}>{faved ? '★ 찜됨' : '☆ 찜'}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.actBtn} onPress={async () => { try { await api.post('/teacher-blocks', { teacherId: teacher.id }); Alert.alert('차단', '차단했어요.'); } catch (e) { Alert.alert('실패', e instanceof ApiError ? e.message : '오류'); } }}>
           <Text style={styles.actT}>🚫 차단</Text>

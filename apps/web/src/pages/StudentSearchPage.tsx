@@ -389,13 +389,19 @@ export function StudentSearchPage() {
     api.get<CreditAccount>('/credits/account').then(setCredit).catch(() => {});
     api.get<{ id: string; name: string }[]>('/categories?kind=teacher').then(setCats).catch(() => {});
     api.get<(Teacher & { rank: number; score: number })[]>('/teachers/leaderboard').then(setBoard).catch(() => {});
+    api.get<{ fit: string[] }>('/me/teacher-lists').then((r) => setFavIds(new Set(r.fit ?? []))).catch(() => { /* 찜 목록 조회 실패 */ });
   }, []);
 
   const [note, setNote] = useState('');
+  const [favIds, setFavIds] = useState<Set<string>>(new Set());
   async function fav(t: Teacher) {
     setNote('');
-    try { await api.post('/me/teacher-lists', { teacherId: t.id, listKind: 'fit' }); setNote(`${t.name} 선생님을 내 선생님(찜)에 추가했어요.`); }
-    catch (e) { setNote(e instanceof ApiError ? e.message : '실패'); }
+    const on = favIds.has(t.id);
+    try {
+      if (on) { await api.del(`/me/teacher-lists/${t.id}`); setNote(`${t.name} 선생님 찜을 해제했어요.`); }
+      else { await api.post('/me/teacher-lists', { teacherId: t.id, listKind: 'fit' }); setNote(`${t.name} 선생님을 내 선생님(찜)에 추가했어요.`); }
+      setFavIds((p) => { const n = new Set(p); if (on) n.delete(t.id); else n.add(t.id); return n; });
+    } catch (e) { setNote(e instanceof ApiError ? e.message : '실패'); }
   }
   async function block(t: Teacher) {
     setNote('');
@@ -570,7 +576,7 @@ export function StudentSearchPage() {
                 <div style={{ marginTop: 8 }}><Badge kind="confirmed">상세 보기 →</Badge></div>
               </button>
               <div style={{ display: 'flex', gap: 6, marginTop: 8, borderTop: '1px solid var(--line)', paddingTop: 8 }}>
-                <button type="button" onClick={() => fav(t)} style={actBtn}>☆ 찜</button>
+                <button type="button" onClick={() => fav(t)} style={favIds.has(t.id) ? { ...actBtn, color: '#CF9A3A', borderColor: '#CF9A3A' } : actBtn}>{favIds.has(t.id) ? '★ 찜됨' : '☆ 찜'}</button>
                 <button type="button" onClick={() => block(t)} style={actBtn}>🚫 차단</button>
                 <button type="button" onClick={() => report(t)} style={actBtn}>🚩 신고</button>
               </div>
