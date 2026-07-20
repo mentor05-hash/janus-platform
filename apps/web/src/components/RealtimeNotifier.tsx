@@ -15,6 +15,7 @@ const LABEL: Record<string, string> = {
   reverse_proposed: '역상담 제안이 도착했어요.',
   reverse_accepted: '역상담 제안이 수락되었어요.',
   qna_answered: '질문에 답변이 달렸어요.',
+  qna_claimed: '선생님이 내 질문을 확인하고 있어요 👀',
   qna_assigned: '새 질문이 배정되었어요.',
   qna_community_answer: '내 커뮤니티 질문에 새 답변이 달렸어요.',
   qna_community_accepted: '내 커뮤니티 답변이 채택됐어요! 🎉',

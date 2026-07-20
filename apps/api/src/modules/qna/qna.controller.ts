@@ -150,10 +150,12 @@ export class QnaController {
   }
 
   /** POST /qna/posts/{id}/escalate — 상담 승격(학생). 답변 선생님과 상담 예약 생성(컨텍스트 이관). */
+  /** body 없이 호출 = 후보 시간대 제시, {dateStr, slotStart} 포함 = 그 시간으로 예약 확정. */
   @Post('posts/:id/escalate')
   @Roles('student')
-  escalate(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
-    return this.qna.escalate(user, id);
+  escalate(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser, @Body() body?: { dateStr?: string; slotStart?: number }) {
+    const pick = body?.dateStr && typeof body?.slotStart === 'number' ? { dateStr: body.dateStr, slotStart: body.slotStart } : undefined;
+    return this.qna.escalate(user, id, pick);
   }
 
   /** POST /qna/blocks — 선생님 소프트 블록 설정/해제(학생·Q1). */

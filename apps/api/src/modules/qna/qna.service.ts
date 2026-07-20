@@ -44,16 +44,6 @@ const REANSWER_LIMIT = 3; // 재답변 요청 한도(qa.reanswerLimit — 정책
 const ESCALATE_HORIZON_DAYS = 7; // 상담 승격 시 빈 슬롯 탐색 범위
 const ESCALATE_SLOT_MIN = 10; // 슬롯 단위(분)
 
-/** need 개 연속 'free' 슬롯의 시작 인덱스(없으면 null). */
-function firstFreeRun(statuses: string[], need: number): number | null {
-  let run = 0;
-  for (let i = 0; i < statuses.length; i++) {
-    if (statuses[i] === 'free') { run += 1; if (run >= need) return i - need + 1; }
-    else run = 0;
-  }
-  return null;
-}
-
 interface QnaRow {
   id: string; subject: string | null; difficulty: string | null; scope: string | null;
   body: string | null; status: string | null; created_at: Date; assigned_teacher_id?: string | null;
@@ -434,6 +424,8 @@ export class QnaService {
     if (upd.count !== 1) {
       throw new ConflictException('다른 선생님이 먼저 가져갔습니다.');
     }
+    // 학생에게 진행 상태 알림 — "선생님 확인 중" 배지 실시간 갱신용.
+    void this.notify.notify(post.student_id, 'qna_claimed', { postId });
     return { id: postId, assignedTeacherId: teacher.id };
   }
 
@@ -503,6 +495,8 @@ export class QnaService {
       await this.prisma.qna_post.update({ where: { id: postId }, data: { first_reply_at: new Date() } });
     }
     const moderationWarning = await this.moderate(teacher, 'qna_answer', ans.id, dto.body);
+    // 학생에게 답변 도착 알림 — 목록 실시간 갱신("답변옴")·토스트.
+    void this.notify.notify(post.student_id, 'qna_answered', { postId });
     return { id: ans.id, postId, accepted: false, simFlagged: sim.flagged, similarity: sim.maxSimilarity, simSummary: sim.summary, moderationWarning };
   }
 
@@ -788,7 +782,7 @@ export class QnaService {
   }
 
   /** 상담 승격(질문 학생) — 답변 선생님에게 질문·답변 컨텍스트를 담아 상담 예약 생성(가까운 빈 슬롯). */
-  async escalate(student: AuthUser, postId: string) {
+  async escalate(student: AuthUser, postId: string, pick?: { dateStr: string; slotStart: number }) {
     const post = await this.prisma.qna_post.findUnique({
       where: { id: postId },
       include: { qna_answer: { orderBy: { created_at: 'desc' }, take: 1, select: { teacher_id: true, body: true } } },
@@ -806,16 +800,18 @@ export class QnaService {
     const need = Math.max(1, Math.round(minutes / ESCALATE_SLOT_MIN));
     const content = `Q&A 상담 승격 — 질문: ${(post.body ?? '').slice(0, 120)}${ans?.body ? `\n이전 답변 요약: ${ans.body.slice(0, 120)}` : ''}`;
     const now = new Date();
-    for (let d = 0; d < ESCALATE_HORIZON_DAYS; d++) {
-      const dateStr = kstDateString(new Date(now.getTime() + d * 86_400_000));
-      const slots = await this.availability.getDaySlots(teacherId, dateStr, student.id);
-      const start = firstFreeRun(slots.map((sl) => sl.status), need);
-      if (start === null) continue;
+
+    // ② 학생이 후보를 골라 확정 — 그 사이 선점됐을 수 있으니 재검증 후 예약.
+    if (pick) {
+      const slots = await this.availability.getDaySlots(teacherId, pick.dateStr, student.id);
+      const i = slots.findIndex((sl) => sl.index === pick.slotStart);
+      const free = i >= 0 && slots.slice(i, i + need).length === need && slots.slice(i, i + need).every((sl) => sl.status === 'avail');
+      if (!free) return { ok: false, reason: 'taken', message: '방금 다른 예약이 잡혔어요. 다른 시간을 골라주세요.' };
       const res = await this.booking.createAssigned({
         studentId: student.id, teacherId, centerId: tp.center_id,
         teacherGrade: (tp.grade as TeacherGrade) ?? TeacherGrade.B,
-        consultType: ConsultType.SUBJECT, mode: ConsultMode.CHAT, dateStr,
-        slotStart: slots[start].index, slotEnd: slots[start].index + need,
+        consultType: ConsultType.SUBJECT, mode: ConsultMode.CHAT, dateStr: pick.dateStr,
+        slotStart: pick.slotStart, slotEnd: pick.slotStart + need,
         charge: 'session', origin: '질문승격', content,
       });
       if (res.ok && res.bookingId) {
@@ -825,8 +821,32 @@ export class QnaService {
       if (res.reason === 'shortfall') {
         return { ok: false, reason: 'shortfall', message: '크레딧이 부족해 상담 예약을 생성하지 못했어요. 충전 후 다시 시도하거나 상담 예약에서 직접 진행하세요.' };
       }
+      return { ok: false, reason: 'failed', message: '예약 생성에 실패했어요. 상담 예약에서 직접 진행해 주세요.' };
     }
-    return { ok: false, reason: 'no_slot', message: '가까운 빈 시간을 찾지 못했어요. 상담 예약에서 직접 시간을 골라주세요.' };
+
+    // ① 후보 제시 — 가까운 빈 시간대(하루 최대 2개·총 4개)를 학생에게 골라 보여준다(예약 생성 없음).
+    const candidates: Array<{ dateStr: string; slotStart: number; label: string }> = [];
+    for (let d = 0; d < ESCALATE_HORIZON_DAYS && candidates.length < 4; d++) {
+      const dateStr = kstDateString(new Date(now.getTime() + d * 86_400_000));
+      const slots = await this.availability.getDaySlots(teacherId, dateStr, student.id);
+      const statuses = slots.map((sl) => sl.status);
+      let perDay = 0;
+      for (let i = 0; i < statuses.length && perDay < 2 && candidates.length < 4; ) {
+        const ok = statuses.slice(i, i + need).length === need && statuses.slice(i, i + need).every((s) => s === 'avail');
+        if (!ok) { i++; continue; }
+        const startMin = slots[i].index * ESCALATE_SLOT_MIN;
+        const hh = String(Math.floor(startMin / 60)).padStart(2, '0');
+        const mm = String(startMin % 60).padStart(2, '0');
+        const dow = ['일', '월', '화', '수', '목', '금', '토'][new Date(`${dateStr}T00:00:00+09:00`).getDay()];
+        candidates.push({ dateStr, slotStart: slots[i].index, label: `${d === 0 ? '오늘' : d === 1 ? '내일' : `${dateStr.slice(5).replace('-', '/')}(${dow})`} ${hh}:${mm}` });
+        perDay++;
+        i += need + 2; // 같은 구간 연속 후보 방지 — 다음 후보는 간격을 두고
+      }
+    }
+    if (!candidates.length) {
+      return { ok: false, reason: 'no_slot', message: '가까운 빈 시간을 찾지 못했어요. 상담 예약에서 직접 시간을 골라주세요.' };
+    }
+    return { ok: true, candidates, minutes };
   }
 
   // ── Q3 커뮤니티(3부 공개 게시판) ───────────────────────────────────────

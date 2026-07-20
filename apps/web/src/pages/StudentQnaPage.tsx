@@ -105,7 +105,7 @@ export function StudentQnaPage() {
   useEffect(() => {
     const h = (e: Event) => {
       const type = (e as CustomEvent<{ type?: string }>).detail?.type ?? '';
-      if (['qna_answered', 'qna_followup', 'qna_community_answer'].includes(type)) load();
+      if (['qna_answered', 'qna_claimed', 'qna_followup', 'qna_community_answer'].includes(type)) load();
     };
     window.addEventListener('janus:notif', h);
     return () => window.removeEventListener('janus:notif', h);
@@ -152,12 +152,15 @@ export function StudentQnaPage() {
       load();
     } catch (e) { setError(e instanceof ApiError ? e.message : '재답변 요청 실패'); }
   }
-  // 상담으로 이어가기 — 답변 선생님과 상담 예약 생성(컨텍스트 이관).
-  async function escalate(postId: string) {
+  // 상담으로 이어가기 — 1차 호출로 가까운 후보 시간대를 받고, 학생이 고르면 2차 호출로 예약 확정.
+  const [escCand, setEscCand] = useState<{ postId: string; minutes?: number; items: { dateStr: string; slotStart: number; label: string }[] } | null>(null);
+  async function escalate(postId: string, pick?: { dateStr: string; slotStart: number }) {
     setError(''); setMsg('');
     try {
-      const r = await api.post<{ bookingId?: string; message?: string }>(`/qna/posts/${postId}/escalate`, {});
-      setMsg(r.bookingId ? '상담 예약이 생성됐어요. 예약 화면에서 확인하세요.' : (r.message ?? '상담 예약을 생성하지 못했어요.'));
+      const r = await api.post<{ bookingId?: string; message?: string; candidates?: { dateStr: string; slotStart: number; label: string }[]; minutes?: number }>(`/qna/posts/${postId}/escalate`, pick ?? {});
+      if (r.bookingId) { setEscCand(null); setMsg('상담 예약이 생성됐어요. 예약 화면에서 확인하세요.'); load(); return; }
+      if (r.candidates?.length) { setEscCand({ postId, minutes: r.minutes, items: r.candidates }); return; }
+      setEscCand(null); setMsg(r.message ?? '상담 예약을 생성하지 못했어요.');
       load();
     } catch (e) { setError(e instanceof ApiError ? e.message : '상담 승격 실패'); }
   }
@@ -396,6 +399,23 @@ export function StudentQnaPage() {
               <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                 <button type="button" onClick={() => reanswer(p.id)} style={{ fontSize: 12.5, border: '1px solid var(--input-border)', background: 'var(--surface)', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', color: 'var(--muted)' }}>🔁 다른 답변 받기</button>
                 <button type="button" onClick={() => escalate(p.id)} style={{ fontSize: 12.5, border: '1px solid var(--teal)', background: 'var(--teal-50,#EEF4FB)', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', color: 'var(--teal)', fontWeight: 700 }}>💬 상담으로 이어가기</button>
+              </div>
+            )}
+            {/* 상담 이어가기 — 가까운 후보 시간대 선택 */}
+            {escCand?.postId === p.id && (
+              <div style={{ marginTop: 8, border: '1px solid var(--teal)', background: 'var(--teal-50,#EEF4FB)', borderRadius: 10, padding: '10px 12px' }}>
+                <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--teal)', marginBottom: 6 }}>
+                  📅 가까운 상담 가능 시간{escCand.minutes ? ` (${escCand.minutes}분)` : ''} — 골라주시면 바로 예약돼요
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {escCand.items.map((c) => (
+                    <button key={`${c.dateStr}-${c.slotStart}`} type="button" onClick={() => escalate(p.id, { dateStr: c.dateStr, slotStart: c.slotStart })}
+                      style={{ fontSize: 12.5, fontWeight: 700, border: '1px solid var(--teal)', background: 'var(--surface)', borderRadius: 999, padding: '6px 14px', cursor: 'pointer', color: 'var(--teal)' }}>
+                      {c.label}
+                    </button>
+                  ))}
+                  <button type="button" onClick={() => setEscCand(null)} style={{ fontSize: 12, border: 'none', background: 'none', cursor: 'pointer', color: 'var(--muted)' }}>취소</button>
+                </div>
               </div>
             )}
             {/* Q1 해결 피드백 */}
