@@ -28,6 +28,12 @@ export class RealtimeController {
     return this.svc.unreadCounts(user);
   }
 
+  /** GET /chat/inbox — 대화 있는 예약 최신순(상대·미리보기·미읽음). 카톡형 인박스. */
+  @Get('chat/inbox')
+  inbox(@CurrentUser() user: AuthUser) {
+    return this.svc.chatInbox(user);
+  }
+
   /** GET /realtime/features?studentId= — 내게 열린 실시간 기능(탭/버튼 표시용). */
   @Get('realtime/features')
   features(@CurrentUser() user: AuthUser, @Query('studentId') studentId?: string) {

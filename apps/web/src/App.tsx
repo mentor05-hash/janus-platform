@@ -64,6 +64,7 @@ const TeacherDashboardPage = lazy(() => import('./pages/TeacherDashboardPage').t
 import { StudentLayout } from './components/StudentLayout';
 import { GuardianLayout } from './components/GuardianLayout';
 import { GuardianPayPage } from './pages/GuardianPayPage';
+import { ChatInboxPage } from './pages/ChatInboxPage';
 const StudentBookingsPage = lazy(() => import('./pages/StudentBookingsPage').then((m) => ({ default: m.StudentBookingsPage })));
 const StudentSearchPage = lazy(() => import('./pages/StudentSearchPage').then((m) => ({ default: m.StudentSearchPage })));
 const GlobalSearchPage = lazy(() => import('./pages/GlobalSearchPage').then((m) => ({ default: m.GlobalSearchPage })));
@@ -162,6 +163,7 @@ export function App() {
         <Route path="dashboard" element={<TeacherDashboardPage />} />
         <Route path="inbox" element={<TeacherInboxPage />} />
         <Route path="bookings" element={<TeacherBookingsPage />} />
+        <Route path="chats" element={<ChatInboxPage />} />
         <Route path="bookings/:id/note" element={<NotePage />} />
         <Route path="schedule" element={<SchedulePage />} />
         <Route path="evaluations" element={<TeacherEvalPage />} />
@@ -231,6 +233,7 @@ export function App() {
         <Route path="search-all" element={<GlobalSearchPage />} />
         <Route path="search" element={<StudentSearchPage />} />
         <Route path="bookings" element={<StudentBookingsPage />} />
+        <Route path="chats" element={<ChatInboxPage />} />
         <Route path="reports" element={<StudentReportsPage />} />
         <Route path="materials" element={<StudentMaterialsPage />} />
         <Route path="qna" element={<StudentQnaPage />} />

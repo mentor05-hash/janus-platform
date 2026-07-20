@@ -22,6 +22,7 @@ const NAV: NavItem[] = [
   { to: '/student/lectures', label: '강좌' },
   { to: '/student/search', label: '선생님 찾기' },
   { to: '/student/bookings', label: '내 예약·상담' },
+  { to: '/student/chats', label: '채팅' },
   { to: '/student/reports', label: '상담 리포트' },
   { to: '/student/materials', label: '자료실' },
   { to: '/student/qna', label: '질문 게시판' },
@@ -58,7 +59,16 @@ export function StudentLayout() {
     api.get<Array<{ read_at: string | null }>>('/notifications')
       .then((r) => setUnread((Array.isArray(r) ? r : []).filter((n) => !n.read_at).length))
       .catch(() => { /* 무시 */ });
-  }, [loc.pathname]);
+    loadChatUnread();
+  }, [loc.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 채팅 탭 배지 — 미확인 메시지 총합(새 채팅 알림 시 즉시 갱신)
+  const [chatUnread, setChatUnread] = useState(0);
+  const loadChatUnread = () => api.get<Record<string, number>>('/chat/unread').then((u) => setChatUnread(Object.values(u).reduce((a, b) => a + b, 0))).catch(() => { /* 무시 */ });
+  useEffect(() => {
+    const h = (e: Event) => { if ((e as CustomEvent<{ type?: string }>).detail?.type === 'chat_message') loadChatUnread(); };
+    window.addEventListener('janus:notif', h);
+    return () => window.removeEventListener('janus:notif', h);
+  }, []);
   const nav = NAV.filter((n) => !('flag' in n) || n.flag !== 'scores' || showScores);
   const navigate = useNavigate();
   const [gq, setGq] = useState('');
@@ -96,6 +106,11 @@ export function StudentLayout() {
                 {/* 1시간 내 임박 상담 — 붉은 강조 + 시작 시각 */}
                 {n.to === '/student/bookings' && immLabel && (
                   <span style={{ fontSize: 11, fontWeight: 800, color: '#dc2626' }}>🔴 {immLabel} 상담</span>
+                )}
+                {n.to === '/student/chats' && chatUnread > 0 && (
+                  <span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: 'var(--danger, #dc2626)', color: '#fff', fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {chatUnread > 99 ? '99+' : chatUnread}
+                  </span>
                 )}
                 {n.to === '/student/notifications' && unread > 0 && (
                   <span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: 'var(--danger, #dc2626)', color: '#fff', fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>

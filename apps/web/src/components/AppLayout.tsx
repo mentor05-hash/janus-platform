@@ -13,6 +13,7 @@ const NAV = [
   { to: '/app/inbox', label: '인박스' },
   { to: '/app/profile', label: '내 프로필' },
   { to: '/app/bookings', label: '예약' },
+  { to: '/app/chats', label: '채팅' },
   { to: '/app/schedule', label: '근무·슬롯' },
   { to: '/app/evaluations', label: '받은 평가' },
   { to: '/app/reverse', label: '역상담 제안' },
@@ -40,12 +41,16 @@ export function AppLayout() {
   // Q&A 대기 배지 — 공개 큐 미클레임 + 내가 맡은 미답변(qna_pool_new 실시간 신호로 즉시 갱신).
   const [qnaAtt, setQnaAtt] = useState<{ pool: number; mine: number; total: number }>({ pool: 0, mine: 0, total: 0 });
   const loadQnaAtt = () => api.get<{ pool: number; mine: number; total: number }>('/qna/attention').then(setQnaAtt).catch(() => { /* 무시 */ });
+  // 채팅 탭 배지 — 미확인 메시지 총합
+  const [chatUnread, setChatUnread] = useState(0);
+  const loadChatUnread = () => api.get<Record<string, number>>('/chat/unread').then((u) => setChatUnread(Object.values(u).reduce((a, b) => a + b, 0))).catch(() => { /* 무시 */ });
   useEffect(() => {
     api.get<Array<{ read_at: string | null }>>('/notifications')
       .then((r) => setUnread((Array.isArray(r) ? r : []).filter((n) => !n.read_at).length))
       .catch(() => { /* 무시 */ });
     loadAtt();
     loadQnaAtt();
+    loadChatUnread();
   }, [loc.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const iv = setInterval(() => { loadAtt(); loadQnaAtt(); }, 60_000); // 임박 상담은 시간 경과로도 상태가 바뀜 — 1분 주기 갱신
@@ -53,6 +58,7 @@ export function AppLayout() {
       const t = (e as CustomEvent<{ type?: string }>).detail?.type ?? '';
       if (t.startsWith('booking_')) loadAtt();
       if (t.startsWith('qna_')) loadQnaAtt();
+      if (t === 'chat_message') loadChatUnread();
     };
     window.addEventListener('janus:notif', h);
     return () => { clearInterval(iv); window.removeEventListener('janus:notif', h); };
@@ -89,6 +95,11 @@ export function AppLayout() {
                   <span title={`공개 큐 ${qnaAtt.pool}건 · 내가 맡은 미답변 ${qnaAtt.mine}건`}
                     style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: 'var(--danger, #dc2626)', color: '#fff', fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                     {qnaAtt.total > 99 ? '99+' : qnaAtt.total}
+                  </span>
+                )}
+                {n.to === '/app/chats' && chatUnread > 0 && (
+                  <span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: 'var(--danger, #dc2626)', color: '#fff', fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {chatUnread > 99 ? '99+' : chatUnread}
                   </span>
                 )}
                 {n.to === '/app/notifications' && unread > 0 && (

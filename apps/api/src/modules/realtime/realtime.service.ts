@@ -282,6 +282,42 @@ export class RealtimeService {
     return { count: r.count, at, readerId: user.id };
   }
 
+  /** 채팅 인박스 — 대화가 있는 내 예약을 최신 메시지순으로(상대·미리보기·미읽음). 카톡형 목록. */
+  async chatInbox(user: AuthUser) {
+    const rows = await this.prisma.$queryRaw<Array<{
+      booking_id: string; kind: string; body: string | null; sender_id: string | null; last_at: Date;
+      student_id: string | null; teacher_id: string | null; mode: string | null; status: string | null; start_at: Date | null;
+    }>>`
+      SELECT DISTINCT ON (cm.booking_id)
+        cm.booking_id, cm.kind, cm.body, cm.sender_id, cm.created_at AS last_at,
+        b.student_id, b.teacher_id, b.mode, b.status, b.start_at
+      FROM chat_message cm JOIN booking b ON b.id = cm.booking_id
+      WHERE (b.student_id = ${user.id}::uuid OR b.teacher_id = ${user.id}::uuid)
+        AND cm.deleted_at IS NULL
+      ORDER BY cm.booking_id, cm.created_at DESC`;
+    rows.sort((a, b) => b.last_at.getTime() - a.last_at.getTime());
+    const top = rows.slice(0, 50);
+    const unread = await this.unreadCounts(user);
+    const ids = [...new Set(top.map((r) => (r.student_id === user.id ? r.teacher_id : r.student_id)).filter((x): x is string => !!x))];
+    const accounts = ids.length ? await this.prisma.account.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } }) : [];
+    const names = new Map(accounts.map((a) => [a.id, a.name]));
+    const preview = (r: { kind: string; body: string | null }) =>
+      r.kind === 'image' ? '📷 사진' : r.kind === 'audio' ? '🎤 음성 메시지' : r.kind === 'file' ? '📎 파일' : (r.body ?? '').slice(0, 60);
+    return top.map((r) => {
+      const counterpartId = r.student_id === user.id ? r.teacher_id : r.student_id;
+      return {
+        bookingId: r.booking_id,
+        counterpartId,
+        counterpartName: (counterpartId && names.get(counterpartId)) ?? '상대',
+        mode: r.mode, status: r.status, startAt: r.start_at?.toISOString() ?? null,
+        lastAt: r.last_at.toISOString(),
+        lastPreview: preview(r),
+        lastMine: r.sender_id === user.id,
+        unread: unread[r.booking_id] ?? 0,
+      };
+    });
+  }
+
   /** 내 예약들의 미확인(상대가 보낸 안 읽은) 메시지 수 — 예약별. 목록 배지용. */
   async unreadCounts(user: AuthUser): Promise<Record<string, number>> {
     const rows = await this.prisma.$queryRaw<Array<{ booking_id: string; n: bigint }>>`
