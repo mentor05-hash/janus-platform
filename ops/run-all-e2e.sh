@@ -21,6 +21,7 @@ done
 # 2) 스모크 스크립트 목록(순서 무관·독립).
 SCRIPTS=(
   journey-e2e.sh
+  score-ocr-e2e.sh
   qna-community-e2e.sh
   qna-league-e2e.sh
   score-input-e2e.sh
