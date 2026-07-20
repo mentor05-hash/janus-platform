@@ -10,7 +10,7 @@ type SimDetail = { id: string; subject: string | null; body: string; createdAt: 
 
 type Attachment = { id: string; name: string; type?: string };
 type Followup = { id: string; byTeacher: boolean; body: string; createdAt: string };
-type Answer = { id: string; body: string; accepted: boolean; teacherName: string; teacherId?: string | null; attachments?: Attachment[]; followups?: Followup[] };
+type Answer = { id: string; body: string; accepted: boolean; teacherName: string; teacherId?: string | null; createdAt?: string; attachments?: Attachment[]; followups?: Followup[] };
 type Post = {
   id: string;
   subject: string | null;
@@ -32,6 +32,14 @@ type Post = {
 type Block = { teacherId: string; teacherName: string; since: string };
 type TeacherDir = { teacherId: string; name: string; avgFirstReplyMin: number | null; avgRating: number | null; answers: number; accepted: number };
 const isImage = (a: Attachment) => (a.type ?? '').startsWith('image/') || /\.(png|jpe?g|gif|webp|heic)$/i.test(a.name);
+/** 시각 표시 — 오늘이면 "14:32", 아니면 "7/20 14:32" (KST). */
+const T = (iso?: string | null) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const hm = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' });
+  const today = new Date().toDateString() === d.toDateString();
+  return today ? hm : `${d.getMonth() + 1}/${d.getDate()} ${hm}`;
+};
 const MAX_IMG = 3;
 
 const SUBJECTS = ['국어', '수학', '영어', '탐구'];
@@ -340,7 +348,7 @@ export function StudentQnaPage() {
                     : '답변대기'}
                 </Badge>
               </div>
-              <span style={{ fontSize: 12, color: 'var(--muted)' }}>{new Date(p.created_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}</span>
+              <span style={{ fontSize: 12, color: 'var(--muted)' }} title="질문 등록 시각">등록 {T(p.created_at)}{p.firstReplyAt ? ` · 첫 답변 ${T(p.firstReplyAt)}` : p.claimedAt ? ` · 확인 시작 ${T(p.claimedAt)}` : ''}</span>
             </div>
             <p style={{ fontSize: 14, whiteSpace: 'pre-wrap', margin: '8px 0 10px' }}>{p.body}</p>
             {(p.attachments?.filter(isImage).length ?? 0) > 0 && (
@@ -372,7 +380,7 @@ export function StudentQnaPage() {
                 {p.answers!.map((a) => (
                   <div key={a.id} style={{ background: 'var(--fill,#f4f7fb)', borderRadius: 8, padding: 10 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                      <b style={{ fontSize: 13 }}>{a.teacherName} 선생님 답변 {a.accepted && <Badge kind="done">채택</Badge>}</b>
+                      <b style={{ fontSize: 13 }}>{a.teacherName} 선생님 답변 <span style={{ fontWeight: 400, fontSize: 11.5, color: 'var(--caption)' }}>{T(a.createdAt)}</span> {a.accepted && <Badge kind="done">채택</Badge>}</b>
                       {!a.accepted && p.status !== 'resolved' && <Button size="sm" onClick={() => accept(a.id)}>채택</Button>}
                     </div>
                     <div style={{ fontSize: 14, whiteSpace: 'pre-wrap', marginTop: 4 }}>{a.body}</div>
