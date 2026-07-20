@@ -5,7 +5,7 @@
  */
 export type MediaStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting';
 
-export type MediaEvent = 'join_attempt' | 'connected' | 'reconnecting' | 'failed' | 'left';
+export type MediaEvent = 'join_attempt' | 'connected' | 'reconnecting' | 'failed' | 'left' | 'share_started' | 'share_stopped' | 'blur_on';
 
 export interface MediaToken {
   url: string; // LiveKit 접속 URL(wss://…)

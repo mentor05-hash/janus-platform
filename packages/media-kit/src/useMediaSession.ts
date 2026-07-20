@@ -14,6 +14,10 @@ export function useMediaSession(opts: MediaSessionOptions) {
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(false);
   const [remoteCamOn, setRemoteCamOn] = useState(false);
+  const [shareOn, setShareOn] = useState(false); // M2 — 내 화면공유 중
+  const [remoteShareOn, setRemoteShareOn] = useState(false); // 상대 화면공유 수신 중
+  const [blurOn, setBlurOn] = useState(false); // M2 — 배경 블러
+  const remoteTracksRef = useRef<{ cam: RemoteTrack | null; share: RemoteTrack | null }>({ cam: null, share: null });
   const roomRef = useRef<Room | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -32,7 +36,19 @@ export function useMediaSession(opts: MediaSessionOptions) {
     if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
     if (localVideoRef.current) localVideoRef.current.srcObject = null;
     roomRef.current = null;
+    remoteTracksRef.current = { cam: null, share: null };
     setStatus('idle'); setRemoteCamOn(false); setCamOn(false); setMicOn(true);
+    setShareOn(false); setRemoteShareOn(false); setBlurOn(false);
+  }
+
+  /** 원격 표시 우선순위: 화면공유 > 카메라 (1:1 수업 — 공유 화면이 주 콘텐츠). */
+  function attachBestRemote() {
+    const { cam, share } = remoteTracksRef.current;
+    const best = share ?? cam;
+    if (best && remoteVideoRef.current) best.attach(remoteVideoRef.current);
+    else if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+    setRemoteShareOn(!!share);
+    setRemoteCamOn(!!(share ?? cam));
   }
 
   async function join(joinOpts?: JoinOptions) {
@@ -51,10 +67,11 @@ export function useMediaSession(opts: MediaSessionOptions) {
         .on(RoomEvent.Reconnecting, () => { setStatus('reconnecting'); onEventRef.current?.('reconnecting'); })
         .on(RoomEvent.Reconnected, () => setStatus('connected'))
         .on(RoomEvent.Disconnected, () => cleanup())
-        .on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
+        .on(RoomEvent.TrackSubscribed, (track: RemoteTrack, pub: TrackPublication) => {
           if (track.kind === Track.Kind.Video) {
-            if (remoteVideoRef.current) track.attach(remoteVideoRef.current);
-            setRemoteCamOn(true);
+            if (pub.source === Track.Source.ScreenShare) remoteTracksRef.current.share = track;
+            else remoteTracksRef.current.cam = track;
+            attachBestRemote();
           } else {
             const el = track.attach();
             el.style.display = 'none';
@@ -62,9 +79,13 @@ export function useMediaSession(opts: MediaSessionOptions) {
             audioElsRef.current.push(el);
           }
         })
-        .on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
+        .on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack, pub: TrackPublication) => {
           track.detach().forEach((el) => { if (el !== remoteVideoRef.current) el.remove(); });
-          if (track.kind === Track.Kind.Video) setRemoteCamOn(false);
+          if (track.kind === Track.Kind.Video) {
+            if (pub.source === Track.Source.ScreenShare) remoteTracksRef.current.share = null;
+            else remoteTracksRef.current.cam = null;
+            attachBestRemote();
+          }
         })
         .on(RoomEvent.TrackMuted, (pub: TrackPublication, p: Participant) => { if (isRemote(p) && pub.kind === Track.Kind.Video) setRemoteCamOn(false); })
         .on(RoomEvent.TrackUnmuted, (pub: TrackPublication, p: Participant) => { if (isRemote(p) && pub.kind === Track.Kind.Video) setRemoteCamOn(true); });
@@ -115,7 +136,34 @@ export function useMediaSession(opts: MediaSessionOptions) {
     setCamOn(next);
   }
 
+  /** M2 — 화면공유 토글. 브라우저 공유 선택창에서 취소하면 상태 유지. */
+  async function toggleShare() {
+    const room = roomRef.current; if (!room) return;
+    const next = !shareOn;
+    try {
+      await room.localParticipant.setScreenShareEnabled(next);
+      setShareOn(next);
+      onEventRef.current?.(next ? 'share_started' : 'share_stopped');
+    } catch { /* 사용자가 공유 선택을 취소함 — 상태 유지 */ }
+  }
+
+  /** M2 — 배경 블러 토글(카메라 트랙 프로세서 — 지연 로드, 미지원 브라우저는 무시). */
+  async function toggleBlur() {
+    const room = roomRef.current; if (!room) return;
+    const pub = [...room.localParticipant.videoTrackPublications.values()].find((p) => p.source === Track.Source.Camera);
+    const t = pub?.track as { setProcessor?: (p: unknown) => Promise<void>; stopProcessor?: () => Promise<void> } | undefined;
+    if (!t?.setProcessor) return;
+    try {
+      if (blurOn) { await t.stopProcessor?.(); setBlurOn(false); return; }
+      const { BackgroundBlur, supportsBackgroundProcessors } = await import('@livekit/track-processors');
+      if (!supportsBackgroundProcessors()) return;
+      await t.setProcessor(BackgroundBlur(10));
+      setBlurOn(true);
+      onEventRef.current?.('blur_on');
+    } catch { /* 프로세서 미지원 — 무시 */ }
+  }
+
   useEffect(() => () => { void roomRef.current?.disconnect(); }, []); // 언마운트 정리
 
-  return { status, micOn, camOn, remoteCamOn, join, leave, toggleMic, toggleCam, localVideoRef, remoteVideoRef };
+  return { status, micOn, camOn, remoteCamOn, shareOn, remoteShareOn, blurOn, join, leave, toggleMic, toggleCam, toggleShare, toggleBlur, localVideoRef, remoteVideoRef };
 }

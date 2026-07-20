@@ -581,6 +581,9 @@ export function WhiteboardPanel({ bookingId, title, onClose }: { bookingId: stri
                         </button>)}
                     <button className="btn ghost sm" onClick={() => void lk.toggleCam()}>{lk.camOn ? '📷 켜짐' : '📷 끔'}</button>
                     <button className="btn ghost sm" onClick={() => void lk.toggleMic()}>{lk.micOn ? '🎙 켜짐' : '🔇 음소거'}</button>
+                    {/* M2 — 화면공유(문제 사이트·PDF 등)·배경 블러 */}
+                    <button className="btn ghost sm" onClick={() => void lk.toggleShare()} title="내 화면을 상대에게 공유">{lk.shareOn ? '🖥 공유 중지' : '🖥 화면공유'}</button>
+                    {lk.camOn && <button className="btn ghost sm" onClick={() => void lk.toggleBlur()} title="내 카메라 배경 흐리기">{lk.blurOn ? '🌫 블러 해제' : '🌫 배경 블러'}</button>}
                     <button className="btn danger sm" onClick={() => void lk.leave()}>통화 종료</button>
                   </>
                 : <button className="btn ghost sm" disabled={!rw} onClick={() => setPreflight(true)} title={rw ? '화상통화' : '상담 시간대에만 통화할 수 있어요'}>📹 화상통화</button>)

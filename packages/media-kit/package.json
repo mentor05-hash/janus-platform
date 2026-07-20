@@ -8,5 +8,8 @@
   "peerDependencies": {
     "livekit-client": ">=2",
     "react": ">=18"
+  },
+  "dependencies": {
+    "@livekit/track-processors": "^0.7.2"
   }
 }
