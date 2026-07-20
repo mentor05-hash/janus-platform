@@ -64,7 +64,13 @@ services:
       LIVEKIT_URL: ${LIVEKIT_URL:-}
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
-      LLM_PROVIDER: none
+      # 녹음 파이프라인(R1~R5) — 미설정 시 해당 단계 비활성(기존 동작 그대로).
+      LIVEKIT_EGRESS_S3: ${LIVEKIT_EGRESS_S3:-}
+      STT_PROVIDER: ${STT_PROVIDER:-mock}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      STT_WHISPER_MODEL: ${STT_WHISPER_MODEL:-whisper-1}
+      LLM_PROVIDER: ${LLM_PROVIDER:-none}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       HOMEROOM_CYCLE_DAYS: "30"
       PRE_BOOK_HORIZON_DAYS: "30"
       # 실시간 룸 서비스 이관 브리지(플래그). 엔드포인트만 추가 — 클라가 호출 전엔 기존 in-app 그대로.
