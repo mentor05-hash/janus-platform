@@ -65,6 +65,7 @@ import { StudentLayout } from './components/StudentLayout';
 import { GuardianLayout } from './components/GuardianLayout';
 import { GuardianPayPage } from './pages/GuardianPayPage';
 import { ChatInboxPage } from './pages/ChatInboxPage';
+import { AdminOpsSettingsPage } from './pages/AdminOpsSettingsPage';
 const StudentBookingsPage = lazy(() => import('./pages/StudentBookingsPage').then((m) => ({ default: m.StudentBookingsPage })));
 const StudentSearchPage = lazy(() => import('./pages/StudentSearchPage').then((m) => ({ default: m.StudentSearchPage })));
 const GlobalSearchPage = lazy(() => import('./pages/GlobalSearchPage').then((m) => ({ default: m.GlobalSearchPage })));
@@ -198,6 +199,7 @@ export function App() {
         <Route path="hr-staff" element={<HrStaffPage />} />
         <Route path="reverse" element={<AdminReversePage />} />
         <Route path="policy" element={<AdminPolicyPage />} />
+        <Route path="ops" element={<AdminOpsSettingsPage />} />
         <Route path="rooms" element={<AdminRoomsPage />} />
         <Route path="block" element={<AdminBlockPage />} />
         <Route path="infra" element={<AdminInfraPage />} />
