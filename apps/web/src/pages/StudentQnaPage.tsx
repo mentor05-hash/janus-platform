@@ -96,8 +96,11 @@ export function StudentQnaPage() {
   useEffect(() => {
     api.get<Record<string, number>>('/bookings/question-duration/policy').then(setDurPol).catch(() => { /* 기본값 */ });
     api.get<{ itemFee: number; generalFee: number; freeQuota?: { quota: number; used: number; remaining: number; resetsAt: string } | null; expectedFirstReplyMin?: number | null }>('/qna/pricing').then(setFee).catch(() => { /* 요금 조회 실패 */ });
+    loadTeachers();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  function loadTeachers() {
     api.get<{ teachers: TeacherDir[] }>('/qna/teachers').then((r) => setTeachers(r.teachers ?? [])).catch(() => { /* 디렉터리 조회 실패 */ });
-  }, []);
+  }
   const tierOf = (d: string) => (d === '하' ? '기초' : d === '상' ? '심화' : '중급');
   const blockMin = durPol?.[tierOf(f.difficulty)] ?? ({ 하: 10, 중: 20, 상: 30 } as Record<string, number>)[f.difficulty] ?? 20;
 
@@ -130,9 +133,10 @@ export function StudentQnaPage() {
       const type = (e as CustomEvent<{ type?: string }>).detail?.type ?? '';
       if (['qna_answered', 'qna_claimed', 'qna_followup', 'qna_community_answer'].includes(type)) load();
     };
+    const refresh = () => { load(); loadTeachers(); };
     window.addEventListener('janus:notif', h);
-    window.addEventListener('janus:refresh', load); // 현재 탭 재클릭 = 새로고침
-    return () => { window.removeEventListener('janus:notif', h); window.removeEventListener('janus:refresh', load); };
+    window.addEventListener('janus:refresh', refresh); // 현재 탭 재클릭 = 새로고침
+    return () => { window.removeEventListener('janus:notif', h); window.removeEventListener('janus:refresh', refresh); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [fuDraft, setFuDraft] = useState<Record<string, string>>({}); // C2 — 답변별 이어 묻기 초안
@@ -159,7 +163,7 @@ export function StudentQnaPage() {
     try {
       const r = await api.post<{ blockedTeacher: boolean }>(`/qna/posts/${postId}/feedback`, { rating, continuePref });
       setMsg(r.blockedTeacher ? '평가 완료 — 이 선생님께는 앞으로 노출되지 않습니다(직접 해제 가능).' : '평가해 주셔서 감사합니다.');
-      load(); loadBlocks();
+      load(); loadBlocks(); loadTeachers(); // "계속" 선택 시 자동 찜 → ★ 즉시 반영
     } catch (e) { setError(e instanceof ApiError ? e.message : '평가 실패'); }
   }
   async function unblock(teacherId: string) {
