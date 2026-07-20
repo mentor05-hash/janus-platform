@@ -34,11 +34,22 @@ export function AppLayout() {
   const initial = (user?.name ?? '선').slice(0, 1);
   const loc = useLocation();
   const [unread, setUnread] = useState(0);
+  // 인지 개선 ① — 예약 탭 뱃지: 수락 대기 신청 수 + 1시간 내 임박 상담 강조.
+  const [att, setAtt] = useState<{ pending: number; imminentAt: string | null }>({ pending: 0, imminentAt: null });
+  const loadAtt = () => api.get<{ pending: number; imminentAt: string | null }>('/bookings/attention').then(setAtt).catch(() => { /* 무시 */ });
   useEffect(() => {
     api.get<Array<{ read_at: string | null }>>('/notifications')
       .then((r) => setUnread((Array.isArray(r) ? r : []).filter((n) => !n.read_at).length))
       .catch(() => { /* 무시 */ });
-  }, [loc.pathname]);
+    loadAtt();
+  }, [loc.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const iv = setInterval(loadAtt, 60_000); // 임박 상담은 시간 경과로도 상태가 바뀜 — 1분 주기 갱신
+    const h = (e: Event) => { const t = (e as CustomEvent<{ type?: string }>).detail?.type ?? ''; if (t.startsWith('booking_')) loadAtt(); };
+    window.addEventListener('janus:notif', h);
+    return () => { clearInterval(iv); window.removeEventListener('janus:notif', h); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const immLabel = att.imminentAt ? new Date(att.imminentAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' }) : null;
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -53,8 +64,18 @@ export function AppLayout() {
           {NAV.map((n) => (
             <NavLink key={n.to} to={n.to} className={navCls}
               onClick={() => { if (window.location.pathname === n.to) window.dispatchEvent(new CustomEvent('janus:refresh')); }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, ...(n.to === '/app/bookings' && immLabel ? { background: '#FEE2E2', borderRadius: 8, padding: '2px 8px', margin: '-2px -8px' } : {}) }}>
                 {n.label}
+                {/* 1시간 내 임박 상담 — 붉은 강조 + 시작 시각 */}
+                {n.to === '/app/bookings' && immLabel && (
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#dc2626' }}>🔴 {immLabel} 상담</span>
+                )}
+                {/* 수락 대기 신청 수 */}
+                {n.to === '/app/bookings' && att.pending > 0 && (
+                  <span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: 'var(--danger, #dc2626)', color: '#fff', fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {att.pending > 99 ? '99+' : att.pending}
+                  </span>
+                )}
                 {n.to === '/app/notifications' && unread > 0 && (
                   <span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: 'var(--danger, #dc2626)', color: '#fff', fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                     {unread > 99 ? '99+' : unread}

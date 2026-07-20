@@ -9,6 +9,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { ShortfallError } from '../../common/errors/shortfall.error';
@@ -595,6 +596,55 @@ export class BookingService {
   }
 
   /** GET /bookings — 역할별 목록. */
+  /** 사이드바 뱃지(인지 개선 ①) — 수락 대기 신청 수(선생님) + 1시간 내 임박 확정 상담. */
+  async attention(user: AuthUser) {
+    const isTeacher = user.role === AccountRole.TEACHER;
+    const now = new Date();
+    const inOneHour = new Date(now.getTime() + 3600_000);
+    const side: Prisma.bookingWhereInput = isTeacher ? { teacher_id: user.id } : { student_id: user.id };
+    const pending = isTeacher
+      ? await this.prisma.booking.count({ where: { teacher_id: user.id, status: BookingStatus.NEW, direction: 'student' } })
+      : 0;
+    const imminent = await this.prisma.booking.findFirst({
+      where: { ...side, status: BookingStatus.CONFIRMED, start_at: { lte: inOneHour }, end_at: { gte: now } },
+      orderBy: { start_at: 'asc' },
+      select: { id: true, start_at: true, mode: true },
+    });
+    return { pending, imminentAt: imminent?.start_at ?? null, imminentBookingId: imminent?.id ?? null };
+  }
+
+  // ── 미응답 신청 리마인더(인지 개선 ①-b) — 2h 무응답 시 선생님 재알림, 24h 시 관리자 에스컬레이션 ──
+  @Cron('*/30 * * * *', { timeZone: 'Asia/Seoul' })
+  async remindPendingRequests() {
+    const now = Date.now();
+    const pend = await this.prisma.booking.findMany({
+      where: { status: BookingStatus.NEW, direction: 'student', created_at: { lt: new Date(now - 2 * 3600_000) } },
+      select: { id: true, teacher_id: true, center_id: true, created_at: true },
+      orderBy: { created_at: 'asc' },
+      take: 200,
+    });
+    for (const b of pend) {
+      // 알림 원장으로 멱등 — 같은 예약에 리마인더/에스컬레이션은 각 1회만.
+      const reminded = await this.prisma.notification.findFirst({
+        where: { type: 'booking_request_reminder', payload: { path: ['bookingId'], equals: b.id } }, select: { id: true },
+      });
+      if (!reminded) {
+        await this.notify.notify(b.teacher_id, 'booking_request_reminder', { bookingId: b.id });
+        continue; // 에스컬레이션은 다음 주기부터 판단
+      }
+      if (b.created_at.getTime() > now - 24 * 3600_000) continue;
+      const escalated = await this.prisma.notification.findFirst({
+        where: { type: 'booking_request_escalated', payload: { path: ['bookingId'], equals: b.id } }, select: { id: true },
+      });
+      if (escalated) continue;
+      const admins = await this.prisma.account.findMany({
+        where: { role: { in: [AccountRole.ADMIN, AccountRole.HR] }, ...(b.center_id ? { center_id: b.center_id } : {}) },
+        select: { id: true }, take: 5,
+      });
+      for (const a of admins) await this.notify.notify(a.id, 'booking_request_escalated', { bookingId: b.id, teacherId: b.teacher_id });
+    }
+  }
+
   async list(
     user: AuthUser,
     role?: 'student' | 'teacher',

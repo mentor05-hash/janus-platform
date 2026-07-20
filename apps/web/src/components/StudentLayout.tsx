@@ -45,6 +45,15 @@ export function StudentLayout() {
   // 알림 미읽음 뱃지 — 마운트 + 라우트 이동 시 갱신(읽고 나오면 줄어듦).
   const loc = useLocation();
   const [unread, setUnread] = useState(0);
+  // 1시간 내 임박 상담 강조(내 예약·상담) — 1분 주기 갱신.
+  const [immAt, setImmAt] = useState<string | null>(null);
+  useEffect(() => {
+    const loadAtt = () => api.get<{ imminentAt: string | null }>('/bookings/attention').then((r) => setImmAt(r.imminentAt)).catch(() => { /* 무시 */ });
+    loadAtt();
+    const iv = setInterval(loadAtt, 60_000);
+    return () => clearInterval(iv);
+  }, []);
+  const immLabel = immAt ? new Date(immAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' }) : null;
   useEffect(() => {
     api.get<Array<{ read_at: string | null }>>('/notifications')
       .then((r) => setUnread((Array.isArray(r) ? r : []).filter((n) => !n.read_at).length))
@@ -82,8 +91,12 @@ export function StudentLayout() {
           ) : (
             <NavLink key={n.to} to={n.to} className={navCls} end={'end' in n && n.end}
               onClick={() => { if (window.location.pathname === n.to) window.dispatchEvent(new CustomEvent('janus:refresh')); }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, ...(n.to === '/student/bookings' && immLabel ? { background: '#FEE2E2', borderRadius: 8, padding: '2px 8px', margin: '-2px -8px' } : {}) }}>
                 {n.label}
+                {/* 1시간 내 임박 상담 — 붉은 강조 + 시작 시각 */}
+                {n.to === '/student/bookings' && immLabel && (
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#dc2626' }}>🔴 {immLabel} 상담</span>
+                )}
                 {n.to === '/student/notifications' && unread > 0 && (
                   <span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: 'var(--danger, #dc2626)', color: '#fff', fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                     {unread > 99 ? '99+' : unread}

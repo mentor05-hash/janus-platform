@@ -9,6 +9,8 @@ const LABEL: Record<string, string> = {
   booking_rejected: '예약이 거절되었어요.',
   booking_cancelled: '예약이 취소되었어요.',
   booking_reminder: '곧 상담이 시작돼요.',
+  booking_request_reminder: '⏰ 수락 대기 중인 상담 신청이 있어요.',
+  booking_request_escalated: '미응답 상담 신청이 있습니다(24시간 경과).',
   booking_new: '새 상담 신청이 들어왔어요.',
   note_shared: '상담 기록이 공유되었어요.',
   consult_report: '상담 요약 리포트가 도착했어요 📋',

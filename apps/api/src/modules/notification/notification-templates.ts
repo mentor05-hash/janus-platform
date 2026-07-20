@@ -33,6 +33,8 @@ const TEMPLATES: Record<string, Tmpl> = {
   booking_cancelled: { title: '예약 취소', body: '예약이 취소되었어요. 크레딧은 환원됩니다.' },
   booking_noshow: { title: '미진행 신고', body: '미진행(노쇼) 신고가 접수되었어요. 관리자가 확인합니다.' },
   booking_reminder: { title: '상담 임박', body: '곧 상담이 시작돼요. 준비해 주세요.' },
+  booking_request_reminder: { title: '⏰ 수락 대기 상담', body: '2시간 넘게 수락하지 않은 상담 신청이 있어요. 예약 탭에서 확인해 주세요.' },
+  booking_request_escalated: { title: '미응답 상담 신청', body: '24시간 넘게 수락되지 않은 상담 신청이 있습니다. 담당 선생님 확인이 필요해요.' },
   // ── 역상담 ──
   reverse_proposed: { title: '역상담 제안', body: '선생님의 역상담 제안이 도착했어요. 수락 여부를 선택해 주세요.' },
   reverse_accepted: { title: '역상담 수락', body: '제안하신 역상담이 수락되어 예약이 확정됐어요.' },
