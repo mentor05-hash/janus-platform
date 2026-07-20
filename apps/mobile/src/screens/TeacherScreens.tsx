@@ -4,6 +4,7 @@ import { api, ApiError, Booking } from '../api';
 import { useTheme, type Palette } from '../theme';
 import { useSessionHost, SessionHost } from './SessionHost';
 import { ChatInboxScreen } from './ChatInboxScreen';
+import { TeacherReportPanel } from './TeacherReportPanel';
 import { queueNote, flushNotes, queuedCount, onlineFlush } from '../offlineQueue';
 
 // ── 공통 ──
@@ -365,6 +366,8 @@ function NoteEditor({ booking, onClose, embedded }: { booking: Booking; onClose:
         <TouchableOpacity disabled={busy} style={[s.btn, s.btnG]} onPress={() => save('draft')}><Text style={s.btnGT}>임시저장</Text></TouchableOpacity>
         <TouchableOpacity disabled={busy} style={[s.btn, s.btnP]} onPress={() => save('final')}><Text style={s.btnPT}>최종 저장 → 완료</Text></TouchableOpacity>
       </View>
+      {/* 상담 기록을 원천으로 학생·학부모 2뷰 리포트 생성·검수·발송(웹 파리티) */}
+      <TeacherReportPanel bookingId={booking.id} />
     </ScrollView>
   );
 }
