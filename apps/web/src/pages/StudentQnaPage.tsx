@@ -30,7 +30,7 @@ type Post = {
   answers?: Answer[];
 };
 type Block = { teacherId: string; teacherName: string; since: string };
-type TeacherDir = { teacherId: string; name: string; avgFirstReplyMin: number | null; avgRating: number | null; answers: number; accepted: number; escalationOk?: boolean };
+type TeacherDir = { teacherId: string; name: string; avgFirstReplyMin: number | null; avgRating: number | null; answers: number; accepted: number; escalationOk?: boolean; subjects?: string[]; favorite?: boolean };
 const isImage = (a: Attachment) => (a.type ?? '').startsWith('image/') || /\.(png|jpe?g|gif|webp|heic)$/i.test(a.name);
 /** 시각 표시 — 오늘이면 "14:32", 아니면 "7/20 14:32" (KST). */
 const T = (iso?: string | null) => {
@@ -78,6 +78,20 @@ export function StudentQnaPage() {
   const [teachers, setTeachers] = useState<TeacherDir[]>([]); // P5 — 지정 질문 선생님 디렉터리(SLA 배지)
   const [assignedTeacherId, setAssignedTeacherId] = useState('');
   const [escOnly, setEscOnly] = useState(false); // 이어서 상담 가능한 선생님만 보기
+  const [favOnly, setFavOnly] = useState(false); // F2 — 찜한 선생님만 보기
+  // F1 — 폼 과목과 선생님 과목 매칭(탐구=과학·사회)
+  const subjectMatch = (t: TeacherDir) => {
+    const subs = t.subjects ?? [];
+    if (!subs.length) return true; // 과목 미설정 선생님은 전 과목 취급
+    if (f.subject === '탐구') return subs.some((x) => ['과학', '사회', '탐구'].includes(x));
+    return subs.includes(f.subject);
+  };
+  async function toggleFav(t: TeacherDir) {
+    try {
+      await api.post('/qna/favorites', { teacherId: t.teacherId, favored: !t.favorite });
+      setTeachers((p) => p.map((x) => (x.teacherId === t.teacherId ? { ...x, favorite: !t.favorite } : x)));
+    } catch { /* 무시 */ }
+  }
   const [fee, setFee] = useState<{ itemFee: number; generalFee: number; freeQuota?: { quota: number; used: number; remaining: number; resetsAt: string } | null; expectedFirstReplyMin?: number | null } | null>(null);
   useEffect(() => {
     api.get<Record<string, number>>('/bookings/question-duration/policy').then(setDurPol).catch(() => { /* 기본값 */ });
@@ -268,12 +282,25 @@ export function StudentQnaPage() {
                 <input type="checkbox" checked={escOnly} onChange={(e) => setEscOnly(e.target.checked)} />
                 답변 후 이어서 상담까지 가능한 선생님만 보기
               </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--muted)', cursor: 'pointer', margin: '0 0 6px' }}>
+                <input type="checkbox" checked={favOnly} onChange={(e) => setFavOnly(e.target.checked)} />
+                ⭐ 찜한 선생님만 보기
+              </label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto', border: '1px solid var(--line)', borderRadius: 10, padding: 8 }}>
                 {teachers.length === 0 && <span style={{ fontSize: 13, color: 'var(--muted)' }}>선택 가능한 선생님이 없습니다.</span>}
-                {teachers.filter((t) => !escOnly || t.escalationOk !== false).map((t) => (
+                {teachers
+                  .filter((t) => !escOnly || t.escalationOk !== false)
+                  .filter((t) => !favOnly || t.favorite)
+                  // F2 찜 우선 → F1 과목 일치 우선(기존 SLA 정렬은 서버 순서 유지)
+                  .sort((a, b) => Number(b.favorite ?? false) - Number(a.favorite ?? false) || Number(subjectMatch(b)) - Number(subjectMatch(a)))
+                  .map((t) => (
                   <button key={t.teacherId} type="button" onClick={() => setAssignedTeacherId(t.teacherId)}
-                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, textAlign: 'left', padding: '8px 10px', borderRadius: 8, cursor: 'pointer', border: assignedTeacherId === t.teacherId ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)' }}>
-                    <span style={{ fontSize: 13.5, fontWeight: 700 }}>{t.name} 선생님</span>
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, textAlign: 'left', padding: '8px 10px', borderRadius: 8, cursor: 'pointer', border: assignedTeacherId === t.teacherId ? '2px solid var(--teal)' : '1px solid var(--line)', background: 'var(--surface)', opacity: subjectMatch(t) ? 1 : 0.55 }}>
+                    <span style={{ fontSize: 13.5, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <span role="button" title={t.favorite ? '찜 해제' : '찜하기'} onClick={(e) => { e.stopPropagation(); void toggleFav(t); }} style={{ cursor: 'pointer', color: t.favorite ? '#CF9A3A' : '#d4dbe4', fontSize: 15 }}>★</span>
+                      {t.name} 선생님
+                      {!subjectMatch(t) && <span style={{ fontSize: 10.5, color: 'var(--caption)', fontWeight: 400 }}>다른 과목</span>}
+                    </span>
                     <span style={{ fontSize: 12, color: 'var(--muted)' }}>
                       {t.avgFirstReplyMin != null ? `⚡ 평균 첫응답 ${t.avgFirstReplyMin >= 60 ? `${Math.round(t.avgFirstReplyMin / 60)}시간` : `${t.avgFirstReplyMin}분`}` : '신규'}
                       {t.avgRating != null && ` · ★${t.avgRating}`}

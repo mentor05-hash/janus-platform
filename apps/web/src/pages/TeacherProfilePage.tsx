@@ -15,6 +15,8 @@ type Profile = {
   strengths: string[];
   modes?: string[];
   qnaEscalation?: boolean;
+  qnaReceive?: boolean;
+  qnaSubjects?: string[];
   reRequestRate?: number | null;
   avgResponseMin?: number | null;
 };
@@ -36,12 +38,14 @@ export function TeacherProfilePage() {
   const [career, setCareer] = useState('');
   const [modes, setModes] = useState<string[]>([]);
   const [qnaEsc, setQnaEsc] = useState(true); // Q&A 후 "이어서 상담" 제공 여부
+  const [qnaRecv, setQnaRecv] = useState(true); // F3 — Q&A 질문 수신 on/off
+  const [qnaSubs, setQnaSubs] = useState<string[]>([]); // F3 — 수신 과목 제한(빈=전체)
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
 
   function hydrate(d: Profile) {
-    setP(d); setIntro(d.intro ?? ''); setStrengths(d.strengths ?? []); setSubjects(d.subjects ?? []); setCareer(d.career ?? ''); setModes(d.modes ?? []); setQnaEsc(d.qnaEscalation !== false);
+    setP(d); setIntro(d.intro ?? ''); setStrengths(d.strengths ?? []); setSubjects(d.subjects ?? []); setCareer(d.career ?? ''); setModes(d.modes ?? []); setQnaEsc(d.qnaEscalation !== false); setQnaRecv(d.qnaReceive !== false); setQnaSubs(d.qnaSubjects ?? []);
   }
   useEffect(() => {
     api.get<Profile>('/teachers/me/profile').then(hydrate).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
@@ -52,7 +56,7 @@ export function TeacherProfilePage() {
   async function save() {
     setBusy(true); setMsg(''); setError('');
     try {
-      const d = await api.put<Profile>('/teachers/me/profile', { intro, strengths, subjects, career, modes, qnaEscalation: qnaEsc });
+      const d = await api.put<Profile>('/teachers/me/profile', { intro, strengths, subjects, career, modes, qnaEscalation: qnaEsc, qnaReceive: qnaRecv, qnaSubjects: qnaSubs });
       hydrate(d); setMsg('프로필이 저장되었습니다. 학생 검색·추천에 반영됩니다.');
     } catch (e) { setError(e instanceof ApiError ? e.message : '저장 실패'); } finally { setBusy(false); }
   }
@@ -113,6 +117,26 @@ export function TeacherProfilePage() {
         </div>
 
         <TextField label="경력(선택)" value={career} onChange={(e) => setCareer(e.target.value)} placeholder="예: 대치 5년 · 강남대성 출강" />
+        {/* F3 — Q&A 수신 설정(기본 최소·개별맞춤 원칙): on/off + 과목 제한 */}
+        <label className="label" style={{ marginTop: 12 }}>Q&A 질문 수신</label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, cursor: 'pointer', marginBottom: 6 }}>
+          <input type="checkbox" checked={qnaRecv} onChange={(e) => setQnaRecv(e.target.checked)} />
+          새 질문을 받습니다 <span style={{ fontSize: 12, color: 'var(--muted)' }}>(끄면 학생 목록·자동배정에서 제외 — 시험기간·휴가용)</span>
+        </label>
+        {qnaRecv && (
+          <>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
+              {['국어', '수학', '영어', '과학', '사회', '입시'].map((sub) => (
+                <button key={sub} type="button" onClick={() => setQnaSubs((p2) => (p2.includes(sub) ? p2.filter((x) => x !== sub) : [...p2, sub]))}
+                  style={{ fontSize: 12.5, borderRadius: 999, padding: '4px 12px', cursor: 'pointer', border: qnaSubs.includes(sub) ? '1px solid var(--teal)' : '1px solid var(--line)', background: qnaSubs.includes(sub) ? 'var(--teal-50,#E8F0F9)' : 'var(--surface)', color: qnaSubs.includes(sub) ? 'var(--teal)' : 'var(--muted)', fontWeight: 700 }}>
+                  {sub}
+                </button>
+              ))}
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 10px' }}>수신할 과목만 선택하세요 — 아무것도 선택하지 않으면 전 과목을 받습니다.</p>
+          </>
+        )}
+
         {/* Q&A 후 이어서 상담 제공 여부 — 학생 질문 폼의 선생님 선별에 반영 */}
         <label className="label" style={{ marginTop: 12 }}>Q&A 이어서 상담</label>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, cursor: 'pointer', marginBottom: 4 }}>

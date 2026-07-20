@@ -11,6 +11,10 @@ export class UpdateTeacherProfileDto {
   @IsOptional() @IsArray() @IsIn(['zoom', 'chat', 'hand', 'offline'], { each: true }) modes?: string[];
   /** Q&A 후 "이어서 상담" 제공 여부(옵트아웃 가능). */
   @IsOptional() @IsBoolean() qnaEscalation?: boolean;
+  /** Q&A 질문 수신 on/off(F3 — 시험기간·휴가). */
+  @IsOptional() @IsBoolean() qnaReceive?: boolean;
+  /** Q&A 수신 과목 제한(빈 배열 = 전체). */
+  @IsOptional() @IsArray() @IsString({ each: true }) qnaSubjects?: string[];
 }
 
 /** 니즈 기반 추천 요청(학생). */

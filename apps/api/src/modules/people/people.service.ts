@@ -130,6 +130,8 @@ export class PeopleService {
       avgResponseMin: t.avg_response_min ?? null,
       workStatus: t.work_status ?? 'on',
       qnaEscalation: t.qna_escalation,
+      qnaReceive: t.qna_receive,
+      qnaSubjects: t.qna_subjects ?? [],
     };
   }
 
@@ -182,6 +184,8 @@ export class PeopleService {
       category?: string;
       modes?: string[];
       qnaEscalation?: boolean;
+      qnaReceive?: boolean;
+      qnaSubjects?: string[];
     },
   ) {
     const t = await this.prisma.teacher_profile.findUnique({
@@ -202,6 +206,8 @@ export class PeopleService {
         ...(dto.category !== undefined ? { teacher_category: dto.category } : {}),
         ...(normModes !== undefined ? { modes: normModes } : {}),
         ...(dto.qnaEscalation !== undefined ? { qna_escalation: dto.qnaEscalation } : {}),
+        ...(dto.qnaReceive !== undefined ? { qna_receive: dto.qnaReceive } : {}),
+        ...(dto.qnaSubjects !== undefined ? { qna_subjects: dto.qnaSubjects } : {}),
       },
       include: { account: { select: { name: true, center_id: true } } },
     });
@@ -210,6 +216,8 @@ export class PeopleService {
       intro: updated.intro ?? null,
       strengths: updated.strengths ?? [],
       qnaEscalation: updated.qna_escalation,
+      qnaReceive: updated.qna_receive,
+      qnaSubjects: updated.qna_subjects ?? [],
     };
   }
 

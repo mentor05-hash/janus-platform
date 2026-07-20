@@ -178,6 +178,13 @@ export class QnaController {
     return this.qna.addFollowup(user, id, dto.body ?? '');
   }
 
+  /** POST /qna/favorites — F2 찜 토글(리스트 상단 고정·"계속 받을게요" 자동 찜과 동일 원장). */
+  @Post('favorites')
+  @Roles('student')
+  favorite(@Body() dto: { teacherId: string; favored: boolean }, @CurrentUser() user: AuthUser) {
+    return this.qna.setFavorite(user, String(dto?.teacherId ?? ''), !!dto?.favored);
+  }
+
   /** GET /qna/teachers — 지정 질문용 선생님 디렉터리 + 공개 SLA 배지(학생·P5). */
   @Get('teachers')
   teachers(@CurrentUser() user: AuthUser) {

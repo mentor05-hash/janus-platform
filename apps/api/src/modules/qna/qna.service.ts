@@ -402,6 +402,9 @@ export class QnaService {
         '학생이 맞지 않는 선생님으로 분류하여 가져올 수 없습니다(§5-9).',
       );
     }
+    // F3: 수신을 꺼 둔 선생님은 가져갈 수 없음(설정 화면 안내와 정합).
+    const myTp = await this.prisma.teacher_profile.findUnique({ where: { account_id: teacher.id }, select: { qna_receive: true } });
+    if (myTp?.qna_receive === false) throw new ForbiddenException('Q&A 수신을 꺼 두었습니다 — 내 프로필에서 다시 켤 수 있어요.');
     // Q1 소프트 블록: 학생이 이 선생님을 차단했으면 가져갈 수 없음(사유 비노출).
     const blocked = await this.prisma.qna_relation_block.findUnique({
       where: { student_id_teacher_id: { student_id: post.student_id, teacher_id: teacher.id } },
@@ -554,6 +557,21 @@ export class QnaService {
   }
 
   /** Q1 해결 피드백(질문 학생) — 만족도(1~5)+계속 여부. continue=false 면 채택 답변 선생님을 소프트 블록. */
+  /** F2 찜 토글 — teacher_list_entry(list_kind='fit') 재사용. 찜 해제는 fit 만 삭제. */
+  async setFavorite(student: AuthUser, teacherId: string, favored: boolean) {
+    if (student.role !== AccountRole.STUDENT) throw new ForbiddenException('학생만 설정할 수 있습니다.');
+    if (favored) {
+      await this.prisma.teacher_list_entry.upsert({
+        where: { student_id_teacher_id: { student_id: student.id, teacher_id: teacherId } },
+        create: { student_id: student.id, teacher_id: teacherId, list_kind: 'fit' },
+        update: { list_kind: 'fit' },
+      });
+    } else {
+      await this.prisma.teacher_list_entry.deleteMany({ where: { student_id: student.id, teacher_id: teacherId, list_kind: 'fit' } });
+    }
+    return { ok: true, favored };
+  }
+
   async feedback(student: AuthUser, postId: string, dto: { rating?: number; continuePref?: boolean }) {
     const post = await this.prisma.qna_post.findUnique({
       where: { id: postId },
@@ -566,6 +584,10 @@ export class QnaService {
     await this.prisma.qna_post.update({ where: { id: postId }, data: { rating, continue_pref: dto.continuePref ?? null } });
     let blockedTeacher = false;
     const teacherId = post.qna_answer[0]?.teacher_id;
+    // F2: "계속 받을게요" = 자동 찜(리스트 상단 고정) — 사후 개인화 루프.
+    if (dto.continuePref === true && teacherId) {
+      await this.setFavorite(student, teacherId, true).catch(() => { /* 찜 실패 비차단 */ });
+    }
     if (dto.continuePref === false && teacherId) {
       await this.prisma.qna_relation_block.upsert({
         where: { student_id_teacher_id: { student_id: student.id, teacher_id: teacherId } },
@@ -611,9 +633,14 @@ export class QnaService {
     });
     const blockedSet = new Set(blocked.map((b) => b.teacher_id));
     const teachers = await this.prisma.teacher_profile.findMany({
-      select: { account_id: true, qna_escalation: true, account: { select: { name: true } } },
+      select: { account_id: true, qna_escalation: true, qna_receive: true, qna_subjects: true, subjects: true, account: { select: { name: true } } },
       take: 100,
     });
+    // F2 찜(fit 리스트) — 상단 고정·필터용.
+    const favs = await this.prisma.teacher_list_entry.findMany({
+      where: { student_id: student.id, list_kind: 'fit' }, select: { teacher_id: true },
+    });
+    const favSet = new Set(favs.map((f) => f.teacher_id));
     // 풀별 원칙(§2): 배지는 지정(assigned) 풀 기준 첫응답·만족도 + 전체 답변 실적(채택 수).
     const [slaRows, ansRows] = await Promise.all([
       this.prisma.$queryRaw<Array<{ tid: string; answered: number; avg_first_min: number | null; avg_rating: number | null }>>`
@@ -633,6 +660,7 @@ export class QnaService {
     return {
       teachers: teachers
         .filter((t) => !blockedSet.has(t.account_id))
+        .filter((t) => t.qna_receive !== false) // F3 수신 꺼둔 선생님 제외
         .map((t) => {
           const s = sla.get(t.account_id); const a = ans.get(t.account_id);
           return {
@@ -643,6 +671,8 @@ export class QnaService {
             answers: a?.answers ?? 0,
             accepted: a?.accepted ?? 0,
             escalationOk: t.qna_escalation !== false, // "이어서 상담 가능" 선별 옵션용
+            subjects: (t.qna_subjects?.length ? t.qna_subjects : t.subjects) ?? [], // F1 과목 일치(수신 제한 우선)
+            favorite: favSet.has(t.account_id), // F2 찜
           };
         })
         // 실적 있는 선생님 우선(첫응답 빠른 순), 무실적은 뒤에 이름순
@@ -744,7 +774,7 @@ export class QnaService {
   private async pickForStudent(studentId: string): Promise<string | null> {
     const sp = await this.prisma.student_profile.findUnique({ where: { account_id: studentId }, select: { center_id: true } });
     if (!sp?.center_id) return null;
-    const teachers = await this.prisma.teacher_profile.findMany({ where: { center_id: sp.center_id, work_status: 'on' }, select: { account_id: true } });
+    const teachers = await this.prisma.teacher_profile.findMany({ where: { center_id: sp.center_id, work_status: 'on', qna_receive: true }, select: { account_id: true } });
     const ids = teachers.map((t) => t.account_id);
     if (!ids.length) return null;
     const [unfit, blocks] = await Promise.all([
