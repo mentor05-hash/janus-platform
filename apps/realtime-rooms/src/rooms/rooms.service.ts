@@ -155,6 +155,16 @@ export class RoomsService {
     return this.shape(r.rows[0], senderId, orig);
   }
 
+  /** C1 감지 기록 — 실패 비차단(감사 신호일 뿐 메시지 전송에 영향 금지). */
+  async flagModeration(roomId: string, senderId: string, kinds: string[], excerpt: string) {
+    try {
+      await this.pool.query(
+        `INSERT INTO rooms.room_moderation_flag (room_id, sender_id, kinds, excerpt) VALUES ($1,$2,$3,$4)`,
+        [roomId, senderId, kinds, excerpt.slice(0, 120)],
+      );
+    } catch { /* 기록 실패는 삼킨다 */ }
+  }
+
   // ── 첨부 파일 ──
   async createFile(roomId: string, uploaderId: string, filename: string, mime: string | null, size: number | null, storagePath: string) {
     const r = await this.pool.query<{ id: string }>(

@@ -2,6 +2,7 @@ import { Logger } from '@nestjs/common';
 import { ConnectedSocket, MessageBody, OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { MetricsService } from './metrics.service';
+import { detectDirectContact, DIRECT_CONTACT_WARNING } from './moderation';
 import { RoomsService, type RoomRow, type Feature } from './rooms.service';
 import { TokenService } from './token.service';
 
@@ -187,6 +188,12 @@ export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (!body?.trim() && !fileUrl) return { ok: false };
     const k = kind || (fileUrl ? 'file' : 'text');
     const msg = await this.svc.saveMessage(c.roomId, c.participantId, k, body?.trim() || null, fileUrl ?? null, replyToId ?? null);
+    // C1 직거래·연락처 감지(API 채팅 동형) — 차단 없음: 발신자 경고 + 기록만.
+    const modKinds = detectDirectContact(body?.trim() || null);
+    if (modKinds.length > 0) {
+      client.emit('chat:moderation', { warning: DIRECT_CONTACT_WARNING });
+      void this.svc.flagModeration(c.roomId, c.participantId, modKinds, body?.trim() ?? '');
+    }
     const sockets = await this.server.in(this.room(client)).fetchSockets();
     for (const s of sockets) {
       const viewer = (s.data.ctx as Ctx | undefined)?.participantId;

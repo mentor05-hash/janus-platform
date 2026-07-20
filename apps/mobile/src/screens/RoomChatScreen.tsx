@@ -64,6 +64,7 @@ export function RoomChatScreen({ title, onClose, embedded, session: rs }: { book
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState('');
   const [status, setStatus] = useState<'connecting' | 'ready' | 'off'>('connecting');
+  const [modWarn, setModWarn] = useState(''); // C1 직거래 감지 경고(서버 발신)
   const [peerOnline, setPeerOnline] = useState(false);
   const [peerTyping, setPeerTyping] = useState(false);
   const [reply, setReply] = useState<Msg | null>(null);
@@ -93,6 +94,7 @@ export function RoomChatScreen({ title, onClose, embedded, session: rs }: { book
       setMsgs(r.messages ?? []); if (r.session) setLive(r.session); if (r.role) setRole(r.role); setStatus('ready');
     }));
     s.on('chat:message', (m: Msg) => { setMsgs((p) => (p.some((x) => x.id === m.id) ? p : [...p, m])); if (!m.mine) s.emit('chat:read'); });
+    s.on('chat:moderation', ({ warning }: { warning: string }) => { setModWarn(warning); setTimeout(() => setModWarn(''), 10_000); });
     s.on('chat:deleted', ({ messageId }: { messageId: string }) => {
       setMsgs((p) => p.map((mm) => (mm.id === messageId ? { ...mm, kind: 'deleted', body: null, fileUrl: null, reactions: {}, replyTo: null, replyToId: null } : mm)));
     });
@@ -342,6 +344,7 @@ export function RoomChatScreen({ title, onClose, embedded, session: rs }: { book
                 </TouchableOpacity>
               </View>
             )}
+            {modWarn ? <Text style={{ marginHorizontal: 12, marginTop: 6, padding: 8, borderRadius: 8, backgroundColor: '#FEF3CD', color: '#8a6d1a', fontSize: 12 }}>⚠️ {modWarn}</Text> : null}
             <View style={styles.inputRow}>
               <TouchableOpacity onPress={pickImage} style={{ padding: 4 }}><Text style={{ fontSize: 20 }}>🖼</Text></TouchableOpacity>
               <TouchableOpacity onPress={pickDoc} style={{ padding: 4 }}><Text style={{ fontSize: 20 }}>📎</Text></TouchableOpacity>

@@ -94,6 +94,7 @@ export function ChatScreen({ bookingId, myId, title, onClose, embedded }: { book
   const [reply, setReply] = useState<Msg | null>(null);
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [unseen, setUnseen] = useState(0);
+  const [modWarn, setModWarn] = useState(''); // C1 직거래 감지 경고(서버 발신)
   const [myRole, setMyRole] = useState<string>(''); // ⑥ 자주 쓰는 문구 노출용(선생님만)
   const [view, setView] = useState<'chat' | 'media'>('chat'); // ⑦ 모아보기
   const [phrases, setPhrases] = useState<string[]>(loadPhrases);
@@ -141,6 +142,7 @@ export function ChatScreen({ bookingId, myId, title, onClose, embedded }: { book
     s.on('chat:read', ({ readerId, at }: { readerId: string; at: string }) => {
       setMsgs((p) => p.map((mm) => (mm.senderId !== readerId && !mm.readAt ? { ...mm, readAt: at } : mm)));
     });
+    s.on('chat:moderation', ({ warning }: { warning: string }) => { setModWarn(warning); setTimeout(() => setModWarn(''), 10_000); });
     s.on('chat:reaction', ({ messageId, reactions }: { messageId: string; reactions: Reactions }) => {
       setMsgs((p) => p.map((mm) => (mm.id === messageId ? { ...mm, reactions } : mm)));
     });
@@ -443,6 +445,7 @@ export function ChatScreen({ bookingId, myId, title, onClose, embedded }: { book
                 </TouchableOpacity>
               </View>
             )}
+            {modWarn ? <Text style={{ marginHorizontal: 12, marginTop: 6, padding: 8, borderRadius: 8, backgroundColor: '#FEF3CD', color: '#8a6d1a', fontSize: 12 }}>⚠️ {modWarn}</Text> : null}
             <View style={styles.inputRow}>
               <TouchableOpacity onPress={pickImage} style={styles.imgBtn}><Text style={{ fontSize: 20 }}>🖼</Text></TouchableOpacity>
               <TouchableOpacity onPress={openCamera} style={styles.imgBtn}><Text style={{ fontSize: 20 }}>📷</Text></TouchableOpacity>

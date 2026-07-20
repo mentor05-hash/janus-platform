@@ -43,6 +43,7 @@ export function RoomChatPanel({ session: rs, title, onClose }: { bookingId: stri
   const [text, setText] = useState('');
   const [status, setStatus] = useState<'connecting' | 'ready' | 'off'>('connecting');
   const [connErr, setConnErr] = useState<string | null>(null); // 소켓 연결/인증 실패 사유(무한 "연결 중" 방지)
+  const [modWarn, setModWarn] = useState(''); // C1 직거래 감지 경고(서버 발신)
   const [peerOnline, setPeerOnline] = useState(false);
   const [peerTyping, setPeerTyping] = useState(false);
   const [reply, setReply] = useState<Msg | null>(null);
@@ -97,6 +98,7 @@ export function RoomChatPanel({ session: rs, title, onClose }: { bookingId: stri
     s.on('chat:deleted', ({ messageId }: { messageId: string }) => {
       setMsgs((p) => p.map((mm) => (mm.id === messageId ? { ...mm, kind: 'deleted', body: null, fileUrl: null, reactions: {}, replyTo: null, replyToId: null } : mm)));
     });
+    s.on('chat:moderation', ({ warning }: { warning: string }) => { setModWarn(warning); setTimeout(() => setModWarn(''), 10_000); });
     s.on('presence', ({ online }: { online: string[] }) => setPeerOnline(online.some((id) => id !== myPid)));
     s.on('session:closed', (e: { closesAt?: string }) => setLive((v) => ({ ...v, state: 'closed', closesAt: e.closesAt ?? v.closesAt })));
     s.on('session:revoked', () => setStatus('off'));
@@ -330,6 +332,7 @@ export function RoomChatPanel({ session: rs, title, onClose }: { bookingId: stri
                 <button onClick={() => setPhraseEdit((v) => !v)} title="문구 관리" style={{ fontSize: 11, border: 'none', background: 'none', color: phraseEdit ? 'var(--teal)' : 'var(--caption)', cursor: 'pointer' }}>{phraseEdit ? '완료' : '관리'}</button>
               </div>
             )}
+            {modWarn && <div style={{ margin: '6px 12px 0', padding: '8px 12px', borderRadius: 8, background: '#FEF3CD', border: '1px solid #F5D889', color: '#8a6d1a', fontSize: 12.5 }}>⚠️ {modWarn}</div>}
             <div style={{ display: 'flex', gap: 6, padding: 10, borderTop: '1px solid var(--line)', alignItems: 'center' }}>
               <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={onFile} />
               <button onClick={() => fileRef.current?.click()} title="이미지 첨부(여러 장 가능)" aria-label="이미지 첨부" style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer' }}>🖼</button>
