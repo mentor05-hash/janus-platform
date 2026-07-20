@@ -23,6 +23,9 @@ type Post = {
   rating?: number | null;
   continuePref?: boolean | null;
   aiDraft?: string | null;
+  claimedAt?: string | null;
+  firstReplyAt?: string | null;
+  assignedTeacherId?: string | null;
   attachments?: Attachment[];
   answers?: Answer[];
 };
@@ -98,6 +101,15 @@ export function StudentQnaPage() {
     api.get<Post[]>('/qna/posts').then(setPosts).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
   }
   useEffect(() => { load(); loadBlocks(); }, []);
+  // 실시간 갱신 — 답변·후속문답 알림이 오면 목록 자동 리로드(새로고침 불필요).
+  useEffect(() => {
+    const h = (e: Event) => {
+      const type = (e as CustomEvent<{ type?: string }>).detail?.type ?? '';
+      if (['qna_answered', 'qna_followup', 'qna_community_answer'].includes(type)) load();
+    };
+    window.addEventListener('janus:notif', h);
+    return () => window.removeEventListener('janus:notif', h);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [fuDraft, setFuDraft] = useState<Record<string, string>>({}); // C2 — 답변별 이어 묻기 초안
   async function sendFollowup(answerId: string) {
@@ -311,7 +323,11 @@ export function StudentQnaPage() {
                 <Badge kind="soft">{p.scope === 'open' ? '공개' : '지정'}</Badge>
                 {p.difficulty && <Badge kind="soft">난이도 {p.difficulty}</Badge>}
                 <Badge kind={p.status === 'resolved' ? 'done' : p.status === 'ai_pending' ? 'soft' : (p.answers?.length ?? 0) > 0 ? 'confirmed' : 'new'}>
-                  {p.status === 'resolved' ? '채택완료' : p.status === 'ai_pending' ? '✦ AI 즉답' : (p.answers?.length ?? 0) > 0 ? '답변옴' : '답변대기'}
+                  {p.status === 'resolved' ? '채택완료'
+                    : p.status === 'ai_pending' ? '✦ AI 즉답'
+                    : (p.answers?.length ?? 0) > 0 ? '답변옴'
+                    : (p.claimedAt || p.assignedTeacherId) ? '👀 선생님 확인 중'
+                    : '답변대기'}
                 </Badge>
               </div>
               <span style={{ fontSize: 12, color: 'var(--muted)' }}>{new Date(p.created_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}</span>

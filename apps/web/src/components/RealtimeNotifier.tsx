@@ -40,6 +40,8 @@ export function RealtimeNotifier() {
     if (!token) return;
     const s: Socket = io(window.location.origin, { path: '/api/v1/socket.io', auth: { token }, transports: ['websocket'] });
     s.on('notif:new', (n: { type: string; payload?: Record<string, unknown>; title?: string; body?: string }) => {
+      // 화면 자동 갱신 훅 — 열려 있는 페이지(Q&A 등)가 이 이벤트를 듣고 목록을 다시 불러온다(새로고침 불필요).
+      try { window.dispatchEvent(new CustomEvent('janus:notif', { detail: { type: n.type, payload: n.payload } })); } catch { /* 무시 */ }
       // 서버 템플릿 렌더(body) 우선, 없으면 클라이언트 폴백.
       const text = n?.body || (typeof n?.payload?.message === 'string' && n.payload.message) || LABEL[n?.type] || t('notif.new');
       const id = ++seq.current;

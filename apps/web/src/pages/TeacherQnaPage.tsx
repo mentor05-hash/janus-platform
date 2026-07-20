@@ -74,6 +74,15 @@ export function TeacherQnaPage() {
 
   function load() { api.get<Post[]>('/qna/posts').then(setPosts).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패')); }
   useEffect(load, []);
+  // 실시간 갱신 — 질문 배정·후속문답 알림이 오면 목록 자동 리로드(새로고침 불필요).
+  useEffect(() => {
+    const h = (e: Event) => {
+      const type = (e as CustomEvent<{ type?: string }>).detail?.type ?? '';
+      if (['qna_assigned', 'qna_followup'].includes(type)) load();
+    };
+    window.addEventListener('janus:notif', h);
+    return () => window.removeEventListener('janus:notif', h);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function claim(id: string) {
     setBusy(id); setError(''); setMsg('');

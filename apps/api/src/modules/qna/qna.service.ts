@@ -59,6 +59,7 @@ interface QnaRow {
   body: string | null; status: string | null; created_at: Date; assigned_teacher_id?: string | null;
   attachments?: unknown; rating?: number | null; continue_pref?: boolean | null;
   ai_draft?: string | null; ai_draft_at?: Date | null;
+  claimed_at?: Date | null; first_reply_at?: Date | null; // 진행 상태 표시(선생님 확인 중 등)
   qna_answer?: { id: string; body: string | null; accepted: boolean | null; created_at: Date; teacher_id?: string | null; teacher_profile?: { account?: { name?: string } } }[];
 }
 
@@ -341,6 +342,8 @@ export class QnaService {
         continuePref: p.continue_pref ?? null,
         aiDraft: p.ai_draft ?? null,
         aiDraftAt: p.ai_draft_at ?? null,
+        claimedAt: p.claimed_at ?? null,
+        firstReplyAt: p.first_reply_at ?? null,
         attachments: Array.isArray(p.attachments)
           ? (p.attachments as { id: string; name: string; type?: string }[])
           : [],
