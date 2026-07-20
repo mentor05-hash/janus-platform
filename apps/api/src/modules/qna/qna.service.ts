@@ -801,8 +801,16 @@ export class QnaService {
     const content = `Q&A 상담 승격 — 질문: ${(post.body ?? '').slice(0, 120)}${ans?.body ? `\n이전 답변 요약: ${ans.body.slice(0, 120)}` : ''}`;
     const now = new Date();
 
+    // 지난 시각 제외 기준 — 오늘 날짜는 현재(KST) + 30분 리드타임 이후 슬롯만 유효.
+    const kstNow = new Date(now.getTime() + 9 * 3600_000);
+    const todayStr = kstDateString(now);
+    const minTodayMin = kstNow.getUTCHours() * 60 + kstNow.getUTCMinutes() + 30;
+
     // ② 학생이 후보를 골라 확정 — 그 사이 선점됐을 수 있으니 재검증 후 예약.
     if (pick) {
+      if (pick.dateStr === todayStr && pick.slotStart * ESCALATE_SLOT_MIN < minTodayMin) {
+        return { ok: false, reason: 'past', message: '이미 지난 시간이에요. 다른 시간을 골라주세요.' };
+      }
       const slots = await this.availability.getDaySlots(teacherId, pick.dateStr, student.id);
       const i = slots.findIndex((sl) => sl.index === pick.slotStart);
       const free = i >= 0 && slots.slice(i, i + need).length === need && slots.slice(i, i + need).every((sl) => sl.status === 'avail');
@@ -835,6 +843,8 @@ export class QnaService {
         const ok = statuses.slice(i, i + need).length === need && statuses.slice(i, i + need).every((s) => s === 'avail');
         if (!ok) { i++; continue; }
         const startMin = slots[i].index * ESCALATE_SLOT_MIN;
+        // 오늘의 이미 지난 시각(+리드타임 30분)은 후보에서 제외 — 과거 예약 생성 방지.
+        if (dateStr === todayStr && startMin < minTodayMin) { i++; continue; }
         const hh = String(Math.floor(startMin / 60)).padStart(2, '0');
         const mm = String(startMin % 60).padStart(2, '0');
         const dow = ['일', '월', '화', '수', '목', '금', '토'][new Date(`${dateStr}T00:00:00+09:00`).getDay()];
