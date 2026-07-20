@@ -3,6 +3,7 @@ import { AvailabilityModule } from '../availability/availability.module';
 import { ReportModule } from '../report/report.module';
 import { MatchingController } from './matching.controller';
 import { MatchingService } from './matching.service';
+import { DiagnosticMatchService } from './diagnostic-match.service';
 
 /**
  * Matching 바운디드 컨텍스트 (CLAUDE.md §3).
@@ -11,7 +12,7 @@ import { MatchingService } from './matching.service';
 @Module({
   imports: [AvailabilityModule, ReportModule],
   controllers: [MatchingController],
-  providers: [MatchingService],
+  providers: [MatchingService, DiagnosticMatchService],
   exports: [MatchingService],
 })
 export class MatchingModule {}

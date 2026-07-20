@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
+import { MatchRecommendCards } from '../components/MatchRecommendCards';
 
 const NEXT_ACTIONS = [
   { icon: '◱', color: 'var(--j-blue)', bg: 'var(--j-blue-soft)', title: '진단 받기', desc: '성적 입력 → 배치표·격차 리포트', to: '/placement', cta: '시작 →', gold: true },
@@ -121,6 +122,11 @@ export function StudentHomePage() {
             <span style={{ fontSize: 13, fontWeight: 800, color: a.gold ? 'var(--j-gold-ink)' : a.color }}>{a.cta}</span>
           </Link>
         ))}
+      </div>
+
+      {/* 진단→추천 매칭 — 진단·성적 데이터가 있으면 적합 상담사 카드 노출(없으면 렌더 안 함) */}
+      <div style={{ marginTop: 16 }}>
+        <MatchRecommendCards />
       </div>
 
       {/* ③ 바로가기 — 내 서비스 */}

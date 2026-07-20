@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { track } from '../utils/track';
+import { MatchRecommendCards } from '../components/MatchRecommendCards';
 
 /** 격차 리포트 v1 (janus_report·C5). 정시(전국누백)/수시(내신등급) 격차를 근거·처방과 함께. */
 type RelTier = 'measured' | 'multiyear' | 'estimated';
@@ -235,6 +236,9 @@ export function GapReportPage() {
               })}
             </div>
           </div>
+
+          {/* 진단→추천 매칭: 격차 진단 결과로 적합 상담사 카드 노출 → 예약 연결(거래 완결) */}
+          <MatchRecommendCards />
 
           <p style={{ fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.6, textAlign: 'center' }}>{report.disclaimer}</p>
         </>
