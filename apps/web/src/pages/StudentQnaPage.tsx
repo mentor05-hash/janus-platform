@@ -482,11 +482,13 @@ export function StudentQnaPage() {
                 ))}
               </div>
             )}
-            {/* 불만족 후속: 답변이 있는데 아직 미채택이면 재답변·상담승격 */}
-            {(p.answers?.length ?? 0) > 0 && p.status === 'open' && (
+            {/* 답변 후속: 미채택이면 재답변+승격, 채택 후에도 상담 승격은 가능(같은 선생님과 이어가기) */}
+            {(p.answers?.length ?? 0) > 0 && (p.status === 'open' || p.status === 'resolved') && (
               <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                <button type="button" onClick={() => reanswer(p.id)} style={{ fontSize: 12.5, border: '1px solid var(--input-border)', background: 'var(--surface)', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', color: 'var(--muted)' }}>🔁 다른 답변 받기</button>
-                {(p.answers?.[p.answers.length - 1]?.escalationOk !== false) && (
+                {p.status === 'open' && (
+                  <button type="button" onClick={() => reanswer(p.id)} style={{ fontSize: 12.5, border: '1px solid var(--input-border)', background: 'var(--surface)', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', color: 'var(--muted)' }}>🔁 다른 답변 받기</button>
+                )}
+                {((p.answers!.find((a) => a.accepted) ?? p.answers![p.answers!.length - 1])?.escalationOk !== false) && (
                   <button type="button" onClick={() => escalate(p.id)} style={{ fontSize: 12.5, border: '1px solid var(--teal)', background: 'var(--teal-50,#EEF4FB)', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', color: 'var(--teal)', fontWeight: 700 }}>💬 상담으로 이어가기</button>
                 )}
               </div>
