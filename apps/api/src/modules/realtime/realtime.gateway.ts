@@ -56,6 +56,15 @@ export class RealtimeGateway implements OnGatewayConnection {
     this.closeTimers.set(bookingId, t);
   }
 
+  /** 선생님이 채팅·보드에 입장 = 상담 인지(ack) 자동 스탬프 + 학생에게 실시간 토스트(최초 1회). */
+  private autoAck(user: AuthUser, b: { id?: string; student_id: string | null; teacher_id: string | null }) {
+    const bookingId = (b as { id: string }).id;
+    if (!bookingId || user.id !== b.teacher_id || !b.student_id) return;
+    void this.svc.stampTeacherAck(bookingId, user.id).then((first) => {
+      if (first) this.emitToUser(b.student_id!, 'notif:new', { type: 'booking_acked', payload: { bookingId }, title: '선생님 확인 ✓', body: '선생님이 상담을 확인했어요.' });
+    }).catch(() => { /* 스탬프 실패는 비차단 */ });
+  }
+
   /** 시스템 메시지 게시 + 방 브로드캐스트(녹음 시작/중단, 세션 종료 안내 등 — 외부 모듈에서도 호출). */
   async systemMessage(bookingId: string, body: string, opts?: { once?: boolean }) {
     try {
@@ -97,6 +106,7 @@ export class RealtimeGateway implements OnGatewayConnection {
     const access = await this.svc.featureAccess(user, b.student_id ?? undefined);
     client.join(`booking:${bookingId}`);
     this.rememberWindow(bookingId, b);
+    this.autoAck(user, b);
     const hist = await this.svc.history(user, bookingId);
     // 입장 = 열람: 상대가 보낸 미확인 메시지를 읽음 처리 후 방에 읽음 통지(상대 '읽음' 표시).
     const read = await this.svc.markRead(user, bookingId);
@@ -183,6 +193,7 @@ export class RealtimeGateway implements OnGatewayConnection {
     if (!access.whiteboard) return { ok: false, error: '화이트보드는 상위 상품에서 제공됩니다.' };
     client.join(`booking:${bookingId}`);
     this.rememberWindow(bookingId, b);
+    this.autoAck(user, b);
     const snap = await this.svc.latestSnapshot(bookingId);
     return { ok: true, strokes: snap?.strokes ?? [], backgroundFileId: snap?.background_file_id ?? null, session: this.svc.sessionInfo(b) };
   }

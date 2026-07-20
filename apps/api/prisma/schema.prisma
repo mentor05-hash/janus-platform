@@ -197,6 +197,7 @@ model booking {
   content            String?
   charged_credits    Int?                 @default(0)
   origin             String?
+  teacher_ack_at     DateTime?            @db.Timestamptz(6) // 선생님 상담 인지 확인(버튼/채팅·보드 입장) — 자동확정 예약 노쇼 판정 근거
   created_at         DateTime             @default(now()) @db.Timestamptz(6)
   center             center?              @relation(fields: [center_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   room               room?                @relation(fields: [room_id], references: [id], onDelete: NoAction, onUpdate: NoAction)

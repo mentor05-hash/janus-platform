@@ -267,6 +267,10 @@ export function StudentBookingsPage() {
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <Badge kind={badgeKind(b.status)}>{STATUS_LABEL[b.status] ?? b.status}</Badge>
+                {/* 선생님 인지 확인(ack) — 자동확정 예약에서 "선생님이 봤는지"를 학생에게 노출 */}
+                {b.status === 'confirmed' && (b.teacherAckAt
+                  ? <Badge kind="done">선생님 확인 ✓</Badge>
+                  : <Badge kind="soft">선생님 확인 대기</Badge>)}
                 {UPCOMING.has(b.status) && <Button variant="ghost" size="sm" disabled={busy === b.id} onClick={() => setRescheduling(rescheduling === b.id ? null : b.id)}>시간 변경</Button>}
                 {UPCOMING.has(b.status) && <Button variant="ghost" size="sm" disabled={busy === b.id} onClick={() => cancel(b.id)} style={{ color: 'var(--danger)' }}>예약 취소</Button>}
                 {b.status === 'done' && <Button variant="ghost" size="sm" disabled={busy === b.id} onClick={() => reportNoshow(b.id)} style={{ color: 'var(--danger)' }}>미진행 신고</Button>}

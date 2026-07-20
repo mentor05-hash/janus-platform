@@ -116,6 +116,15 @@ export class RealtimeService {
     return b;
   }
 
+  /** 선생님 상담 인지 자동 스탬프 — 채팅·보드 입장 = 인지(ack). 최초 1회만 true 반환. */
+  async stampTeacherAck(bookingId: string, teacherId: string): Promise<boolean> {
+    const r = await this.prisma.booking.updateMany({
+      where: { id: bookingId, teacher_id: teacherId, teacher_ack_at: null },
+      data: { teacher_ack_at: new Date() },
+    });
+    return r.count > 0;
+  }
+
   async history(user: AuthUser, bookingId: string) {
     const b = await this.assertRoomAccess(user, bookingId);
     const rows = await this.prisma.chat_message.findMany({

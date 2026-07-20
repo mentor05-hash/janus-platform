@@ -34,6 +34,10 @@ const TEMPLATES: Record<string, Tmpl> = {
   booking_noshow: { title: '미진행 신고', body: '미진행(노쇼) 신고가 접수되었어요. 관리자가 확인합니다.' },
   booking_reminder: { title: '상담 임박', body: '곧 상담이 시작돼요. 준비해 주세요.' },
   booking_request_reminder: { title: '⏰ 수락 대기 상담', body: '2시간 넘게 수락하지 않은 상담 신청이 있어요. 예약 탭에서 확인해 주세요.' },
+  booking_acked: { title: '선생님 확인 ✓', body: '선생님이 상담을 확인했어요. 예정된 시간에 만나요!' },
+  booking_teacher_noshow: { title: '상담 미진행 처리', body: '선생님이 상담을 확인하지 못해 예약이 취소되고 크레딧·질문권이 환원되었습니다. 불편을 드려 죄송해요.' },
+  booking_teacher_noshow_teacher: { title: '⚠ 미확인 상담 취소', body: '확인하지 않은 상담이 종료되어 선생님 귀책으로 취소 처리되었습니다(취소 카운트 반영).' },
+  booking_teacher_noshow_admin: { title: '선생님 미확인 노쇼', body: '선생님이 확인하지 않아 자동 취소된 상담이 있습니다. 확인해 주세요.' },
   booking_request_escalated: { title: '미응답 상담 신청', body: '24시간 넘게 수락되지 않은 상담 신청이 있습니다. 담당 선생님 확인이 필요해요.' },
   // ── 역상담 ──
   reverse_proposed: { title: '역상담 제안', body: '선생님의 역상담 제안이 도착했어요. 수락 여부를 선택해 주세요.' },

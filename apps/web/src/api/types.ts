@@ -35,6 +35,7 @@ export interface Booking {
   attachments?: { id: string; name: string; type?: string }[];
   meetingUrl?: string | null; // zoom 입장 URL(확정 시 발급)
   reviewed?: boolean; // 완료 상담 후기 작성 여부(학생 뷰)
+  teacherAckAt?: string | null; // 선생님 상담 인지 확인 시각(자동확정 예약 증빙)
 }
 
 export interface Slot {

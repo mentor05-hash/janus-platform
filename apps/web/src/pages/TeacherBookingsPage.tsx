@@ -62,6 +62,11 @@ export function TeacherBookingsPage() {
       alert(e instanceof ApiError ? e.message : '처리 실패');
     }
   }
+  /** 상담 인지 확인(ack) — 학생에게 "선생님 확인 ✓" 알림. 미확인 종료 시 선생님 귀책 노쇼 처리되므로 필수. */
+  async function ack(id: string) {
+    try { await api.post(`/bookings/${id}/ack`, {}); await load(); }
+    catch (e) { alert(e instanceof ApiError ? e.message : '처리 실패'); }
+  }
 
   const counts = useMemo(() => ({
     new: bookings.filter((b) => b.status === 'new').length,
@@ -90,6 +95,8 @@ export function TeacherBookingsPage() {
           )}
           {b.status === 'confirmed' && (
             <>
+              {/* 자동확정 예약 인지 확인 — 학생에게 "선생님 확인 ✓" 전달. 미확인 채로 종료되면 선생님 귀책 노쇼 처리 */}
+              {!b.teacherAckAt && <Button size="sm" onClick={() => ack(b.id)} style={{ background: '#dc2626' }}>📌 확인했어요</Button>}
               <Button size="sm" onClick={() => act(b.id, 'complete')}>완료</Button>
               <Link className="btn ghost sm" to={`/app/bookings/${b.id}/note`}>기록</Link>
             </>
