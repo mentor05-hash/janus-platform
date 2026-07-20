@@ -47,12 +47,22 @@ export class PeopleService {
       : q.mode
         ? { modes: { has: q.mode } }
         : {};
+    // B2: 찜한 선생님만 — 요청자의 fit 목록으로 한정(대규모 목록 대비 서버 필터).
+    let favFilter: { account_id: { in: string[] } } | Record<string, never> = {};
+    if (q.favOnly === 'true' && viewer?.id) {
+      const favs = await this.prisma.teacher_list_entry.findMany({
+        where: { student_id: viewer.id, list_kind: 'fit' },
+        select: { teacher_id: true },
+      });
+      favFilter = { account_id: { in: favs.map((f) => f.teacher_id) } };
+    }
     const where = {
       ...(q.grade ? { grade: q.grade } : {}),
       ...(q.category ? { teacher_category: q.category } : {}),
       ...(q.subject ? { subjects: { has: q.subject } } : {}),
       ...(q.consultType ? { consult_types: { has: q.consultType } } : {}),
       ...modeFilter,
+      ...favFilter,
     };
     // 랭킹 가중치(§5-7): 등급 우선, 동급은 유효평점(평점 − 취소누적×가중치) 내림차순.
     // 계산 정렬이라 전체 후보를 가져와 JS 정렬 후 페이지네이션(센터 규모상 소량).

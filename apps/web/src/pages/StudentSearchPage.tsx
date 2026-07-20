@@ -359,17 +359,46 @@ export function StudentSearchPage() {
     } catch (e) { setError(e instanceof ApiError ? e.message : '추천 실패'); }
   }
 
-  useEffect(() => {
+  const [note, setNote] = useState('');
+  const [favIds, setFavIds] = useState<Set<string>>(new Set());
+  const [favOnly, setFavOnly] = useState(false);
+
+  // B2 서버 페이지네이션 — 검색어 디바운스 후 서버 질의, "더 보기"로 다음 페이지 누적(1000명 규모 대비).
+  const PAGE_SIZE = 30;
+  const [qs, setQs] = useState('');
+  useEffect(() => { const t = setTimeout(() => setQs(q.trim()), 300); return () => clearTimeout(t); }, [q]);
+  const [pageMeta, setPageMeta] = useState<{ page: number; total: number; totalPages: number } | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const fetchSeq = useRef(0);
+  async function fetchPage(page: number, replace: boolean) {
     const params = new URLSearchParams();
     if (category !== '전체') params.set('category', category);
     if (subjectFilter) params.set('subject', subjectFilter);
     if (consultType) params.set('consultType', consultType);
     if (modeFilter) params.set('mode', modeFilter);
     if (sort) params.set('sort', sort);
-    params.set('size', '100');
-    setTeachers(null);
-    api.get<{ data?: Teacher[] } | Teacher[]>(`/teachers?${params}`).then((r) => setTeachers(Array.isArray(r) ? r : (r.data ?? []))).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
-  }, [category, sort, subjectFilter, consultType, modeFilter]);
+    if (qs) params.set('q', qs);
+    if (favOnly) params.set('favOnly', 'true');
+    params.set('size', String(PAGE_SIZE));
+    params.set('page', String(page));
+    const seq = ++fetchSeq.current;
+    try {
+      const r = await api.get<{ data?: Teacher[]; meta?: { page: number; total: number; totalPages: number } } | Teacher[]>(`/teachers?${params}`);
+      if (seq !== fetchSeq.current) return; // 뒤늦게 도착한 이전 요청은 무시
+      const data = Array.isArray(r) ? r : (r.data ?? []);
+      setPageMeta(Array.isArray(r) ? null : (r.meta ?? null));
+      setTeachers((prev) => (replace ? data : [...(prev ?? []), ...data]));
+    } catch (e) { if (seq === fetchSeq.current) setError(e instanceof ApiError ? e.message : '조회 실패'); }
+  }
+  useEffect(() => {
+    setTeachers(null); setPageMeta(null);
+    void fetchPage(1, true);
+  }, [category, sort, subjectFilter, consultType, modeFilter, qs, favOnly]); // eslint-disable-line react-hooks/exhaustive-deps
+  async function loadMore() {
+    if (!pageMeta || loadingMore) return;
+    setLoadingMore(true);
+    try { await fetchPage(pageMeta.page + 1, false); } finally { setLoadingMore(false); }
+  }
   // 뒤로가기: 목록↔상세↔예약을 브라우저 히스토리와 동기화(뒤로가기 시 이전 단계로).
   const pickedRef = useRef(picked); pickedRef.current = picked;
   const phaseRef = useRef(phase); phaseRef.current = phase;
@@ -392,9 +421,6 @@ export function StudentSearchPage() {
     api.get<{ fit: string[] }>('/me/teacher-lists').then((r) => setFavIds(new Set(r.fit ?? []))).catch(() => { /* 찜 목록 조회 실패 */ });
   }, []);
 
-  const [note, setNote] = useState('');
-  const [favIds, setFavIds] = useState<Set<string>>(new Set());
-  const [favOnly, setFavOnly] = useState(false);
   async function fav(t: Teacher) {
     setNote('');
     const on = favIds.has(t.id);
@@ -420,9 +446,7 @@ export function StudentSearchPage() {
   if (picked && phase === 'book') return <BookingForm teacher={picked} initialMode={modeFilter ?? undefined} consultType={consultType ?? undefined} initialSubType={subType ?? undefined} onBack={() => window.history.back()} onDone={() => { setPicked(null); setPhase('detail'); }} />;
   if (picked) return <TeacherDetailView teacher={picked} onBook={openBook} onBack={() => window.history.back()} />;
 
-  const rows = (teachers ?? [])
-    .filter((t) => !favOnly || favIds.has(t.id))
-    .filter((t) => !q.trim() || t.name.toLowerCase().includes(q.toLowerCase()) || t.subjects.join(',').includes(q));
+  const rows = teachers ?? []; // B2: 검색어·찜 필터는 서버 질의로 처리(페이지네이션과 정합)
   return (
     <div>
       <PageHeader title="선생님 찾기" sub={credit ? `보유 크레딧 ${credit.total.toLocaleString()}` : '선생님을 고르고 상담을 신청하세요.'} />
@@ -588,6 +612,14 @@ export function StudentSearchPage() {
               </div>
             </Card>
           ))}
+        </div>
+      )}
+      {/* B2 더 보기 — 서버 페이지네이션(누적 로드) */}
+      {teachers !== null && pageMeta && teachers.length < pageMeta.total && (
+        <div style={{ textAlign: 'center', marginTop: 14 }}>
+          <Button variant="ghost" onClick={() => void loadMore()} disabled={loadingMore}>
+            {loadingMore ? '불러오는 중…' : `더 보기 (${teachers.length}/${pageMeta.total})`}
+          </Button>
         </div>
       )}
       </>
