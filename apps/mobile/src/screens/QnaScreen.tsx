@@ -5,7 +5,7 @@ import { api, ApiError } from '../api';
 import { R, SP, useTheme, useUI, type Palette } from '../theme';
 
 type Attachment = { id: string; name: string; type?: string };
-type Answer = { id: string; body: string; accepted: boolean; teacherName: string };
+type Answer = { id: string; body: string; accepted: boolean; teacherName: string; escalationOk?: boolean };
 type Post = { id: string; subject: string | null; difficulty: string | null; scope: string; body: string; status: string; created_at: string; aiDraft?: string | null; claimedAt?: string | null; firstReplyAt?: string | null; assignedTeacherId?: string | null; attachments?: Attachment[]; answers?: Answer[] };
 const SUBJECTS = ['국어', '수학', '영어', '탐구'];
 const MAX_IMG = 3;
@@ -114,6 +114,18 @@ export function QnaScreen() {
     setError(''); setMsg('');
     try { await api.patch(`/qna/answers/${answerId}/accept`, {}); setMsg('답변을 채택했습니다.'); load(); }
     catch (e) { setError(e instanceof ApiError ? e.message : '채택 실패'); }
+  }
+
+  // 상담 이어가기(웹 파리티) — 후보 시간대 제시 → 선택 시 재검증 후 예약.
+  const [escCand, setEscCand] = useState<{ postId: string; minutes?: number; items: { dateStr: string; slotStart: number; label: string }[] } | null>(null);
+  async function escalate(postId: string, pick?: { dateStr: string; slotStart: number }) {
+    setError(''); setMsg('');
+    try {
+      const r = await api.post<{ bookingId?: string; message?: string; candidates?: { dateStr: string; slotStart: number; label: string }[]; minutes?: number }>(`/qna/posts/${postId}/escalate`, pick ?? {});
+      if (r.bookingId) { setEscCand(null); setMsg('상담 예약이 생성됐어요. 내 예약에서 확인하세요.'); load(); return; }
+      if (r.candidates?.length) { setEscCand({ postId, minutes: r.minutes, items: r.candidates }); return; }
+      setEscCand(null); setMsg(r.message ?? '상담 예약을 생성하지 못했어요.'); load();
+    } catch (e) { setError(e instanceof ApiError ? e.message : '상담 승격 실패'); }
   }
 
   async function submit() {
@@ -265,6 +277,28 @@ export function QnaScreen() {
               <Text style={styles.ansBody}>{a.body}</Text>
             </View>
           ))}
+          {/* 상담 이어가기 — 답변이 있으면(채택 전·후 모두) 같은 선생님과 상담 승격(웹 파리티) */}
+          {(p.answers?.length ?? 0) > 0 && (p.status === 'open' || p.status === 'resolved')
+            && ((p.answers!.find((a) => a.accepted) ?? p.answers![p.answers!.length - 1])?.escalationOk !== false) && (
+            <TouchableOpacity style={styles.escBtn} onPress={() => void escalate(p.id)}>
+              <Text style={styles.escT}>💬 상담으로 이어가기</Text>
+            </TouchableOpacity>
+          )}
+          {escCand?.postId === p.id && (
+            <View style={styles.escBox}>
+              <Text style={styles.escHead}>📅 가까운 상담 가능 시간{escCand.minutes ? ` (${escCand.minutes}분)` : ''} — 골라주시면 바로 예약돼요</Text>
+              <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+                {escCand.items.map((c) => (
+                  <TouchableOpacity key={`${c.dateStr}-${c.slotStart}`} style={styles.escSlot} onPress={() => void escalate(p.id, { dateStr: c.dateStr, slotStart: c.slotStart })}>
+                    <Text style={styles.escSlotT}>{c.label}</Text>
+                  </TouchableOpacity>
+                ))}
+                <TouchableOpacity onPress={() => setEscCand(null)} style={{ paddingVertical: 6, paddingHorizontal: 8 }}>
+                  <Text style={{ fontSize: 12, color: C.muted }}>취소</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
         </View>
       ))}
     </ScrollView>
@@ -301,6 +335,12 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   ansBody: { fontSize: 14, color: C.ink, marginTop: 4, lineHeight: 20 },
   acceptBtn: { backgroundColor: C.teal, borderRadius: 8, paddingVertical: 5, paddingHorizontal: 12 },
   acceptT: { color: C.white, fontWeight: '800', fontSize: 12 },
+  escBtn: { alignSelf: 'flex-start', borderWidth: 1, borderColor: C.teal, backgroundColor: C.teal50, borderRadius: 8, paddingVertical: 7, paddingHorizontal: 12, marginTop: 8 },
+  escT: { color: C.teal, fontWeight: '800', fontSize: 12.5 },
+  escBox: { borderWidth: 1, borderColor: C.teal, backgroundColor: C.teal50, borderRadius: 10, padding: 10, marginTop: 8 },
+  escHead: { fontSize: 12.5, fontWeight: '800', color: C.teal },
+  escSlot: { borderWidth: 1, borderColor: C.teal, backgroundColor: C.white, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 14 },
+  escSlotT: { fontSize: 12.5, fontWeight: '700', color: C.teal },
   note: { fontSize: 12, color: C.confirmed, backgroundColor: C.confirmedBg, borderRadius: 8, padding: 8, marginBottom: 8, lineHeight: 17 },
   imgRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 8, marginBottom: 4 },
   imgAdd: { width: 72, height: 72, borderRadius: 8, borderWidth: 1, borderColor: C.inputBorder, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: C.white },
