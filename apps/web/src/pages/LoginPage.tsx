@@ -30,7 +30,11 @@ export function LoginPage() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  if (user) navigate(roleHome(user.role), { replace: true });
+  // 이미 로그인된 상태로 /login 진입(또는 로그인 직후 user 갱신) → 역할 홈으로.
+  // 렌더 중 navigate 호출은 React 경고("Cannot update a component while rendering")의 원인 — effect 로 이동.
+  useEffect(() => {
+    if (user) navigate(roleHome(user.role), { replace: true });
+  }, [user, navigate]);
 
   // URL ?u=아이디&p=비번 → 자동 로그인(데모 전용). 실서비스에선 비번 URL 노출 방지 위해 비활성.
   useEffect(() => {
