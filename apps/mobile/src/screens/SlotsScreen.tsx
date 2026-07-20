@@ -217,7 +217,7 @@ export function SlotsScreen({ teacher, onBack, initialMode, consultType, initial
 
       {/* 선생님 액션: 찜·차단·신고 */}
       <View style={styles.actRow}>
-        <TouchableOpacity style={styles.actBtn} onPress={async () => { try { await api.post('/me/teacher-lists', { teacherId: teacher.id, type: 'fit' }); Alert.alert('찜', '내 선생님(찜)에 추가했어요.'); } catch (e) { Alert.alert('실패', e instanceof ApiError ? e.message : '오류'); } }}>
+        <TouchableOpacity style={styles.actBtn} onPress={async () => { try { await api.post('/me/teacher-lists', { teacherId: teacher.id, listKind: 'fit' }); Alert.alert('찜', '내 선생님(찜)에 추가했어요.'); } catch (e) { Alert.alert('실패', e instanceof ApiError ? e.message : '오류'); } }}>
           <Text style={styles.actT}>☆ 찜</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.actBtn} onPress={async () => { try { await api.post('/teacher-blocks', { teacherId: teacher.id }); Alert.alert('차단', '차단했어요.'); } catch (e) { Alert.alert('실패', e instanceof ApiError ? e.message : '오류'); } }}>

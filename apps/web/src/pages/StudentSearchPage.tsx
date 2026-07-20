@@ -394,7 +394,7 @@ export function StudentSearchPage() {
   const [note, setNote] = useState('');
   async function fav(t: Teacher) {
     setNote('');
-    try { await api.post('/me/teacher-lists', { teacherId: t.id, type: 'fit' }); setNote(`${t.name} 선생님을 내 선생님(찜)에 추가했어요.`); }
+    try { await api.post('/me/teacher-lists', { teacherId: t.id, listKind: 'fit' }); setNote(`${t.name} 선생님을 내 선생님(찜)에 추가했어요.`); }
     catch (e) { setNote(e instanceof ApiError ? e.message : '실패'); }
   }
   async function block(t: Teacher) {
