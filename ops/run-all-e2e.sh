@@ -2,6 +2,8 @@
 # 전체 ops E2E 스모크 러너 — CI/로컬 공통. 각 스크립트를 순차 실행, 통과/실패 집계.
 # 사용: API 서버가 떠 있는 상태에서  bash ops/run-all-e2e.sh
 # 요구: curl, jq. base 시드 계정(dev-password!). API 는 API 환경변수로 오버라이드.
+# ⚠ 스위트는 짧은 시간에 로그인 수십 회 → 로그인 rate limit(10/분)에 걸린다.
+#   E2E 대상 API 는 RATE_LIMIT_DISABLED=true 로 기동할 것(배포에선 절대 설정 금지).
 set -uo pipefail
 
 API="${API:-http://localhost:3000/api/v1}"
@@ -18,6 +20,7 @@ done
 
 # 2) 스모크 스크립트 목록(순서 무관·독립).
 SCRIPTS=(
+  journey-e2e.sh
   qna-community-e2e.sh
   qna-league-e2e.sh
   score-input-e2e.sh

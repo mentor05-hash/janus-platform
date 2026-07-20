@@ -27,9 +27,9 @@ echo "  href=$LHREF"
 
 echo "▶ 3) '영어' 검색 — 다중 그룹(강좌/커뮤니티 등)"
 R2=$(auth "$S1" "$API/search?q=$(enc 영어)")
-GROUPS=$(echo "$R2" | jq -r '(.data // .).groups | keys | join(",")')
-echo "  그룹=[$GROUPS]"
-[ -n "$GROUPS" ] && echo "  ✓ 그룹 반환" || { echo "  ✗ 그룹 없음"; fail=1; }
+GRPS=$(echo "$R2" | jq -r '(.data // .).groups | keys | join(",")')
+echo "  그룹=[$GRPS]"
+[ -n "$GRPS" ] && echo "  ✓ 그룹 반환" || { echo "  ✗ 그룹 없음"; fail=1; }
 
 echo "▶ 4) 선생님 검색 href = /student/search(회귀 방지)"
 # 선생님 이름/과목 매칭이 없을 수 있으니 존재 시에만 href 검증.

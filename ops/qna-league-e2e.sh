@@ -23,10 +23,21 @@ echo "  정책=$(echo "$POL" | jq -c '.data // .')"
 echo "▶ 2) teacher01 초기 리그"
 auth "$T1" "$API/qna/league/me" | jq -c '.data // .'
 
-echo "▶ 3) student01 질문 3건 + teacher01 답변 3건"
+echo "▶ 3) 질문 3건 + teacher01 답변 3건 (하루 3건 한도 대비 — 회차별 신규 학생 가입)"
+QTS=$(date +%s)
+SQPW='E2e-league-9!'  # 가입 비밀번호 정책(§10 — 숫자 포함) 충족용
+CID=$(auth "$AD" "$API/auth/refresh-context" 2>/dev/null | jq -r '.centerId // empty')
+# admin 센터로 가입해야 승인 가능 — 센터 id 는 시드 고정값 폴백.
+[ -n "$CID" ] || CID='00000000-0000-4000-8000-0000000000c1'
+NEWID=$(curl -s -X POST "$API/auth/signup" -H 'Content-Type: application/json' \
+  -d "{\"loginId\":\"e2elg${QTS}\",\"password\":\"$SQPW\",\"name\":\"리그E2E학생\",\"role\":\"student\",\"centerId\":\"$CID\"}" | jq -r '.data.id // .id // empty')
+[ -n "$NEWID" ] || { echo "  ✗ 신규 학생 가입 실패"; exit 1; }
+auth "$AD" -X POST "$API/hr/students/$NEWID/approve" >/dev/null
+SQ=$(curl -s -X POST "$API/auth/login" -H 'Content-Type: application/json' -d "{\"loginId\":\"e2elg${QTS}\",\"password\":\"$SQPW\"}" | jq -r '.data.accessToken // .accessToken // empty')
+[ -n "$SQ" ] || { echo "  ✗ 신규 학생 승인/로그인 실패"; exit 1; }
 PIDS=(); AIDS=()
 for i in 1 2 3; do
-  PID=$(auth "$S1" -X POST "$API/qna/community" -H 'Content-Type: application/json' -d "{\"subject\":\"수학\",\"body\":\"리그테스트 질문 $i — 미적분 개념 질문입니다.\"}" | jq -r '.data.id // .id // empty')
+  PID=$(auth "$SQ" -X POST "$API/qna/community" -H 'Content-Type: application/json' -d "{\"subject\":\"수학\",\"body\":\"리그테스트 질문 $i — 미적분 개념 질문입니다.\"}" | jq -r '.data.id // .id // empty')
   [ -n "$PID" ] || { echo "  ✗ 질문$i 실패(하루 3건 제한 초과?)"; exit 1; }
   AID=$(auth "$T1" -X POST "$API/qna/community/$PID/answers" -H 'Content-Type: application/json' -d "{\"body\":\"답변 $i — 연쇄법칙으로 풉니다.\"}" | jq -r '.data.id // .id // empty')
   PIDS+=("$PID"); AIDS+=("$AID")
@@ -34,12 +45,12 @@ for i in 1 2 3; do
 done
 
 echo "▶ 4) 첫 채택 → teacher01 2부 승급 기대"
-R=$(auth "$S1" -X PATCH "$API/qna/community/answers/${AIDS[0]}/accept" -H 'Content-Type: application/json' -d '{}')
+R=$(auth "$SQ" -X PATCH "$API/qna/community/answers/${AIDS[0]}/accept" -H 'Content-Type: application/json' -d '{}')
 echo "  accept=$(echo "$R" | jq -c '{league:(.data.authorLeague // .authorLeague), promoted:(.data.promoted // .promoted)}')"
 auth "$T1" "$API/qna/league/me" | jq -c '{tier:(.data.tier//.tier),label:(.data.label//.label),accepted:(.data.accepted//.accepted)}'
 
 echo "▶ 5) 둘째 채택 → teacher01 1부 승급 기대(답변3·채택2·률67)"
-auth "$S1" -X PATCH "$API/qna/community/answers/${AIDS[1]}/accept" -H 'Content-Type: application/json' -d '{}' >/dev/null
+auth "$SQ" -X PATCH "$API/qna/community/answers/${AIDS[1]}/accept" -H 'Content-Type: application/json' -d '{}' >/dev/null
 ME=$(auth "$T1" "$API/qna/league/me")
 echo "  me=$(echo "$ME" | jq -c '{tier:(.data.tier//.tier),label:(.data.label//.label),authored:(.data.authored//.authored),accepted:(.data.accepted//.accepted),acceptRate:(.data.acceptRate//.acceptRate),next:(.data.next//.next)}')"
 TIER=$(echo "$ME" | jq -r '.data.tier // .tier')
