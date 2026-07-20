@@ -6,6 +6,9 @@
 # ③ Q&A 데모 선생님 SQL 시드(멱등)
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# 기존 볼륨·컨테이너(itall-mentoring_*)를 재사용하려면 compose 프로젝트명을 고정해야 한다(CLAUDE.md §7).
+# 미지정 시 폴더명 기반 다른 프로젝트를 보게 되어 'service api is not running' 이 난다.
+export COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-itall-mentoring}"
 C=(docker compose -f docker-compose.full.yml)
 echo "▶ ① 마이그레이션 적용"
 "${C[@]}" exec -T api node scripts/apply-migrations.mjs
