@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { io } from 'socket.io-client';
 import { api, ApiError } from '../api';
 import { R, SP, useTheme, useUI, type Palette } from '../theme';
 
@@ -95,6 +96,19 @@ export function QnaScreen() {
 
   function load() { api.get<Post[]>('/qna/posts').then(setPosts).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패')); }
   useEffect(load, []);
+  // 실시간 갱신(웹 파리티) — 답변·클레임 알림(notif:new) 수신 시 목록 리로드 + 30초 폴백 폴링 + 탭 복귀 리로드.
+  useEffect(() => {
+    const token = (typeof localStorage !== 'undefined' ? localStorage.getItem('mp_access') : '') ?? '';
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const s = io(origin, { path: '/api/v1/socket.io', auth: { token }, transports: ['websocket'] });
+    s.on('notif:new', (n: { type?: string }) => {
+      if (['qna_answered', 'qna_claimed', 'qna_assigned', 'qna_followup', 'qna_community_answer'].includes(n?.type ?? '')) load();
+    });
+    const iv = setInterval(load, 30_000);
+    const onVis = () => { if (typeof document !== 'undefined' && document.visibilityState === 'visible') load(); };
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVis);
+    return () => { s.close(); clearInterval(iv); if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVis); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function accept(answerId: string) {
     setError(''); setMsg('');
