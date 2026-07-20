@@ -309,6 +309,14 @@ export class RealtimeGateway implements OnGatewayConnection {
   }
 
   /** 외부(알림 등)에서 특정 유저에게 실시간 이벤트 전송. */
+  /** 접속 중인 선생님 전원에게 브로드캐스트 — 공개질문 풀 신호(qna_pool_new 등). DB 알림 없음(소음 방지). */
+  async emitToTeachers(event: string, payload: unknown) {
+    const sockets = await this.server.fetchSockets();
+    for (const s of sockets) {
+      if ((s.data.user as SockUser | undefined)?.role === 'teacher') s.emit(event, payload);
+    }
+  }
+
   emitToUser(userId: string, event: string, payload: unknown) {
     this.server?.to(`user:${userId}`).emit(event, payload);
   }

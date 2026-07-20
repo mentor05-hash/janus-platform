@@ -78,7 +78,7 @@ export function TeacherQnaPage() {
   useEffect(() => {
     const h = (e: Event) => {
       const type = (e as CustomEvent<{ type?: string }>).detail?.type ?? '';
-      if (['qna_assigned', 'qna_followup'].includes(type)) load();
+      if (['qna_assigned', 'qna_followup', 'qna_pool_new'].includes(type)) load();
     };
     window.addEventListener('janus:notif', h);
     // 현재 탭 재클릭·공개 큐 신규 유입(알림 없는 open 질문) 대비: 새로고침 이벤트 + 30초 폴링 + 탭 복귀 시 리로드.

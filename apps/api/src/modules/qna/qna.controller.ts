@@ -99,6 +99,13 @@ export class QnaController {
     return this.qna.pricingInfo(user.centerId ?? null, user.role === AccountRole.STUDENT ? user.id : undefined);
   }
 
+  /** GET /qna/attention — 선생님 대기 배지(공개 큐 미클레임 + 내가 맡은 미답변). */
+  @Get('attention')
+  @Roles('teacher')
+  attention(@CurrentUser() user: AuthUser) {
+    return this.qna.qnaAttention(user);
+  }
+
   /** GET /qna/tickets — B1 보유 질문권 잔여 + 판매 묶음(학생). */
   @Get('tickets')
   @Roles('student')

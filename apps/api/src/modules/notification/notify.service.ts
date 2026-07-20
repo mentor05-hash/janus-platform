@@ -21,6 +21,12 @@ export class NotifyService {
     @Optional() private readonly realtimeSvc?: RealtimeService,
   ) {}
 
+  /** 접속 중 선생님 전원 실시간 신호(원장 미기록 — 배지·큐 갱신용). */
+  async broadcastTeachers(type: string, title: string, body: string, payload: Record<string, unknown> = {}): Promise<void> {
+    try { await this.realtime?.emitToTeachers('notif:new', { type, payload, title, body }); }
+    catch (e) { this.logger.warn(`broadcastTeachers 실패: ${String(e)}`); }
+  }
+
   async notify(
     recipientId: string | null | undefined,
     type: string,

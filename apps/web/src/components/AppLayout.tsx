@@ -37,15 +37,23 @@ export function AppLayout() {
   // 인지 개선 ① — 예약 탭 뱃지: 수락 대기 신청 수 + 1시간 내 임박 상담 강조.
   const [att, setAtt] = useState<{ pending: number; imminentAt: string | null }>({ pending: 0, imminentAt: null });
   const loadAtt = () => api.get<{ pending: number; imminentAt: string | null }>('/bookings/attention').then(setAtt).catch(() => { /* 무시 */ });
+  // Q&A 대기 배지 — 공개 큐 미클레임 + 내가 맡은 미답변(qna_pool_new 실시간 신호로 즉시 갱신).
+  const [qnaAtt, setQnaAtt] = useState<{ pool: number; mine: number; total: number }>({ pool: 0, mine: 0, total: 0 });
+  const loadQnaAtt = () => api.get<{ pool: number; mine: number; total: number }>('/qna/attention').then(setQnaAtt).catch(() => { /* 무시 */ });
   useEffect(() => {
     api.get<Array<{ read_at: string | null }>>('/notifications')
       .then((r) => setUnread((Array.isArray(r) ? r : []).filter((n) => !n.read_at).length))
       .catch(() => { /* 무시 */ });
     loadAtt();
+    loadQnaAtt();
   }, [loc.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    const iv = setInterval(loadAtt, 60_000); // 임박 상담은 시간 경과로도 상태가 바뀜 — 1분 주기 갱신
-    const h = (e: Event) => { const t = (e as CustomEvent<{ type?: string }>).detail?.type ?? ''; if (t.startsWith('booking_')) loadAtt(); };
+    const iv = setInterval(() => { loadAtt(); loadQnaAtt(); }, 60_000); // 임박 상담은 시간 경과로도 상태가 바뀜 — 1분 주기 갱신
+    const h = (e: Event) => {
+      const t = (e as CustomEvent<{ type?: string }>).detail?.type ?? '';
+      if (t.startsWith('booking_')) loadAtt();
+      if (t.startsWith('qna_')) loadQnaAtt();
+    };
     window.addEventListener('janus:notif', h);
     return () => { clearInterval(iv); window.removeEventListener('janus:notif', h); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -74,6 +82,13 @@ export function AppLayout() {
                 {n.to === '/app/bookings' && att.pending > 0 && (
                   <span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: 'var(--danger, #dc2626)', color: '#fff', fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                     {att.pending > 99 ? '99+' : att.pending}
+                  </span>
+                )}
+                {/* Q&A 대기 — 공개 큐(NEW)·내가 맡은 미답변 수 */}
+                {n.to === '/app/qna' && qnaAtt.total > 0 && (
+                  <span title={`공개 큐 ${qnaAtt.pool}건 · 내가 맡은 미답변 ${qnaAtt.mine}건`}
+                    style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: 'var(--danger, #dc2626)', color: '#fff', fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {qnaAtt.total > 99 ? '99+' : qnaAtt.total}
                   </span>
                 )}
                 {n.to === '/app/notifications' && unread > 0 && (

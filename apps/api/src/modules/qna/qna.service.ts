@@ -313,6 +313,9 @@ export class QnaService {
       // 지정 질문이면 이 시점에 선생님에게 알림(그 전에는 선생님에게 보이지 않음).
       if (post.scope === 'assigned' && post.assigned_teacher_id) {
         void this.notify?.notify(post.assigned_teacher_id, 'qna_assigned', { postId });
+      } else {
+        // 공개 질문 — 접속 중 선생님 전원에게 실시간 신호(큐·배지 즉시 갱신, DB 알림 없음).
+        void this.notify?.broadcastTeachers('qna_pool_new', '새 공개질문', `[${post.subject ?? '질문'}] 공개질문 큐에 새 질문이 도착했어요.`, { postId });
       }
       const ticketRemaining = usedTicket ? await this.ticketRemaining(student.id) : undefined;
       return { ok: true, status: 'open', chargedCredits: credits, freeUsed: useFree, usedTicket, ticketRemaining, freeRemaining: useFree ? freeQ.remaining - 1 : freeQ.remaining };
@@ -477,6 +480,20 @@ export class QnaService {
   }
 
   /** 공개질문 가져오기(교사, 선착순 배정) — open→assigned 원자적 전환. unfit 교사 차단(§5-9). */
+  /** 선생님 Q&A 대기 배지 — 공개 큐 미클레임 + 내가 맡은 미답변(사이드바 배지·소음 없는 카운트만). */
+  async qnaAttention(teacher: AuthUser) {
+    if (teacher.role !== AccountRole.TEACHER) throw new ForbiddenException('선생님 전용입니다.');
+    const [pool, mine] = await Promise.all([
+      this.prisma.qna_post.count({
+        where: { status: 'open', scope: 'open', assigned_teacher_id: null, community: false, hidden: false },
+      }),
+      this.prisma.qna_post.count({
+        where: { status: 'open', assigned_teacher_id: teacher.id, first_reply_at: null, hidden: false },
+      }),
+    ]);
+    return { pool, mine, total: pool + mine };
+  }
+
   async claim(postId: string, teacher: AuthUser) {
     if (teacher.role !== AccountRole.TEACHER) {
       throw new ForbiddenException('선생님만 질문을 가져올 수 있습니다.');
