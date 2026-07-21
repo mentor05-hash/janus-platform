@@ -1,7 +1,8 @@
-import { Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AcademyService } from './academy.service';
 import { PublicSyncService } from './public-sync.service';
+import { CohortAggregateService } from './cohort-aggregate.service';
 import { AcademySearchDto } from './dto/academy-search.dto';
 
 /** 학원찾기 조회 API(/api/v1 관례) — 로그인 전원. 세션 1: 검색·상세. */
@@ -22,10 +23,13 @@ export class AcademyController {
   }
 }
 
-/** 운영: 공공데이터 적재·샘플 시드(관리자 전용). 스케줄 잡은 세션 후속. */
+/** 운영: 공공데이터 적재·샘플 시드·재원생 집계(관리자 전용). */
 @Controller('admin/academies')
 export class AcademyAdminController {
-  constructor(private readonly sync: PublicSyncService) {}
+  constructor(
+    private readonly sync: PublicSyncService,
+    private readonly cohort: CohortAggregateService,
+  ) {}
 
   /** POST /admin/academies/sync — JANUS_DATA_DIR 공공데이터 적재(idempotent). */
   @Post('sync')
@@ -39,5 +43,12 @@ export class AcademyAdminController {
   @Roles('admin')
   seed() {
     return this.sync.seedSample();
+  }
+
+  /** POST /admin/academies/aggregate-cohorts — 재원생 분기 집계 수동 트리거(k≥5 강제). */
+  @Post('aggregate-cohorts')
+  @Roles('admin')
+  aggregate(@Body('period') period?: string) {
+    return this.cohort.aggregateAll(period || this.cohort.currentPeriod());
   }
 }
