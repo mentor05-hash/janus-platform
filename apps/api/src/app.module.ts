@@ -53,6 +53,7 @@ import { CurriculumModule } from './modules/curriculum/curriculum.module';
 import { LectureModule } from './modules/lecture/lecture.module';
 import { AdminStatsModule } from './modules/admin-stats/admin-stats.module';
 import { SearchModule } from './modules/search/search.module';
+import { AcademyFinderModule } from './modules/academy-finder/academy-finder.module';
 
 @Module({
   imports: [
@@ -106,6 +107,7 @@ import { SearchModule } from './modules/search/search.module';
     CurriculumModule, // 주간 학습 플랜 — 진단 약점+성적 → 우선순위 처방 카드
     LectureModule, // 강좌 v1 — 카탈로그·수강신청(데모 강좌+후속 교사 등록)
     SearchModule, // 전역 통합검색 — 강좌·자료·커뮤니티·선생님
+    AcademyFinderModule, // 학원찾기 v2 — 통학·성적대 기반 학원 탐색(세션1: 스키마·공공적재·provenance)
     AdminStatsModule, // 관리자 통계 대시보드 — 진단·강좌·커뮤니티 지표
   ],
   providers: [

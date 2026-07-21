@@ -8,29 +8,29 @@ datasource db {
 }
 
 model account {
-  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  role            account_role
-  center_id       String?          @db.Uuid
-  login_id          String           @unique
-  pw_hash           String
-  name              String
-  status            account_status   @default(pending)
-  email             String?
-  phone             String?
-  email_verified    Boolean          @default(false)
-  phone_verified    Boolean          @default(false)
-  withdrawn_at      DateTime?        @db.Timestamptz(6)
-  withdrawal_reason String?
-  created_at        DateTime         @default(now()) @db.Timestamptz(6)
-  center            center?          @relation(fields: [center_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  guardian          guardian?
-  notification      notification[]
-  payment           payment[]
-  staff_profile     staff_profile?
-  student_profile   student_profile?
-  teacher_profile   teacher_profile?
-  user_consent      user_consent?
-  push_token        push_token[]
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  role                account_role
+  center_id           String?               @db.Uuid
+  login_id            String                @unique
+  pw_hash             String
+  name                String
+  status              account_status        @default(pending)
+  email               String?
+  phone               String?
+  email_verified      Boolean               @default(false)
+  phone_verified      Boolean               @default(false)
+  withdrawn_at        DateTime?             @db.Timestamptz(6)
+  withdrawal_reason   String?
+  created_at          DateTime              @default(now()) @db.Timestamptz(6)
+  center              center?               @relation(fields: [center_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  guardian            guardian?
+  notification        notification[]
+  payment             payment[]
+  staff_profile       staff_profile?
+  student_profile     student_profile?
+  teacher_profile     teacher_profile?
+  user_consent        user_consent?
+  push_token          push_token[]
   service_entitlement service_entitlement[] @relation("entitlement_owner")
 }
 
@@ -47,18 +47,18 @@ model push_token {
 }
 
 model chat_message {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  booking_id    String   @db.Uuid
-  sender_id     String?  @db.Uuid
-  kind          String   @default("text")
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  booking_id    String    @db.Uuid
+  sender_id     String?   @db.Uuid
+  kind          String    @default("text")
   body          String?
-  image_file_id String?  @db.Uuid
-  reply_to_id   String?  @db.Uuid
-  reactions     Json     @default("{}")
+  image_file_id String?   @db.Uuid
+  reply_to_id   String?   @db.Uuid
+  reactions     Json      @default("{}")
   read_at       DateTime? @db.Timestamptz(6)
   deleted_at    DateTime? @db.Timestamptz(6) // soft delete(회수) — 원문은 감사·분쟁 대응 위해 보존, 표시만 차단
-  created_at    DateTime @default(now()) @db.Timestamptz(6)
-  booking       booking  @relation(fields: [booking_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  booking       booking   @relation(fields: [booking_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([booking_id, created_at])
 }
@@ -68,9 +68,9 @@ model whiteboard_snapshot {
   booking_id         String   @db.Uuid
   strokes            Json
   background_file_id String?  @db.Uuid
-  created_by String?  @db.Uuid
-  created_at DateTime @default(now()) @db.Timestamptz(6)
-  booking    booking  @relation(fields: [booking_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  created_by         String?  @db.Uuid
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+  booking            booking  @relation(fields: [booking_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([booking_id, created_at])
 }
@@ -104,8 +104,8 @@ model score_report {
 }
 
 model score_item {
-  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  report_id  String       @db.Uuid
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  report_id   String       @db.Uuid
   subject     String
   score       Decimal?     @db.Decimal(6, 2)
   max_score   Decimal?     @default(100) @db.Decimal(6, 2)
@@ -177,38 +177,38 @@ model board_question {
 }
 
 model booking {
-  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  student_id         String               @db.Uuid
-  teacher_id         String               @db.Uuid
-  center_id          String?              @db.Uuid
-  consult_type       consult_type
-  sub_type           String?
-  mode               consult_mode
-  session_mode       session_mode?
-  direction          booking_dir          @default(student)
-  start_at           DateTime?            @db.Timestamptz(6)
-  end_at             DateTime?            @db.Timestamptz(6)
-  buffer_before      Int?                 @default(10) @db.SmallInt
-  buffer_after       Int?                 @default(10) @db.SmallInt
-  status             booking_status       @default(new)
-  room_id            String?              @db.Uuid
-  meeting_url        String?
-  attachments        Json?
-  content            String?
-  charged_credits    Int?                 @default(0)
-  origin             String?
-  teacher_ack_at     DateTime?            @db.Timestamptz(6) // 선생님 상담 인지 확인(버튼/채팅·보드 입장) — 자동확정 예약 노쇼 판정 근거
-  created_at         DateTime             @default(now()) @db.Timestamptz(6)
-  center             center?              @relation(fields: [center_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  room               room?                @relation(fields: [room_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  student_profile    student_profile      @relation(fields: [student_id], references: [account_id], onDelete: NoAction, onUpdate: NoAction)
-  teacher_profile    teacher_profile      @relation(fields: [teacher_id], references: [account_id], onDelete: NoAction, onUpdate: NoAction)
-  cancellation_event cancellation_event[]
-  consultation_note  consultation_note?
-  chat_message       chat_message[]
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  student_id          String                @db.Uuid
+  teacher_id          String                @db.Uuid
+  center_id           String?               @db.Uuid
+  consult_type        consult_type
+  sub_type            String?
+  mode                consult_mode
+  session_mode        session_mode?
+  direction           booking_dir           @default(student)
+  start_at            DateTime?             @db.Timestamptz(6)
+  end_at              DateTime?             @db.Timestamptz(6)
+  buffer_before       Int?                  @default(10) @db.SmallInt
+  buffer_after        Int?                  @default(10) @db.SmallInt
+  status              booking_status        @default(new)
+  room_id             String?               @db.Uuid
+  meeting_url         String?
+  attachments         Json?
+  content             String?
+  charged_credits     Int?                  @default(0)
+  origin              String?
+  teacher_ack_at      DateTime?             @db.Timestamptz(6) // 선생님 상담 인지 확인(버튼/채팅·보드 입장) — 자동확정 예약 노쇼 판정 근거
+  created_at          DateTime              @default(now()) @db.Timestamptz(6)
+  center              center?               @relation(fields: [center_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  room                room?                 @relation(fields: [room_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  student_profile     student_profile       @relation(fields: [student_id], references: [account_id], onDelete: NoAction, onUpdate: NoAction)
+  teacher_profile     teacher_profile       @relation(fields: [teacher_id], references: [account_id], onDelete: NoAction, onUpdate: NoAction)
+  cancellation_event  cancellation_event[]
+  consultation_note   consultation_note?
+  chat_message        chat_message[]
   whiteboard_snapshot whiteboard_snapshot[]
-  review             review?
-  time_slot          time_slot[]
+  review              review?
+  time_slot           time_slot[]
 
   @@index([student_id, status], map: "idx_booking_student")
   @@index([teacher_id, start_at], map: "idx_booking_teacher")
@@ -409,7 +409,7 @@ model notification {
   last_attempt_at DateTime? @db.Timestamptz(6)
   read_at         DateTime? @db.Timestamptz(6)
   created_at      DateTime  @default(now()) @db.Timestamptz(6)
-  account      account   @relation(fields: [recipient_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  account         account   @relation(fields: [recipient_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
 model ops_stat {
@@ -489,7 +489,7 @@ model payroll_estimate {
   settled_by       String?         @db.Uuid
   period_start     DateTime?       @db.Date
   period_end       DateTime?       @db.Date
-  tutor_source     String?         // 고용유형 스냅샷(freelance|salaried) — 계측 차원, 금액 계산 무관
+  tutor_source     String? // 고용유형 스냅샷(freelance|salaried) — 계측 차원, 금액 계산 무관
   teacher_profile  teacher_profile @relation(fields: [teacher_id], references: [account_id], onDelete: Cascade, onUpdate: NoAction)
 }
 
@@ -506,14 +506,14 @@ model member_type {
 }
 
 model scheduled_announcement {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  created_by   String    @db.Uuid
-  targets      String[]
-  title        String
-  body         String
-  center_id    String?   @db.Uuid
-  channels     String[]  @default(["app"])
-  scheduled_at DateTime  @db.Timestamptz(6)
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_by    String    @db.Uuid
+  targets       String[]
+  title         String
+  body          String
+  center_id     String?   @db.Uuid
+  channels      String[]  @default(["app"])
+  scheduled_at  DateTime  @db.Timestamptz(6)
   status        String    @default("pending")
   sent_at       DateTime? @db.Timestamptz(6)
   sent_count    Int?
@@ -621,7 +621,9 @@ model pricing_policy {
   center                center?      @relation(fields: [center_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
-/** 보호자 동의 원장(본부 결정 2026-07-19) — 미성년 음성 외부 STT 전송은 동의 학생 한정. kind 확장형. */
+/**
+ * 보호자 동의 원장(본부 결정 2026-07-19) — 미성년 음성 외부 STT 전송은 동의 학생 한정. kind 확장형.
+ */
 model consent_grant {
   id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   student_id     String    @db.Uuid
@@ -634,7 +636,9 @@ model consent_grant {
   @@unique([student_id, kind])
 }
 
-/** R1 상담 오디오 녹음 원장(브리핑 v1) — 동의·egress·보관·파기 추적. booking 조인 키 전용(기존 테이블 무변경). */
+/**
+ * R1 상담 오디오 녹음 원장(브리핑 v1) — 동의·egress·보관·파기 추적. booking 조인 키 전용(기존 테이블 무변경).
+ */
 model consult_recording {
   id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   booking_id             String    @unique @db.Uuid
@@ -725,8 +729,8 @@ model qna_answer {
   post_id         String          @db.Uuid
   teacher_id      String          @db.Uuid
   body            String?
-  attachments     Json?           // P4 답변 첨부(화이트보드 풀이 PNG 등) — [{id,name,type}]
-  qna_followup    qna_followup[]  // C2 후속 문답(이어 묻기·이어 답하기)
+  attachments     Json? // P4 답변 첨부(화이트보드 풀이 PNG 등) — [{id,name,type}]
+  qna_followup    qna_followup[] // C2 후속 문답(이어 묻기·이어 답하기)
   accepted        Boolean?        @default(false)
   pay_eligible    Boolean?        @default(false)
   similarity      Decimal?        @db.Decimal(3, 2)
@@ -738,38 +742,40 @@ model qna_answer {
 }
 
 model qna_post {
-  id                  String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  student_id          String           @db.Uuid
-  subject             String?
-  difficulty          String?
-  scope               board_scope?     @default(open)
-  assigned_teacher_id String?          @db.Uuid
-  body                String?
-  attachments         Json?
-  status              String?          @default("open")
-  scheduled_booking_id String?         @db.Uuid
-  created_at          DateTime         @default(now()) @db.Timestamptz(6)
-  claimed_at          DateTime?        @db.Timestamptz(6) // Q1 SLA — 클레임/배정 시점
-  first_reply_at      DateTime?        @db.Timestamptz(6) // Q1 SLA — 첫 응답 시점
-  resolved_at         DateTime?        @db.Timestamptz(6) // Q1 SLA — 해결(채택) 시점
-  rating              Int?             @db.SmallInt        // Q1 해결 만족도(1~5)
-  continue_pref       Boolean?         // Q1 "이 선생님께 계속 받을까요"
-  reanswer_count      Int              @default(0)         // 재답변 요청 횟수(한도 qa.reanswerLimit)
-  reanswer_reason     String?          // 마지막 재답변 사유
-  free_used           Boolean          @default(false)     // P1 주간 무료 질문권으로 등록됨(과금 0) — 주간 사용량 집계 기준
-  escalated_at        DateTime?        @db.Timestamptz(6)  // P2 AI 1층→선생님 답변 요청 시점(과금·SLA 기산점)
-  escalated_booking_id String?         @db.Uuid           // 상담 승격 시 생성된 예약
-  ai_draft            String?          // Q3 AI 1차 초안("AI 생성" 라벨)
-  ai_draft_at         DateTime?        @db.Timestamptz(6)
-  community           Boolean          @default(false) // Q3 커뮤니티(무료·전원답변) 질문
-  hidden              Boolean          @default(false) // 신고 누적·모더레이션 숨김
-  report_count        Int              @default(0)
-  qna_answer          qna_answer[]
-  teacher_profile     teacher_profile? @relation(fields: [assigned_teacher_id], references: [account_id], onDelete: NoAction, onUpdate: NoAction)
-  student_profile     student_profile  @relation(fields: [student_id], references: [account_id], onDelete: NoAction, onUpdate: NoAction)
+  id                   String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  student_id           String           @db.Uuid
+  subject              String?
+  difficulty           String?
+  scope                board_scope?     @default(open)
+  assigned_teacher_id  String?          @db.Uuid
+  body                 String?
+  attachments          Json?
+  status               String?          @default("open")
+  scheduled_booking_id String?          @db.Uuid
+  created_at           DateTime         @default(now()) @db.Timestamptz(6)
+  claimed_at           DateTime?        @db.Timestamptz(6) // Q1 SLA — 클레임/배정 시점
+  first_reply_at       DateTime?        @db.Timestamptz(6) // Q1 SLA — 첫 응답 시점
+  resolved_at          DateTime?        @db.Timestamptz(6) // Q1 SLA — 해결(채택) 시점
+  rating               Int?             @db.SmallInt // Q1 해결 만족도(1~5)
+  continue_pref        Boolean? // Q1 "이 선생님께 계속 받을까요"
+  reanswer_count       Int              @default(0) // 재답변 요청 횟수(한도 qa.reanswerLimit)
+  reanswer_reason      String? // 마지막 재답변 사유
+  free_used            Boolean          @default(false) // P1 주간 무료 질문권으로 등록됨(과금 0) — 주간 사용량 집계 기준
+  escalated_at         DateTime?        @db.Timestamptz(6) // P2 AI 1층→선생님 답변 요청 시점(과금·SLA 기산점)
+  escalated_booking_id String?          @db.Uuid // 상담 승격 시 생성된 예약
+  ai_draft             String? // Q3 AI 1차 초안("AI 생성" 라벨)
+  ai_draft_at          DateTime?        @db.Timestamptz(6)
+  community            Boolean          @default(false) // Q3 커뮤니티(무료·전원답변) 질문
+  hidden               Boolean          @default(false) // 신고 누적·모더레이션 숨김
+  report_count         Int              @default(0)
+  qna_answer           qna_answer[]
+  teacher_profile      teacher_profile? @relation(fields: [assigned_teacher_id], references: [account_id], onDelete: NoAction, onUpdate: NoAction)
+  student_profile      student_profile  @relation(fields: [student_id], references: [account_id], onDelete: NoAction, onUpdate: NoAction)
 }
 
-/** B1 질문권 묶음 — 크레딧으로 선구매한 질문권 잔여 관리(FIFO 소진). 소진 순서: 주간무료→묶음→크레딧. */
+/**
+ * B1 질문권 묶음 — 크레딧으로 선구매한 질문권 잔여 관리(FIFO 소진). 소진 순서: 주간무료→묶음→크레딧.
+ */
 model qna_ticket_bundle {
   id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   student_id   String    @db.Uuid
@@ -783,7 +789,9 @@ model qna_ticket_bundle {
   @@index([student_id])
 }
 
-/** Q3 커뮤니티 답변(무료·전원 답변) — 유료 qna_answer 와 분리. 작성자=임의 계정(학생·교사). */
+/**
+ * Q3 커뮤니티 답변(무료·전원 답변) — 유료 qna_answer 와 분리. 작성자=임의 계정(학생·교사).
+ */
 model qna_community_answer {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   post_id      String   @db.Uuid
@@ -800,7 +808,9 @@ model qna_community_answer {
   @@index([author_id])
 }
 
-/** Q3 신고 — 대상(post|answer)별 신고자 1회. 누적 시 hidden 처리. */
+/**
+ * Q3 신고 — 대상(post|answer)별 신고자 1회. 누적 시 hidden 처리.
+ */
 model qna_report {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   target_type String
@@ -812,20 +822,24 @@ model qna_report {
   @@unique([target_type, target_id, reporter_id])
 }
 
-/** Q3 리그 — 커뮤니티 답변 실적 기반 답변자 등급(3부 기본→2부→1부). 임계값은 system_setting. */
+/**
+ * Q3 리그 — 커뮤니티 답변 실적 기반 답변자 등급(3부 기본→2부→1부). 임계값은 system_setting.
+ */
 model qna_league {
-  account_id   String   @id @db.Uuid
-  tier         Int      @default(3) @db.SmallInt
-  authored     Int      @default(0)
-  accepted     Int      @default(0)
-  accept_rate  Int      @default(0)
+  account_id   String    @id @db.Uuid
+  tier         Int       @default(3) @db.SmallInt
+  authored     Int       @default(0)
+  accepted     Int       @default(0)
+  accept_rate  Int       @default(0)
   promoted_at  DateTime? @db.Timestamptz(6)
-  evaluated_at DateTime @default(now()) @db.Timestamptz(6)
+  evaluated_at DateTime  @default(now()) @db.Timestamptz(6)
 
   @@index([tier, accepted(sort: Desc)])
 }
 
-/** Q1 소프트 블록 — 학생이 특정 선생님에게 질문을 노출/배정하지 않음(선생님 비공지, 학생 해제 가능). */
+/**
+ * Q1 소프트 블록 — 학생이 특정 선생님에게 질문을 노출/배정하지 않음(선생님 비공지, 학생 해제 가능).
+ */
 model qna_relation_block {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   student_id String   @db.Uuid
@@ -1250,21 +1264,21 @@ enum teacher_grade_t {
 // snake_case 모델명 = 테이블명. 외부(account/stored_file) 관계는 스칼라 컬럼만 유지.
 // =====================================================================
 model consulting_application {
-  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  applicant_account_id String?                @db.Uuid
+  id                   String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  applicant_account_id String?               @db.Uuid
   applicant_name       String
   applicant_phone      String
   student_grade        String
   interest_type        String
   package              String
   assignment_mode      String
-  status               String                 @default("submitted")
+  status               String                @default("submitted")
   message              String?
-  consultant_id        String?                @db.Uuid
-  consent_at           DateTime?              @db.Timestamptz(6)
-  submitted_at         DateTime?              @db.Timestamptz(6)
-  created_at           DateTime               @default(now()) @db.Timestamptz(6)
-  updated_at           DateTime               @default(now()) @db.Timestamptz(6)
+  consultant_id        String?               @db.Uuid
+  consent_at           DateTime?             @db.Timestamptz(6)
+  submitted_at         DateTime?             @db.Timestamptz(6)
+  created_at           DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime              @default(now()) @db.Timestamptz(6)
   documents            consulting_document[]
   payment              consulting_payment?
   analysis             consulting_analysis?
@@ -1395,26 +1409,30 @@ model sso_service {
   updated_at       DateTime @default(now()) @db.Timestamptz(6)
 }
 
-/** 상품 권한(entitlement) — 유료 상품 구매 시 계정에 서비스 해제 행을 부여. 일회성 기간제(expires_at). */
+/**
+ * 상품 권한(entitlement) — 유료 상품 구매 시 계정에 서비스 해제 행을 부여. 일회성 기간제(expires_at).
+ */
 model service_entitlement {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  account_id  String    @db.Uuid
-  service_id  String
-  product_key String?
-  source      String    @default("admin")
-  granted_at  DateTime  @default(now()) @db.Timestamptz(6)
-  expires_at  DateTime? @db.Timestamptz(6)
-  note        String?
-  created_by  String?   @db.Uuid
-  revoked_at  DateTime? @db.Timestamptz(6)
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  account_id         String    @db.Uuid
+  service_id         String
+  product_key        String?
+  source             String    @default("admin")
+  granted_at         DateTime  @default(now()) @db.Timestamptz(6)
+  expires_at         DateTime? @db.Timestamptz(6)
+  note               String?
+  created_by         String?   @db.Uuid
+  revoked_at         DateTime? @db.Timestamptz(6)
   expiry_notified_at DateTime? @db.Timestamptz(6)
-  account     account   @relation("entitlement_owner", fields: [account_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  account            account   @relation("entitlement_owner", fields: [account_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([account_id])
   @@index([account_id, service_id])
 }
 
-/** 리뎀션 코드(수강권) — 오프라인·프로모 판매. 등록 시 상품 권한 부여. */
+/**
+ * 리뎀션 코드(수강권) — 오프라인·프로모 판매. 등록 시 상품 권한 부여.
+ */
 model redemption_code {
   id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   code             String    @unique
@@ -1431,7 +1449,9 @@ model redemption_code {
   @@index([redeemed_by])
 }
 
-/** 수준진단 문제은행 — 데모(합성) + 후속 kice 주입. */
+/**
+ * 수준진단 문제은행 — 데모(합성) + 후속 kice 주입.
+ */
 model diagnostic_question {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   subject     String
@@ -1446,25 +1466,29 @@ model diagnostic_question {
   created_at  DateTime @default(now()) @db.Timestamptz(6)
 }
 
-/** 수준진단 시도 — 학생별 채점 결과(정답률). */
+/**
+ * 수준진단 시도 — 학생별 채점 결과(정답률).
+ */
 model diagnostic_attempt {
-  id           String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  student_id   String                 @db.Uuid
-  subject      String?
-  total        Int                    @default(0)
-  correct      Int                    @default(0)
-  score        Int                    @default(0)
-  started_at   DateTime               @default(now()) @db.Timestamptz(6)
-  submitted_at DateTime?              @db.Timestamptz(6)
-  is_clinic    Boolean                @default(false)
-  parent_attempt_id String?           @db.Uuid
-  responses    diagnostic_response[]
+  id                String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  student_id        String                @db.Uuid
+  subject           String?
+  total             Int                   @default(0)
+  correct           Int                   @default(0)
+  score             Int                   @default(0)
+  started_at        DateTime              @default(now()) @db.Timestamptz(6)
+  submitted_at      DateTime?             @db.Timestamptz(6)
+  is_clinic         Boolean               @default(false)
+  parent_attempt_id String?               @db.Uuid
+  responses         diagnostic_response[]
 
   @@index([student_id, started_at(sort: Desc)])
   @@index([student_id, is_clinic, started_at(sort: Desc)])
 }
 
-/** 수준진단 응답 — 문항별 선택·정오. */
+/**
+ * 수준진단 응답 — 문항별 선택·정오.
+ */
 model diagnostic_response {
   id          String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   attempt_id  String             @db.Uuid
@@ -1476,38 +1500,44 @@ model diagnostic_response {
   @@index([attempt_id])
 }
 
-/** 강좌 v1 — 카탈로그(데모 합성 + 후속 교사 등록). */
+/**
+ * 강좌 v1 — 카탈로그(데모 합성 + 후속 교사 등록).
+ */
 model lecture {
-  id         String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  teacher_id String?              @db.Uuid
-  subject    String
-  unit       String?
-  title      String
-  summary    String?
-  level      String?
-  minutes    Int?
-  video_url  String?
-  active     Boolean              @default(true)
-  created_at DateTime             @default(now()) @db.Timestamptz(6)
+  id          String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  teacher_id  String?              @db.Uuid
+  subject     String
+  unit        String?
+  title       String
+  summary     String?
+  level       String?
+  minutes     Int?
+  video_url   String?
+  active      Boolean              @default(true)
+  created_at  DateTime             @default(now()) @db.Timestamptz(6)
   enrollments lecture_enrollment[]
   reviews     lecture_review[]
 }
 
-/** 강좌 수강신청 — 학생별 강좌 1회. */
+/**
+ * 강좌 수강신청 — 학생별 강좌 1회.
+ */
 model lecture_enrollment {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  lecture_id String   @db.Uuid
-  student_id String   @db.Uuid
-  progress   Int      @default(0)
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lecture_id String    @db.Uuid
+  student_id String    @db.Uuid
+  progress   Int       @default(0)
   last_at    DateTime? @db.Timestamptz(6)
-  created_at DateTime @default(now()) @db.Timestamptz(6)
-  lecture    lecture  @relation(fields: [lecture_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  lecture    lecture   @relation(fields: [lecture_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([lecture_id, student_id])
   @@index([student_id])
 }
 
-/** 강좌 후기·평점 — 수강생, 강좌별 1회. */
+/**
+ * 강좌 후기·평점 — 수강생, 강좌별 1회.
+ */
 model lecture_review {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   lecture_id String   @db.Uuid
@@ -1519,4 +1549,125 @@ model lecture_review {
 
   @@unique([lecture_id, student_id])
   @@index([lecture_id])
+}
+
+// ── 학원찾기(academy finder) v2 — §2 스키마. account 참조는 스칼라(관계 미선언)로 격리. ──
+model academy {
+  id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ext_key         String?              @unique
+  name            String
+  addr            String?
+  dong_code       String?
+  lat             Float?
+  lng             Float?
+  phone           String?
+  biz_reg_masked  String?
+  source          String               @default("public")
+  claim_status    String               @default("none")
+  nearest_station Json?
+  active          Boolean              @default(true)
+  updated_at      DateTime             @default(now()) @db.Timestamptz(6)
+  created_at      DateTime             @default(now()) @db.Timestamptz(6)
+  classes         academy_class[]
+  bus_routes      bus_route[]
+  cohort_stats    cohort_stat[]
+  enrollments     academy_enrollment[]
+  leads           academy_lead[]
+
+  @@index([dong_code])
+  @@index([name])
+}
+
+model academy_class {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  academy_id     String         @db.Uuid
+  subject        String
+  target_grades  String[]       @default([])
+  level          String         @default("regular")
+  schedule       Json           @default("[]")
+  capacity       Int?
+  tuition_krw    Int?
+  tuition_source String         @default("declared")
+  entry_test     Boolean        @default(false)
+  active         Boolean        @default(true)
+  updated_at     DateTime       @default(now()) @db.Timestamptz(6)
+  created_at     DateTime       @default(now()) @db.Timestamptz(6)
+  academy        academy        @relation(fields: [academy_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  leads          academy_lead[]
+
+  @@index([academy_id])
+  @@index([subject])
+}
+
+model bus_route {
+  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  academy_id String     @db.Uuid
+  name       String
+  days       String[]   @default([])
+  direction  String     @default("pickup")
+  active     Boolean    @default(true)
+  created_at DateTime   @default(now()) @db.Timestamptz(6)
+  academy    academy    @relation(fields: [academy_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  stops      bus_stop[]
+
+  @@index([academy_id])
+}
+
+model bus_stop {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  route_id   String    @db.Uuid
+  seq        Int       @default(0)
+  name       String
+  lat        Float?
+  lng        Float?
+  dong_code  String?
+  time_hint  String?
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  route      bus_route @relation(fields: [route_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([route_id])
+  @@index([dong_code])
+}
+
+model cohort_stat {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  academy_id   String   @db.Uuid
+  kind         String
+  period       String
+  payload_json Json     @default("{}")
+  source       String   @default("claimed")
+  n_total      Int      @default(0)
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  academy      academy  @relation(fields: [academy_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([academy_id, kind, period, source])
+}
+
+model academy_enrollment {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id       String   @db.Uuid
+  academy_id    String   @db.Uuid
+  status        String   @default("self_reported")
+  consent_stats Boolean  @default(false)
+  ts            DateTime @default(now()) @db.Timestamptz(6)
+  academy       academy  @relation(fields: [academy_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, academy_id])
+  @@index([academy_id])
+}
+
+model academy_lead {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String         @db.Uuid
+  academy_id   String         @db.Uuid
+  class_id     String?        @db.Uuid
+  summary_json Json           @default("{}")
+  status       String         @default("sent")
+  ts           DateTime       @default(now()) @db.Timestamptz(6)
+  academy      academy        @relation(fields: [academy_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  klass        academy_class? @relation(fields: [class_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([academy_id])
+  @@index([user_id])
 }
