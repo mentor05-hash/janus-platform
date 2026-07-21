@@ -8,7 +8,7 @@ import { track } from '../utils/track';
 
 type Card = {
   counselorId: string; name: string; subjects: string[]; modes: string[];
-  rating: number; totalConsult: number; rank: number; reasons: string[]; isNew: boolean;
+  rating: number; totalConsult: number; rank: number; reasons: string[]; isNew: boolean; targetVerified?: boolean;
 };
 type Reco = { subjects: string[]; cards: Card[]; note?: string };
 
@@ -36,6 +36,7 @@ export function MatchRecommendCards({ subject, title = '진단 기반 추천 상
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <b style={{ fontSize: 14.5 }}>{c.name} 선생님</b>
+              {c.targetVerified && <span style={{ fontSize: 10.5, fontWeight: 800, color: '#1f7a52', background: '#e3f3ea', borderRadius: 5, padding: '1px 6px' }} title="목표대학 실적 검증됨">✓ 실적검증</span>}
               {c.isNew && <span style={{ fontSize: 10.5, fontWeight: 800, color: 'var(--j-blue,#2F6FB3)', background: 'var(--j-blue-soft,#EEF4FB)', borderRadius: 5, padding: '1px 6px' }}>신규</span>}
               {c.rating >= 4 && <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>★ {c.rating.toFixed(1)}</span>}
             </div>

@@ -142,7 +142,17 @@ export class PeopleService {
       qnaEscalation: t.qna_escalation,
       qnaReceive: t.qna_receive,
       qnaSubjects: t.qna_subjects ?? [],
+      targetAchievements: Array.isArray(t.target_achievements) ? t.target_achievements : [],
+      targetAchievementsVerified: t.target_achievements_verified === true,
     };
+  }
+
+  /** 관리자·HR — 상담사 목표대학 실적 검증 배지 토글. 자기신고 내용 확인 후 승인. */
+  async setAchievementsVerified(teacherId: string, verified: boolean) {
+    const t = await this.prisma.teacher_profile.findUnique({ where: { account_id: teacherId }, select: { account_id: true } });
+    if (!t) throw new NotFoundException('선생님 프로필이 없습니다.');
+    await this.prisma.teacher_profile.update({ where: { account_id: teacherId }, data: { target_achievements_verified: verified } });
+    return { ok: true, verified };
   }
 
   /** 근무 상태 변경(선생님 본인) — on(근무중)/rest(휴게중)/off(퇴근). */
@@ -196,6 +206,7 @@ export class PeopleService {
       qnaEscalation?: boolean;
       qnaReceive?: boolean;
       qnaSubjects?: string[];
+      targetAchievements?: Array<{ tier?: string; univ?: string; dept?: string; year?: number }>;
     },
   ) {
     const t = await this.prisma.teacher_profile.findUnique({
@@ -205,6 +216,14 @@ export class PeopleService {
     // 방식 정규화(중복 제거·허용값만).
     const normModes = dto.modes
       ? [...new Set(dto.modes.filter((m) => ['zoom', 'chat', 'hand', 'offline'].includes(m)))]
+      : undefined;
+    // 목표대학 실적 정규화 — 허용 tier·문자열만, 최대 10건. 자기신고 변경 시 검증 배지 초기화(재검증 필요).
+    const TIERS = ['최상위', '상위', '중상위', '중위', '중하위', '기초'];
+    const normAch = dto.targetAchievements !== undefined
+      ? dto.targetAchievements
+          .filter((a) => a && typeof a === 'object' && TIERS.includes(String(a.tier)))
+          .slice(0, 10)
+          .map((a) => ({ tier: String(a.tier), univ: String(a.univ ?? '').slice(0, 40), dept: a.dept ? String(a.dept).slice(0, 40) : undefined, year: Number.isFinite(a.year) ? Number(a.year) : undefined }))
       : undefined;
     const updated = await this.prisma.teacher_profile.update({
       where: { account_id: teacherId },
@@ -218,6 +237,7 @@ export class PeopleService {
         ...(dto.qnaEscalation !== undefined ? { qna_escalation: dto.qnaEscalation } : {}),
         ...(dto.qnaReceive !== undefined ? { qna_receive: dto.qnaReceive } : {}),
         ...(dto.qnaSubjects !== undefined ? { qna_subjects: dto.qnaSubjects } : {}),
+        ...(normAch !== undefined ? { target_achievements: normAch, target_achievements_verified: false } : {}),
       },
       include: { account: { select: { name: true, center_id: true } } },
     });

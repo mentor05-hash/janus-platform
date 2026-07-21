@@ -15,6 +15,8 @@ export class UpdateTeacherProfileDto {
   @IsOptional() @IsBoolean() qnaReceive?: boolean;
   /** Q&A 수신 과목 제한(빈 배열 = 전체). */
   @IsOptional() @IsArray() @IsString({ each: true }) qnaSubjects?: string[];
+  /** 목표대학 실적(자기신고) — [{tier, univ, dept?, year?}]. 수정 시 검증 상태 초기화(재검증 필요). */
+  @IsOptional() @IsArray() targetAchievements?: Array<{ tier?: string; univ?: string; dept?: string; year?: number }>;
 }
 
 /** 니즈 기반 추천 요청(학생). */

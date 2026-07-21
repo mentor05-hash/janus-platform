@@ -1027,6 +1027,8 @@ model teacher_profile {
   consultation_note                                                  consultation_note[]
   payroll_estimate                                                   payroll_estimate[]
   qna_answer                                                         qna_answer[]
+  target_achievements                                                Json                           @default("[]")
+  target_achievements_verified                                       Boolean                        @default(false)
   qna_post                                                           qna_post[]
   review                                                             review[]
   student_profile                                                    student_profile[]

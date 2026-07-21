@@ -59,6 +59,13 @@ export class TeachersController {
     return this.people.setWorkStatus(user.id, dto.status);
   }
 
+  /** PATCH /teachers/:id/verify-achievements — 관리자·HR: 목표대학 실적 검증 배지 토글. */
+  @Patch(':id/verify-achievements')
+  @Roles('admin', 'hr')
+  verifyAchievements(@Param('id') id: string, @Body() dto: { verified: boolean }) {
+    return this.people.setAchievementsVerified(id, dto.verified === true);
+  }
+
   /** POST /teachers/recommend — 니즈 기반 맞춤 추천(학생). */
   @Post('recommend')
   @Roles('student')
