@@ -46,12 +46,27 @@ export class MetricsService {
       GROUP BY 1`;
     const settleOf = (src: string) => settle.find((r) => r.source === src) ?? { amount: 0, n: 0 };
 
+    // 만족도(§6) — 후기(review) 4항목(태도·내용·실력·재의향) 평균을 source별 집계.
+    // 후기 시점 스냅샷은 두지 않고 teacher 현재 고용유형으로 근사(완주 분모와 동일 baseline). 정산 무개입·읽기 전용.
+    const sat = await this.prisma.$queryRaw<Array<{ source: string; n: number; avg_rating: number | null }>>`
+      SELECT CASE WHEN tp.employment_type = 'salaried' THEN 'salaried' ELSE 'freelance' END AS source,
+             count(*)::int AS n,
+             avg((r.rating_attitude + r.rating_content + r.rating_skill + r.rating_again) / 4.0)::float AS avg_rating
+      FROM review r
+      JOIN teacher_profile tp ON tp.account_id = r.teacher_id
+      WHERE r.created_at >= ${since}
+        AND r.rating_attitude IS NOT NULL AND r.rating_content IS NOT NULL
+        AND r.rating_skill IS NOT NULL AND r.rating_again IS NOT NULL
+      GROUP BY 1`;
+    const satOf = (src: string) => sat.find((r) => r.source === src) ?? { n: 0, avg_rating: null };
+
     return {
       days,
       bySource: sources.map((s) => {
         const completed = evCount(s, 'completed');
         const repurchase = evCount(s, 'repurchase');
         const st = settleOf(s);
+        const sa = satOf(s);
         return {
           tutorSource: s,
           completed,
@@ -60,9 +75,11 @@ export class MetricsService {
           settleAmount: st.amount,
           settleSessions: st.n,
           amountPerSession: st.n > 0 ? Math.round(st.amount / st.n) : null,
+          reviews: sa.n,
+          satisfaction: sa.avg_rating != null ? Math.round(sa.avg_rating * 100) / 100 : null,
         };
       }),
-      note: '완주율 분모(예약 수)·만족도는 후속(§6). 현재 전원 freelance — 첫 salaried 채용 시 자동 분기.',
+      note: '만족도=후기 4항목 평균(source는 teacher 현재 고용유형 근사). 완주율 분모(예약 수)는 후속. 현재 전원 freelance — 첫 salaried 채용 시 자동 분기.',
     };
   }
 }
