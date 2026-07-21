@@ -1,4 +1,5 @@
 import { ForbiddenException, Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
@@ -184,6 +185,30 @@ export class ConsultReportService {
       ORDER BY cr.sent_at DESC
       LIMIT 100`;
     return rows.map((r) => ({ bookingId: r.booking_id, sentAt: r.sent_at, openedAt: r.opened_at, startAt: r.start_at, teacherName: r.teacher_name, category: r.category }));
+  }
+
+  /**
+   * 미열람 리포트 리마인더 — 발송 후 REMINDER_DAYS 지나도 학생이 안 연 리포트에 1회 알림.
+   * 멱등: 알림 원장(type+bookingId)으로 중복 방지(마이그레이션 불요). 발송·정산 무개입.
+   */
+  @Cron('0 10 * * *', { timeZone: 'Asia/Seoul' })
+  async remindUnopenedReports() {
+    const REMINDER_DAYS = 3; // 정책값 — 발송 후 3일 미열람 시 1회 리마인드
+    const cutoff = new Date(Date.now() - REMINDER_DAYS * 86_400_000);
+    const rows = await this.prisma.$queryRaw<Array<{ booking_id: string; student_id: string | null }>>`
+      SELECT cr.booking_id, b.student_id
+      FROM consult_report cr JOIN booking b ON b.id = cr.booking_id
+      WHERE cr.status = 'sent' AND cr.opened_at IS NULL AND cr.sent_at < ${cutoff}
+      LIMIT 200`;
+    for (const r of rows) {
+      if (!r.student_id) continue;
+      const already = await this.prisma.notification.findFirst({
+        where: { type: 'consult_report_reminder', payload: { path: ['bookingId'], equals: r.booking_id } },
+        select: { id: true },
+      });
+      if (already) continue; // 같은 리포트 리마인더는 1회만
+      await this.notify?.notify(r.student_id, 'consult_report_reminder', { bookingId: r.booking_id });
+    }
   }
 
   /** 상세 — 선생님: 전 상태+전사문 / 학생: sent 만(첫 열람 시 opened_at 스탬프). */
