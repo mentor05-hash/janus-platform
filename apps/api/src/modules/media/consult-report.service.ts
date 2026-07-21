@@ -7,6 +7,7 @@ import { AccountRole } from '../../config/enums';
 import { LLM_PROVIDER } from '../llm/llm.types';
 import type { ConsultSummaryResult, LlmProvider } from '../llm/llm.types';
 import { NotifyService } from '../notification/notify.service';
+import { GuardianConsentService } from '../guardian-consent/guardian-consent.service';
 import { STT_PROVIDER } from './stt.types';
 import type { SttProvider } from './stt.types';
 
@@ -33,6 +34,7 @@ export class ConsultReportService {
     @Inject(STT_PROVIDER) private readonly stt: SttProvider,
     @Inject(LLM_PROVIDER) private readonly llm: LlmProvider,
     @Optional() private readonly notify?: NotifyService,
+    @Optional() private readonly guardianConsent?: GuardianConsentService,
   ) {}
 
   private async flags() {
@@ -508,9 +510,18 @@ export class ConsultReportService {
   private async maybePushGuardian(bookingId: string): Promise<void> {
     const row = await this.prisma.system_setting.findUnique({ where: { key: ConsultReportService.FLAG_KEY } });
     const on = ((row?.value as { guardianPush?: boolean } | undefined)?.guardianPush) === true;
-    if (!on) return; // 기본 OFF — 직접 push 하지 않는다(계정 내 열람으로만).
-    this.logger.warn(`guardianPush 플래그 ON 이지만 실 채널 미연동 — no-op(booking=${bookingId}). 본부 확정·채널 연동 후 구현.`);
-    // 활성화 시: 연결된 guardian 계정에 NotificationProvider(알림톡/이메일)로 "새 상담 리포트" 통지.
+    if (!on) return; // 기본 OFF — 직접 push 하지 않는다(계정 내 열람으로만). INV-10.
+
+    // 본부 결정 ① 게이트(이중 방어): 플래그가 켜져도 "본인확인+전달동의" 완료 보호자에게만 push.
+    // 동의가 없으면 대상 0명 → 여전히 no-op. 미성년 데이터 직접 push 는 동의 없이는 절대 불가.
+    const b = await this.prisma.booking.findUnique({ where: { id: bookingId }, select: { student_id: true } });
+    const targets = b?.student_id ? (await this.guardianConsent?.consentedGuardianIds(b.student_id)) ?? [] : [];
+    if (targets.length === 0) {
+      this.logger.warn(`guardianPush ON 이나 전달동의 보호자 0명 — no-op(booking=${bookingId}).`);
+      return;
+    }
+    this.logger.warn(`guardianPush ON · 동의 보호자 ${targets.length}명 — 실 채널(알림톡/이메일) 미연동 stub, no-op(booking=${bookingId}). 채널 연동 후 발송.`);
+    // 실 채널 연동 시: targets 각 guardian 계정에 NotificationProvider 로 "새 상담 리포트" 직접 통지.
   }
 
   // ── 학부모 열람(연결된 자녀의 공유된 guardian 뷰만) ──

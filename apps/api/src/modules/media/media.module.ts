@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { LlmModule } from '../llm/llm.module';
 import { NotificationModule } from '../notification/notification.module';
 import { RealtimeModule } from '../realtime/realtime.module';
+import { GuardianConsentModule } from '../guardian-consent/guardian-consent.module';
 import { ConsultReportController } from './consult-report.controller';
 import { ConsultReportService } from './consult-report.service';
 import { MediaDemoController } from './media-demo.controller';
@@ -22,7 +23,7 @@ import { LiveKitMediaProvider } from './livekit-media.provider';
  *   - (기본) mock: 플레이스홀더 — 엔드포인트 동작, 실제 음성 없음.
  */
 @Module({
-  imports: [RealtimeModule, LlmModule, NotificationModule], // 시스템 메시지·요약(R3)·발송 알림(R4)
+  imports: [RealtimeModule, LlmModule, NotificationModule, GuardianConsentModule], // 시스템 메시지·요약(R3)·발송 알림(R4)·전달동의 게이트(①)
   controllers: [MediaDemoController, MediaTokenController, MediaRecordingController, ConsultReportController], // 데모(M0)·상담 토큰(M1)·녹음(R1)·리포트(R2~R4)
   providers: [
     MediaRecordingService,

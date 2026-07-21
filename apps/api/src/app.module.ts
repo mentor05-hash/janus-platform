@@ -48,6 +48,7 @@ import { FunnelModule } from './modules/funnel/funnel.module';
 import { SsoModule } from './modules/sso/sso.module';
 import { EntitlementModule } from './modules/entitlement/entitlement.module';
 import { GuardianReportModule } from './modules/guardian-report/guardian-report.module';
+import { GuardianConsentModule } from './modules/guardian-consent/guardian-consent.module';
 import { DiagnosticModule } from './modules/diagnostic/diagnostic.module';
 import { CurriculumModule } from './modules/curriculum/curriculum.module';
 import { LectureModule } from './modules/lecture/lecture.module';
@@ -103,6 +104,7 @@ import { AcademyFinderModule } from './modules/academy-finder/academy-finder.mod
     SsoModule, // 크로스서비스 SSO(O42·W3) — HS256+epoch·레지스트리·verify 위임
     EntitlementModule, // 상품 권한(유료 배치표·계산기) — role 티어와 별개 서비스 해제(일회성 기간제)
     GuardianReportModule, // 학부모 주간 통합 리포트(W8) — 자녀 성적·출석·상담·Q&A 요약
+    GuardianConsentModule, // 본부 결정 ① 학부모 동의·본인확인 — 미성년 데이터 전달 게이트
     DiagnosticModule, // 수준진단(진단 관문) — 문항 풀이→채점→약점→처방(문제은행 데모+후속 kice)
     CurriculumModule, // 주간 학습 플랜 — 진단 약점+성적 → 우선순위 처방 카드
     LectureModule, // 강좌 v1 — 카탈로그·수강신청(데모 강좌+후속 교사 등록)

@@ -1671,3 +1671,25 @@ model academy_lead {
   @@index([academy_id])
   @@index([user_id])
 }
+
+// ── 본부 결정 ① 학부모 동의·본인확인 — (guardian,student)당 본인확인+전달동의. account 참조는 스칼라 격리. ──
+model guardian_data_consent {
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  guardian_id            String    @db.Uuid
+  student_id             String    @db.Uuid
+  verify_status          String    @default("unverified")
+  verify_method          String?
+  verified_name          String?
+  verify_ref             String?
+  verify_provider        String    @default("stub")
+  verified_at            DateTime? @db.Timestamptz(6)
+  consent_delivery       Boolean   @default(false)
+  consent_policy_version String    @default("v1")
+  consent_at             DateTime? @db.Timestamptz(6)
+  revoked_at             DateTime? @db.Timestamptz(6)
+  created_at             DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@unique([guardian_id, student_id])
+  @@index([student_id])
+}

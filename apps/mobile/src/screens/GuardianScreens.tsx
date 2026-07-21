@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, Child, ChildCredits, Note, PaymentRequest } from '../api';
 import { R, SP, useTheme, useUI, type Palette } from '../theme';
 import { ScoreTrendView, type Trend } from './ScoreTrendView';
@@ -144,6 +144,105 @@ function GuardianConsultReports({ studentId }: { studentId: string | null }) {
           )}
         </View>
       ))}
+    </View>
+  );
+}
+
+/**
+ * 본부 결정 ① 학부모 동의·본인확인 — 미성년 자녀 정보 전달 게이트. 웹 GuardianConsentPage 파리티.
+ * 본인확인(어댑터·데모) → 전달 동의 → 철회. 원본 휴대폰·생년월일은 저장하지 않음(마스킹 참조만).
+ */
+type ConsentStatus = {
+  studentId: string; isMinor: boolean;
+  verifyStatus: 'unverified' | 'verified' | 'failed';
+  verifiedName: string | null; verifiedAt: string | null;
+  consentDelivery: boolean; consentAt: string | null; revokedAt: string | null; policyVersion: string;
+};
+
+function GuardianConsentSection({ studentId }: { studentId: string | null }) {
+  const { C } = useTheme();
+  const ui = useUI();
+  const s = useMemo(() => makeStyles(C), [C]);
+  const [st, setSt] = useState<ConsentStatus | null>(null);
+  const [name, setName] = useState('');
+  const [birth, setBirth] = useState('');
+  const [phone, setPhone] = useState('');
+  const [agree, setAgree] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(() => {
+    if (!studentId) return;
+    api.get<ConsentStatus>(`/guardian/consent?studentId=${studentId}`).then(setSt).catch(() => setSt(null));
+  }, [studentId]);
+  useEffect(() => { setSt(null); setAgree(false); load(); }, [studentId, load]);
+  if (!studentId) return null;
+
+  const verified = st?.verifyStatus === 'verified';
+  const inputStyle = { borderWidth: 1, borderColor: C.line, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, color: C.ink, marginBottom: 8, fontSize: 13 };
+
+  const verify = async () => {
+    if (name.trim().length < 2) { Alert.alert('안내', '보호자 성함을 입력하세요.'); return; }
+    setBusy(true);
+    try { await api.post('/guardian/consent/verify', { studentId, name: name.trim(), method: 'phone', birth: birth || undefined, phone: phone || undefined }); setName(''); setBirth(''); setPhone(''); load(); }
+    catch (e) { Alert.alert('본인확인 실패', e instanceof ApiError ? e.message : '다시 시도해 주세요.'); }
+    finally { setBusy(false); }
+  };
+  const grant = async () => {
+    if (!agree) { Alert.alert('안내', '동의 항목에 체크해야 합니다.'); return; }
+    setBusy(true);
+    try { await api.post('/guardian/consent', { studentId }); setAgree(false); load(); }
+    catch (e) { Alert.alert('동의 실패', e instanceof ApiError ? e.message : '다시 시도해 주세요.'); }
+    finally { setBusy(false); }
+  };
+  const revoke = () => Alert.alert('동의 철회', '전달 동의를 철회할까요?', [
+    { text: '취소', style: 'cancel' },
+    { text: '철회', style: 'destructive', onPress: async () => { setBusy(true); try { await api.del(`/guardian/consent?studentId=${studentId}`); load(); } catch { /* noop */ } finally { setBusy(false); } } },
+  ]);
+
+  return (
+    <View style={[ui.card, { marginBottom: 8 }]}>
+      <Text style={s.sec}>🔐 동의 · 본인확인</Text>
+      <Text style={s.policy}>자녀 정보를 전달받으려면 성인 본인확인과 전달 동의가 필요해요. 입력한 휴대폰·생년월일 원본은 저장하지 않아요(마스킹 참조만).</Text>
+
+      {/* 1) 본인확인 */}
+      <Text style={s.repLabelWide}>1. 본인확인</Text>
+      {verified ? (
+        <Text style={{ fontSize: 13, color: C.teal, fontWeight: '700', marginBottom: 6 }}>✓ 확인 완료 ({st?.verifiedName}) · {DKST(st?.verifiedAt ?? null)}</Text>
+      ) : (
+        <View style={{ marginTop: 4 }}>
+          {st?.verifyStatus === 'failed' && <Text style={{ fontSize: 12, color: C.danger ?? '#c0392b', marginBottom: 4 }}>실패 — 다시 시도</Text>}
+          <TextInput style={inputStyle} value={name} onChangeText={setName} placeholder="보호자 성함" placeholderTextColor={C.caption} />
+          <TextInput style={inputStyle} value={birth} onChangeText={setBirth} placeholder="생년월일 8자리(선택)" placeholderTextColor={C.caption} keyboardType="number-pad" />
+          <TextInput style={inputStyle} value={phone} onChangeText={setPhone} placeholder="휴대폰 번호" placeholderTextColor={C.caption} keyboardType="phone-pad" />
+          <TouchableOpacity onPress={verify} disabled={busy} style={{ backgroundColor: C.teal, borderRadius: 8, paddingVertical: 11, alignItems: 'center' }}>
+            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>본인확인</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* 2) 전달 동의 */}
+      <Text style={[s.repLabelWide, { marginTop: 14 }]}>2. 데이터 전달 동의</Text>
+      {!verified ? (
+        <Text style={{ fontSize: 12.5, color: C.muted }}>본인확인을 먼저 완료해 주세요.</Text>
+      ) : st?.consentDelivery ? (
+        <View>
+          <Text style={{ fontSize: 13, color: C.teal, fontWeight: '700', marginBottom: 8 }}>✓ 동의됨 · {DKST(st?.consentAt ?? null)} (약관 {st?.policyVersion})</Text>
+          <TouchableOpacity onPress={revoke} disabled={busy} style={{ borderWidth: 1, borderColor: C.line, borderRadius: 8, paddingVertical: 10, alignItems: 'center' }}>
+            <Text style={{ color: C.ink, fontWeight: '700', fontSize: 13 }}>동의 철회</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View>
+          <TouchableOpacity onPress={() => setAgree((v) => !v)} style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start', marginBottom: 10 }}>
+            <Text style={{ fontSize: 16, color: agree ? C.teal : C.muted }}>{agree ? '☑' : '☐'}</Text>
+            <Text style={{ flex: 1, fontSize: 12.5, color: C.ink, lineHeight: 18 }}>자녀의 상담 리포트 등 학습 정보를 보호자(본인)에게 전달받는 것에 동의합니다. 언제든 철회할 수 있어요.</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={grant} disabled={busy || !agree} style={{ backgroundColor: agree ? C.teal : C.line, borderRadius: 8, paddingVertical: 11, alignItems: 'center' }}>
+            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>동의하기</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      <Text style={{ fontSize: 11, color: C.muted, marginTop: 10, lineHeight: 16 }}>ℹ️ 동의해도 플랫폼이 개인정보를 외부로 자동 발송하지 않아요. 직접 통지 채널은 본부 확정·연동 후 활성화됩니다.</Text>
     </View>
   );
 }
@@ -359,6 +458,9 @@ export function GuardianConsult({ children, activeId, setActiveId }: Props) {
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
       <Text style={ui.h}>자녀 상세 리포트</Text>
       <KidSwitcher children={children} activeId={activeId} setActiveId={setActiveId} />
+
+      {/* 본부 결정 ① 동의·본인확인 게이트 */}
+      <GuardianConsentSection studentId={activeId} />
 
       {/* 주간 요약 */}
       {report && (
@@ -650,6 +752,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   rChipT: { fontSize: 12, fontWeight: '700', color: C.ink },
   repRow: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 5, borderTopWidth: 1, borderTopColor: C.line, gap: 10 },
   repLabel: { fontSize: 12.5, fontWeight: '700', color: C.muted, width: 44 },
+  repLabelWide: { fontSize: 12.5, fontWeight: '800', color: C.ink, marginBottom: 6 },
   repVal: { fontSize: 13, color: C.ink, flex: 1, lineHeight: 19 },
   consItem: { backgroundColor: C.fill, borderRadius: R.sm, padding: 10, marginBottom: 6 },
   notifBadge: { backgroundColor: C.confirmed, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 },
