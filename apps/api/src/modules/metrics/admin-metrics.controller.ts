@@ -13,4 +13,10 @@ export class AdminMetricsController {
   tutorSource(@CurrentUser() user: AuthUser, @Query('days') days?: string) {
     return this.svc.tutorSource(user, Number(days) || 90);
   }
+
+  /** GET /admin/metrics/diag-match?days=30 — 진단 추천 노출·클릭·CTR. */
+  @Get('diag-match')
+  diagMatch(@CurrentUser() user: AuthUser, @Query('days') days?: string) {
+    return this.svc.diagMatch(user, Number(days) || 30);
+  }
 }

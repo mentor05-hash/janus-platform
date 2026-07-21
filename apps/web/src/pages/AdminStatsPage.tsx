@@ -16,6 +16,7 @@ type SourceRow = {
   reviews: number; satisfaction: number | null;
 };
 type TutorSourceMetric = { days: number; bySource: SourceRow[]; note: string };
+type DiagMatchMetric = { days: number; shown: number; shownStudents: number; clicked: number; clickedStudents: number; ctr: number | null; note: string };
 const SRC_LABEL: Record<string, string> = { freelance: '프리랜서(위탁)', salaried: '상근' };
 const won = (n: number) => `₩${n.toLocaleString('ko-KR')}`;
 const numOrDash = (n: number | null, suffix = '') => (n == null ? '—' : `${n}${suffix}`);
@@ -33,11 +34,13 @@ function Stat({ label, value, sub }: { label: string; value: string | number; su
 export function AdminStatsPage() {
   const [d, setD] = useState<Overview | null>(null);
   const [ts, setTs] = useState<TutorSourceMetric | null>(null);
+  const [dm, setDm] = useState<DiagMatchMetric | null>(null);
   const [error, setError] = useState('');
   useEffect(() => {
     api.get<Overview>('/admin/stats/overview').then(setD).catch(() => setError('통계 조회 실패'));
-    // tutor_source 지표는 부가 섹션 — 실패해도 본 대시보드는 막지 않는다.
+    // 부가 지표 섹션 — 실패해도 본 대시보드는 막지 않는다.
     api.get<TutorSourceMetric>('/admin/metrics/tutor-source?days=90').then(setTs).catch(() => setTs(null));
+    api.get<DiagMatchMetric>('/admin/metrics/diag-match?days=30').then(setDm).catch(() => setDm(null));
   }, []);
 
   if (error) return <div><PageHeader title="지표 대시보드" /><ErrorText>{error}</ErrorText></div>;
@@ -106,6 +109,18 @@ export function AdminStatsPage() {
             </div>
             <div style={{ fontSize: 12, color: 'var(--caption)', marginTop: 10, lineHeight: 1.6 }}>ℹ️ {ts.note}</div>
           </Card>
+        </>
+      )}
+
+      {dm && (
+        <>
+          <h3 style={{ fontSize: 14, margin: '18px 0 8px', color: 'var(--ink)' }}>🎯 진단 기반 추천 효과 <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--caption)' }}>(최근 {dm.days}일)</span></h3>
+          <div style={grid}>
+            <Stat label="추천 노출" value={dm.shown} sub={`고유 학생 ${dm.shownStudents}명`} />
+            <Stat label="상담사 클릭" value={dm.clicked} sub={`고유 학생 ${dm.clickedStudents}명`} />
+            <Stat label="클릭률(CTR)" value={dm.ctr == null ? '—' : `${dm.ctr}%`} sub="클릭 / 노출" />
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--caption)', marginTop: -8, marginBottom: 8, lineHeight: 1.6 }}>ℹ️ {dm.note}</div>
         </>
       )}
     </div>

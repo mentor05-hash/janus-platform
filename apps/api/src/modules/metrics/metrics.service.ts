@@ -82,4 +82,24 @@ export class MetricsService {
       note: '만족도=후기 4항목 평균(source는 teacher 현재 고용유형 근사). 완주율 분모(예약 수)는 후속. 현재 전원 freelance — 첫 salaried 채용 시 자동 분기.',
     };
   }
+
+  /** 진단 기반 상담사 추천 퍼널 — 노출(shown)·클릭(clicked)·CTR·고유 학생 수. 읽기 전용 관측. */
+  async diagMatch(user: AuthUser, days = 30) {
+    this.assertStaff(user);
+    const since = new Date(Date.now() - Math.min(Math.max(days, 1), 365) * 86_400_000);
+    const rows = await this.prisma.$queryRaw<Array<{ event: string; n: number; students: number }>>`
+      SELECT event, count(*)::int AS n, count(DISTINCT meta->>'studentId')::int AS students
+      FROM funnel_event
+      WHERE page = 'diag_match' AND created_at >= ${since}
+      GROUP BY event`;
+    const of = (e: string) => rows.find((r) => r.event === e) ?? { n: 0, students: 0 };
+    const shown = of('shown'); const clicked = of('clicked');
+    return {
+      days,
+      shown: shown.n, shownStudents: shown.students,
+      clicked: clicked.n, clickedStudents: clicked.students,
+      ctr: shown.n > 0 ? Math.round((clicked.n / shown.n) * 1000) / 10 : null,
+      note: '노출=추천 카드가 보인 횟수, 클릭=상담사 선택. CTR=클릭/노출. 추천 효과 baseline.',
+    };
+  }
 }
