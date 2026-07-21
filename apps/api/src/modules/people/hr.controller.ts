@@ -372,6 +372,8 @@ export class HrController {
           subjects: true,
           grade: true,
           teacher_category: true,
+          target_achievements: true,
+          target_achievements_verified: true,
           account: { select: { name: true, status: true } },
           center: { select: { name: true } },
         },
@@ -389,6 +391,8 @@ export class HrController {
         grade: t.grade,
         category: t.teacher_category,
         centerName: t.center?.name ?? null,
+        achievementsCount: Array.isArray(t.target_achievements) ? t.target_achievements.length : 0,
+        targetAchievementsVerified: t.target_achievements_verified === true,
       })),
       meta: buildPageMeta(total, q.page, q.size),
     };

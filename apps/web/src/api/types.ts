@@ -120,6 +120,8 @@ export interface HrTeacher {
   grade: string;
   category: string | null;
   centerName: string | null;
+  achievementsCount?: number;
+  targetAchievementsVerified?: boolean;
 }
 
 export interface HrStaff {

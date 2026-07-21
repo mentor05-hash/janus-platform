@@ -312,6 +312,8 @@ export class PeopleService {
     total_consult: number | null;
     teacher_category: string | null;
     modes?: string[];
+    target_achievements?: unknown;
+    target_achievements_verified?: boolean;
     account: { name: string; center_id: string | null };
   }) {
     return {
@@ -326,6 +328,8 @@ export class PeopleService {
       rating: t.rating == null ? null : Number(t.rating),
       totalConsult: t.total_consult ?? 0,
       modes: t.modes ?? [],
+      achievementsCount: Array.isArray(t.target_achievements) ? t.target_achievements.length : 0,
+      targetAchievementsVerified: t.target_achievements_verified === true,
     };
   }
 }
