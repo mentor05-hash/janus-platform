@@ -65,8 +65,8 @@ export function AdminLayout() {
         <div className="sidebar-foot">
           <span className="avatar">{initial}</span>
           <div>
-            <div className="who">{user?.name}</div>
-            <div className="role">{user?.role}</div>
+            <div className="who">{user?.name}{user?.login_id ? ` · ${user.login_id}` : ''}</div>
+            <div className="role">{scopeLabel}</div>
           </div>
           <button className="btn ghost sm logout" onClick={logout}>로그아웃</button>
         </div>
