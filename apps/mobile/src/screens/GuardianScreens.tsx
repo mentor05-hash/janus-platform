@@ -46,6 +46,58 @@ const makeTxMeta = (C: Palette): Record<string, { label: string; sign: 1 | -1; c
   weekly_expire: { label: '주간 크레딧 소멸', sign: -1, color: C.confirmed },
 });
 
+/** 최근 상담 기록 상세 — 선생님이 공개(final·보호자 공개)한 노트. 탭하면 핵심요약·과제·방향 펼침. 웹 GuardianReportPage 파리티. */
+function GuardianConsultNotes({ studentId, fallbackCount }: { studentId: string | null; fallbackCount: number }) {
+  const { C } = useTheme();
+  const s = useMemo(() => makeStyles(C), [C]);
+  const [notes, setNotes] = useState<Note[] | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
+  useEffect(() => {
+    setNotes(null); setOpenId(null);
+    if (!studentId) return;
+    api.get<Note[]>(`/students/${studentId}/notes`).then((n) => setNotes(Array.isArray(n) ? n : [])).catch(() => setNotes([]));
+  }, [studentId]);
+  const list = notes ?? [];
+  return (
+    <>
+      <Text style={[s.repLabel, { marginTop: 10, marginBottom: 6 }]}>최근 상담 {notes === null ? fallbackCount : list.length}건</Text>
+      {notes === null ? (
+        <ActivityIndicator color={C.teal} style={{ marginVertical: 8, alignSelf: 'flex-start' }} />
+      ) : list.length === 0 ? (
+        <Text style={{ fontSize: 12.5, color: C.muted }}>공개된 상담 기록이 없어요.</Text>
+      ) : (
+        list.slice(0, 6).map((n) => {
+          const on = openId === n.bookingId;
+          const empty = !n.coreSummary && !n.homework && !n.futureDir;
+          return (
+            <View key={n.bookingId} style={s.consItem}>
+              <TouchableOpacity onPress={() => setOpenId(on ? null : n.bookingId)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: C.ink }}>{n.teacherName ? `${n.teacherName} 선생님` : '상담'}</Text>
+                    <Text style={{ fontSize: 11, color: C.muted }}>{DKST(n.createdAt)}{n.consultType ? ` · ${n.consultType}` : ''}</Text>
+                  </View>
+                  {!on && n.coreSummary ? <Text style={{ fontSize: 12.5, color: C.muted, lineHeight: 18, marginTop: 2 }} numberOfLines={1}>{n.coreSummary}</Text> : null}
+                </View>
+                <Text style={{ fontSize: 12, color: C.muted }}>{on ? '▲' : '▼'}</Text>
+              </TouchableOpacity>
+              {on && (
+                empty ? <Text style={{ fontSize: 12.5, color: C.muted, marginTop: 6 }}>요약 없음</Text> : (
+                  <View style={{ marginTop: 6 }}>
+                    {n.coreSummary ? <Text style={{ fontSize: 13, color: C.ink, lineHeight: 19, marginBottom: 6 }}>{n.coreSummary}</Text> : null}
+                    {n.homework ? <Text style={{ fontSize: 12.5, color: C.muted, lineHeight: 18 }}><Text style={{ color: C.ink, fontWeight: '700' }}>과제</Text> · {n.homework}</Text> : null}
+                    {n.futureDir ? <Text style={{ fontSize: 12.5, color: C.muted, lineHeight: 18, marginTop: 2 }}><Text style={{ color: C.ink, fontWeight: '700' }}>방향</Text> · {n.futureDir}</Text> : null}
+                  </View>
+                )
+              )}
+            </View>
+          );
+        })
+      )}
+    </>
+  );
+}
+
 /** 공유받은 상담 리포트(학부모용 요약) — 학생이 "학부모께 공유"한 것만. 웹 GuardianConsultReportsPage 파리티. */
 type ShareItem = { bookingId: string; sharedAt: string | null; openedAt: string | null; startAt: string | null; teacherName: string | null; category: string | null };
 type ShareDetail = { bookingId: string; sentAt: string | null; progress: string; recommendedActions: string[]; effort: string };
@@ -216,21 +268,8 @@ export function GuardianHome({ children, activeId, setActiveId, goTab }: Props) 
             <Text style={s.repVal}>{report.sections.qna.count}건</Text>
           </View>
 
-          {/* 최근 상담 */}
-          <Text style={[s.repLabel, { marginTop: 10, marginBottom: 6 }]}>최근 상담 {report.sections.consultation.count}건</Text>
-          {(report.sections.consultation.recent ?? []).length === 0 ? (
-            <Text style={{ fontSize: 12.5, color: C.muted }}>최근 상담 기록이 없어요.</Text>
-          ) : (
-            (report.sections.consultation.recent ?? []).map((rc, i) => (
-              <View key={i} style={s.consItem}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: C.ink }}>{rc.teacher ?? '상담'}</Text>
-                  <Text style={{ fontSize: 11, color: C.muted }}>{DKST(rc.at)}</Text>
-                </View>
-                {rc.summary ? <Text style={{ fontSize: 12.5, color: C.muted, lineHeight: 18 }} numberOfLines={2}>{rc.summary}</Text> : null}
-              </View>
-            ))
-          )}
+          {/* 최근 상담 — 공개 노트 상세(탭하면 핵심요약·과제·방향 펼침) */}
+          <GuardianConsultNotes studentId={activeId} fallbackCount={report.sections.consultation.count} />
         </View>
       )}
 
