@@ -19,7 +19,11 @@ type Profile = {
   qnaSubjects?: string[];
   reRequestRate?: number | null;
   avgResponseMin?: number | null;
+  targetAchievements?: Array<{ tier?: string; univ?: string; dept?: string; year?: number }>;
+  targetAchievementsVerified?: boolean;
 };
+type Ach = { tier: string; univ: string; dept?: string; year?: number };
+const TIER_OPTIONS = ['최상위', '상위', '중상위', '중위', '중하위', '기초'];
 
 const STRENGTH_POOL = ['개념정리', '문제풀이', '내신대비', '수능대비', '오답관리', '동기부여', '기초탄탄', '심화학습', '입시전략', '멘탈관리'];
 // P6 — 비교과(학습법·진로) 포함: 입시 컨설턴트·멘토가 담당 카테고리로 선택.
@@ -41,12 +45,15 @@ export function TeacherProfilePage() {
   const [qnaEsc, setQnaEsc] = useState(true); // Q&A 후 "이어서 상담" 제공 여부
   const [qnaRecv, setQnaRecv] = useState(true); // F3 — Q&A 질문 수신 on/off
   const [qnaSubs, setQnaSubs] = useState<string[]>([]); // F3 — 수신 과목 제한(빈=전체)
+  const [ach, setAch] = useState<Ach[]>([]); // 목표대학 합격 실적(자기신고)
+  const [achVerified, setAchVerified] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
 
   function hydrate(d: Profile) {
     setP(d); setIntro(d.intro ?? ''); setStrengths(d.strengths ?? []); setSubjects(d.subjects ?? []); setCareer(d.career ?? ''); setModes(d.modes ?? []); setQnaEsc(d.qnaEscalation !== false); setQnaRecv(d.qnaReceive !== false); setQnaSubs(d.qnaSubjects ?? []);
+    setAch((d.targetAchievements ?? []).map((a) => ({ tier: a.tier ?? '', univ: a.univ ?? '', dept: a.dept, year: a.year }))); setAchVerified(d.targetAchievementsVerified === true);
   }
   useEffect(() => {
     api.get<Profile>('/teachers/me/profile').then(hydrate).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
@@ -57,7 +64,7 @@ export function TeacherProfilePage() {
   async function save() {
     setBusy(true); setMsg(''); setError('');
     try {
-      const d = await api.put<Profile>('/teachers/me/profile', { intro, strengths, subjects, career, modes, qnaEscalation: qnaEsc, qnaReceive: qnaRecv, qnaSubjects: qnaSubs });
+      const d = await api.put<Profile>('/teachers/me/profile', { intro, strengths, subjects, career, modes, qnaEscalation: qnaEsc, qnaReceive: qnaRecv, qnaSubjects: qnaSubs, targetAchievements: ach.filter((a) => a.tier && a.univ.trim()) });
       hydrate(d); setMsg('프로필이 저장되었습니다. 학생 검색·추천에 반영됩니다.');
     } catch (e) { setError(e instanceof ApiError ? e.message : '저장 실패'); } finally { setBusy(false); }
   }
@@ -145,6 +152,28 @@ export function TeacherProfilePage() {
           질문 답변 후 학생이 상담으로 이어가는 것(질문승격)을 받습니다
         </label>
         <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 8px' }}>끄면 학생 질문 화면에서 "이어서 상담 가능" 표시가 빠지고, 상담 이어가기 요청이 차단됩니다.</p>
+        {/* 목표대학 합격 실적(자기신고) — 진단 매칭 가중·카드 배지에 반영. 수정 시 재검증 필요. */}
+        <label className="label" style={{ marginTop: 12 }}>
+          목표대학 합격 실적{' '}
+          {achVerified
+            ? <span style={{ fontSize: 11, fontWeight: 800, color: '#1f7a52', background: '#e3f3ea', borderRadius: 5, padding: '1px 6px' }}>✓ 검증됨</span>
+            : ach.length > 0 && <span style={{ fontSize: 11, color: 'var(--muted)' }}>· 검증 대기(관리자 승인 후 배지)</span>}
+        </label>
+        <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>자기신고 실적입니다. 저장하면 검증 상태가 초기화되어 관리자 재승인이 필요합니다.</div>
+        {ach.map((a, i) => (
+          <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            <select value={a.tier} onChange={(e) => setAch((p2) => p2.map((x, j) => (j === i ? { ...x, tier: e.target.value } : x)))} className="input" style={{ width: 92 }}>
+              <option value="">라인</option>
+              {TIER_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <input className="input" placeholder="대학" value={a.univ} onChange={(e) => setAch((p2) => p2.map((x, j) => (j === i ? { ...x, univ: e.target.value } : x)))} style={{ width: 110 }} />
+            <input className="input" placeholder="학과(선택)" value={a.dept ?? ''} onChange={(e) => setAch((p2) => p2.map((x, j) => (j === i ? { ...x, dept: e.target.value } : x)))} style={{ width: 110 }} />
+            <input className="input" placeholder="연도" inputMode="numeric" value={a.year ?? ''} onChange={(e) => setAch((p2) => p2.map((x, j) => (j === i ? { ...x, year: Number(e.target.value) || undefined } : x)))} style={{ width: 72 }} />
+            <button type="button" onClick={() => setAch((p2) => p2.filter((_, j) => j !== i))} style={{ border: 'none', background: 'none', color: 'var(--danger,#dc2626)', cursor: 'pointer', fontSize: 13 }}>삭제</button>
+          </div>
+        ))}
+        <button type="button" onClick={() => setAch((p2) => [...p2, { tier: '', univ: '' }])} className="btn ghost sm" style={{ marginBottom: 4 }}>+ 실적 추가</button>
+
         <Button onClick={save} loading={busy} style={{ marginTop: 8 }}>프로필 저장</Button>
       </Card>
 
