@@ -134,7 +134,7 @@ export function TeacherReportsPage() {
                   </div>
                   {/* 학부모용 뷰 */}
                   <div>
-                    <h3 style={{ fontSize: 14, margin: '0 0 8px' }}>👪 학부모용 뷰 <span style={{ fontSize: 11, color: 'var(--caption)', fontWeight: 400 }}>(가격·상품 단정 없이 "권장"까지)</span></h3>
+                    <h3 style={{ fontSize: 14, margin: '0 0 8px' }}>👪 학부모용 뷰 <span style={{ fontSize: 11, color: 'var(--caption)', fontWeight: 400 }}>(과정·상품 추천 가능 · 구체 금액은 미기재)</span></h3>
                     <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>진척 요지</label>
                     <textarea className="input" rows={4} value={gProgress} onChange={(e) => setGProgress(e.target.value)} disabled={!editable} style={box} />
                     <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>권장 다음 액션</label>

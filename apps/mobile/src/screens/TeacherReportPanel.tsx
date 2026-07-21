@@ -95,7 +95,7 @@ export function TeacherReportPanel({ bookingId }: { bookingId: string }) {
             <Field label="다음 학습" val={sNext} on={setSNext} />
             {v.guardian ? (
               <>
-                <Text style={s.sub}>👪 학부모용 <Text style={s.note}>(가격·상품 단정 없이 "권장"까지)</Text></Text>
+                <Text style={s.sub}>👪 학부모용 <Text style={s.note}>(과정·상품 추천 가능 · 구체 금액 미기재)</Text></Text>
                 <Field label="진척 요지" val={gProg} on={setGProg} />
                 <Field label="권장 다음 액션" val={gAct} on={setGAct} />
                 <Field label="소요·권장 안내" val={gEff} on={setGEff} />
