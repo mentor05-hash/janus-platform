@@ -41,7 +41,7 @@ export function TeacherReportPanel({ bookingId }: { bookingId: string }) {
     setBusy(true); setMsg('');
     try {
       const r = await api.post<{ origin: string; demo: boolean; guardianView?: boolean }>(`/media/reports/${bookingId}/views/generate`, {});
-      setMsg(`2뷰를 생성했어요(원천: ${r.origin === 'audio' ? '녹음' : '상담 기록'}${r.demo ? ' · 데모, 검수 필요' : ''}).`);
+      setMsg(`요약을 만들었어요(원천: ${r.origin === 'audio' ? '녹음' : '상담 기록'}${r.demo ? ' · 데모, 검수 필요' : ''}).`);
       load();
     } catch (e) { setMsg(e instanceof ApiError ? e.message : '생성 실패 — 상담 기록을 먼저 저장했는지 확인하세요.'); } finally { setBusy(false); }
   }
@@ -60,9 +60,13 @@ export function TeacherReportPanel({ bookingId }: { bookingId: string }) {
     } catch (e) { setMsg(e instanceof ApiError ? e.message : '승인 실패'); } finally { setBusy(false); }
   }
   async function send() {
+    if (v?.status !== 'approved') return; // 승인 상태에서만 발송(중복 클릭 가드)
     setBusy(true); setMsg('');
-    try { await api.post(`/media/reports/${bookingId}/views/send`, {}); setMsg('발송했어요.'); load(); }
-    catch (e) { setMsg(e instanceof ApiError ? e.message : '발송 실패'); } finally { setBusy(false); }
+    try {
+      await api.post(`/media/reports/${bookingId}/views/send`, {});
+      setV((prev) => (prev ? { ...prev, status: 'sent' } : prev)); // 낙관적 — 재조회 전이라도 발송 버튼 즉시 잠금
+      setMsg('발송했어요.'); load();
+    } catch (e) { setMsg(e instanceof ApiError ? e.message : '발송 실패'); } finally { setBusy(false); }
   }
 
   const editable = v && v.status !== 'sent';
@@ -75,12 +79,12 @@ export function TeacherReportPanel({ bookingId }: { bookingId: string }) {
 
   return (
     <View style={s.box}>
-      <Text style={s.h}>📋 학생·학부모 리포트(2뷰)</Text>
+      <Text style={s.h}>📋 학생·학부모용 요약</Text>
       {loading ? <ActivityIndicator color={C.teal} style={{ marginVertical: 12 }} />
         : !v ? (
           <>
             <Text style={s.hint}>상담 기록(핵심요약)을 저장한 뒤, 학생용·학부모용 리포트를 만들 수 있어요.</Text>
-            <TouchableOpacity disabled={busy} style={[s.btn, s.btnP]} onPress={generate}><Text style={s.btnPT}>✨ 2뷰 생성</Text></TouchableOpacity>
+            <TouchableOpacity disabled={busy} style={[s.btn, s.btnP]} onPress={generate}><Text style={s.btnPT}>✨ 요약 만들기</Text></TouchableOpacity>
           </>
         ) : (
           <>
@@ -101,7 +105,7 @@ export function TeacherReportPanel({ bookingId }: { bookingId: string }) {
               <View style={s.acts}>
                 <TouchableOpacity disabled={busy} style={[s.btn, s.btnG]} onPress={generate}><Text style={s.btnGT}>재생성</Text></TouchableOpacity>
                 {v.status === 'draft' && <TouchableOpacity disabled={busy} style={[s.btn, s.btnP]} onPress={approve}><Text style={s.btnPT}>승인</Text></TouchableOpacity>}
-                {v.status === 'approved' && <TouchableOpacity disabled={busy} style={[s.btn, s.btnP]} onPress={send}><Text style={s.btnPT}>📤 발송</Text></TouchableOpacity>}
+                {v.status === 'approved' && <TouchableOpacity disabled={busy} style={[s.btn, s.btnP]} onPress={send}><Text style={s.btnPT}>{busy ? '발송 중…' : '📤 발송'}</Text></TouchableOpacity>}
               </View>
             ) : <Text style={s.sent}>발송 완료{v.guardianShared ? ' · 학생이 학부모에게 공유함' : ''}</Text>}
           </>

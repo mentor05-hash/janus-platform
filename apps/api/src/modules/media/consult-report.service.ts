@@ -387,7 +387,7 @@ export class ConsultReportService {
   async viewsDetail(user: AuthUser, bookingId: string) {
     const { isTeacher, isStudent } = await this.assertBooking(user, bookingId);
     const { report, views } = await this.parentAndViews(bookingId);
-    if (!report || views.length === 0) throw new NotFoundException('2뷰 리포트가 아직 없습니다.');
+    if (!report || views.length === 0) throw new NotFoundException('아직 만든 요약이 없습니다.');
     if (isStudent && !isTeacher && report.status !== 'sent') throw new NotFoundException('리포트가 아직 없습니다.');
     const student = views.find((v) => v.audience === 'student');
     const guardian = views.find((v) => v.audience === 'guardian');

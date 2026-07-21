@@ -47,7 +47,7 @@ export function TeacherReportsPage() {
     if (!sel) return; setBusy(true); setMsg('');
     try {
       const r = await api.post<{ ok: boolean; origin: string; demo: boolean }>(`/media/reports/${sel}/views/generate`, {});
-      setMsg(`2뷰를 생성했어요(원천: ${r.origin === 'audio' ? '녹음 요약' : '상담 기록'}${r.demo ? ' · 데모' : ''}). 검수 후 승인·발송하세요.`);
+      setMsg(`요약을 만들었어요(원천: ${r.origin === 'audio' ? '녹음 요약' : '상담 기록'}${r.demo ? ' · 데모' : ''}). 검수 후 승인·발송하세요.`);
       await open(sel); await load();
     } catch (e) { setMsg((e as Error).message || '생성 실패'); } finally { setBusy(false); }
   }
@@ -65,9 +65,14 @@ export function TeacherReportsPage() {
     catch (e) { setMsg((e as Error).message || '승인 실패'); } finally { setBusy(false); }
   }
   async function send() {
-    if (!sel || !confirm('학생 계정에 리포트를 발송할까요? 발송 후에는 수정할 수 없어요.\n(학부모 전달은 학생이 직접 공유합니다 — 플랫폼이 학부모에게 직접 보내지 않습니다.)')) return; setBusy(true);
-    try { await api.post(`/media/reports/${sel}/views/send`, {}); track('consult_report', 'cta', 'send', { ev: 'report_sent', bookingId: sel }); setMsg('발송했어요.'); await open(sel); await load(); }
-    catch (e) { setMsg((e as Error).message || '발송 실패'); } finally { setBusy(false); }
+    if (!sel || views?.status !== 'approved') return; // 승인 상태에서만 발송(중복 클릭 가드)
+    if (!confirm('학생 계정에 리포트를 발송할까요? 발송 후에는 수정할 수 없어요.\n(학부모 전달은 학생이 직접 공유합니다 — 플랫폼이 학부모에게 직접 보내지 않습니다.)')) return; setBusy(true);
+    try {
+      await api.post(`/media/reports/${sel}/views/send`, {});
+      track('consult_report', 'cta', 'send', { ev: 'report_sent', bookingId: sel });
+      setViews((prev) => (prev ? { ...prev, status: 'sent' } : prev)); // 낙관적 — 재조회 전이라도 발송 버튼 즉시 잠금
+      setMsg('발송했어요.'); await open(sel); await load();
+    } catch (e) { setMsg((e as Error).message || '발송 실패'); } finally { setBusy(false); }
   }
 
   const editable = views && views.status !== 'sent';
@@ -76,10 +81,10 @@ export function TeacherReportsPage() {
   return (
     <div>
       <h1 className="page-title">상담 리포트</h1>
-      <p className="page-sub">요약(녹음 또는 상담 기록)에서 <b>학생용·학부모용 2뷰</b>를 만들어 검수·발송합니다. 학부모 전달은 학생 주도 공유예요 — 플랫폼이 학부모에게 직접 보내지 않습니다.</p>
+      <p className="page-sub">녹음 또는 상담 기록에서 <b>학생용·학부모용 요약</b>을 만들어 검수·발송합니다. 학부모 전달은 학생 주도 공유예요 — 플랫폼이 학부모에게 직접 보내지 않습니다.</p>
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(260px, 320px) 1fr', gap: 16, alignItems: 'start' }}>
         <div className="card" style={{ padding: 10 }}>
-          {items.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 13, padding: 10 }}>리포트가 없어요. 녹음 상담이 끝나거나 상담 기록을 저장하면 여기서 2뷰를 생성할 수 있어요.</p>}
+          {items.length === 0 && <p style={{ color: 'var(--muted)', fontSize: 13, padding: 10 }}>리포트가 없어요. 녹음 상담이 끝나거나 상담 기록을 저장하면 여기서 요약을 만들 수 있어요.</p>}
           {items.map((it) => {
             const c = CHIP[it.status] ?? CHIP.draft;
             return (
@@ -90,7 +95,7 @@ export function TeacherReportsPage() {
                   <span style={{ fontSize: 11, background: c.bg, color: c.fg, borderRadius: 999, padding: '2px 8px', fontWeight: 700 }}>{c.label}</span>
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
-                  {D(it.startAt)}{it.category ? ` · ${it.category}` : ''}{it.hasViews ? ' · 2뷰 있음' : ''}
+                  {D(it.startAt)}{it.category ? ` · ${it.category}` : ''}{it.hasViews ? ' · 요약 있음' : ''}
                   {it.status === 'sent' && (it.openedAt ? ' · 열람됨' : ' · 미열람')}
                 </div>
               </button>
@@ -101,8 +106,8 @@ export function TeacherReportsPage() {
           {!sel ? <p style={{ color: 'var(--muted)', fontSize: 13 }}>왼쪽에서 상담을 선택하세요.</p>
             : noViews ? (
               <div>
-                <p style={{ fontSize: 13.5, color: 'var(--ink)' }}>아직 2뷰 리포트가 없어요. 요약 원천(녹음 요약 또는 상담 기록의 핵심 요약)에서 학생용·학부모용 뷰를 생성하세요.</p>
-                <button className="btn sm" disabled={busy} onClick={generate}>✨ 학생·학부모 2뷰 생성</button>
+                <p style={{ fontSize: 13.5, color: 'var(--ink)' }}>아직 만든 요약이 없어요. 원천(녹음 요약 또는 상담 기록의 핵심 요약)에서 학생용·학부모용 요약을 만드세요.</p>
+                <button className="btn sm" disabled={busy} onClick={generate}>✨ 학생·학부모용 요약 만들기</button>
                 {msg && <p style={{ fontSize: 12.5, color: 'var(--teal)', marginTop: 8 }}>{msg}</p>}
               </div>
             )
@@ -143,7 +148,7 @@ export function TeacherReportsPage() {
                   {views.status !== 'sent' && <>
                     <button className="btn ghost sm" disabled={busy} onClick={generate}>초안 재생성</button>
                     {views.status === 'draft' && <button className="btn sm" disabled={busy} onClick={approve}>승인</button>}
-                    {views.status === 'approved' && <button className="btn sm" disabled={busy} onClick={send}>📤 학생에게 발송</button>}
+                    {views.status === 'approved' && <button className="btn sm" disabled={busy} onClick={send}>{busy ? '발송 중…' : '📤 학생에게 발송'}</button>}
                   </>}
                   {views.status === 'sent' && <span style={{ fontSize: 13, color: 'var(--muted)' }}>발송됨 · {D(views.sentAt)}{views.guardianShared ? ' · 학생이 학부모에게 공유함' : ''}</span>}
                   {msg && <span style={{ fontSize: 12.5, color: 'var(--teal)' }}>{msg}</span>}
