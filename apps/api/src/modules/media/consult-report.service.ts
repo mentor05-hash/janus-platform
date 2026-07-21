@@ -462,7 +462,13 @@ export class ConsultReportService {
     if (!report || report.status !== 'sent') throw new NotFoundException('발송된 리포트만 공유할 수 있습니다.');
     const gv = await this.prisma.consult_report_view.findUnique({ where: { report_id_audience: { report_id: report.id, audience: 'guardian' } } });
     if (!gv) throw new NotFoundException('학부모용 뷰가 없습니다.');
-    if (!gv.shared_at) await this.prisma.consult_report_view.update({ where: { id: gv.id }, data: { shared_at: new Date() } });
+    if (!gv.shared_at) {
+      await this.prisma.consult_report_view.update({ where: { id: gv.id }, data: { shared_at: new Date() } });
+      // 최초 공유 시에만 — 이미 승인 연결된 학부모 "계정 내" 인앱 알림(외부 직접 push 아님).
+      // 학생 주도 공유(§5)의 결과 통지이므로 §8 미성년 직접 push 제약과 무관. 재공유 시 중복 알림 방지.
+      const links = await this.prisma.guardian_student_link.findMany({ where: { student_id: user.id, status: 'approved' } });
+      for (const l of links) void this.notify?.notify(l.guardian_id, 'consult_report_shared', { bookingId, studentId: user.id });
+    }
     await this.recordFunnel('cta', 'shared_to_guardian', { bookingId });
     // 학부모 직접 push(알림톡/이메일) — 훅만 존재, 활성화는 본부 확정 후(§8-1·§8-4). 기본 OFF.
     await this.maybePushGuardian(bookingId);

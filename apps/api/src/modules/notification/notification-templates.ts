@@ -53,6 +53,7 @@ const TEMPLATES: Record<string, Tmpl> = {
   // ── 상담기록·성적·질문 ──
   note_shared: { title: '상담 기록 공개', body: '상담 기록(핵심요약·숙제·향후방향)이 공개되었어요.' },
   consult_report: { title: '상담 리포트 도착 📋', body: '상담 요약 리포트가 도착했어요. 상담 리포트에서 확인하세요.' },
+  consult_report_shared: { title: '자녀 상담 리포트 공유 📋', body: '자녀가 상담 요약(학부모용)을 공유했어요. 상담 리포트에서 확인하세요.' },
   score_uploaded: { title: '성적 업데이트', body: '성적이 업데이트되었어요. 성적·배치에서 확인하세요.' },
   entitlement_expiring: { title: '이용권 만료 임박', body: '{product} 이용권이 {days}일 뒤 만료돼요. 내 이용권에서 확인·연장하세요.' },
   qna_answered: { title: '질문 답변', body: '등록한 질문에 답변이 달렸어요.' },
