@@ -46,6 +46,56 @@ const makeTxMeta = (C: Palette): Record<string, { label: string; sign: 1 | -1; c
   weekly_expire: { label: '주간 크레딧 소멸', sign: -1, color: C.confirmed },
 });
 
+/** 공유받은 상담 리포트(학부모용 요약) — 학생이 "학부모께 공유"한 것만. 웹 GuardianConsultReportsPage 파리티. */
+type ShareItem = { bookingId: string; sharedAt: string | null; openedAt: string | null; startAt: string | null; teacherName: string | null; category: string | null };
+type ShareDetail = { bookingId: string; sentAt: string | null; progress: string; recommendedActions: string[]; effort: string };
+
+function GuardianConsultReports({ studentId }: { studentId: string | null }) {
+  const { C } = useTheme();
+  const ui = useUI();
+  const s = useMemo(() => makeStyles(C), [C]);
+  const [items, setItems] = useState<ShareItem[]>([]);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [det, setDet] = useState<ShareDetail | null>(null);
+  useEffect(() => {
+    setItems([]); setOpenId(null); setDet(null);
+    if (!studentId) return;
+    api.get<ShareItem[]>(`/media/reports/guardian/${studentId}`).then((r) => setItems(Array.isArray(r) ? r : [])).catch(() => setItems([]));
+  }, [studentId]);
+  const open = async (id: string) => {
+    if (openId === id) { setOpenId(null); return; }
+    setOpenId(id); setDet(null);
+    try { setDet(await api.get<ShareDetail>(`/media/reports/guardian/${studentId}/${id}`)); } catch { setDet(null); }
+  };
+  if (!studentId || items.length === 0) return null;
+  return (
+    <View style={[ui.card, { marginBottom: 8 }]}>
+      <Text style={s.sec}>📋 공유받은 상담 리포트</Text>
+      {items.map((it) => (
+        <View key={it.bookingId} style={{ borderTopWidth: 1, borderTopColor: C.line, paddingTop: 8, marginTop: 8 }}>
+          <TouchableOpacity onPress={() => open(it.bookingId)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={{ flex: 1, fontSize: 13, fontWeight: '700', color: C.ink }}>
+              {it.teacherName ?? '선생님'} 선생님 <Text style={{ fontSize: 11, fontWeight: '400', color: C.muted }}>{DKST(it.startAt)}{it.category ? ` · ${it.category}` : ''}</Text>
+            </Text>
+            <Text style={{ fontSize: 12, color: C.muted }}>{openId === it.bookingId ? '▲' : '▼'}</Text>
+          </TouchableOpacity>
+          {openId === it.bookingId && (
+            !det ? <ActivityIndicator color={C.teal} style={{ marginVertical: 8 }} /> : (
+              <View style={{ marginTop: 8 }}>
+                <Text style={s.repLabel}>진척 요지</Text>
+                <Text style={{ fontSize: 13, color: C.ink, lineHeight: 19, marginBottom: 8 }}>{det.progress}</Text>
+                <Text style={s.repLabel}>권장 다음 액션</Text>
+                {det.recommendedActions.map((a, i) => <Text key={i} style={{ fontSize: 13, color: C.ink, lineHeight: 19 }}>• {a}</Text>)}
+                {det.effort ? <Text style={{ fontSize: 12.5, color: C.muted, marginTop: 6 }}>{det.effort}</Text> : null}
+              </View>
+            )
+          )}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export function GuardianHome({ children, activeId, setActiveId, goTab }: Props) {
   const { C } = useTheme();
   const ui = useUI();
@@ -183,6 +233,9 @@ export function GuardianHome({ children, activeId, setActiveId, goTab }: Props) 
           )}
         </View>
       )}
+
+      {/* 공유받은 상담 리포트(학부모용 요약) — 자녀가 공유한 것만 */}
+      <GuardianConsultReports studentId={activeId} />
 
       {/* 멤버십 업셀 배너 */}
       {/* 상담 녹음·AI 요약 보호자 동의(본부 결정) — 미성년 음성 외부 STT 는 동의 자녀 한정 */}
