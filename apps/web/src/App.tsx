@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
 import { RealtimeNotifier } from './components/RealtimeNotifier';
+import { SchoolRecordBlockModal } from './components/SchoolRecordGuard';
 import { roleHome } from './auth/roleHome';
 import { AppLayout } from './components/AppLayout';
 import { AdminLayout } from './components/AdminLayout';
@@ -115,6 +116,7 @@ export function App() {
   return (
     <>
     <RealtimeNotifier />
+    <SchoolRecordBlockModal />
     <Suspense fallback={<div style={{ padding: 40, color: 'var(--muted)' }}>불러오는 중…</div>}>
     <Routes>
       <Route path="/" element={<JanusLandingPage />} />

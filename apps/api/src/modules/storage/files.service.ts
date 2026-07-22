@@ -16,6 +16,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccountRole } from '../../config/enums';
 import { STORAGE_PROVIDER } from './storage.types';
 import type { StorageProvider, UploadedFileLike } from './storage.types';
+import { SchoolRecordGuardService } from '../guard/school-record-guard.service';
 
 /**
  * 파일 업로드/다운로드 (StorageProvider 위임 + stored_file 소유권 기록).
@@ -26,6 +27,7 @@ export class FilesService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(STORAGE_PROVIDER) private readonly storage: StorageProvider,
+    private readonly guard: SchoolRecordGuardService,
   ) {}
 
   /** 이 선생님의 예약 중 해당 파일을 첨부로 가진 건이 있는지(jsonb 포함 검사). */
@@ -73,6 +75,8 @@ export class FilesService {
   async upload(ownerId: string, file: UploadedFileLike) {
     if (!file?.buffer?.length)
       throw new BadRequestException('업로드할 파일이 없습니다.');
+    // 생기부 가드(지시서 §6 스텝2) — 저장 전 판정. 감지 시 예외(스토리지·DB 미기록).
+    await this.guard.assertUploadAllowed(file);
     const key = `uploads/${randomUUID()}`;
     await this.storage.put({
       key,
@@ -141,6 +145,9 @@ export class FilesService {
     const isPdf = file.mimetype === 'application/pdf' || /\.pdf$/i.test(file.originalname ?? '');
     if (!isPdf) throw new BadRequestException('PDF 파일이 아닙니다.');
     if (file.buffer.length > 40 * 1024 * 1024) throw new BadRequestException('PDF 가 너무 큽니다(40MB 초과).');
+
+    // 생기부 가드(지시서 §6 스텝2) — PDF 텍스트 판정. 감지 시 저장·렌더 전 예외.
+    await this.guard.assertUploadAllowed(file);
 
     // 원본 PDF 저장(페이지 넘김 시 재렌더용)
     const pdfKey = `uploads/${randomUUID()}`;

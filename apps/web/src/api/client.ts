@@ -30,6 +30,33 @@ export class ApiError extends Error {
   }
 }
 
+/** 생기부 가드 차단 전역 이벤트명 — 앱 루트의 §4-b 모달이 수신. */
+export const SCHOOL_RECORD_BLOCKED_EVENT = 'janus:school-record-blocked';
+
+/**
+ * 오류 응답 → ApiError. 생기부 가드 코드(SR_*)면 전역 이벤트를 발생시켜
+ * 업로드 경로 어디서든 §4-b 모달이 뜨게 한다(각 핸들러 catch 수정 불필요).
+ */
+function raiseApiError(json: unknown, res: Response): never {
+  const err = (json as { error?: { code?: string; message?: string } })?.error ?? {
+    code: 'ERROR',
+    message: res.statusText,
+  };
+  const code = err.code ?? 'ERROR';
+  if (typeof code === 'string' && code.startsWith('SR_')) {
+    try {
+      window.dispatchEvent(
+        new CustomEvent(SCHOOL_RECORD_BLOCKED_EVENT, {
+          detail: { code, message: err.message },
+        }),
+      );
+    } catch {
+      /* 비브라우저 환경 무시 */
+    }
+  }
+  throw new ApiError(code, err.message ?? res.statusText, res.status);
+}
+
 export interface PageMeta {
   page: number;
   size: number;
@@ -57,10 +84,7 @@ async function raw<T>(
   });
   const text = await res.text();
   const json = text ? JSON.parse(text) : {};
-  if (!res.ok) {
-    const err = json?.error ?? { code: 'ERROR', message: res.statusText };
-    throw new ApiError(err.code, err.message, res.status);
-  }
+  if (!res.ok) raiseApiError(json, res);
   // unwrap=false: {data,meta} 봉투 그대로 반환(페이지네이션용) / true: data 만
   return (unwrap ? (json?.data ?? json) : json) as T;
 }
@@ -117,10 +141,7 @@ async function upload<T>(path: string, form: FormData): Promise<T> {
     const res = await fetch(BASE + path, { method: 'POST', headers, body: form });
     const text = await res.text();
     const json = text ? JSON.parse(text) : {};
-    if (!res.ok) {
-      const err = json?.error ?? { code: 'ERROR', message: res.statusText };
-      throw new ApiError(err.code, err.message, res.status);
-    }
+    if (!res.ok) raiseApiError(json, res);
     return (json?.data ?? json) as T;
   };
   try {

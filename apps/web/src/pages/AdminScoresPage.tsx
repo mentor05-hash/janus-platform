@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { isHq } from '../auth/roleHome';
+import { SchoolRecordUploadNotice } from '../components/SchoolRecordGuard';
 import { PageHeader, Card, Button, Badge, ErrorText, EmptyState, SkeletonList } from '../components/ui';
 import { ScoreTrend, TIER_KIND, type Placement, type Trend } from '../components/ScoreTrend';
 
@@ -231,7 +232,8 @@ export function AdminScoresPage() {
           <input ref={ocrRef} type="file" accept="image/*" hidden onChange={onOcr} />
           <Button variant="ghost" onClick={() => ocrRef.current?.click()}>📷 성적표 이미지 OCR</Button>
         </div>
-        {ocrNote && <p style={{ fontSize: 12, color: 'var(--chip-confirmed)', background: 'var(--chip-confirmed-bg,#FAF1E2)', borderRadius: 8, padding: '7px 10px', margin: '0 0 10px' }}>ℹ️ {ocrNote}</p>}
+        <SchoolRecordUploadNotice />
+        {ocrNote && <p style={{ fontSize: 12, color: 'var(--chip-confirmed)', background: 'var(--chip-confirmed-bg,#FAF1E2)', borderRadius: 8, padding: '7px 10px', margin: '10px 0 10px' }}>ℹ️ {ocrNote}</p>}
         <div style={{ display: 'grid', gap: 6 }}>
           {items.map((it, i) => (
             <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>

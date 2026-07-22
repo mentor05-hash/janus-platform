@@ -538,6 +538,7 @@ export class BookingService {
     origin: string;
     direction?: 'student' | 'reverse';
     content?: string | null;
+    attachments?: unknown[]; // 질문승격 등 — 첨부 이관(생기부 가드 필터 통과분만)
   }): Promise<{ ok: boolean; bookingId?: string; reason?: string }> {
     const startMin = p.slotStart * SLOT_GRANULARITY_MINUTES;
     const endMin = p.slotEnd * SLOT_GRANULARITY_MINUTES;
@@ -569,6 +570,7 @@ export class BookingService {
             mode: p.mode, direction: p.direction ?? 'student',
             start_at: startAt, end_at: endAt, status: BookingStatus.CONFIRMED,
             room_id: roomId, charged_credits: credits, origin: p.origin, content: p.content ?? null,
+            attachments: (p.attachments ?? []) as unknown as Prisma.InputJsonValue,
           },
         });
         if (credits > 0) {

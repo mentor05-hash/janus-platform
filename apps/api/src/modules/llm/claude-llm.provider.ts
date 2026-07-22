@@ -18,6 +18,7 @@ import {
   ScoreOcrInput,
   ScoreOcrItem,
   ScoreOcrResult,
+  SchoolRecordVisionResult,
 } from './llm.types';
 
 /**
@@ -201,6 +202,44 @@ export class ClaudeLlmProvider implements LlmProvider {
       grade: i.grade ?? null,
     })).filter((i) => i.subject);
     return { demo: false, period: parsed.period, examType: parsed.examType, items, note: '실 비전 모델(Claude)로 추출했습니다. 값을 확인하세요.' };
+  }
+
+  /** 이미지가 학교생활기록부 서식인지 Claude 비전으로 yes/no/unsure 판정(생기부 가드 §5 3단). */
+  async classifySchoolRecord(input: ScoreOcrInput): Promise<SchoolRecordVisionResult> {
+    if (!this.apiKey) throw new Error('실 비전 분류가 아직 구성되지 않았습니다(ANTHROPIC_API_KEY 필요).');
+    const media = /png|jpe?g|webp|gif/.test(input.mimeType) ? input.mimeType : 'image/png';
+    const prompt =
+      '이 이미지가 대한민국 학교생활기록부(생기부/NEIS 학교생활세부사항기록부) 서식인지 판정하세요.\n' +
+      '성적표·모의고사 성적통지표·문제지·필기·일반 문서는 "no" 입니다.\n' +
+      '학교생활기록부가 확실하면 "yes", 아니면 "no", 애매하면 "unsure".\n' +
+      '반드시 yes / no / unsure 중 한 단어만, 다른 설명 없이 출력하세요.';
+    const res = await fetch(this.endpoint, {
+      method: 'POST',
+      headers: { 'x-api-key': this.apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model: this.model,
+        max_tokens: 8,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: media, data: input.imageBase64 } },
+              { type: 'text', text: prompt },
+            ],
+          },
+        ],
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`Claude 비전 API 오류 ${res.status}: ${body.slice(0, 200)}`);
+    }
+    const j = (await res.json()) as { content?: { text?: string }[] };
+    const raw = (j.content?.[0]?.text ?? '').toLowerCase();
+    // 응답은 라벨만 사용(원문 비보존). 예상 밖 응답은 보수적으로 unsure(차단).
+    if (raw.includes('yes')) return { label: 'yes' };
+    if (raw.includes('no')) return { label: 'no' };
+    return { label: 'unsure' };
   }
 
   /** 관문 자유서술 해석(W2 D5) — 마스킹된 입력만 투입. 실패 시 예외 → gateway 규칙 폴백. */

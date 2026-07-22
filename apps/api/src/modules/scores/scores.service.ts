@@ -7,6 +7,7 @@ import { FilesService } from '../storage/files.service';
 import { AuditService } from '../audit/audit.service';
 import { LLM_PROVIDER } from '../llm/llm.types';
 import type { LlmProvider, ScoreOcrResult } from '../llm/llm.types';
+import { SchoolRecordGuardService } from '../guard/school-record-guard.service';
 import { toJanusScore } from './domain/janus-score';
 import { buildGapReport, type GapMode, type JanusReport } from './domain/gap-report';
 
@@ -24,6 +25,7 @@ export class ScoresService {
     private readonly files: FilesService,
     @Inject(LLM_PROVIDER) private readonly llm: LlmProvider,
     private readonly audit: AuditService,
+    private readonly guard: SchoolRecordGuardService,
   ) {}
 
   private assertAdmin(actor: AuthUser) {
@@ -173,7 +175,13 @@ export class ScoresService {
   /** 성적표 이미지 OCR → 과목·점수 추출(폼 프리필). */
   async ocr(actor: AuthUser, fileId: string): Promise<ScoreOcrResult & { fileId: string }> {
     this.assertAdmin(actor);
-    const { data, contentType } = await this.files.readBytes(fileId);
+    const { data, contentType, filename } = await this.files.readBytes(fileId);
+    // 생기부 가드(§5 3단 비전) — 성적표는 허용, 생기부 사진은 차단. OCR·저장 전 판정.
+    // forceVision: 이미 비전 LLM 을 호출하는 경로이므로 정책 llmCheck 와 무관하게 비전 판정.
+    await this.guard.assertUploadAllowed(
+      { buffer: Buffer.from(data), mimetype: contentType, originalname: filename },
+      { forceVision: true },
+    );
     const res = await this.llm.extractScoreReport({ imageBase64: data.toString('base64'), mimeType: contentType });
     return { ...res, fileId };
   }

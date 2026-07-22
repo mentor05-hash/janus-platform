@@ -13,6 +13,7 @@ import {
   ReportReviewResult,
   ScoreOcrInput,
   ScoreOcrResult,
+  SchoolRecordVisionResult,
 } from './llm.types';
 
 /**
@@ -101,6 +102,11 @@ export class MockLlmProvider implements LlmProvider {
       ],
       note: '데모 OCR: 실제 성적표 인식은 비전 모델(LLM_PROVIDER=claude) 연동이 필요합니다. 과목 틀만 채웠으니 점수를 확인·입력하세요.',
     };
+  }
+
+  /** 생기부 비전 분류(stub) — mock 은 이미지 판별 불가이므로 'no'(오탐 0). 실판정은 LLM_PROVIDER=claude 필요. */
+  async classifySchoolRecord(_input: ScoreOcrInput): Promise<SchoolRecordVisionResult> {
+    return { label: 'no' };
   }
 
   /** 관문 해석(stub) — 실모델 미구성 신호로 예외를 던진다 → gateway 가 규칙 폴백을 사용(중복 규칙 구현 방지). */

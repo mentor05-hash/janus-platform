@@ -31,6 +31,8 @@ import { COMMUNITY_DAILY_LIMIT, aiUnlabeled, canAnswerCommunity, shouldHide, wit
 import { DEFAULT_LEAGUE_POLICY, TIER_LABEL, evaluateLeague, nextTierNeed, type LeaguePolicy } from './domain/qna-league';
 import { NotifyService } from '../notification/notify.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { FilesService } from '../storage/files.service';
+import { SchoolRecordGuardService } from '../guard/school-record-guard.service';
 import { CreateAnswerDto, CreateQuestionDto } from './dto/qna.dto';
 import { Inject } from '@nestjs/common';
 import { LLM_PROVIDER } from '../llm/llm.types';
@@ -70,6 +72,8 @@ export class QnaService {
     private readonly booking: BookingService,
     private readonly availability: AvailabilityService,
     private readonly notify: NotifyService,
+    private readonly files: FilesService,
+    private readonly guard: SchoolRecordGuardService,
     @Optional() private readonly realtime?: RealtimeGateway,
   ) {}
 
@@ -928,6 +932,39 @@ export class QnaService {
     return { postId, reanswerCount: count, remaining: REANSWER_LIMIT - count };
   }
 
+  /**
+   * 상담 승격 첨부 이관 필터(지시서 §2·§6 스텝2) — 질문 첨부가 상담 세션으로 복제되는 경로에
+   * 업로드와 "동일 필터"를 재적용한다. 저장 바이트를 다시 판정하여 생기부로 감지된 파일은
+   * 이관 목록에서 제외한다. 읽기 실패(누락·일시오류)는 이관 유지(업로드 시 이미 가드 통과분).
+   * @returns 통과한 첨부만. (감지 파일은 제외되어 상담 예약 payload 에 들어가지 않는다.)
+   */
+  private async filterEscalationAttachments(raw: unknown): Promise<unknown[]> {
+    if (!Array.isArray(raw) || raw.length === 0) return [];
+    if (!this.guard.enabled) return raw;
+    const kept: unknown[] = [];
+    for (const att of raw) {
+      const id = (att as { id?: string })?.id;
+      const name = (att as { name?: string })?.name;
+      if (!id) continue; // 형식 불량 참조는 이관하지 않는다
+      try {
+        const { data, contentType, filename } = await this.files.readBytes(id);
+        const verdict = await this.guard.inspect({
+          buffer: Buffer.from(data),
+          originalname: filename ?? name,
+          mimetype: contentType,
+        });
+        if (verdict.blocked) {
+          this.logger.warn(`상담 승격 첨부 제외(생기부 감지): reason=${verdict.reason} fileId=${id}`);
+          continue; // 감지 파일은 이관 목록에서 제외
+        }
+        kept.push(att);
+      } catch {
+        kept.push(att); // 읽기 실패는 이관 유지(업로드 시 가드 통과분)
+      }
+    }
+    return kept;
+  }
+
   /** 상담 승격(질문 학생) — 답변 선생님에게 질문·답변 컨텍스트를 담아 상담 예약 생성(가까운 빈 슬롯). */
   async escalate(student: AuthUser, postId: string, pick?: { dateStr: string; slotStart: number }) {
     const post = await this.prisma.qna_post.findUnique({
@@ -965,12 +1002,14 @@ export class QnaService {
       const i = slots.findIndex((sl) => sl.index === pick.slotStart);
       const free = i >= 0 && slots.slice(i, i + need).length === need && slots.slice(i, i + need).every((sl) => sl.status === 'avail');
       if (!free) return { ok: false, reason: 'taken', message: '방금 다른 예약이 잡혔어요. 다른 시간을 골라주세요.' };
+      // 첨부 이관 — 생기부 가드 "동일 필터" 통과분만 상담 예약으로 복제(§2·§6 스텝2).
+      const attachments = await this.filterEscalationAttachments(post.attachments);
       const res = await this.booking.createAssigned({
         studentId: student.id, teacherId, centerId: tp.center_id,
         teacherGrade: (tp.grade as TeacherGrade) ?? TeacherGrade.B,
         consultType: ConsultType.SUBJECT, mode: ConsultMode.CHAT, dateStr: pick.dateStr,
         slotStart: pick.slotStart, slotEnd: pick.slotStart + need,
-        charge: 'session', origin: '질문승격', content,
+        charge: 'session', origin: '질문승격', content, attachments,
       });
       if (res.ok && res.bookingId) {
         await this.prisma.qna_post.update({ where: { id: postId }, data: { escalated_booking_id: res.bookingId } });
