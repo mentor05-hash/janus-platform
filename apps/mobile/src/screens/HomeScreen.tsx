@@ -33,6 +33,7 @@ export function HomeScreen({ name, goTab }: { name?: string; goTab: (t: string) 
   ];
   const SHORTCUTS: { icon: string; label: string; tab: string; badge?: number }[] = [
     { icon: '◇', label: '선생님 찾기', tab: 'a' },
+    { icon: '🏫', label: '학원찾기', tab: 'ac' },
     { icon: '▤', label: '내 예약·일정', tab: 'b' },
     { icon: '▶', label: '강의실', tab: 'r' },
     { icon: '◫', label: '자료실', tab: 'e' },

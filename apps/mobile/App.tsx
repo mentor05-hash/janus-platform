@@ -17,6 +17,7 @@ import { MaterialsScreen } from './src/screens/MaterialsScreen';
 import { CommunityScreen } from './src/screens/CommunityScreen';
 import { MyScreen } from './src/screens/MyScreen';
 import { ClassroomScreen } from './src/screens/ClassroomScreen';
+import { AcademyFinderScreen } from './src/screens/AcademyFinderScreen';
 import { GuardianHome, GuardianConsult, GuardianPay, GuardianCharge, GuardianMembership } from './src/screens/GuardianScreens';
 import { TeacherInbox, TeacherToday, TeacherSessions, TeacherRecords, TeacherMy } from './src/screens/TeacherScreens';
 import { ThemeProvider, useTheme, type Palette, SP } from './src/theme';
@@ -218,6 +219,8 @@ function AppInner() {
             )
           ) : tab === 'b' ? (
             <BookingsScreen myId={me.id} />
+          ) : tab === 'ac' ? (
+            <AcademyFinderScreen />
           ) : tab === 'r' ? (
             <ClassroomScreen />
           ) : tab === 'e' ? (
