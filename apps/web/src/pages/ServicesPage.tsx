@@ -1,4 +1,4 @@
-/* /services 야누스 서비스 체계 — 구 잇올 연계서비스(iframe 7종) rebuild.
+/* /services 야누스 서비스 체계 — 구 연계서비스(iframe 7종·레거시) rebuild.
  * 여정 프레임(시안·기획): 진단 → 처방 → 실행(Q&A·상담·과외·클리닉·강의) → 통과.
  * 도메인 아이콘 색 = 축1, CTA 위계 = 축2(골드 채움 화면당 1개). 구 slug는 근접 서비스로 리다이렉트.
  * 구버전 iframe은 /legacy/services 병행(패리티 전 삭제 금지). */
@@ -105,7 +105,7 @@ export const SERVICES: Svc[] = [
   },
 ];
 
-/* 구 잇올 slug → 야누스 서비스 매핑(URL 호환) */
+/* 레거시 slug → 야누스 서비스 매핑(URL 호환) */
 const LEGACY_SLUG: Record<string, string> = {
   baechi: 'diagnosis', mock: 'diagnosis', ipgyeol: 'diagnosis',
   jaso: 'consulting', ganggi: 'lecture', planner: 'curriculum',

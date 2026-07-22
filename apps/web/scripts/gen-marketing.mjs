@@ -100,7 +100,7 @@ const S = [
 
   {id:'ganggi', file:'svc-ganggi.html', cat:'학습', icon:'🎬', name:'인터넷 강의',
    tag:['soon','연동 예정'], cta:['연동 알림 받기','primary'],
-   lead:'상담에서 짚은 약점을 바로 강의로. 추천 인강을 잇올 계정으로 수강하고 진도를 관리합니다.',
+   lead:'상담에서 짚은 약점을 바로 강의로. 추천 인강을 야누스 계정으로 수강하고 진도를 관리합니다.',
    feats:[['🧭','맞춤 추천','취약 과목·단원에 맞는 강의를 추천합니다. 어디서부터 들어야 할지 고민할 필요가 없습니다.'],
           ['📼','진도 관리','수강 진도와 완료율을 한곳에서. 밀린 강의와 다음 강의를 자동으로 안내합니다.'],
           ['🔁','상담 ↔ 강의','상담 숙제가 강의로, 강의 이해도가 다시 상담으로 — 학습이 끊기지 않고 순환합니다.']],
@@ -232,11 +232,11 @@ const page = (s) => {
   const feats = s.feats.map(([i,n,p]) =>
     `<div class="fc reveal"><div class="n"><span class="i" aria-hidden="true">${i}</span>${n}</div><p>${p}</p></div>`
   ).join('\n        ');
-  return topify(`<title>${s.name} — 잇올 연계 서비스</title>
+  return topify(`<title>${s.name} — 야누스 연계 서비스</title>
 <style>${CSS}</style>
 <header>
   <div class="wrap nav">
-    <div class="lgrp"><a class="logo" href="/"><span class="dot"></span>잇올</a><a class="home" href="${OVERVIEW}">← 연계 서비스 전체</a></div>
+    <div class="lgrp"><a class="logo" href="/"><span class="dot"></span>야누스</a><a class="home" href="${OVERVIEW}">← 연계 서비스 전체</a></div>
     <div class="right"><a class="btn ghost sm" href="${LOGIN}">로그인</a><a class="btn primary sm" href="${LOGIN}">시작하기</a></div>
   </div>
 </header>
@@ -263,7 +263,7 @@ const page = (s) => {
 
 <section class="block alt">
   <div class="wrap">
-    <h2>잇올과 이렇게 연결됩니다</h2>
+    <h2>야누스과 이렇게 연결됩니다</h2>
     <p class="sub">계정 하나로, 상담과 끊김 없이 이어집니다</p>
     <div class="connect reveal"><span class="k" aria-hidden="true">🔗</span><p>${s.link}</p></div>
   </div>
@@ -272,7 +272,7 @@ ${s.extra || ''}
 <section class="block">
   <div class="wrap">
     <h2>다른 연계 서비스</h2>
-    <p class="sub">잇올 계정으로 함께 쓰는 입시 서비스</p>
+    <p class="sub">야누스 계정으로 함께 쓰는 입시 서비스</p>
     <div class="others">
         ${others}
     </div>
@@ -281,13 +281,13 @@ ${s.extra || ''}
 
 <section class="band" id="start">
   <div class="wrap">
-    <h2>잇올 계정 하나로, ${s.name}까지</h2>
+    <h2>야누스 계정 하나로, ${s.name}까지</h2>
     <p>멘토링부터 연계 서비스까지 다시 로그인할 필요 없이 이어집니다.</p>
     <div class="row"><a class="btn primary" href="${s.href || LOGIN}">무료로 시작하기</a><a class="btn ghost" href="${OVERVIEW}">전체 서비스 보기</a></div>
   </div>
 </section>
 
-<footer><div class="wrap"><span>© 2026 잇올(itall) · 입시 멘토링 · 상담 플랫폼</span><span>서비스 상태는 준비 상황에 따라 변경될 수 있습니다.</span></div></footer>
+<footer><div class="wrap"><span>© 2026 야누스(Janus) · 입시 멘토링 · 상담 플랫폼</span><span>서비스 상태는 준비 상황에 따라 변경될 수 있습니다.</span></div></footer>
 
 <script>
 (function(){

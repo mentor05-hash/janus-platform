@@ -126,7 +126,7 @@ export function App() {
       <Route path="/placement/gap" element={<GapReportPage />} />
       <Route path="/services" element={<ServicesPage />} />
       <Route path="/services/:slug" element={<ServiceDetailPage />} />
-      {/* 구 잇올 랜딩·연계서비스는 신규 야누스 페이지로 대체 완료 → 리다이렉트(잇올 노출 차단) */}
+      {/* 구 랜딩·연계서비스(레거시)는 신규 야누스 페이지로 대체 완료 → 리다이렉트(레거시 노출 차단) */}
       <Route path="/legacy" element={<Navigate to="/" replace />} />
       <Route path="/legacy/services" element={<Navigate to="/services" replace />} />
       <Route path="/legacy/services/:slug" element={<Navigate to="/services" replace />} />

@@ -3,7 +3,7 @@
  *      → 지금 필요한 강좌 → 실시간 인기 학과 + 공지 탭 → 신뢰 지표 밴드 → 푸터.
  * 길 찾기 = POST /gateway/interpret (LlmProvider 경유·마스킹·일 상한) — 실패 시 로컬 규칙 폴백(W2 D5).
  * 강좌·인기 학과·공지·지표는 예시 데이터(백엔드 연동 전 — '예시' 라벨 유지).
- * 구 잇올 랜딩(iframe)은 /legacy 병행 유지(패리티 통과 전 삭제 금지). */
+ * 구 랜딩(iframe·레거시)은 /legacy 병행 유지(패리티 통과 전 삭제 금지). */
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
