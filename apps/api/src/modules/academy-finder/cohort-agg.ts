@@ -7,6 +7,7 @@ export const VERIFIED_MIN_N = Number(process.env.ACADEMY_VERIFIED_MIN_N) || 5;
 /** 등급(1~9) → 성적 밴드. 스펙 §2 payload 키. */
 export function gradeToBand(grade: number): '1-2' | '3-4' | '5-6' | '7-9' | null {
   if (!Number.isFinite(grade)) return null;
+  if (grade < 1) return null; // 등급 체계는 1~9 — 하한 밖(0·음수)은 무효
   if (grade <= 2) return '1-2';
   if (grade <= 4) return '3-4';
   if (grade <= 6) return '5-6';
