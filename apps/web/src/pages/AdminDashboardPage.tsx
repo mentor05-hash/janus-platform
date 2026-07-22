@@ -1,12 +1,21 @@
 import { useEffect, useState } from 'react';
-import { ApiError } from '../api/client';
+import { api, ApiError } from '../api/client';
 import type { Dashboard } from '../api/types';
 import { PageHeader, Spinner, ErrorText, Card } from '../components/ui';
 import { StatCard, StatGrid } from '../components/dashboard/widgets';
 
+/** GET /funnel/summary 응답(전환 퍼널 — 배치표·학원찾기). */
+type FunnelStep = { viewSessions: number; conversionPct: number | null };
+type FunnelSummary = {
+  since: string;
+  baechi: FunnelStep & { views: number; consultClicks: number; ctaSessions: number };
+  academy: FunnelStep & { searches: number; leadClicks: number; leadSessions: number };
+};
+
 export function AdminDashboardPage() {
   const [d, setD] = useState<Dashboard | null>(null);
   const [meta, setMeta] = useState<{ generatedAt: string; scope: string } | null>(null);
+  const [funnel, setFunnel] = useState<FunnelSummary | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -19,6 +28,8 @@ export function AdminDashboardPage() {
         setMeta(j.meta);
       })
       .catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
+    // 전환 퍼널(최근 30일) — 대시보드를 막지 않도록 실패해도 조용히 무시.
+    api.get<FunnelSummary>('/funnel/summary?days=30').then(setFunnel).catch(() => setFunnel(null));
   }, []);
 
   if (error) return <ErrorText>{error}</ErrorText>;
@@ -112,6 +123,34 @@ export function AdminDashboardPage() {
               ))}
             </tbody>
           </table>
+        </Card>
+      )}
+
+      {funnel && (
+        <Card title="전환 퍼널 (최근 30일 · 세션 기준)" style={{ marginTop: 16, maxWidth: 620 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {([
+              { key: 'baechi', label: '배치표 → 상담 신청', top: funnel.baechi.viewSessions, botn: funnel.baechi.ctaSessions, topL: '열람', botL: '상담 CTA', pct: funnel.baechi.conversionPct },
+              { key: 'academy', label: '학원찾기 → 리드 신청', top: funnel.academy.viewSessions, botn: funnel.academy.leadSessions, topL: '검색', botL: '리드 신청', pct: funnel.academy.conversionPct },
+            ] as const).map((f) => (
+              <div key={f.key} style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 12 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 8 }}>{f.label}</div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                  <span style={{ fontSize: 26, fontWeight: 800, color: 'var(--teal)' }}>{f.pct != null ? f.pct : '—'}</span>
+                  <span style={{ fontSize: 13, color: 'var(--muted)' }}>{f.pct != null ? '%' : '데이터 없음'}</span>
+                </div>
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ height: 8, background: 'var(--line)', borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{ width: `${f.pct != null ? Math.min(100, f.pct) : 0}%`, height: '100%', background: 'var(--teal)' }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 12, color: 'var(--muted)' }}>
+                    <span>{f.topL} {f.top}</span>
+                    <span>→ {f.botL} {f.botn}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </Card>
       )}
     </div>
