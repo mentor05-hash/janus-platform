@@ -837,6 +837,35 @@ model qna_league {
   @@index([tier, accepted(sort: Desc)])
 }
 
+// N33 축 A(신뢰) — 답변자 자기신고 자격(claimed). verified 는 후속(IdentityVerify 연동).
+model answerer_credential {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  account_id    String    @db.Uuid
+  subject       String
+  claimed_grade String?
+  verify_tier   String    @default("claimed")
+  verified_at   DateTime? @db.Timestamptz(6)
+  note          String?
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@unique([account_id, subject])
+  @@index([account_id])
+}
+
+// N33 축 B(능력·설명방식 오각형) — 답변 수령자의 재평가(자기신고 아님).
+model answer_rating {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  answer_id  String   @db.Uuid
+  rater_id   String   @db.Uuid
+  axis       String
+  score      Int      @db.SmallInt
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([answer_id, rater_id, axis])
+  @@index([answer_id])
+}
+
 /**
  * Q1 소프트 블록 — 학생이 특정 선생님에게 질문을 노출/배정하지 않음(선생님 비공지, 학생 해제 가능).
  */

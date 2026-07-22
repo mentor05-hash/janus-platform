@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -10,7 +11,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AccountRole } from '../../config/enums';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
@@ -36,6 +37,20 @@ class CommunityQuestionDto {
 }
 class CommunityAnswerDto {
   @IsString() @MaxLength(4000) body!: string;
+}
+// N33 축 A(신뢰) — 자기신고 자격.
+class AnswererCredentialDto {
+  @IsString() @MaxLength(40) subject!: string;
+  @IsOptional() @IsString() @MaxLength(60) claimedGrade?: string;
+  @IsOptional() @IsString() @MaxLength(200) note?: string;
+}
+// N33 축 B(능력) — 답변 재평가(축별 1~5).
+class AnswerRatingItemDto {
+  @IsIn(['accuracy', 'kindness', 'logic', 'speed', 'level']) axis!: string;
+  @IsInt() @Min(1) @Max(5) score!: number;
+}
+class RateAnswerDto {
+  @IsArray() @ArrayMaxSize(5) @ValidateNested({ each: true }) @Type(() => AnswerRatingItemDto) ratings!: AnswerRatingItemDto[];
 }
 class QnaReportDto {
   @IsString() targetType!: 'post' | 'answer';
@@ -256,6 +271,36 @@ export class QnaController {
   @Get('community/subject-stats')
   subjectStats(@CurrentUser() user: AuthUser) {
     return this.qna.answererSubjectStats(user);
+  }
+
+  /** PUT /qna/community/my-credentials — 내 자기신고 자격 upsert(N33 축 A). */
+  @Put('community/my-credentials')
+  upsertCredential(@Body() dto: AnswererCredentialDto, @CurrentUser() user: AuthUser) {
+    return this.qna.upsertMyCredential(user, dto);
+  }
+
+  /** GET /qna/community/credentials/me — 내 자격 목록(배지 포함). */
+  @Get('community/credentials/me')
+  myCredentials(@CurrentUser() user: AuthUser) {
+    return this.qna.listCredentials(user);
+  }
+
+  /** DELETE /qna/community/my-credentials?subject= — 내 자격 삭제(과목). */
+  @Delete('community/my-credentials')
+  deleteCredential(@Query('subject') subject: string, @CurrentUser() user: AuthUser) {
+    return this.qna.deleteMyCredential(user, subject ?? '');
+  }
+
+  /** GET /qna/community/axis-stats — 내 설명방식 오각형(N33 축 B, 표본 게이트). */
+  @Get('community/axis-stats')
+  axisStats(@CurrentUser() user: AuthUser) {
+    return this.qna.answererAxisStats(user);
+  }
+
+  /** POST /qna/community/answers/{id}/rate — 답변 재평가(질문자, 축별 1~5). */
+  @Post('community/answers/:id/rate')
+  rateAnswer(@Param('id', ParseUUIDPipe) id: string, @Body() dto: RateAnswerDto, @CurrentUser() user: AuthUser) {
+    return this.qna.rateAnswer(user, id, dto.ratings);
   }
 
   /** GET /qna/community/{id} — 커뮤니티 상세(질문·AI 초안·답변). */

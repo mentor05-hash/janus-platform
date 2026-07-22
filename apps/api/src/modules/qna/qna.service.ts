@@ -30,6 +30,8 @@ import { pickAssignee } from './domain/qna-assign';
 import { COMMUNITY_DAILY_LIMIT, aiUnlabeled, canAnswerCommunity, shouldHide, withinDailyLimit } from './domain/qna-community';
 import { DEFAULT_LEAGUE_POLICY, TIER_LABEL, evaluateLeague, nextTierNeed, type LeaguePolicy } from './domain/qna-league';
 import { aggregateSubjectStats } from './domain/qna-subject-stat';
+import { credentialBadge } from './domain/qna-answerer-credential';
+import { aggregateAxisStats, isValidAxis, isValidScore } from './domain/qna-answer-rating';
 import { NotifyService } from '../notification/notify.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { CreateAnswerDto, CreateQuestionDto } from './dto/qna.dto';
@@ -1154,6 +1156,66 @@ export class QnaService {
       policy,
     );
     return { authorId: id, subjects };
+  }
+
+  // ── N33 축 A(신뢰) — 답변자 자기신고 자격 ────────────────────────────
+  /** 내 자기신고 자격 upsert(과목별). verified 승격은 후속 — 여기선 claimed 고정. */
+  async upsertMyCredential(user: AuthUser, dto: { subject: string; claimedGrade?: string; note?: string }) {
+    const subject = (dto.subject ?? '').trim();
+    if (!subject) throw new BadRequestException('과목을 입력하세요.');
+    const row = await this.prisma.answerer_credential.upsert({
+      where: { account_id_subject: { account_id: user.id, subject } },
+      create: { account_id: user.id, subject, claimed_grade: dto.claimedGrade ?? null, note: dto.note ?? null },
+      update: { claimed_grade: dto.claimedGrade ?? null, note: dto.note ?? null, updated_at: new Date() },
+    });
+    return { subject: row.subject, claimedGrade: row.claimed_grade, tier: row.verify_tier, badge: credentialBadge(row.verify_tier) };
+  }
+
+  /** 답변자 자격 목록(본인/지정) + 배지 라벨. */
+  async listCredentials(user: AuthUser, authorId?: string) {
+    const id = authorId ?? user.id;
+    const rows = await this.prisma.answerer_credential.findMany({ where: { account_id: id }, orderBy: { subject: 'asc' } });
+    return rows.map((r) => ({ subject: r.subject, claimedGrade: r.claimed_grade, tier: r.verify_tier, badge: credentialBadge(r.verify_tier) }));
+  }
+
+  /** 내 자격 삭제(과목). */
+  async deleteMyCredential(user: AuthUser, subject: string) {
+    await this.prisma.answerer_credential.deleteMany({ where: { account_id: user.id, subject } });
+    return { ok: true };
+  }
+
+  // ── N33 축 B(능력·설명방식 오각형) — 답변 수령자 재평가 ──────────────
+  /** 답변 재평가(축별 1~5) — 내 질문의 답변만, 본인 답변 제외. 재평가 시 갱신(upsert). */
+  async rateAnswer(user: AuthUser, answerId: string, ratings: Array<{ axis: string; score: number }>) {
+    const ans = await this.prisma.qna_community_answer.findUnique({ where: { id: answerId } });
+    if (!ans) throw new NotFoundException('답변을 찾을 수 없습니다.');
+    if (ans.author_id === user.id) throw new ForbiddenException('본인 답변은 평가할 수 없습니다.');
+    const post = await this.prisma.qna_post.findUnique({ where: { id: ans.post_id }, select: { student_id: true } });
+    if (!post || post.student_id !== user.id) throw new ForbiddenException('내 질문의 답변만 평가할 수 있습니다.');
+    const valid = (ratings ?? []).filter((r) => isValidAxis(r.axis) && isValidScore(r.score));
+    if (valid.length === 0) throw new BadRequestException('유효한 평가(축·점수)가 없습니다.');
+    await this.prisma.$transaction(
+      valid.map((r) =>
+        this.prisma.answer_rating.upsert({
+          where: { answer_id_rater_id_axis: { answer_id: answerId, rater_id: user.id, axis: r.axis } },
+          create: { answer_id: answerId, rater_id: user.id, axis: r.axis, score: r.score },
+          update: { score: r.score },
+        }),
+      ),
+    );
+    return { answerId, rated: valid.length };
+  }
+
+  /** 답변자 설명방식 오각형(본인/지정) — 축별 평균(표본 미달 축은 null·게이트). */
+  async answererAxisStats(user: AuthUser, authorId?: string) {
+    const id = authorId ?? user.id;
+    const answers = await this.prisma.qna_community_answer.findMany({ where: { author_id: id }, select: { id: true } });
+    if (answers.length === 0) return { authorId: id, axes: aggregateAxisStats([]) };
+    const rows = await this.prisma.answer_rating.findMany({
+      where: { answer_id: { in: answers.map((a) => a.id) } },
+      select: { axis: true, score: true },
+    });
+    return { authorId: id, axes: aggregateAxisStats(rows) };
   }
 
   // ── Q3 리그(3부→2부→1부) ─────────────────────────────────────────────
