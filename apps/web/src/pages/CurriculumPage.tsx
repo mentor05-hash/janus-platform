@@ -57,6 +57,8 @@ export function CurriculumPage() {
                 <Link to={`/student/community/board?subject=${encodeURIComponent(it.subject)}`} className="btn sm outline" style={{ textDecoration: 'none' }}>이 과목 질문하기</Link>
                 <Link to={`/student/materials?subject=${encodeURIComponent(it.subject)}`} className="btn sm outline" style={{ textDecoration: 'none' }}>자료 찾기</Link>
                 <Link to={`/student/lectures?subject=${encodeURIComponent(it.subject)}`} className="btn sm outline" style={{ textDecoration: 'none' }}>강좌 보기</Link>
+                {/* 세션6 접합: 오프라인 반(실수강료) — 약점 과목 프리셋으로 학원찾기 딥링크. */}
+                <Link to={`/student/academies?from=curriculum&subject=${encodeURIComponent(it.subject)}`} className="btn sm outline" style={{ textDecoration: 'none' }}>🏫 주변 학원 반</Link>
               </div>
             </Card>
           ))}

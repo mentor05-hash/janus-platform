@@ -31,6 +31,11 @@ export class LeadSubmitDto {
   @IsOptional()
   @IsBoolean()
   shareGoal?: boolean;
+
+  /** 익명 세션 id(전환 계측용). PII 없음. */
+  @IsOptional()
+  @IsString()
+  sessionId?: string;
 }
 
 /** 운영자 리드 처리(인박스 왕복). */

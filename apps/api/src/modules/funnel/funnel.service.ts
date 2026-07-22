@@ -38,6 +38,14 @@ export class FunnelService {
       this.prisma.funnel_event.findMany({ where: { created_at: { gte: since }, page: 'baechi', event: 'cta', cta: 'consult-reserve', session_id: { not: null } }, distinct: ['session_id'], select: { session_id: true } }),
     ]);
     const conversion = viewSessions.length ? Math.round((ctaSessions.length / viewSessions.length) * 1000) / 10 : null;
+
+    // 학원찾기 검색→리드 전환(세션6 접합) — page='academy' view 세션 대비 cta='lead' 세션.
+    const [acadViewSessions, acadLeadSessions] = await Promise.all([
+      this.prisma.funnel_event.findMany({ where: { created_at: { gte: since }, page: 'academy', event: 'view', session_id: { not: null } }, distinct: ['session_id'], select: { session_id: true } }),
+      this.prisma.funnel_event.findMany({ where: { created_at: { gte: since }, page: 'academy', event: 'cta', cta: 'lead', session_id: { not: null } }, distinct: ['session_id'], select: { session_id: true } }),
+    ]);
+    const acadConversion = acadViewSessions.length ? Math.round((acadLeadSessions.length / acadViewSessions.length) * 1000) / 10 : null;
+
     return {
       since: since.toISOString(),
       rows: rows.map((r) => ({ page: r.page, event: r.event, cta: r.cta, count: r._count._all })),
@@ -47,6 +55,13 @@ export class FunnelService {
         viewSessions: viewSessions.length,
         ctaSessions: ctaSessions.length,
         conversionPct: conversion, // 세션 기준 %
+      },
+      academy: {
+        searches: count('academy', 'view'),
+        leadClicks: count('academy', 'cta', 'lead'),
+        viewSessions: acadViewSessions.length,
+        leadSessions: acadLeadSessions.length,
+        conversionPct: acadConversion, // 검색→리드 전환 %(세션 기준)
       },
     };
   }

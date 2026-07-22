@@ -1,5 +1,6 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { FunnelService } from '../funnel/funnel.service';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import type { LeadSubmitDto } from './dto/lead.dto';
 
@@ -16,7 +17,10 @@ type LeadSummary = {
  */
 @Injectable()
 export class LeadService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly funnel?: FunnelService,
+  ) {}
 
   /** 학생이 실제 공유할 요약(미리보기와 동일 값). 성적 상세는 절대 포함하지 않는다. */
   async preview(user: AuthUser) {
@@ -48,6 +52,8 @@ export class LeadService {
     const lead = await this.prisma.academy_lead.create({
       data: { user_id: user.id, academy_id: academyId, class_id: dto.classId ?? null, summary_json: summary as object, status: 'sent' },
     });
+    // 검색→리드 전환 계측(세션6 접합). 실패해도 신청은 유효(fire-and-forget).
+    await this.funnel?.record({ page: 'academy', event: 'cta', cta: 'lead', sessionId: dto.sessionId, meta: { academyId } }).catch(() => undefined);
     return { id: lead.id, status: lead.status, consentScope };
   }
 

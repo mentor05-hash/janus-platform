@@ -234,6 +234,14 @@ export function GapReportPage() {
                   </Link>
                 );
               })}
+              {/* 세션6 접합: 격차를 채울 주변 학원 반 — 격차 band 로 레벨 프리셋 딥링크. */}
+              <Link
+                to={`/student/academies?from=gap&level=${report.gap.band === '상향' ? 'prep' : report.gap.band === '소신' ? 'advanced' : 'regular'}`}
+                onClick={() => track('baechi', 'cta', 'academy-finder', { view: 'gap', band: report.gap.band })}
+                className="btn ghost" style={{ textDecoration: 'none', justifyContent: 'space-between', display: 'flex', alignItems: 'center' }}>
+                <span>🏫 이 격차를 채울 주변 반 보기</span>
+                <span style={{ fontSize: 11, color: 'var(--muted)' }}>학원찾기 →</span>
+              </Link>
             </div>
           </div>
 

@@ -3,7 +3,7 @@
  * 익명 세션 id(localStorage) 기반 — PII 없음. 실패는 조용히 무시(UX 영향 0). */
 const SID_KEY = 'janus_sid';
 
-function sessionId(): string {
+export function sessionId(): string {
   try {
     let sid = localStorage.getItem(SID_KEY);
     if (!sid) {

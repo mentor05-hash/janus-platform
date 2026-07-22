@@ -6,5 +6,6 @@ import { FunnelService } from './funnel.service';
 @Module({
   controllers: [FunnelController],
   providers: [FunnelService],
+  exports: [FunnelService], // 학원찾기 검색→리드 전환 계측(세션6)에서 재사용
 })
 export class FunnelModule {}

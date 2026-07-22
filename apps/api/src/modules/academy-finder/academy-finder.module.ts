@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { FunnelModule } from '../funnel/funnel.module';
 import { AcademyController, AcademyAdminController } from './academy.controller';
 import { AcademyService } from './academy.service';
 import { PublicSyncService } from './public-sync.service';
@@ -17,6 +18,7 @@ import { LeadService } from './lead.service';
  * 4: 재원생 동의·분기 집계(verified·k≥5). 리드·화면(세션5)은 후속.
  */
 @Module({
+  imports: [FunnelModule],
   controllers: [AcademyController, AcademyAdminController, ClaimController, ClaimAdminController, EnrollmentController, LeadController],
   providers: [AcademyService, PublicSyncService, ClaimService, DongResolver, EnrollmentService, CohortAggregateService, LeadService],
   exports: [AcademyService, PublicSyncService, ClaimService, EnrollmentService, CohortAggregateService, LeadService],

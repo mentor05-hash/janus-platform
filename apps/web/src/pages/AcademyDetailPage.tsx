@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
+import { sessionId } from '../utils/track';
 
 /* 학원 상세(스펙 §7-2) — 반 테이블·버스 아코디언·재원생 통계·상담 신청·재원 동의. */
 type Cls = { id: string; subject: string; targetGrades: string[]; level: string; schedule: { dow: string; start: string; end: string }[]; capacity: number | null; tuitionKrw: number | null; tuitionLabel: string; entryTest: boolean };
@@ -54,7 +55,7 @@ export function AcademyDetailPage() {
     try {
       const r = await api.post<{ consentScope: string[] }>(`/academies/${id}/leads`, {
         classId: lead.classId || undefined, message: lead.message || undefined, contact: lead.contact || undefined,
-        shareName: lead.shareName, shareGrade: lead.shareGrade, shareGoal: lead.shareGoal,
+        shareName: lead.shareName, shareGrade: lead.shareGrade, shareGoal: lead.shareGoal, sessionId: sessionId(),
       });
       setSheet(false); setMsg(`상담 신청이 전송됐어요. 공유 항목: ${r.consentScope.join(', ') || '없음'}. 응답은 '내 신청'에서 확인하세요.`);
     } catch (e) { setMsg(e instanceof ApiError ? e.message : '신청 실패'); }

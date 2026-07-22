@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
+import { track } from '../utils/track';
 
 /* 학원찾기 — 검색/필터/카드 리스트(스펙 §7-1). 통학·verified 배지, §5 스코어 정렬. */
 type Card = {
@@ -19,7 +20,13 @@ const won = (n: number | null) => (n == null ? '-' : `${n.toLocaleString()}원`)
 
 export function AcademyFinderPage() {
   const nav = useNavigate();
-  const [f, setF] = useState({ q: '', subject: '', level: '', grade: '', dong: '', busOnly: false, tuitionMax: '', sort: 'score' });
+  const [sp] = useSearchParams();
+  // 딥링크 프리셋(격차 리포트·학습 플랜 접합, 세션6) — URL 파라미터로 필터 선지정.
+  const [f, setF] = useState({
+    q: sp.get('q') ?? '', subject: sp.get('subject') ?? '', level: sp.get('level') ?? '', grade: sp.get('grade') ?? '',
+    dong: sp.get('dong') ?? '', busOnly: sp.get('busOnly') === 'true', tuitionMax: sp.get('tuitionMax') ?? '', sort: sp.get('sort') ?? 'score',
+  });
+  const from = sp.get('from'); // gap | curriculum
   const set = (k: keyof typeof f, v: string | boolean) => setF((p) => ({ ...p, [k]: v }));
   const [rows, setRows] = useState<Card[] | null>(null);
   const [meta, setMeta] = useState<Meta | null>(null);
@@ -41,7 +48,7 @@ export function AcademyFinderPage() {
       setRows(r.data); setMeta(r.meta as Meta); setPage((r.meta as Meta).page ?? p);
     } catch (e) { setErr(e instanceof ApiError ? e.message : '검색 실패'); setRows([]); }
   }, [f]);
-  useEffect(() => { void load(1); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { track('academy', 'view', undefined, from ? { from } : undefined); void load(1); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const chip = (active: boolean): React.CSSProperties => ({
     padding: '5px 12px', borderRadius: 999, fontSize: 13, cursor: 'pointer', border: '1px solid var(--line)',
@@ -52,6 +59,8 @@ export function AcademyFinderPage() {
     <div>
       <h1 className="page-title">학원찾기</h1>
       <p className="page-sub">통학(버스 경유)·성적대까지 확인하고 상담을 신청하세요. 정보 출처는 카드마다 표시됩니다.</p>
+      {from === 'gap' && <div className="card" style={{ padding: '10px 14px', marginBottom: 12, background: 'var(--teal-50,#E8F0F9)', fontSize: 13 }}>📊 격차 리포트에서 넘어왔어요 — 격차를 채울 주변 반을 프리셋으로 골라뒀습니다.</div>}
+      {from === 'curriculum' && <div className="card" style={{ padding: '10px 14px', marginBottom: 12, background: 'var(--teal-50,#E8F0F9)', fontSize: 13 }}>🗂 학습 플랜의 약점 과목으로 오프라인 반(실수강료)을 찾았어요.</div>}
 
       {/* 필터 바 */}
       <div className="card" style={{ padding: 14, marginBottom: 14, display: 'grid', gap: 10 }}>
