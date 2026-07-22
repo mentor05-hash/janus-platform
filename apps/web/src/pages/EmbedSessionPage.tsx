@@ -6,12 +6,15 @@ import { WhiteboardPanel } from '../components/WhiteboardPanel';
 /**
  * 네이티브 WebView 임베드용 몰입형 세션 페이지(§하이브리드).
  * SessionWebView 가 `${webOrigin}/embed/session?booking=&kind=` 로 로드하며,
- * 접근 토큰은 injectedJavaScriptBeforeContentLoaded 로 `window.__ITALL_TOKEN` 주입
+ * 접근 토큰은 injectedJavaScriptBeforeContentLoaded 로 `window.__JANUS_TOKEN` 주입
  * (또는 ?token= 쿼리). 앱 셸/로그인 없이 세션만 전체화면 렌더.
+ * __ITALL_* 는 구 모바일 빌드 하위호환용 폴백(신규는 __JANUS_*).
  */
 declare global {
   interface Window {
-    __ITALL_TOKEN?: string;
+    __JANUS_TOKEN?: string;
+    __JANUS_REFRESH?: string;
+    __ITALL_TOKEN?: string; // 하위호환(구 모바일 주입)
     __ITALL_REFRESH?: string;
     ReactNativeWebView?: { postMessage: (m: string) => void };
   }
@@ -36,8 +39,8 @@ export function EmbedSessionPage() {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     // 토큰 주입: WebView 전역 → 쿼리 순. 세션 동안만 사용.
-    const access = window.__ITALL_TOKEN || q.get('token') || tokens.access;
-    const refresh = window.__ITALL_REFRESH || q.get('refresh') || access;
+    const access = window.__JANUS_TOKEN || window.__ITALL_TOKEN || q.get('token') || tokens.access;
+    const refresh = window.__JANUS_REFRESH || window.__ITALL_REFRESH || q.get('refresh') || access;
     if (access) tokens.set(access, refresh || access);
     setReady(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
