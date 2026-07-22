@@ -49,6 +49,16 @@ if (verdict.blocked) {
 
 동기 컨텍스트에서는 비전 단계를 뺀 `inspectForSchoolRecordSync(input, policy)` 사용.
 
+## 빌드 (Node 런타임 소비용)
+
+apps/api 등 **컴파일 후 실행(`node dist/main.js`)** 하는 소비자는 이 모듈의 JS 산출물이 필요하다. `main`→`dist/index.js`(CommonJS)·`types`→`dist/index.d.ts`.
+
+```bash
+npm run build --workspace @mentoring/guard-school-record   # tsc → dist (커밋 제외; .gitignore)
+```
+
+로컬 `npm install` 후 소비 전 1회 빌드, Docker 는 apps/api 빌드 이전 단계에서 선(先)빌드한다(설치시 자동 빌드 훅 없음 — 매니페스트만 복사되는 `npm ci` 단계 실패 방지). 소스(`src`)는 vitest 가 직접 읽으므로 테스트는 빌드와 무관.
+
 ## 테스트
 
 ```bash
