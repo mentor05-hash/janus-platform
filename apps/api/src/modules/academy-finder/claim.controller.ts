@@ -10,6 +10,7 @@ import {
   ClassUpsertDto,
   CohortUpsertDto,
 } from './dto/claim.dto';
+import { LeadReplyDto } from './dto/lead.dto';
 
 /** 학원 클레임·관리(운영자) — 세션 3. 신청·내 클레임 + 승인 후 반·버스·통계 편집. */
 @Controller('claims')
@@ -65,6 +66,17 @@ export class ClaimController {
   @Post(':academyId/cohort')
   upsertCohort(@CurrentUser() user: AuthUser, @Param('academyId') academyId: string, @Body() dto: CohortUpsertDto) {
     return this.svc.upsertCohort(user, academyId, dto);
+  }
+
+  // ── 리드 인박스(승인 owner) ──
+  @Get(':academyId/leads')
+  listLeads(@CurrentUser() user: AuthUser, @Param('academyId') academyId: string) {
+    return this.svc.listLeads(user, academyId);
+  }
+
+  @Patch(':academyId/leads/:leadId')
+  replyLead(@CurrentUser() user: AuthUser, @Param('academyId') academyId: string, @Param('leadId') leadId: string, @Body() dto: LeadReplyDto) {
+    return this.svc.replyLead(user, academyId, leadId, dto);
   }
 }
 

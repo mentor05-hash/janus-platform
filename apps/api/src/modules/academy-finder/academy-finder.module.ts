@@ -8,6 +8,8 @@ import { DongResolver } from './dong-resolver';
 import { EnrollmentController } from './enrollment.controller';
 import { EnrollmentService } from './enrollment.service';
 import { CohortAggregateService } from './cohort-aggregate.service';
+import { LeadController } from './lead.controller';
+import { LeadService } from './lead.service';
 
 /**
  * 학원찾기(academy finder) v2 — 진단→처방 관문 밖 통학·성적대 기반 학원 탐색.
@@ -15,8 +17,8 @@ import { CohortAggregateService } from './cohort-aggregate.service';
  * 4: 재원생 동의·분기 집계(verified·k≥5). 리드·화면(세션5)은 후속.
  */
 @Module({
-  controllers: [AcademyController, AcademyAdminController, ClaimController, ClaimAdminController, EnrollmentController],
-  providers: [AcademyService, PublicSyncService, ClaimService, DongResolver, EnrollmentService, CohortAggregateService],
-  exports: [AcademyService, PublicSyncService, ClaimService, EnrollmentService, CohortAggregateService],
+  controllers: [AcademyController, AcademyAdminController, ClaimController, ClaimAdminController, EnrollmentController, LeadController],
+  providers: [AcademyService, PublicSyncService, ClaimService, DongResolver, EnrollmentService, CohortAggregateService, LeadService],
+  exports: [AcademyService, PublicSyncService, ClaimService, EnrollmentService, CohortAggregateService, LeadService],
 })
 export class AcademyFinderModule {}

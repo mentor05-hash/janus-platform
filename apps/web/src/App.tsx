@@ -22,6 +22,7 @@ const TeacherLecturesPage = lazy(() => import('./pages/TeacherLecturesPage').the
 const TeacherQnaPage = lazy(() => import('./pages/TeacherQnaPage').then((m) => ({ default: m.TeacherQnaPage })));
 const TeacherRecordsPage = lazy(() => import('./pages/TeacherRecordsPage').then((m) => ({ default: m.TeacherRecordsPage })));
 const TeacherReportsPage = lazy(() => import('./pages/TeacherReportsPage').then((m) => ({ default: m.TeacherReportsPage })));
+const AcademyManagePage = lazy(() => import('./pages/AcademyManagePage').then((m) => ({ default: m.AcademyManagePage })));
 const StudentReportsPage = lazy(() => import('./pages/StudentReportsPage').then((m) => ({ default: m.StudentReportsPage })));
 const TeacherProfilePage = lazy(() => import('./pages/TeacherProfilePage').then((m) => ({ default: m.TeacherProfilePage })));
 const ClassroomPage = lazy(() => import('./pages/ClassroomPage').then((m) => ({ default: m.ClassroomPage })));
@@ -70,6 +71,8 @@ import { ChatInboxPage } from './pages/ChatInboxPage';
 import { AdminOpsSettingsPage } from './pages/AdminOpsSettingsPage';
 const StudentBookingsPage = lazy(() => import('./pages/StudentBookingsPage').then((m) => ({ default: m.StudentBookingsPage })));
 const StudentSearchPage = lazy(() => import('./pages/StudentSearchPage').then((m) => ({ default: m.StudentSearchPage })));
+const AcademyFinderPage = lazy(() => import('./pages/AcademyFinderPage').then((m) => ({ default: m.AcademyFinderPage })));
+const AcademyDetailPage = lazy(() => import('./pages/AcademyDetailPage').then((m) => ({ default: m.AcademyDetailPage })));
 const GlobalSearchPage = lazy(() => import('./pages/GlobalSearchPage').then((m) => ({ default: m.GlobalSearchPage })));
 const StudentCreditsPage = lazy(() => import('./pages/StudentCreditsPage').then((m) => ({ default: m.StudentCreditsPage })));
 const StudentReversePage = lazy(() => import('./pages/StudentReversePage').then((m) => ({ default: m.StudentReversePage })));
@@ -181,6 +184,7 @@ export function App() {
         <Route path="lectures" element={<TeacherLecturesPage />} />
         <Route path="records" element={<TeacherRecordsPage />} />
         <Route path="reports" element={<TeacherReportsPage />} />
+        <Route path="academy-manage" element={<AcademyManagePage />} />
         <Route path="profile" element={<TeacherProfilePage />} />
         <Route path="classes" element={<ClassroomPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
@@ -252,6 +256,8 @@ export function App() {
         <Route path="diagnostic" element={<DiagnosticPage />} />
         <Route path="curriculum" element={<CurriculumPage />} />
         <Route path="lectures" element={<LecturePage />} />
+        <Route path="academies" element={<AcademyFinderPage />} />
+        <Route path="academies/:id" element={<AcademyDetailPage />} />
         <Route path="placement/hub" element={<PlacementHubPage embedded />} />
         <Route path="placement/gap" element={<GapReportPage />} />
         <Route path="membership" element={<StudentMembershipPage />} />

@@ -262,4 +262,30 @@ export class ClaimService {
   private async touch(academyId: string) {
     await this.prisma.academy.update({ where: { id: academyId }, data: { updated_at: new Date() } });
   }
+
+  // ── 리드 인박스(승인 owner) ──────────────────────────────────────
+  /** GET /claims/:academyId/leads — 학원에 온 상담 신청 목록(요약+동의 범위만). */
+  async listLeads(user: AuthUser, academyId: string) {
+    await this.assertOwner(user, academyId);
+    const rows = await this.prisma.academy_lead.findMany({
+      where: { academy_id: academyId },
+      orderBy: { ts: 'desc' },
+      take: 200,
+    });
+    return rows.map((l) => {
+      const s = (l.summary_json ?? {}) as { message?: string; shared?: object; consentScope?: string[]; reply?: object | null };
+      return { id: l.id, status: l.status, message: s.message ?? null, shared: s.shared ?? {}, consentScope: s.consentScope ?? [], reply: s.reply ?? null, classId: l.class_id, ts: l.ts };
+    });
+  }
+
+  /** PATCH /claims/:academyId/leads/:leadId — 상태 갱신·응답(인박스 왕복). */
+  async replyLead(user: AuthUser, academyId: string, leadId: string, dto: { status: 'read' | 'replied' | 'closed'; reply?: string }) {
+    await this.assertOwner(user, academyId);
+    const lead = await this.prisma.academy_lead.findFirst({ where: { id: leadId, academy_id: academyId } });
+    if (!lead) throw new NotFoundException('신청을 찾을 수 없습니다.');
+    const summary = (lead.summary_json ?? {}) as Record<string, unknown>;
+    if (dto.reply) summary.reply = { text: dto.reply, at: new Date().toISOString() };
+    await this.prisma.academy_lead.update({ where: { id: leadId }, data: { status: dto.status, summary_json: summary as object } });
+    return { ok: true, status: dto.status };
+  }
 }

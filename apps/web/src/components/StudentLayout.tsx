@@ -20,6 +20,7 @@ const NAV: NavItem[] = [
   { to: '/student/scores', label: '내 성적·배치', flag: 'scores', end: true },
   { section: '학습·상담' },
   { to: '/student/lectures', label: '강좌' },
+  { to: '/student/academies', label: '학원찾기' },
   { to: '/student/search', label: '선생님 찾기' },
   { to: '/student/bookings', label: '내 예약·상담' },
   { to: '/student/chats', label: '채팅' },
