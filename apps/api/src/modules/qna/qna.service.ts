@@ -29,6 +29,7 @@ import { computeSla } from './domain/qna-sla';
 import { pickAssignee } from './domain/qna-assign';
 import { COMMUNITY_DAILY_LIMIT, aiUnlabeled, canAnswerCommunity, shouldHide, withinDailyLimit } from './domain/qna-community';
 import { DEFAULT_LEAGUE_POLICY, TIER_LABEL, evaluateLeague, nextTierNeed, type LeaguePolicy } from './domain/qna-league';
+import { aggregateSubjectStats } from './domain/qna-subject-stat';
 import { NotifyService } from '../notification/notify.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { CreateAnswerDto, CreateQuestionDto } from './dto/qna.dto';
@@ -1130,6 +1131,29 @@ export class QnaService {
       this.prisma.qna_community_answer.count({ where: { author_id: id, accepted: true } }),
     ]);
     return { authored, accepted, acceptRate: authored ? Math.round((accepted / authored) * 100) : 0 };
+  }
+
+  /**
+   * 과목별 커뮤니티 실적(본인/지정) — N33 "과목 오각형"(축 B) 원천 신호.
+   * 기존 커뮤니티 답변 + 질문 과목에서 산출(마이그레이션·정책값 불요). 숨김 답변 제외.
+   * 노출 게이트(n≥5)·타게팅은 N33 후속 — 여기선 데이터 집계만.
+   */
+  async answererSubjectStats(user: AuthUser, authorId?: string) {
+    const id = authorId ?? user.id;
+    const answers = await this.prisma.qna_community_answer.findMany({
+      where: { author_id: id, hidden: false },
+      select: { accepted: true, post_id: true },
+    });
+    if (answers.length === 0) return { authorId: id, subjects: [] };
+    const postIds = [...new Set(answers.map((a) => a.post_id))];
+    const posts = await this.prisma.qna_post.findMany({ where: { id: { in: postIds } }, select: { id: true, subject: true } });
+    const subjById = new Map(posts.map((p) => [p.id, p.subject]));
+    const policy = await this.getLeaguePolicy();
+    const subjects = aggregateSubjectStats(
+      answers.map((a) => ({ subject: subjById.get(a.post_id) ?? null, accepted: a.accepted })),
+      policy,
+    );
+    return { authorId: id, subjects };
   }
 
   // ── Q3 리그(3부→2부→1부) ─────────────────────────────────────────────

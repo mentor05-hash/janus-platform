@@ -252,6 +252,12 @@ export class QnaController {
     return this.qna.communityStats(user);
   }
 
+  /** GET /qna/community/subject-stats — 내 과목별 실적(N33 과목 오각형 원천). */
+  @Get('community/subject-stats')
+  subjectStats(@CurrentUser() user: AuthUser) {
+    return this.qna.answererSubjectStats(user);
+  }
+
   /** GET /qna/community/{id} — 커뮤니티 상세(질문·AI 초안·답변). */
   @Get('community/:id')
   communityGet(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
