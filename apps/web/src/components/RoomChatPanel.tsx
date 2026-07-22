@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { useSessionPhase, canInteract, sessionNotice, phaseOf, type SessionInfo } from '../utils/session';
+import { SchoolRecordUploadNotice } from './SchoolRecordGuard';
 
 // 룸 서비스(apps/realtime-rooms) 프로토콜을 직접 사용 — 웹은 이미 socket.io-client 의존.
 export type RoomSession = { url: string; token: string; participantId: string; features: { chat: boolean; whiteboard: boolean; voice: boolean }; session: SessionInfo };
@@ -341,6 +342,7 @@ export function RoomChatPanel({ session: rs, title, onClose }: { bookingId: stri
               </div>
             )}
             {modWarn && <div style={{ margin: '6px 12px 0', padding: '8px 12px', borderRadius: 8, background: '#FEF3CD', border: '1px solid #F5D889', color: '#8a6d1a', fontSize: 12.5 }}>⚠️ {modWarn}</div>}
+            <div style={{ padding: '6px 10px 0' }}><SchoolRecordUploadNotice compact /></div>
             <div style={{ display: 'flex', gap: 6, padding: 10, borderTop: '1px solid var(--line)', alignItems: 'center' }}>
               <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={onFile} />
               <button onClick={() => fileRef.current?.click()} title="이미지 첨부(여러 장 가능)" aria-label="이미지 첨부" style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer' }}>🖼</button>

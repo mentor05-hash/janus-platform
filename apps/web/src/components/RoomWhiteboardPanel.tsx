@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { paintStroke, paintGuide as renderGuide, paintLasers as renderLasers, addLaser as pushLaser, SHAPE_TOOLS, type Pt, type Stroke, type GridMode } from '@mentoring/board-core';
 import { useRoomVoiceCall } from '../utils/roomVoiceCall';
+import { SchoolRecordUploadNotice } from './SchoolRecordGuard';
 import { useSessionPhase, canInteract, sessionNotice, type SessionInfo } from '../utils/session';
 import type { RoomSession } from './RoomChatPanel';
 import { LectureAudioBar } from './LectureAudioBar';
@@ -501,6 +502,7 @@ export function RoomWhiteboardPanel({ title, onClose, session: rs, media, mediaP
                 <input ref={fileRef} type="file" accept="application/pdf,image/*" hidden onChange={onAttach} />
                 <button className="btn ghost sm" disabled={!rw} onClick={() => fileRef.current?.click()} title="이미지 배경 올리기">🖼</button>
                 <button className="btn ghost sm" disabled={!rw} onClick={openCamera} title="카메라로 문제 촬영">📷</button>
+                <div style={{ flexBasis: '100%' }}><SchoolRecordUploadNotice compact /></div>
                 <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
               </>)}
               {/* 줌·보기 묶음 — 줄바꿈 시에도 함께 이동(그룹 분리 방지) */}

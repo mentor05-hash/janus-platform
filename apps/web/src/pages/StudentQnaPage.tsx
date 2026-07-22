@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { PageHeader, Card, Button, Badge, ErrorText, Spinner, EmptyState, TextareaField, SelectField } from '../components/ui';
 import { AuthImage } from '../components/AuthImage';
+import { SchoolRecordUploadNotice } from '../components/SchoolRecordGuard';
 import { track } from '../utils/track';
 
 // P3 — 유사 질문 제안
@@ -409,7 +410,8 @@ export function StudentQnaPage() {
           <p style={{ fontSize: 12, color: 'var(--chip-confirmed)', background: 'var(--chip-confirmed-bg,#FAF1E2)', borderRadius: 8, padding: '7px 10px', margin: '0 0 8px' }}>
             ⚠️ 한 번에 <b>한 문항만</b> 올려주세요. 여러 문항을 함께 올리면 답변이 정확하지 않을 수 있어요.
           </p>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
+          <SchoolRecordUploadNotice />
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12, marginTop: 8 }}>
             {atts.map((a) => (
               <div key={a.id} style={{ position: 'relative' }}>
                 <AuthImage fileId={a.id} alt={a.name} size={84} />

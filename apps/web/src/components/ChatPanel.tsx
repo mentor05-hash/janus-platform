@@ -6,6 +6,7 @@ import { io, type Socket } from 'socket.io-client';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { AuthImage } from './AuthImage';
+import { SchoolRecordUploadNotice } from './SchoolRecordGuard';
 import { mineOf } from '../utils/chat';
 import { useSessionPhase, canInteract, sessionNotice, phaseOf, type SessionInfo } from '../utils/session';
 
@@ -428,6 +429,8 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
                 </div>
               </div>
             ) : (
+            <>
+            <div style={{ padding: '6px 10px 0' }}><SchoolRecordUploadNotice compact /></div>
             <div style={{ display: 'flex', gap: 6, padding: 10, borderTop: '1px solid var(--line)', alignItems: 'center' }}>
               <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={onFile} />
               <button onClick={() => fileRef.current?.click()} title="이미지 첨부(여러 장 가능)" aria-label="이미지 첨부" style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer' }}>🖼</button>
@@ -441,6 +444,7 @@ export function ChatPanel({ bookingId, myId, title, onClose }: { bookingId: stri
               <input className="input" value={text} onChange={(e) => onType(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) send(); }} placeholder={recOn ? '녹음 중… 버튼을 다시 누르면 전송돼요' : reply ? '답장 입력…' : !isTeacher && postFree ? `마무리 메시지 ${Math.max(0, postFree.limit - postFree.used)}건 남음` : '메시지 입력…'} aria-label="메시지 입력" />
               <button className="btn sm" onClick={send} disabled={!text.trim()}>전송</button>
             </div>
+            </>
             )}
           </>
         )}

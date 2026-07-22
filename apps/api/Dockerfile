@@ -13,11 +13,14 @@ COPY packages/shared/package.json packages/shared/
 COPY packages/pricing/package.json packages/pricing/
 COPY packages/media-kit/package.json packages/media-kit/
 COPY packages/board-core/package.json packages/board-core/
+COPY packages/guard-school-record/package.json packages/guard-school-record/
 RUN npm ci
 
 # 소스 복사 후 Prisma client 생성 + 빌드 → 런타임 의존성만 남김
+# 생기부 가드(공용 모듈)는 런타임에 apps/api 가 require 하므로 JS 로 선(先)빌드 → dist.
 COPY . .
-RUN npm run prisma:generate --workspace apps/api \
+RUN npm run build --workspace @mentoring/guard-school-record \
+ && npm run prisma:generate --workspace apps/api \
  && npm run build --workspace apps/api \
  && npm run build:seed --workspace apps/api \
  && npm prune --omit=dev
@@ -33,6 +36,8 @@ WORKDIR /app
 RUN apk add --no-cache dumb-init poppler-utils fontconfig ttf-freefont font-noto
 
 COPY --from=builder /app/node_modules ./node_modules
+# 생기부 가드 워크스페이스 실파일(dist 포함) — node_modules/@mentoring 심링크 대상.
+COPY --from=builder /app/packages/guard-school-record ./packages/guard-school-record
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/dist-seed ./apps/api/dist-seed
 COPY --from=builder /app/apps/api/prisma ./apps/api/prisma

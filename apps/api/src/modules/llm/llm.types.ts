@@ -48,6 +48,12 @@ export interface ScoreOcrResult {
   note: string;
 }
 
+// ── 생기부 가드 비전 분류(§5 3단) ──
+// 이미지가 학교생활기록부 서식인지 yes/no/unsure 만 판정. 원문·근거 비보존(라벨만).
+export interface SchoolRecordVisionResult {
+  label: 'yes' | 'no' | 'unsure';
+}
+
 // ── 컨설팅 분석(생기부 등 · 설계안 §7) ──
 // 입력에는 식별정보(이름·연락처)를 넣지 않는다(마스킹). 산출물은 컨설턴트 검수용 "초안".
 export interface ConsultingAnalysisInput {
@@ -135,6 +141,8 @@ export interface LlmProvider {
   /** Q&A 질문 → AI 1차 초안(Q3). 미구성/실패 시 예외 → 호출측에서 초안 생략(무해). */
   draftAnswer(input: QnaDraftInput): Promise<QnaDraftResult>;
   extractScoreReport(input: ScoreOcrInput): Promise<ScoreOcrResult>;
+  /** 이미지가 학교생활기록부 서식인지 분류(생기부 가드 §5 3단). 응답은 라벨만(원문 비보존). */
+  classifySchoolRecord(input: ScoreOcrInput): Promise<SchoolRecordVisionResult>;
   analyzeConsulting(input: ConsultingAnalysisInput): Promise<ConsultingAnalysisResult>;
   /** 관문 자유서술 해석. 미구성/실패 시 예외 → 호출측(gateway)이 규칙 폴백. */
   interpretGateway(input: GatewayInterpretInput): Promise<GatewayLlmResult>;

@@ -1,0 +1,20 @@
+{
+  "name": "@mentoring/guard-school-record",
+  "version": "0.1.0",
+  "private": true,
+  "description": "생기부 가드 — 학교생활기록부 업로드 감지·차단 공용 모듈(무취급 원칙: 원본·추출텍스트 무영속). 3단 판정(파일명/키워드/비전훅).",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.9"
+  }
+}
