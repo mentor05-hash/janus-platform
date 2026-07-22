@@ -6,13 +6,13 @@
 #
 # 사용:  bash ops/기기이전_번들_복원.sh
 # 환경변수:
-#   JANUS_HOME=~/janus   IN=~/janus-migrate   CPN=itall-mentoring
+#   JANUS_HOME=~/janus   IN=~/janus-migrate   CPN=janus-platform
 #   COMPOSE="docker compose -f docker-compose.full.yml"
 set -uo pipefail
 
 JANUS_HOME="${JANUS_HOME:-$HOME/janus}"
 IN="${IN:-$HOME/janus-migrate}"
-CPN="${CPN:-itall-mentoring}"
+CPN="${CPN:-janus-platform}"
 COMPOSE="${COMPOSE:-docker compose -f docker-compose.full.yml}"
 export COMPOSE_PROJECT_NAME="$CPN"
 PLAT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -48,8 +48,8 @@ fi
 if [ -f "$IN/db.sql" ]; then
   echo "▶ postgres 기동 후 DB 복원…"
   $COMPOSE up -d postgres
-  for i in $(seq 1 20); do $COMPOSE exec -T postgres pg_isready -U itall >/dev/null 2>&1 && break; sleep 1; done
-  $COMPOSE exec -T postgres psql -U itall -d itall < "$IN/db.sql" && echo "  ✓ DB 복원 완료"
+  for i in $(seq 1 20); do $COMPOSE exec -T postgres pg_isready -U janus >/dev/null 2>&1 && break; sleep 1; done
+  $COMPOSE exec -T postgres psql -U janus -d janus < "$IN/db.sql" && echo "  ✓ DB 복원 완료"
 else
   echo "  · db.sql 없음 — 신규 스키마+재시드 경로(런북 B-1 경로1)"
 fi

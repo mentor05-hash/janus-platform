@@ -48,17 +48,17 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: itall
-          POSTGRES_PASSWORD: itall_local_pw
-          POSTGRES_DB: itall
+          POSTGRES_USER: janus
+          POSTGRES_PASSWORD: janus_local_pw
+          POSTGRES_DB: janus
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U itall -d itall"
+          --health-cmd "pg_isready -U janus -d janus"
           --health-interval 5s --health-timeout 3s --health-retries 10
     env:
       NODE_ENV: test
-      DATABASE_URL: postgresql://itall:itall_local_pw@localhost:5432/itall
+      DATABASE_URL: postgresql://janus:janus_local_pw@localhost:5432/janus
       REDIS_URL: redis://localhost:6379
       JWT_SECRET: ci_test_secret
       JWT_REFRESH_SECRET: ci_test_refresh_secret
@@ -90,13 +90,13 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: itall
-          POSTGRES_PASSWORD: itall_local_pw
-          POSTGRES_DB: itall
+          POSTGRES_USER: janus
+          POSTGRES_PASSWORD: janus_local_pw
+          POSTGRES_DB: janus
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U itall -d itall"
+          --health-cmd "pg_isready -U janus -d janus"
           --health-interval 5s --health-timeout 3s --health-retries 10
       redis:
         image: redis:7-alpine
@@ -107,7 +107,7 @@ jobs:
           --health-interval 5s --health-timeout 3s --health-retries 10
     env:
       NODE_ENV: test
-      DATABASE_URL: postgresql://itall:itall_local_pw@localhost:5432/itall
+      DATABASE_URL: postgresql://janus:janus_local_pw@localhost:5432/janus
       REDIS_URL: redis://localhost:6379
       JWT_SECRET: ci_test_secret
       JWT_REFRESH_SECRET: ci_test_refresh_secret

@@ -7,12 +7,12 @@
 # 실데이터 도착 시: 같은 파일명으로 덮어쓰면 됨(이 스크립트가 만든 합성물엔 DEMO 마커가 있어 교체 안전).
 #
 # 사용:  bash ops/placement/setup-demo-hub.sh
-# 환경변수:  JANUS_HOME=~/janus  CPN=itall-mentoring
+# 환경변수:  JANUS_HOME=~/janus  CPN=janus-platform
 set -uo pipefail
 
 JANUS_HOME="${JANUS_HOME:-$HOME/janus}"
 DATA_DIR="${JANUS_DATA_DIR_HOST:-$JANUS_HOME/20_data}"
-CPN="${CPN:-itall-mentoring}"
+CPN="${CPN:-janus-platform}"
 COMPOSE="docker compose -f docker-compose.full.yml"
 export COMPOSE_PROJECT_NAME="$CPN"
 PLAT="$(cd "$(dirname "$0")/../.." && pwd)"

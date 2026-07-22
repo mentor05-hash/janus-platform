@@ -49,7 +49,7 @@
 - API prefix `/api/v1` · JWT(access/refresh) · 응답 `{data,meta}`/`{error:{code,message}}` · 금액 정수(원) · UTC 저장/KST 표시.
 - 외부 의존은 어댑터 뒤로: `PgProvider`·`NotificationProvider`·`StorageProvider`·`LlmProvider`·`ZoomProvider`·`MediaProvider(LiveKit)`.
 - 로컬 실행: `docker compose -f docker-compose.full.yml up -d` → web :8080 · mobile :8090 · api :3000 · rooms :3100. 데모 계정·주소는 `docs/접속_주소_정리.md`.
-- ⚠ compose 프로젝트명: 기존 볼륨(pgdata 등)은 `itall-mentoring_*` 이름 — 이 경로에서 compose 실행 시 `COMPOSE_PROJECT_NAME=itall-mentoring` 지정해야 기존 데이터 재사용.
+- ⚠ DB·compose 리네임(2026-07-22): DB/유저/비번 `itall`→`janus`(`janus_local_pw`), compose 프로젝트·볼륨 `itall-mentoring`→`janus-platform`. **기존 `itall-mentoring_*` 볼륨을 쓰던 기기는 1회 마이그레이션 필요**(백업→janus 스택 복원) — 절차: `docs/20_exec/야누스_DB리네임_마이그레이션_런북_2026-07-22.md`. 신규 환경은 compose 그대로 실행 시 `janus-platform_*` 볼륨 자동 생성. (Expo `app.json owner`·`@mentoring` 패키지 스코프·`com.example.mentoring` 번들ID는 별개 식별자로 유지.)
 
 ## 8. 폴더 컨텍스트 (repo 밖)
 

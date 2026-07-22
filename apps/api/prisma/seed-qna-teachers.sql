@@ -1,5 +1,5 @@
 -- Q&A 데모 선생님 4명 + SLA 실적 (P5 배지 확인용) — ts-node 불필요, psql 로 직접 실행.
---   docker compose -f docker-compose.full.yml exec -T postgres psql -U itall -d itall < apps/api/prisma/seed-qna-teachers.sql
+--   docker compose -f docker-compose.full.yml exec -T postgres psql -U janus -d janus < apps/api/prisma/seed-qna-teachers.sql
 -- 멱등: login_id 기준(있으면 건너뜀). 비밀번호는 teacher01 과 동일(pw_hash 복사).
 -- teacher02 김수학(첫응답 ~8분·★5) / teacher03 이영어(~45분·★4) / teacher04 박과탐(~200분·★3) / teacher05 최국어(신규)
 

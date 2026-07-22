@@ -85,7 +85,7 @@ s.emit('join', {}, (r) => { /* r.features, r.session, r.messages */ });
 
 ## 로컬 실행
 ```bash
-ROOMS_DATABASE_URL=postgresql://itall:itall_local_pw@localhost:5432/itall node scripts/apply-migrations.mjs
+ROOMS_DATABASE_URL=postgresql://janus:janus_local_pw@localhost:5432/janus node scripts/apply-migrations.mjs
 ROOMS_DATABASE_URL=... ROOMS_JWT_SECRET=... ROOMS_API_KEY=... PORT=3100 node dist/main.js
 # 또는: docker compose -f docker-compose.full.yml up -d realtime-rooms  (→ :3100)
 ```

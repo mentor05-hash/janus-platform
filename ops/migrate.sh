@@ -12,9 +12,9 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MIG_DIR="$ROOT/apps/api/migrations"
-CONTAINER="${PG_CONTAINER:-itall-mentoring-postgres-1}"
-DB="${PGDATABASE:-itall}"
-USER="${PGUSER:-itall}"
+CONTAINER="${PG_CONTAINER:-janus-platform-postgres-1}"
+DB="${PGDATABASE:-janus}"
+USER="${PGUSER:-janus}"
 # psql 실행기: PSQL 미지정 시 도커 컨테이너 exec.
 run_sql() { if [ -n "${PSQL:-}" ]; then eval "$PSQL" -v ON_ERROR_STOP=1 "$@"; else docker exec -i "$CONTAINER" psql -U "$USER" -d "$DB" -v ON_ERROR_STOP=1 "$@"; fi; }
 run_file() { if [ -n "${PSQL:-}" ]; then eval "$PSQL" -v ON_ERROR_STOP=1 -f "$1"; else docker exec -i "$CONTAINER" psql -U "$USER" -d "$DB" -v ON_ERROR_STOP=1 < "$1"; fi; }

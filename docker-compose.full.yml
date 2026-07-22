@@ -11,15 +11,15 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: itall
-      POSTGRES_PASSWORD: itall_local_pw
-      POSTGRES_DB: itall
+      POSTGRES_USER: janus
+      POSTGRES_PASSWORD: janus_local_pw
+      POSTGRES_DB: janus
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data   # dev compose 와 동일 볼륨(시드 데이터 재사용)
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U itall -d itall"]
+      test: ["CMD-SHELL", "pg_isready -U janus -d janus"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -46,7 +46,7 @@ services:
       API_PREFIX: /api/v1
       # connection_limit: 예약 advisory-lock 직렬화 시 대기 요청도 커넥션을 점유하므로 여유 확보.
       #   pool_timeout: 풀 대기 상한(초). 초과분은 서비스에서 우아한 409 로 안내. (postgres max=100)
-      DATABASE_URL: postgresql://itall:itall_local_pw@postgres:5432/itall?connection_limit=30&pool_timeout=20
+      DATABASE_URL: postgresql://janus:janus_local_pw@postgres:5432/janus?connection_limit=30&pool_timeout=20
       REDIS_URL: redis://redis:6379
       JWT_SECRET: dev-jwt-secret-please-change
       JWT_REFRESH_SECRET: dev-refresh-secret-please-change
@@ -102,7 +102,7 @@ services:
     environment:
       NODE_ENV: local
       PORT: "3100"
-      ROOMS_DATABASE_URL: postgresql://itall:itall_local_pw@postgres:5432/itall
+      ROOMS_DATABASE_URL: postgresql://janus:janus_local_pw@postgres:5432/janus
       REDIS_URL: redis://redis:6379
       WS_REDIS_ADAPTER: "1"
       ROOMS_JWT_SECRET: dev-rooms-secret-change    # 실서비스에선 시크릿으로 교체
@@ -146,6 +146,6 @@ services:
       - api
 
 volumes:
-  pgdata:   # = itall-mentoring_pgdata (dev compose 와 공유)
+  pgdata:   # = janus-platform_pgdata (dev compose 와 공유)
   storage:  # 업로드 파일 영속 저장(자료실·문제 첨부)
   rooms_storage:  # 실시간 룸 서비스 첨부 영속화

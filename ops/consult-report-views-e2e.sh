@@ -8,8 +8,8 @@
 set -uo pipefail
 API="${API:-http://localhost:3000/api/v1}"
 PW="${PW:-dev-password!}"
-export PGPASSWORD="${PGPASSWORD:-itall_local_pw}"
-PSQL="${PSQL:-psql -h localhost -U itall -d itall -t -A}"
+export PGPASSWORD="${PGPASSWORD:-janus_local_pw}"
+PSQL="${PSQL:-psql -h localhost -U janus -d janus -t -A}"
 login() { curl -s -X POST "$API/auth/login" -H 'Content-Type: application/json' -d "{\"loginId\":\"$1\",\"password\":\"$PW\"}" | jq -r '.data.accessToken // .accessToken // empty'; }
 # 응답 봉투({data,meta}) 언랩 — 에러({error})는 그대로 통과.
 uw() { jq -c '.data // .' 2>/dev/null; }

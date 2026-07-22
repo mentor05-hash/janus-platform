@@ -2,7 +2,7 @@
 -- seed-base.sql — 기본 더미 데이터(계정·센터·등급·요금정책)
 -- seed.ts(ts-node) 산출을 SQL로 덤프(column-inserts) — 런타임 컨테이너(ts-node 없음)에서도
 -- psql 로 바로 주입 가능. 더미 로그인 7종 · 공통 비번: dev-password!
--- 사용: docker compose ... exec -T postgres psql -U itall -d itall < prisma/seed-base.sql
+-- 사용: docker compose ... exec -T postgres psql -U janus -d janus < prisma/seed-base.sql
 -- 멱등 아님 — 빈 DB 1회 주입 권장.
 -- =====================================================================
 BEGIN;

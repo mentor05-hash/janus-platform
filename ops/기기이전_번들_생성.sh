@@ -8,13 +8,13 @@
 # 환경변수(기본값 있음):
 #   JANUS_HOME=~/janus            # janus 루트(20_data·40_workbench 상위)
 #   OUT=~/janus-migrate           # 번들 출력 폴더
-#   CPN=itall-mentoring           # COMPOSE_PROJECT_NAME(볼륨명 일치 — 고정)
+#   CPN=janus-platform           # COMPOSE_PROJECT_NAME(볼륨명 일치 — 고정)
 #   COMPOSE="docker compose -f docker-compose.full.yml"
 set -uo pipefail
 
 JANUS_HOME="${JANUS_HOME:-$HOME/janus}"
 OUT="${OUT:-$HOME/janus-migrate}"
-CPN="${CPN:-itall-mentoring}"
+CPN="${CPN:-janus-platform}"
 COMPOSE="${COMPOSE:-docker compose -f docker-compose.full.yml}"
 export COMPOSE_PROJECT_NAME="$CPN"
 
@@ -31,7 +31,7 @@ log ""
 # ── 1) DB 덤프(현재 상태 그대로) ──
 log "## 1) DB 덤프"
 if $COMPOSE ps postgres >/dev/null 2>&1 && $COMPOSE ps postgres 2>/dev/null | grep -q .; then
-  if $COMPOSE exec -T postgres pg_dump -U itall -d itall --clean --if-exists > "$OUT/db.sql" 2>/dev/null; then
+  if $COMPOSE exec -T postgres pg_dump -U janus -d janus --clean --if-exists > "$OUT/db.sql" 2>/dev/null; then
     log "  ✓ db.sql ($(du -h "$OUT/db.sql" | cut -f1))"
   else
     log "  ⚠ pg_dump 실패 — postgres 컨테이너 실행 상태 확인 후 재시도(경로2). 신규 재시드로 대체 가능."

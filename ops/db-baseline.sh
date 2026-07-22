@@ -11,5 +11,5 @@ cd "$(dirname "$0")/.."
     echo "INSERT INTO schema_migrations(name) VALUES ('$(basename "$f")') ON CONFLICT DO NOTHING;"
   done
   echo "SELECT count(*) AS ledger_rows FROM schema_migrations;"
-} | docker compose -f docker-compose.full.yml exec -T postgres psql -U itall -d itall -v ON_ERROR_STOP=1
+} | docker compose -f docker-compose.full.yml exec -T postgres psql -U janus -d janus -v ON_ERROR_STOP=1
 echo "✅ 베이스라인 완료 — 이제 ./ops/db-sync.sh 를 실행하세요."

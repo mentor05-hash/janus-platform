@@ -26,7 +26,7 @@ function resolveDatabaseUrl(): string {
   } catch {
     /* .env 없음 — 로컬 기본값 사용 */
   }
-  return 'postgresql://itall:itall_local_pw@localhost:5432/itall';
+  return 'postgresql://janus:janus_local_pw@localhost:5432/janus';
 }
 
 // 결정적 더미 UUID (실데이터 아님 — 시드 식별용). RFC v4 형식(버전 4·variant 8)으로 유효.

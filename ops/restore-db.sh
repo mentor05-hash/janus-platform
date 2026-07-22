@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # DB 복구 — backup-db.sh 로 만든 .sql.gz 백업을 복원. 파괴적 작업이라 확인을 요구.
 #   사용: ./ops/restore-db.sh <백업파일.sql.gz> [--yes]
-#   예)  ./ops/restore-db.sh ~/itall-backups/itall-20260702-030000.sql.gz
+#   예)  ./ops/restore-db.sh ~/janus-backups/janus-20260702-030000.sql.gz
 #
-# 복구 리허설(권장): 정기적으로 최신 백업을 별도 DB(예: itall_restore_test)로 복원해
+# 복구 리허설(권장): 정기적으로 최신 백업을 별도 DB(예: janus_restore_test)로 복원해
 #   덤프가 실제로 되살아나는지 확인한다. RESTORE_DB 로 대상 DB 지정 가능.
 set -euo pipefail
 FILE="${1:-}"
 YES="${2:-}"
-CONTAINER="${PG_CONTAINER:-itall-mentoring-postgres-1}"
-DB="${RESTORE_DB:-${PGDATABASE:-itall}}"
-USER="${PGUSER:-itall}"
+CONTAINER="${PG_CONTAINER:-janus-platform-postgres-1}"
+DB="${RESTORE_DB:-${PGDATABASE:-janus}}"
+USER="${PGUSER:-janus}"
 
 [ -z "$FILE" ] && { echo "usage: $0 <backup.sql.gz> [--yes]  (RESTORE_DB 로 대상 DB 변경 가능)"; exit 1; }
 [ -f "$FILE" ] || { echo "백업 파일 없음: $FILE"; exit 1; }
