@@ -322,6 +322,12 @@ export class QnaController {
     return this.qna.acceptCommunityAnswer(user, id);
   }
 
+  /** PATCH /qna/community/answers/{id} — 내 커뮤니티 답변 수정(채택·마감 전). */
+  @Patch('community/answers/:id')
+  communityEditAnswer(@Param('id', ParseUUIDPipe) id: string, @Body() dto: CommunityAnswerDto, @CurrentUser() user: AuthUser) {
+    return this.qna.editCommunityAnswer(user, id, dto.body);
+  }
+
   /** POST /qna/report — 신고(로그인 전원·대상별 1회·누적 3건 숨김). */
   @Post('report')
   report(@Body() dto: QnaReportDto, @CurrentUser() user: AuthUser) {

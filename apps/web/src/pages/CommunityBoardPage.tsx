@@ -13,7 +13,7 @@ type ListItem = {
 };
 type Answer = {
   id: string; body: string; accepted: boolean; aiSimilar: boolean;
-  authorName: string; authorRole: string | null; mine: boolean; createdAt: string;
+  authorName: string; authorRole: string | null; mine: boolean; createdAt: string; updatedAt: string;
 };
 type Detail = {
   id: string; subject: string | null; difficulty: string | null; body: string; status: string;
@@ -168,6 +168,8 @@ function CommunityDetail({ postId, onBack, onReport }: {
   const [msg, setMsg] = useState('');
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null); // 수정 중인 내 답변 id
+  const [editBody, setEditBody] = useState('');
 
   const load = useCallback(() => {
     setD(null);
@@ -213,8 +215,22 @@ function CommunityDetail({ postId, onBack, onReport }: {
     catch (e) { setError(e instanceof ApiError ? e.message : '채택 실패'); }
   }
 
+  function startEdit(a: Answer) { setEditId(a.id); setEditBody(a.body); setMsg(''); setError(''); }
+  async function saveEdit() {
+    if (!editId || !editBody.trim()) return;
+    setBusy(true); setError(''); setMsg('');
+    try {
+      const r = await api.patch<{ warning: string | null }>(`/qna/community/answers/${editId}`, { body: editBody });
+      setEditId(null); setEditBody('');
+      setMsg(r.warning ?? '답변을 수정했어요.');
+      load();
+    } catch (e) { setError(e instanceof ApiError ? e.message : '수정 실패'); }
+    finally { setBusy(false); }
+  }
+
   if (d === null) return <Spinner />;
   const closed = d.status !== 'open';
+  const myAnswer = d.answers.find((a) => a.mine) ?? null; // 이미 단 내 답변(1인 1건)
 
   return (
     <div>
@@ -248,24 +264,42 @@ function CommunityDetail({ postId, onBack, onReport }: {
                 {a.authorRole && <Badge kind="soft">{roleLabel(a.authorRole)}</Badge>}
                 {a.accepted && <Badge kind="done">채택됨</Badge>}
                 {a.aiSimilar && <Badge kind="danger">AI 유사</Badge>}
-                <span style={{ fontSize: 12, color: 'var(--caption)', marginLeft: 'auto' }}>{fmtDate(a.createdAt)}</span>
+                {a.mine && <Badge kind="soft">내 답변</Badge>}
+                <span style={{ fontSize: 12, color: 'var(--caption)', marginLeft: 'auto' }}>
+                  {fmtDate(a.createdAt)}{a.updatedAt && a.updatedAt !== a.createdAt ? ' · 수정됨' : ''}
+                </span>
               </div>
-              <div style={{ fontSize: 14, color: 'var(--ink)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{a.body}</div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                {d.isOwner && !closed && <Button onClick={() => accept(a.id)}>채택</Button>}
-                {!a.mine && <button onClick={() => onReport('answer', a.id)} style={{ background: 'none', border: 'none', color: 'var(--caption)', cursor: 'pointer', fontSize: 12 }}>🚩 신고</button>}
-              </div>
+              {editId === a.id ? (
+                <>
+                  <TextareaField label="답변 수정" value={editBody} onChange={(e) => setEditBody(e.target.value)} rows={4} />
+                  <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                    <Button onClick={saveEdit} disabled={busy}>{busy ? '저장 중…' : '저장'}</Button>
+                    <button onClick={() => setEditId(null)} style={{ background: 'none', border: '1px solid var(--line)', borderRadius: 8, padding: '6px 12px', color: 'var(--muted)', cursor: 'pointer', fontSize: 13 }}>취소</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ fontSize: 14, color: 'var(--ink)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{a.body}</div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                    {d.isOwner && !closed && <Button onClick={() => accept(a.id)}>채택</Button>}
+                    {a.mine && !a.accepted && !closed && <button onClick={() => startEdit(a)} style={{ background: 'none', border: '1px solid var(--line)', borderRadius: 8, padding: '6px 12px', color: 'var(--muted)', cursor: 'pointer', fontSize: 13 }}>수정</button>}
+                    {!a.mine && <button onClick={() => onReport('answer', a.id)} style={{ background: 'none', border: 'none', color: 'var(--caption)', cursor: 'pointer', fontSize: 12 }}>🚩 신고</button>}
+                  </div>
+                </>
+              )}
             </Card>
           ))}
         </div>
       )}
 
-      {!closed && !d.isOwner && (
+      {!closed && !d.isOwner && !myAnswer && (
         <Card style={{ marginTop: 16 }}>
           <TextareaField label="답변 작성" value={body} onChange={(e) => setBody(e.target.value)} rows={4} placeholder="도움이 될 답변을 적어주세요. AI 도움을 받았다면 'AI 참고'라고 표기해 주세요." />
           <div style={{ marginTop: 8 }}><Button onClick={submitAnswer} disabled={busy}>{busy ? '등록 중…' : '답변 등록'}</Button></div>
         </Card>
       )}
+      {!closed && !d.isOwner && myAnswer && <div style={{ fontSize: 13, color: 'var(--caption)', marginTop: 12 }}>이미 답변을 남겼어요. 위 <b>내 답변</b>의 <b>수정</b> 버튼으로 고칠 수 있어요(채택 전까지).</div>}
+      {closed && myAnswer && <div style={{ fontSize: 13, color: 'var(--caption)', marginTop: 12 }}>채택이 완료돼 답변 수정이 잠겼어요.</div>}
       {d.isOwner && !closed && <div style={{ fontSize: 13, color: 'var(--caption)', marginTop: 12 }}>본인 질문에는 답변할 수 없어요. 마음에 드는 답변을 채택해 주세요.</div>}
     </div>
   );

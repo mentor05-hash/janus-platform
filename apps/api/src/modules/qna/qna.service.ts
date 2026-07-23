@@ -1103,7 +1103,7 @@ export class QnaService {
       answers: answers.map((a) => ({
         id: a.id, body: a.body ?? '', accepted: a.accepted, aiSimilar: a.ai_similar,
         authorName: info.get(a.author_id)?.name ?? '익명', authorRole: info.get(a.author_id)?.role ?? null,
-        mine: a.author_id === user.id, createdAt: a.created_at,
+        mine: a.author_id === user.id, createdAt: a.created_at, updatedAt: a.updated_at,
       })),
     };
   }
@@ -1117,6 +1117,9 @@ export class QnaService {
       const msg = gate.reason === 'owner' ? '본인 질문에는 답변할 수 없습니다.' : gate.reason === 'resolved' ? '이미 채택/마감된 질문입니다.' : gate.reason === 'hidden' ? '숨김 처리된 질문입니다.' : '커뮤니티 질문이 아닙니다.';
       throw new ForbiddenException(msg);
     }
+    // 1인 1답변 — 이미 답변했으면 새로 달지 말고 수정하도록(무한 중복 방지).
+    const dup = await this.prisma.qna_community_answer.findFirst({ where: { post_id: postId, author_id: user.id, hidden: false }, select: { id: true } });
+    if (dup) throw new ConflictException('이미 이 질문에 답변하셨어요. 기존 답변을 수정해 주세요.');
     let similarity = 0; let aiSim = false;
     if (post.ai_draft) {
       const sim = await this.llm.checkAnswerSimilarity({ body, priors: [{ id: 'ai', body: post.ai_draft }] });
@@ -1130,6 +1133,24 @@ export class QnaService {
   }
 
   /** 커뮤니티 답변 채택(질문 학생, 단일) — 답변 accepted + 질문 resolved. */
+  /** 커뮤니티 답변 수정 — 본인 답변만, 채택 전·질문 미마감일 때만. 무한 중복 대신 수정으로. */
+  async editCommunityAnswer(user: AuthUser, answerId: string, body: string) {
+    const ans = await this.prisma.qna_community_answer.findUnique({ where: { id: answerId } });
+    if (!ans || ans.hidden) throw new NotFoundException('답변을 찾을 수 없습니다.');
+    if (ans.author_id !== user.id) throw new ForbiddenException('본인 답변만 수정할 수 있어요.');
+    if (ans.accepted) throw new ForbiddenException('채택된 답변은 수정할 수 없어요.');
+    const post = await this.prisma.qna_post.findUnique({ where: { id: ans.post_id }, select: { status: true, ai_draft: true } });
+    if ((post?.status ?? 'open') !== 'open') throw new ForbiddenException('마감된 질문의 답변은 수정할 수 없어요.');
+    let similarity = Number(ans.similarity ?? 0); let aiSim = ans.ai_similar;
+    if (post?.ai_draft) {
+      const sim = await this.llm.checkAnswerSimilarity({ body, priors: [{ id: 'ai', body: post.ai_draft }] });
+      similarity = sim.maxSimilarity; aiSim = aiUnlabeled(sim.maxSimilarity);
+    }
+    const upd = await this.prisma.qna_community_answer.update({ where: { id: answerId }, data: { body, similarity, ai_similar: aiSim, updated_at: new Date() } });
+    this.realtime?.emitToCommunity(ans.post_id, 'community:answer', { postId: ans.post_id, answerId }); // 열람 중 갱신
+    return { id: upd.id, edited: true, aiSimilar: aiSim, similarity, warning: aiSim ? 'AI 초안과 매우 유사합니다 — AI 도움을 받았다면 "AI 참고"로 표기해 주세요.' : null };
+  }
+
   async acceptCommunityAnswer(user: AuthUser, answerId: string) {
     const ans = await this.prisma.qna_community_answer.findUnique({ where: { id: answerId } });
     if (!ans) throw new NotFoundException('답변을 찾을 수 없습니다.');
