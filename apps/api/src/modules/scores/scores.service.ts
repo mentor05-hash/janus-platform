@@ -194,12 +194,12 @@ export class ScoresService {
         ...(period ? { period } : {}),
         ...(studentId ? { student_id: studentId } : {}),
       },
-      include: { items: { orderBy: { subject: 'asc' } }, student: { include: { account: { select: { name: true, login_id: true } } } } },
+      include: { items: { orderBy: { subject: 'asc' } }, student: { select: { name: true, login_id: true } } },
       orderBy: [{ period: 'desc' }, { created_at: 'desc' }],
       take: 500,
     });
     return rows.map((r) => ({
-      id: r.id, studentId: r.student_id, studentName: r.student.account.name, loginId: r.student.account.login_id,
+      id: r.id, studentId: r.student_id, studentName: r.student.name, loginId: r.student.login_id,
       period: r.period, examType: r.exam_type, source: r.source, reportFileId: r.report_file_id, note: r.note,
       placement: (r.placement as Record<string, unknown> | null) ?? null,
       createdAt: r.created_at,
@@ -439,7 +439,7 @@ export class ScoresService {
     const students = await this.prisma.student_profile.findMany({
       where: {
         ...(this.isHq(actor) ? {} : { center_id: actor.centerId }),
-        NOT: { score_report: { some: { period } } },
+        NOT: { account: { score_report: { some: { period } } } },
       },
       include: { account: { select: { name: true, login_id: true } }, center: { select: { name: true } } },
       orderBy: { account: { login_id: 'asc' } },
