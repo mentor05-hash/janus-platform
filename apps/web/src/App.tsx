@@ -63,6 +63,7 @@ const GuardianConsentPage = lazy(() => import('./pages/GuardianConsentPage').the
 const AdminAuditPage = lazy(() => import('./pages/AdminAuditPage').then((m) => ({ default: m.AdminAuditPage })));
 const AdminPayrollPage = lazy(() => import('./pages/AdminPayrollPage').then((m) => ({ default: m.AdminPayrollPage })));
 const AdminScoresPage = lazy(() => import('./pages/AdminScoresPage').then((m) => ({ default: m.AdminScoresPage })));
+const AdminSchoolRecordGuardPage = lazy(() => import('./pages/AdminSchoolRecordGuardPage').then((m) => ({ default: m.AdminSchoolRecordGuardPage })));
 const AdminReversePage = lazy(() => import('./pages/AdminReversePage').then((m) => ({ default: m.AdminReversePage })));
 const TeacherDashboardPage = lazy(() => import('./pages/TeacherDashboardPage').then((m) => ({ default: m.TeacherDashboardPage })));
 import { StudentLayout } from './components/StudentLayout';
@@ -230,6 +231,7 @@ export function App() {
         <Route path="audit" element={<AdminAuditPage />} />
         <Route path="payroll" element={<AdminPayrollPage />} />
         <Route path="scores" element={<AdminScoresPage />} />
+        <Route path="sr-guard" element={<AdminSchoolRecordGuardPage />} />
         <Route path="legal" element={<LegalPage />} />
       </Route>
 

@@ -46,12 +46,12 @@ export function SchoolRecordUploadNotice({ compact = false }: { compact?: boolea
  * 전역 이벤트를 수신해 표시한다. SR_UNSURE 는 이의(문의) 경로를 강조.
  */
 export function SchoolRecordBlockModal() {
-  const [state, setState] = useState<{ open: boolean; code?: string }>({ open: false });
+  const [state, setState] = useState<{ open: boolean; code?: string; message?: string }>({ open: false });
 
   useEffect(() => {
     const onBlocked = (e: Event) => {
-      const code = (e as CustomEvent<{ code?: string }>).detail?.code;
-      setState({ open: true, code });
+      const detail = (e as CustomEvent<{ code?: string; message?: string }>).detail;
+      setState({ open: true, code: detail?.code, message: detail?.message });
     };
     window.addEventListener(SCHOOL_RECORD_BLOCKED_EVENT, onBlocked);
     return () => window.removeEventListener(SCHOOL_RECORD_BLOCKED_EVENT, onBlocked);
@@ -59,6 +59,8 @@ export function SchoolRecordBlockModal() {
 
   const close = () => setState({ open: false });
   const unsure = state.code === 'SR_UNSURE';
+  // 컨설팅 접수 신규 생기부 업로드 정책 차단(§4-d) — 내용 감지가 아니라 정책 거부. 서버 문구를 그대로 표시.
+  const consultingDisabled = state.code === 'SR_CONSULTING_DISABLED';
 
   return (
     <Modal
@@ -72,7 +74,12 @@ export function SchoolRecordBlockModal() {
       }
     >
       <div style={{ fontSize: 14, lineHeight: 1.7, color: 'var(--text)' }}>
-        {unsure ? (
+        {consultingDisabled ? (
+          <p>
+            {state.message ??
+              '관련 법령(제25조의2, 2026. 7. 29. 시행)에 따라 컨설팅 접수에서도 학교생활기록부(생기부)를 신규로 제공받을 수 없습니다.'}
+          </p>
+        ) : unsure ? (
           <p>
             첨부하신 파일이 <strong>학교생활기록부</strong>일 가능성이 있어 보수적으로 차단되었습니다.
             관련 법령(제25조의2)에 따라 저희 서비스는 생활기록부를 제공받을 수 없으며,{' '}

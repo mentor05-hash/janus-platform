@@ -15,6 +15,7 @@ import type {
 import { LLM_PROVIDER } from '../llm/llm.types';
 import type { LlmProvider } from '../llm/llm.types';
 import { SchoolRecordBlockedException } from './school-record-blocked.exception';
+import { SchoolRecordEventService } from './school-record-event.service';
 
 /** 판정에 넘길 최소 파일 형태(스토리지 UploadedFileLike 와 호환). */
 export interface GuardFileInput {
@@ -23,9 +24,16 @@ export interface GuardFileInput {
   mimetype?: string;
 }
 
-/** 판정 옵션. forceVision: 정책 llmCheck 와 무관하게 비전 단계 강제(성적표 OCR 경로 — §5 3단). */
+/**
+ * 판정 옵션.
+ * - forceVision: 정책 llmCheck 와 무관하게 비전 단계 강제(성적표 OCR 경로 — §5 3단).
+ * - surface/actorId/actorRole: 차단 통계(스텝3)용 메타. 판정 자체에는 영향 없음(무취급 메타데이터).
+ */
 export interface GuardInspectOptions {
   forceVision?: boolean;
+  surface?: string;
+  actorId?: string;
+  actorRole?: string;
 }
 
 /**
@@ -43,6 +51,7 @@ export class SchoolRecordGuardService {
   constructor(
     private readonly config: ConfigService,
     @Optional() @Inject(LLM_PROVIDER) private readonly llm?: LlmProvider,
+    @Optional() private readonly events?: SchoolRecordEventService,
   ) {
     this.policy = this.resolvePolicyFromEnv();
   }
@@ -121,6 +130,14 @@ export class SchoolRecordGuardService {
       this.logger.warn(
         `생기부 감지·차단: reason=${verdict.reason} stage=${verdict.stage} name=${file.originalname ?? '(무명)'}`,
       );
+      // 차단 통계(스텝3) — 사유 코드·표면·단계만 기록(파일명·내용 무기록). 최선노력.
+      await this.events?.record({
+        reason: verdict.reason,
+        stage: verdict.stage,
+        surface: opts.surface,
+        actorId: opts.actorId,
+        actorRole: opts.actorRole,
+      });
       throw new SchoolRecordBlockedException(verdict.reason);
     }
   }
