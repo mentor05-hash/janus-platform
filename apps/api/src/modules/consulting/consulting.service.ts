@@ -24,6 +24,10 @@ import { PAYMENT_PROVIDER, type PaymentProvider } from './payment/payment.types'
 import { buildAnalysisInput } from './domain/analysis';
 import { LLM_PROVIDER, type LlmProvider } from '../llm/llm.types';
 import { NotifyService } from '../notification/notify.service';
+import { SchoolRecordGuardPolicyService } from '../guard/school-record-guard-policy.service';
+import { SchoolRecordEventService } from '../guard/school-record-event.service';
+import { SchoolRecordConsultingDisabledException } from '../guard/school-record-consulting-disabled.exception';
+import { GUARD_SURFACE, POLICY_REASON } from '../guard/school-record-admin.types';
 
 // Phase 1: 신청/업로드. Phase 2: 결제·게이팅·배정. Phase 3: LLM 분석. Phase 4: 인박스·알림.
 @Injectable()
@@ -34,6 +38,8 @@ export class ConsultingService {
     @Inject(PAYMENT_PROVIDER) private readonly payments: PaymentProvider,
     @Inject(LLM_PROVIDER) private readonly llm: LlmProvider,
     private readonly notify: NotifyService,
+    private readonly srPolicy: SchoolRecordGuardPolicyService,
+    private readonly srEvents: SchoolRecordEventService,
   ) {}
 
   private assertStaffOrConsultant(app: { consultant_id: string | null }, user: AuthUser): void {
@@ -107,10 +113,29 @@ export class ConsultingService {
     }
     if (!file) throw new BadRequestException('파일이 필요합니다.');
 
+    // 정책 게이트(지시서 §2 컨설팅 행·§4-d) — 토글 활성 시 신규 생기부(student_record) 업로드 거부.
+    // 기존 저장분·다운로드·다른 종류(성적표·모의고사 등)는 건드리지 않는다. 내용 감지 가드는 별개 백스톱.
+    if (dto.type === 'student_record') {
+      const toggle = await this.srPolicy.getConsultingUploadDisabled();
+      if (toggle.enabled) {
+        await this.srEvents.record({
+          reason: POLICY_REASON.CONSULTING_UPLOAD_DISABLED,
+          stage: 'policy',
+          surface: GUARD_SURFACE.CONSULTING_INTAKE,
+          actorId: user.id,
+          actorRole: user.role,
+        });
+        throw new SchoolRecordConsultingDisabledException();
+      }
+    }
+
     const v = validateDocument(file);
     if (!v.ok) throw new BadRequestException(v.reason);
 
-    const stored = await this.files.upload(user.id, file);
+    const stored = await this.files.upload(user.id, file, {
+      surface: GUARD_SURFACE.CONSULTING_INTAKE,
+      actorRole: user.role,
+    });
     // 형식 검증을 통과했으므로 clean 처리(스텁). 실제 악성/내용 스캔은 후속 단계에서 비동기로.
     const doc = await this.prisma.consulting_document.create({
       data: {

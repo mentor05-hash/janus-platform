@@ -56,4 +56,25 @@ describe('aggregateSubjectStats (N33 과목 오각형 원천)', () => {
     expect(math.tier).toBeLessThanOrEqual(2); // 요건 충족 → 승급
     expect(eng.tier).toBe(3); // 표본 부족 → 입문 유지
   });
+
+  it('㉚ canonical 정규화 — 수학 계열 별칭은 한 과목으로 합산', () => {
+    const stats = aggregateSubjectStats([
+      { subject: '수학', accepted: true },
+      { subject: '미적분', accepted: true },
+      { subject: '확통', accepted: false },
+      { subject: '기하', accepted: true },
+    ]);
+    expect(stats).toHaveLength(1);
+    expect(stats[0].subject).toBe('수학');
+    expect(stats[0].authored).toBe(4); // 4개 별칭이 하나로 접힘
+    expect(stats[0].accepted).toBe(3);
+  });
+
+  it('㉙ 노출 게이트 — authored≥minAuthored(5)만 visible', () => {
+    const rows = Array.from({ length: 5 }, () => ({ subject: '수학', accepted: false }))
+      .concat(Array.from({ length: 4 }, () => ({ subject: '영어', accepted: false })));
+    const stats = aggregateSubjectStats(rows, DEFAULT_LEAGUE_POLICY);
+    expect(stats.find((s) => s.subject === '수학')!.visible).toBe(true); // 5건 → 표시 자격
+    expect(stats.find((s) => s.subject === '영어')!.visible).toBe(false); // 4건 → 쌓는 중
+  });
 });

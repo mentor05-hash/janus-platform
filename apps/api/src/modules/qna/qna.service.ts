@@ -31,7 +31,7 @@ import { COMMUNITY_DAILY_LIMIT, aiUnlabeled, canAnswerCommunity, shouldHide, wit
 import { DEFAULT_LEAGUE_POLICY, TIER_LABEL, evaluateLeague, nextTierNeed, type LeaguePolicy } from './domain/qna-league';
 import { aggregateSubjectStats } from './domain/qna-subject-stat';
 import { credentialBadge } from './domain/qna-answerer-credential';
-import { aggregateAxisStats, isValidAxis, isValidScore } from './domain/qna-answer-rating';
+import { aggregateAxisStats, isPentagonVisible, isValidAxis, isValidScore } from './domain/qna-answer-rating';
 import { NotifyService } from '../notification/notify.service';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { FilesService } from '../storage/files.service';
@@ -1270,12 +1270,16 @@ export class QnaService {
   async answererAxisStats(user: AuthUser, authorId?: string) {
     const id = authorId ?? user.id;
     const answers = await this.prisma.qna_community_answer.findMany({ where: { author_id: id }, select: { id: true } });
-    if (answers.length === 0) return { authorId: id, axes: aggregateAxisStats([]) };
+    if (answers.length === 0) {
+      const axes = aggregateAxisStats([]);
+      return { authorId: id, axes, visible: isPentagonVisible(axes) };
+    }
     const rows = await this.prisma.answer_rating.findMany({
       where: { answer_id: { in: answers.map((a) => a.id) } },
       select: { axis: true, score: true },
     });
-    return { authorId: id, axes: aggregateAxisStats(rows) };
+    const axes = aggregateAxisStats(rows);
+    return { authorId: id, axes, visible: isPentagonVisible(axes) };
   }
 
   // ── Q3 리그(3부→2부→1부) ─────────────────────────────────────────────

@@ -1,4 +1,11 @@
-import { aggregateAxisStats, isValidAxis, isValidScore, RATING_AXES } from './qna-answer-rating';
+import {
+  aggregateAxisStats,
+  isPentagonVisible,
+  isValidAxis,
+  isValidScore,
+  RATING_AXES,
+  visibleAxisCount,
+} from './qna-answer-rating';
 
 describe('aggregateAxisStats (N33 설명방식 오각형)', () => {
   it('빈 입력 — 5축 모두 count 0·avg null·순서 고정', () => {
@@ -42,5 +49,15 @@ describe('aggregateAxisStats (N33 설명방식 오각형)', () => {
     expect(isValidScore(0)).toBe(false);
     expect(isValidScore(6)).toBe(false);
     expect(isValidScore(3.5)).toBe(false);
+  });
+
+  it('㉙ 오각형 전체 게이트 — 통과 축이 0이면 비표시, 1축이라도 통과하면 표시', () => {
+    const none = aggregateAxisStats([{ axis: 'accuracy', score: 5 }], 5); // 1건 → 통과 축 0
+    expect(visibleAxisCount(none)).toBe(0);
+    expect(isPentagonVisible(none)).toBe(false); // 거짓 레이더 차단
+
+    const one = aggregateAxisStats([4, 5, 4, 5, 5].map((score) => ({ axis: 'logic', score })), 5);
+    expect(visibleAxisCount(one)).toBe(1);
+    expect(isPentagonVisible(one)).toBe(true); // 1축 통과 → 렌더
   });
 });

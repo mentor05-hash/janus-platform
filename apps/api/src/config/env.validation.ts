@@ -51,6 +51,16 @@ export class EnvironmentVariables {
   @IsString()
   GRANT_EXPIRE_CRON?: string;
 
+  // 생기부 가드(스텝3) — 컨설팅 업로드 토글 자동 활성 스케줄. cron 식 + 활성 시각(ISO) 오버라이드.
+  // 기본: '*/5 * * * *' 폴링, 활성 시각 2026-07-29T00:00:00+09:00(제25조의2 시행). 테스트에서 시각 주입.
+  @IsOptional()
+  @IsString()
+  SR_CONSULTING_ACTIVATION_CRON?: string;
+
+  @IsOptional()
+  @IsString()
+  SR_CONSULTING_ACTIVATION_AT?: string;
+
   // 외부 의존 어댑터 선택자 — 로컬은 mock/none/local
   @IsOptional()
   @IsString()

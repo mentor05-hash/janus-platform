@@ -180,7 +180,7 @@ export class ScoresService {
     // forceVision: 이미 비전 LLM 을 호출하는 경로이므로 정책 llmCheck 와 무관하게 비전 판정.
     await this.guard.assertUploadAllowed(
       { buffer: Buffer.from(data), mimetype: contentType, originalname: filename },
-      { forceVision: true },
+      { forceVision: true, surface: 'scores_ocr', actorId: actor.id, actorRole: actor.role },
     );
     const res = await this.llm.extractScoreReport({ imageBase64: data.toString('base64'), mimeType: contentType });
     return { ...res, fileId };
