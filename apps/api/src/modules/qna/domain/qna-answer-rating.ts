@@ -16,8 +16,10 @@ export const AXIS_LABEL: Record<RatingAxis, string> = {
 
 export const RATING_MIN = 1;
 export const RATING_MAX = 5;
-/** 설명방식 오각형 노출 표본 게이트(축별) — N33 [DEC] ㉙ 기본값. */
+/** 설명방식 오각형 노출 표본 게이트(축별) — N33 ㉙ 확정값. */
 export const AXIS_MIN_SAMPLE = 5;
+/** 오각형(레이더) 전체 표시 게이트 — N33 ㉙ 확정값: 게이트 통과 축이 이 수 이상일 때만 렌더(1건 만점 거짓 레이더 차단). */
+export const PENTAGON_MIN_VISIBLE_AXES = 1;
 
 export const isValidAxis = (a: string): a is RatingAxis => (RATING_AXES as readonly string[]).includes(a);
 export const isValidScore = (n: number): boolean => Number.isInteger(n) && n >= RATING_MIN && n <= RATING_MAX;
@@ -52,3 +54,10 @@ export function aggregateAxisStats(
     };
   });
 }
+
+/** 게이트 통과(avg!==null) 축 수. */
+export const visibleAxisCount = (stats: AxisStat[]): number => stats.filter((s) => s.avg !== null).length;
+
+/** 오각형 전체를 렌더할지(㉙: 통과 축 ≥ PENTAGON_MIN_VISIBLE_AXES). */
+export const isPentagonVisible = (stats: AxisStat[]): boolean =>
+  visibleAxisCount(stats) >= PENTAGON_MIN_VISIBLE_AXES;

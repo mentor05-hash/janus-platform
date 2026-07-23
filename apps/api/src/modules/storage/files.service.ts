@@ -72,11 +72,20 @@ export class FilesService {
     return !!wb;
   }
 
-  async upload(ownerId: string, file: UploadedFileLike) {
+  async upload(
+    ownerId: string,
+    file: UploadedFileLike,
+    opts?: { surface?: string; actorRole?: string },
+  ) {
     if (!file?.buffer?.length)
       throw new BadRequestException('업로드할 파일이 없습니다.');
     // 생기부 가드(지시서 §6 스텝2) — 저장 전 판정. 감지 시 예외(스토리지·DB 미기록).
-    await this.guard.assertUploadAllowed(file);
+    // surface/actor 는 차단 통계(스텝3)용 메타. 미지정 시 표면='upload', 행위자=소유자.
+    await this.guard.assertUploadAllowed(file, {
+      surface: opts?.surface ?? 'upload',
+      actorId: ownerId,
+      actorRole: opts?.actorRole,
+    });
     const key = `uploads/${randomUUID()}`;
     await this.storage.put({
       key,
