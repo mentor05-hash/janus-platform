@@ -230,7 +230,7 @@ function AppInner() {
           ) : tab === 'f' ? (
             <CommunityScreen />
           ) : (
-            <MyScreen />
+            <MyScreen goTab={goTab} />
           ))}
 
         {isGuardian && (

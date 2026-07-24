@@ -11,6 +11,7 @@ import { ReportsScreen } from './ReportsScreen';
 import { ClassifyScreen } from './ClassifyScreen';
 import { LegalScreen } from './LegalScreen';
 import { ScoresScreen } from './ScoresScreen';
+import { TasksScreen } from './TasksScreen';
 
 type Plan = { id: string; name: string; price: number; membership_grade?: { name: string; weekly_credits: number } | null };
 type Pay = { id: string; amount: number; created_at: string };
@@ -27,8 +28,9 @@ const makeTxMeta = (C: Palette): Record<Tx['type'], { label: string; sign: 1 | -
   weekly_expire: { label: '주간 크레딧 소멸', sign: -1, color: C.confirmed },
 });
 
-type Sub = 'automatch' | 'autoassign' | 'records' | 'reports' | 'classify' | 'legal' | 'scores' | 'chats';
+type Sub = 'automatch' | 'autoassign' | 'records' | 'reports' | 'classify' | 'legal' | 'scores' | 'chats' | 'tasks';
 const MENU: { key: Sub; icon: string; title: string; desc: string }[] = [
+  { key: 'tasks', icon: '✅', title: '할 일', desc: '약점·학사일정 자동 제안 + 직접 추가' },
   { key: 'chats', icon: '💬', title: '채팅', desc: '상담 대화 모아보기 — 안 읽은 메시지 확인' },
   { key: 'automatch', icon: '⚡', title: '30분 자동 매칭', desc: '유형·방식만 고르면 7일 내 가장 빠른 30분' },
   { key: 'autoassign', icon: '🗓', title: '자동배정 신청', desc: '시간 안 정해도 전임 선생님 근무시간에 배정' },
@@ -39,7 +41,7 @@ const MENU: { key: Sub; icon: string; title: string; desc: string }[] = [
   { key: 'legal', icon: '🔒', title: '약관·개인정보', desc: '약관·방침·동의·데이터 내보내기·회원 탈퇴' },
 ];
 
-export function MyScreen() {
+export function MyScreen({ goTab }: { goTab?: (t: string) => void } = {}) {
   const { C } = useTheme();
   const ui = useUI();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -81,6 +83,7 @@ export function MyScreen() {
   if (sub === 'classify') return <ClassifyScreen onBack={() => setSub(null)} />;
   if (sub === 'legal') return <LegalScreen onBack={() => setSub(null)} onWithdrawn={() => { if (typeof window !== 'undefined') window.location.reload(); }} />;
   if (sub === 'scores') return <ScoresScreen onBack={() => setSub(null)} showPlacement={access?.showPlacement ?? false} />;
+  if (sub === 'tasks') return <TasksScreen onBack={() => setSub(null)} goTab={goTab} />;
 
   async function charge(amount: number) {
     setBusy(true); setError(''); setMsg('');
