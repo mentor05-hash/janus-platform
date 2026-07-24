@@ -1,0 +1,113 @@
+{
+  "$meta": {
+    "name": "Janus Design Tokens",
+    "version": "v1",
+    "status": "confirmed (v1) — 실값 확정 2026-07-08. 신호등 4구간·AI 라벨 3색 잠금. 개정 시 v2.",
+    "lockedValues": {
+      "signal": { "stable": "#2a8a5f", "fit": "#57a86a", "reach": "#cf9f2f", "high": "#d06b52" },
+      "aiLabel": { "ai_light": "#6d5dd3", "ai_dark": "#9a8be8", "ai_assisted": "#1f8a8a", "human": "#2f6fb3" }
+    },
+    "date": "2026-07-08",
+    "source": "janus_design_system_v1 (light/dark 정본) + CLAUDE.md 고정 토큰",
+    "note": "단일 토큰 원천. 전 화면 공통. 라이트/다크 한 쌍으로 고정."
+  },
+  "color": {
+    "brand": {
+      "navy":   { "hex": "#24405f", "name": "딥 네이비", "use": "브랜드 잉크·로고·헤더" },
+      "blue":   { "hex": "#2f6fb3", "name": "미래 블루", "use": "진단·주요 액션·human 라벨" },
+      "gold":   { "hex": "#cf9a3a", "name": "기회 골드", "use": "다음 문(핵심 전환)·결제" },
+      "goldInk":{ "hex": "#a97d24", "name": "골드 텍스트", "use": "골드 위 텍스트/아이콘 대비" },
+      "silver": { "hex": "#c7ccd2", "name": "실버", "use": "중립 보조·비활성" }
+    },
+    "ink": {
+      "title": { "hex": "#1e3550", "use": "제목" },
+      "body":  { "hex": "#52627a", "use": "본문" },
+      "muted": { "hex": "#8695a8", "use": "보조" },
+      "$deprecated": ["#16283f", "#55647a"]
+    },
+    "signal": {
+      "$comment": "판정 4구간 — 차분한 채도, 빨강 남발 금지",
+      "stable": { "hex": "#2a8a5f", "soft": "rgba(42,138,95,.11)",  "label": "안정" },
+      "fit":    { "hex": "#57a86a", "soft": "rgba(87,168,106,.13)", "label": "적정" },
+      "reach":  { "hex": "#cf9f2f", "soft": "rgba(207,159,47,.14)", "label": "소신" },
+      "high":   { "hex": "#d06b52", "soft": "rgba(208,107,82,.12)", "label": "상향" }
+    },
+    "ai": {
+      "$comment": "AI 투명성 라벨 3종 — 색+아이콘 고정",
+      "ai":         { "hex": "#6d5dd3", "soft": "rgba(109,93,211,.12)", "icon": "✦",  "label": "AI 초안" },
+      "ai_assisted":{ "hex": "#1f8a8a", "soft": "rgba(31,138,138,.12)", "icon": "✦✎", "label": "AI 보완" },
+      "human":      { "hex": "#2f6fb3", "soft": "rgba(47,111,179,.10)", "icon": "✓",  "label": "선생님 답변" }
+    },
+    "theme": {
+      "light": {
+        "page": "#eef2f8", "surface": "#ffffff", "surface2": "#f4f7fb",
+        "ink": "#1e3550", "ink2": "#52627a", "ink3": "#8695a8",
+        "hair": "#e4eaf1", "hair2": "#eef2f7",
+        "blue": "#2f6fb3", "gold": "#cf9a3a", "goldInk": "#a97d24",
+        "ai": "#6d5dd3", "aiSoft": "rgba(109,93,211,.12)"
+      },
+      "dark": {
+        "page": "#0a1728", "surface": "#122036", "surface2": "#182a41",
+        "ink": "#eaf1f8", "ink2": "#93a7bd", "ink3": "#657b95",
+        "hair": "#23364e", "hair2": "rgba(255,255,255,.05)",
+        "blue": "#4d93da", "gold": "#e3b45c", "goldInk": "#e3b45c",
+        "ai": "#9a8be8", "aiSoft": "rgba(154,139,232,.18)",
+        "$comment": "다크 서피스 AI 바이올렛 = #9a8be8 고정(가독성용). 라이트 #6d5dd3 / 다크 #9a8be8 한 쌍."
+      }
+    },
+    "vertical": {
+      "$comment": "확정 버티컬 슬롯 — 색+아이콘",
+      "mental":   { "hex": "#1f8a8a", "icon": "♡" },
+      "career":   { "hex": "#a2568c", "icon": "◎" },
+      "habit":    { "hex": "#4e5ba6", "icon": "◷" },
+      "sleep":    { "hex": "#337f9e", "icon": "☾" },
+      "fitness":  { "hex": "#a45c38", "icon": "⚑" },
+      "planner":  { "hex": "#5d7a46", "icon": "▦" },
+      "calendar": { "hex": "#9e4a5e", "icon": "◫" }
+    }
+  },
+  "typography": {
+    "fontFamily": {
+      "sans": "'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif",
+      "mono": "'IBM Plex Mono', monospace"
+    },
+    "weight": { "regular": 400, "medium": 500, "semibold": 600, "bold": 700, "extrabold": 800 },
+    "scale": {
+      "$comment": "학부모 본문 ≥15px(모바일)/17px(데스크톱). 슬라이드 아님 — 앱/웹 스케일",
+      "caption":   { "size": 13, "line": 1.5 },
+      "bodyMobile":{ "size": 15, "line": 1.65, "min": true },
+      "body":      { "size": 15, "line": 1.65 },
+      "bodyParentDesktop": { "size": 17, "line": 1.6 },
+      "subtitle":  { "size": 19, "weight": 800, "line": 1.2 },
+      "title":     { "size": 26, "weight": 800, "line": 1.1, "tracking": "-0.02em" },
+      "display":   { "size": 56, "weight": 800, "line": 1.05, "tracking": "-0.035em", "use": "히어로(데스크톱)" },
+      "displayMobile": { "size": 34, "weight": 800, "line": 1.1, "tracking": "-0.03em" }
+    }
+  },
+  "space": { "unit": 4, "scale": [4, 8, 12, 16, 20, 24, 32, 40, 56, 64] },
+  "radius": { "sm": 6, "md": 9, "lg": 12, "xl": 16, "pill": 999, "$comment": "카드 12–16, 버튼 9–11, 배지 6–7, 칩 999" },
+  "breakpoint": { "mobile": 375, "mobileMax": 640, "tablet": 768, "desktop": 1024, "wide": 1180, "$comment": "self-check 기준 375px 최소 가독" },
+  "shadow": {
+    "card": "0 5px 14px rgba(20,45,80,.05)",
+    "cardHover": "0 12px 26px rgba(20,45,80,.13)",
+    "modal": "0 40px 90px rgba(20,45,80,.24)",
+    "goldGlow": "0 6px 16px rgba(207,154,58,.14)"
+  },
+  "component": {
+    "$comment": "§1 공통 컴포넌트 계약 — 코드 필드 1:1",
+    "GatewayCard": {
+      "fields": ["title", "description", "service", "href", "ctaLabel"],
+      "usedIn": ["관문홈", "격차리포트", "학부모리포트"]
+    },
+    "badge": {
+      "source": ["llm", "rules"],
+      "gradeLinked": true,
+      "relTier": ["A", "B", "C"]
+    },
+    "aiLabel": ["ai", "ai_assisted", "human"],
+    "tierGate": ["free", "member", "paid", "consultant"],
+    "consultIcons": 5,
+    "signalBands": 4,
+    "ctaAttr": "data-janus-cta"
+  }
+}

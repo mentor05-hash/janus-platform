@@ -1,0 +1,13 @@
+<svg width="88" height="100" viewBox="0 0 44 50" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Janus">
+  <title>Janus — 미래를 여는 문 (dark)</title>
+  
+  <path d="M8 44 V26 a14 14 0 0 1 28 0 V44" fill="none" stroke="#eaf1f8" stroke-width="4" stroke-linecap="round"></path>
+  
+  <path d="M22 12 V44" stroke="#eaf1f8" stroke-width="3.4"></path>
+  
+  <path d="M8 44 h13" stroke="#4d93da" stroke-width="4" stroke-linecap="round"></path>
+  <path d="M23 44 h13" stroke="#e3b45c" stroke-width="4" stroke-linecap="round"></path>
+  
+  <circle cx="15" cy="26" r="2.1" fill="#4d93da"></circle>
+  <circle cx="29" cy="26" r="2.1" fill="#e3b45c"></circle>
+</svg>
