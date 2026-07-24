@@ -44,6 +44,7 @@ export function AdminLayout() {
               {!hq && <NavLink to="/admin/rooms" className={navCls}>상담실 현황</NavLink>}
               {!hq && <NavLink to="/admin/block" className={navCls}>신청불가 시간</NavLink>}
               {!hq && <NavLink to="/admin/infra" className={navCls}>줌·상담실·차단</NavLink>}
+              <NavLink to="/admin/sr-guard" className={navCls}>생기부 가드</NavLink>
               <NavLink to="/admin/reports" className={navCls}>신고</NavLink>
               <NavLink to="/admin/announcements" className={navCls}>공지</NavLink>
               <NavLink to="/admin/member-types" className={navCls}>회원 분류</NavLink>

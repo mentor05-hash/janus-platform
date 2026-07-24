@@ -351,3 +351,42 @@ export interface Material {
   createdAt: string;
   downloadUrl: string | null;
 }
+
+// ── 생기부 가드 관리자 콘솔(스텝3) ──
+export interface SrGuardToggle {
+  enabled: boolean;
+  source: 'manual' | 'scheduler' | 'default';
+  autoActivatedAt: string | null;
+  updatedBy: string | null;
+  updatedAt: string | null;
+  isDefault: boolean;
+  activationAt: string;
+}
+
+export interface SrGuardStats {
+  total: number;
+  byReason: { reason: string; count: number }[];
+  bySurface: { surface: string; count: number }[];
+  recent: {
+    id: string;
+    reason: string;
+    stage: string | null;
+    surface: string;
+    actorRole: string | null;
+    createdAt: string;
+  }[];
+}
+
+export interface SrGuardAppeal {
+  id: string;
+  reason: string;
+  surface: string | null;
+  note: string | null;
+  actorRole: string | null;
+  status: 'open' | 'reviewing' | 'resolved' | 'rejected';
+  resolution: string | null;
+  resolvedBy: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}

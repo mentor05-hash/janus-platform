@@ -82,6 +82,38 @@ model system_setting {
   updated_at DateTime @default(now()) @db.Timestamptz(6)
 }
 
+// 생기부 가드 스텝3 (migrations/0090). 무취급: 메타데이터만(파일명·내용 미저장).
+model school_record_block_event {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reason     String
+  stage      String?
+  surface    String   @default("unknown")
+  actor_id   String?  @db.Uuid
+  actor_role String?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([created_at(sort: Desc)], map: "sr_block_event_created_idx")
+  @@index([reason], map: "sr_block_event_reason_idx")
+}
+
+model school_record_appeal {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reason      String
+  surface     String?
+  note        String?
+  actor_id    String?   @db.Uuid
+  actor_role  String?
+  status      String    @default("open")
+  resolution  String?
+  resolved_by String?   @db.Uuid
+  resolved_at DateTime? @db.Timestamptz(6)
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([actor_id], map: "sr_appeal_actor_idx")
+  @@index([status, created_at(sort: Desc)], map: "sr_appeal_status_idx")
+}
+
 model score_report {
   id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   student_id     String          @db.Uuid
@@ -1745,40 +1777,4 @@ model guardian_data_consent {
 
   @@unique([guardian_id, student_id])
   @@index([student_id])
-}
-/// *
-///  * 생기부 가드(스텝3) — 감지·정책 차단 1건당 1행(사유 코드별 집계 원천).
-///  * 무취급 원칙: 파일명·추출텍스트·원본 미저장. 메타(사유·표면·단계·행위자)만 기록. actor_id FK 없음(로깅 최선노력).
-model school_record_block_event {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  reason     String
-  stage      String?
-  surface    String   @default("unknown")
-  actor_id   String?  @db.Uuid
-  actor_role String?
-  created_at DateTime @default(now()) @db.Timestamptz(6)
-
-  @@index([created_at(sort: Desc)])
-  @@index([reason])
-}
-
-/// *
-///  * 생기부 가드(스텝3) — 오탐 이의 큐(§4-b, 특히 SR_UNSURE). 관리자 콘솔에서 처리.
-///  * note = 신고자 본인 사유(파일 내용 아님). status: open|reviewing|resolved|rejected.
-model school_record_appeal {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  reason      String
-  surface     String?
-  note        String?
-  actor_id    String?   @db.Uuid
-  actor_role  String?
-  status      String    @default("open")
-  resolution  String?
-  resolved_by String?   @db.Uuid
-  resolved_at DateTime? @db.Timestamptz(6)
-  created_at  DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at  DateTime  @default(now()) @db.Timestamptz(6)
-
-  @@index([status, created_at(sort: Desc)])
-  @@index([actor_id])
 }
