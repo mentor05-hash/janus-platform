@@ -4,7 +4,8 @@ import { R, useTheme, useUI, type Palette } from '../theme';
 
 export type Placement = { tier?: string; line?: string; universities?: string[]; departments?: string[]; source?: string } | null;
 export type TrendPoint = { period: string; examType: string | null; avg: number | null; subjects?: { subject: string; score: number | null }[]; placement: Placement };
-export type Trend = { student: { name?: string; loginId?: string }; points: TrendPoint[]; goal?: { tier?: string | null; avg?: number | null } };
+// goal = janus_goal 규약(백엔드 buildTrend). 대학·학과는 격차 리포트의 목표 라벨이 소비.
+export type Trend = { student: { name?: string; loginId?: string }; points: TrendPoint[]; goal?: { tier?: string | null; avg?: number | null; university?: string | null; department?: string | null } };
 
 const TIER_COLOR = (C: Palette, tier?: string) =>
   tier === '최상위' || tier === '상위' ? C.done : tier === '중상위' ? C.confirmed : tier === '중위' ? C.newC : C.muted;
