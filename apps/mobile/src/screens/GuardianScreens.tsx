@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, Touc
 import { api, ApiError, Child, ChildCredits, Note, PaymentRequest } from '../api';
 import { R, SP, useTheme, useUI, type Palette } from '../theme';
 import { ScoreTrendView, type Trend } from './ScoreTrendView';
+import { AcademicUpcoming } from './AcademicUpcoming';
 
 const won = (n: number) => `${n.toLocaleString()}원`;
 const fmt = (n: number) => n.toLocaleString();
@@ -432,6 +433,8 @@ export function GuardianHome({ children, activeId, setActiveId, goTab }: Props) 
           <ScoreTrendView trend={trend} showPlacement={!!access.showPlacement} />
         </View>
       )}
+
+      <AcademicUpcoming />
     </ScrollView>
   );
 }

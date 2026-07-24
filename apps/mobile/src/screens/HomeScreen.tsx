@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { api } from '../api';
 import { SP, useTheme, useUI, type Palette } from '../theme';
+import { AcademicUpcoming } from './AcademicUpcoming';
 
 /* 학생 홈(N30 — 시안 5탭의 '홈') — 웹 '나의 관문' 파리티: ① 지금 위치(진단 상태) → ② 다음 할 일 → ③ 바로가기.
  * 탭에서 빠진 화면(선생님 찾기·강의실·자료실·커뮤니티)은 바로가기로 보존(기능 보존 원칙). */
@@ -103,6 +104,8 @@ export function HomeScreen({ name, goTab }: { name?: string; goTab: (t: string) 
           </TouchableOpacity>
         ))}
       </View>
+
+      <AcademicUpcoming />
     </ScrollView>
   );
 }
