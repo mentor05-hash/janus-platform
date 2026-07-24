@@ -55,6 +55,13 @@ class GoalDto {
   @IsOptional() @IsString() tier?: string | null;
   @IsOptional() @IsNumber() avg?: number | null;
 }
+/** 자가목표(janus_goal) — PUT 전체 교체: 미지정 필드는 null 로 초기화된다. */
+class MyGoalDto {
+  @IsOptional() @IsString() @MaxLength(20) tier?: string | null;
+  @IsOptional() @IsNumber() @Min(0) @Max(100) avg?: number | null;
+  @IsOptional() @IsString() @MaxLength(60) university?: string | null;
+  @IsOptional() @IsString() @MaxLength(60) department?: string | null;
+}
 class PlacementDto {
   @IsOptional() @IsString() tier?: string;
   @IsOptional() @IsString() line?: string;
@@ -207,6 +214,25 @@ export class ScoresMeController {
     return this.scores.saveMyScore(user, {
       period: dto.period, examType: dto.examType, note: dto.note,
       mode: dto.mode, gye: dto.gye ?? null, nb: dto.nb ?? null, items: dto.items,
+    });
+  }
+
+  /** GET /me/goal — 학생 본인 목표(janus_goal) 조회. */
+  @Get('me/goal')
+  @Roles('student')
+  myGoal(@CurrentUser() user: AuthUser) {
+    return this.scores.getMyGoal(user);
+  }
+
+  /** PUT /me/goal — 학생 본인 목표 설정(대학·학과·라인·평균). 자가목표 → 격차 리포트·할 일 자동제안 반영. */
+  @Put('me/goal')
+  @Roles('student')
+  setMyGoal(@CurrentUser() user: AuthUser, @Body() dto: MyGoalDto) {
+    return this.scores.setMyGoal(user, {
+      tier: dto.tier ?? null,
+      avg: dto.avg ?? null,
+      university: dto.university ?? null,
+      department: dto.department ?? null,
     });
   }
 

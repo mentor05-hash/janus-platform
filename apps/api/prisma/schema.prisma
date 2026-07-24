@@ -992,6 +992,9 @@ model student_profile {
   payment_request        payment_request[]
   goal_tier              String?
   goal_avg               Int?
+  /// janus_goal 규약 — 목표 대학·학과(자가목표 GET/PUT /me/goal). 격차 리포트 target 프리필·상담·컨설팅 공유.
+  goal_university        String?
+  goal_department        String?
   qna_post               qna_post[]
   review                 review[]
   score_report           score_report[]

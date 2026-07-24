@@ -231,6 +231,37 @@ export class ScoresService {
     return { ok: true };
   }
 
+  /** 학생 본인 목표 조회(janus_goal 규약). */
+  async getMyGoal(user: AuthUser) {
+    const sp = await this.prisma.student_profile.findUnique({
+      where: { account_id: user.id },
+      select: { goal_tier: true, goal_avg: true, goal_university: true, goal_department: true },
+    });
+    if (!sp) throw new NotFoundException('학생 프로필이 없습니다.');
+    return {
+      tier: sp.goal_tier ?? null,
+      avg: sp.goal_avg ?? null,
+      university: sp.goal_university ?? null,
+      department: sp.goal_department ?? null,
+    };
+  }
+
+  /** 학생 본인 목표 설정(자기 목표만 — 격차 리포트·대시보드 반영). PUT 시맨틱: 미지정 필드는 null 로 초기화. */
+  async setMyGoal(user: AuthUser, goal: { tier?: string | null; avg?: number | null; university?: string | null; department?: string | null }) {
+    const sp = await this.prisma.student_profile.findUnique({ where: { account_id: user.id }, select: { account_id: true } });
+    if (!sp) throw new NotFoundException('학생 프로필이 없습니다.');
+    await this.prisma.student_profile.update({
+      where: { account_id: user.id },
+      data: {
+        goal_tier: goal.tier ?? null,
+        goal_avg: goal.avg ?? null,
+        goal_university: goal.university ?? null,
+        goal_department: goal.department ?? null,
+      },
+    });
+    return this.getMyGoal(user);
+  }
+
   /** 데모 배치 추정 — 평균 → 등급/라인/샘플 대학·학과. 실 배치표 서비스가 덮어쓸 자리. */
   private static estimateLine(avg: number): { tier: string; line: string; universities: string[]; departments: string[] } {
     if (avg >= 95) return { tier: '최상위', line: '서울 최상위·의약학 라인', universities: ['서울대', '연세대', '고려대'], departments: ['의예', '컴퓨터공학', '경영'] };
@@ -268,10 +299,11 @@ export class ScoresService {
       orderBy: { created_at: 'asc' },
     });
     const student = await this.prisma.account.findUnique({ where: { id: studentAccountId }, select: { name: true, login_id: true } });
-    const sp = await this.prisma.student_profile.findUnique({ where: { account_id: studentAccountId }, select: { goal_tier: true, goal_avg: true } });
+    const sp = await this.prisma.student_profile.findUnique({ where: { account_id: studentAccountId }, select: { goal_tier: true, goal_avg: true, goal_university: true, goal_department: true } });
     return {
       student: { name: student?.name, loginId: student?.login_id },
-      goal: { tier: sp?.goal_tier ?? null, avg: sp?.goal_avg ?? null },
+      // janus_goal 규약 — 격차 리포트(과목별 바·목표 라벨)가 대학·학과까지 소비.
+      goal: { tier: sp?.goal_tier ?? null, avg: sp?.goal_avg ?? null, university: sp?.goal_university ?? null, department: sp?.goal_department ?? null },
       points: reports.map((r) => {
         const s = r.items.map((i) => (i.score ? Number(i.score) : null)).filter((x): x is number => x != null);
         const avg = s.length ? Math.round((s.reduce((a, b) => a + b, 0) / s.length) * 10) / 10 : null;
