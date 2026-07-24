@@ -15,7 +15,7 @@ export class GuardianReportService {
 
   private async assertLinked(guardian: AuthUser, studentId: string) {
     if (guardian.role !== AccountRole.GUARDIAN) throw new ForbiddenException('학부모만 사용할 수 있습니다.');
-    const link = await this.prisma.guardian_student_link.findFirst({ where: { guardian_id: guardian.id, student_id: studentId } });
+    const link = await this.prisma.guardian_student_link.findFirst({ where: { guardian_id: guardian.id, student_id: studentId, status: 'approved' } });
     if (!link) throw new ForbiddenException('연결된 자녀가 아닙니다.');
   }
 

@@ -77,7 +77,7 @@ export class MediaRecordingService {
   /** 보호자 동의 조회(학부모) — 링크된 자녀만. */
   async guardianConsentStatus(guardian: AuthUser, studentId: string) {
     if (guardian.role !== AccountRole.GUARDIAN) throw new ForbiddenException('보호자만 조회할 수 있습니다.');
-    const link = await this.prisma.guardian_student_link.findFirst({ where: { guardian_id: guardian.id, student_id: studentId } });
+    const link = await this.prisma.guardian_student_link.findFirst({ where: { guardian_id: guardian.id, student_id: studentId, status: 'approved' } });
     if (!link) throw new ForbiddenException('연결된 자녀가 아닙니다.');
     const f = await this.flags();
     const g = await this.guardianGranted(studentId);
@@ -87,7 +87,7 @@ export class MediaRecordingService {
   /** 보호자 동의 설정/철회(학부모) — 감사 기록 포함. 철회해도 기왕 녹음분 파기는 아님(향후 STT 만 차단). */
   async setGuardianConsent(guardian: AuthUser, studentId: string, granted: boolean) {
     if (guardian.role !== AccountRole.GUARDIAN) throw new ForbiddenException('보호자만 설정할 수 있습니다.');
-    const link = await this.prisma.guardian_student_link.findFirst({ where: { guardian_id: guardian.id, student_id: studentId } });
+    const link = await this.prisma.guardian_student_link.findFirst({ where: { guardian_id: guardian.id, student_id: studentId, status: 'approved' } });
     if (!link) throw new ForbiddenException('연결된 자녀가 아닙니다.');
     const f = await this.flags();
     await this.prisma.consent_grant.upsert({

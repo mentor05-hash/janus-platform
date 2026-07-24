@@ -344,7 +344,7 @@ export class ScoresService {
     let targetId = actor.id;
     if (actor.role === AccountRole.GUARDIAN) {
       if (!studentId) throw new BadRequestException('studentId 가 필요합니다.');
-      const link = await this.prisma.guardian_student_link.findFirst({ where: { guardian_id: actor.id, student_id: studentId } });
+      const link = await this.prisma.guardian_student_link.findFirst({ where: { guardian_id: actor.id, student_id: studentId, status: 'approved' } });
       if (!link) throw new ForbiddenException('연결된 자녀가 아닙니다.');
       targetId = studentId;
     } else if (actor.role !== AccountRole.STUDENT) {
@@ -394,7 +394,7 @@ export class ScoresService {
   async guardianTrend(user: AuthUser, studentId: string) {
     const p = await this.getScorePolicy();
     if (!p.guardian) throw new ForbiddenException('성적 조회가 비활성화되어 있습니다.');
-    const link = await this.prisma.guardian_student_link.findFirst({ where: { guardian_id: user.id, student_id: studentId } });
+    const link = await this.prisma.guardian_student_link.findFirst({ where: { guardian_id: user.id, student_id: studentId, status: 'approved' } });
     if (!link) throw new ForbiddenException('연결된 자녀가 아닙니다.');
     return this.buildTrend(studentId, !!p.placement);
   }
