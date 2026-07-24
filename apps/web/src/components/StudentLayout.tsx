@@ -15,6 +15,7 @@ const NAV: NavItem[] = [
   { to: '/student/diagnostic', label: '실력진단' },
   { to: '/student/scores/input', label: '성적진단' },
   { to: '/student/curriculum', label: '학습 플랜' },
+  { to: '/student/tasks', label: '할 일' },
   { to: '/student/academic', label: '학사일정' },
   { section: '배치·성적' },
   { to: '/student/placement/hub', label: '배치표 허브' },

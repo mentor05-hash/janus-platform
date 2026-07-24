@@ -89,6 +89,7 @@ const DiagnosticPage = lazy(() => import('./pages/DiagnosticPage').then((m) => (
 const CurriculumPage = lazy(() => import('./pages/CurriculumPage').then((m) => ({ default: m.CurriculumPage })));
 const AdminAcademicPage = lazy(() => import('./pages/AdminAcademicPage').then((m) => ({ default: m.AdminAcademicPage })));
 const StudentAcademicPage = lazy(() => import('./pages/StudentAcademicPage').then((m) => ({ default: m.StudentAcademicPage })));
+const StudentTasksPage = lazy(() => import('./pages/StudentTasksPage').then((m) => ({ default: m.StudentTasksPage })));
 const LecturePage = lazy(() => import('./pages/LecturePage').then((m) => ({ default: m.LecturePage })));
 const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage').then((m) => ({ default: m.LeaderboardPage })));
 const LeagueRulesPage = lazy(() => import('./pages/LeagueRulesPage').then((m) => ({ default: m.LeagueRulesPage })));
@@ -263,6 +264,7 @@ export function App() {
         <Route path="league/rules" element={<LeagueRulesPage />} />
         <Route path="scores" element={<StudentScoresPage />} />
         <Route path="academic" element={<StudentAcademicPage />} />
+        <Route path="tasks" element={<StudentTasksPage />} />
         <Route path="scores/input" element={<StudentScoreInputPage />} />
         <Route path="diagnostic" element={<DiagnosticPage />} />
         <Route path="curriculum" element={<CurriculumPage />} />
