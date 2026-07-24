@@ -1,0 +1,12 @@
+{
+  // 테스트까지 포함한 타입검사 전용 설정.
+  // vitest는 esbuild 트랜스파일이라 타입을 검사하지 않는다 — 스펙 §3-8의
+  // "성적 필드 주입 시 타입 오류"(@ts-expect-error)는 이 설정의 tsc로만 검증된다.
+  // 주의: exclude 는 베이스에서 상속되므로 반드시 여기서 덮어써야 테스트가 검사 대상이 된다.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["src"],
+  "exclude": ["dist", "node_modules"]
+}

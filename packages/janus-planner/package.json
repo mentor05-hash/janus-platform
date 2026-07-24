@@ -1,0 +1,21 @@
+{
+  "name": "@mentoring/janus-planner",
+  "version": "0.1.0",
+  "private": true,
+  "description": "janus-planner 순수 도메인 — 스키마 6종(journey·availability·plan·todo·ghost_track·cohort) + 엔진 4종(분배·이월·실행능력 계수·반/빌보드). 의존성 0, DB·API·UI 없음.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.test.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.9"
+  }
+}
