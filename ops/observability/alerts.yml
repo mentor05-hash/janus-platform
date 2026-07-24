@@ -1,0 +1,37 @@
+# 알림 규칙 — 서비스 다운·에러율·지연 임계. Alertmanager 연결 시 통지(미연결이어도 Prometheus UI 에 표시).
+groups:
+  - name: janus-availability
+    rules:
+      - alert: TargetDown
+        expr: up == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: '{{ $labels.job }} 스크레이프 대상 다운'
+          description: '{{ $labels.instance }} 가 2분 이상 응답 없음.'
+
+  - name: janus-errors-latency
+    rules:
+      - alert: HighErrorRate
+        expr: sum(rate(app_errors_total[5m])) > 0.5
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: '앱 에러율 높음'
+          description: '최근 5분 app_errors_total 증가율이 초당 0.5 초과.'
+
+      - alert: HighRequestLatencyP95
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m]))) > 1
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: 'API p95 지연 1s 초과'
+          description: '최근 5분 p95 요청 지연이 1초를 넘음(10분 지속).'
+
+      - alert: EventLoopLagHigh
+        expr: nodejs_eventloop_lag_seconds > 0.2
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: 'Node 이벤트루프 지연 높음'
+          description: '{{ $labels.service }} 이벤트루프 지연 0.2s 초과(블로킹 의심).'

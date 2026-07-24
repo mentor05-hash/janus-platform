@@ -1,0 +1,19 @@
+# Alertmanager — 알림 라우팅. 외부 통지 채널은 미구성(로컬/무외부):
+#   경보는 Alertmanager UI(http://localhost:9093) 에서 확인.
+#   실통지는 receivers 에 slack_configs / webhook_configs 추가(시크릿은 env/파일로).
+route:
+  receiver: default
+  group_by: ['alertname', 'service']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+receivers:
+  - name: default
+    # 통지자 미지정 = no-op(외부 채널 없이 그룹핑·억제만). 채널 확보 시 여기 추가.
+
+inhibit_rules:
+  # critical 발생 시 같은 서비스의 warning 억제(중복 노이즈 감소).
+  - source_matchers: [severity="critical"]
+    target_matchers: [severity="warning"]
+    equal: ['service']
