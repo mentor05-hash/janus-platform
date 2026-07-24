@@ -12,7 +12,8 @@ import {
  * 미결정 단가/키는 IsOptional — 어댑터가 mock 일 때 비어 있어도 동작.
  */
 export class EnvironmentVariables {
-  @IsIn(['local', 'staging', 'prod', 'test'])
+  // 'production' 도 허용(관례적 값) — 부팅 실패 방지. 운영 판정은 isProdEnv 로 정규화.
+  @IsIn(['local', 'staging', 'prod', 'production', 'test'])
   NODE_ENV!: string;
 
   @IsString()
@@ -139,6 +140,15 @@ export class EnvironmentVariables {
 
 /** 대시보드 권한 ENV 플래그 — 'true' 만 활성, 그 외/부재는 false(fail-closed). */
 export const dashFlag = (v: string | undefined): boolean => v === 'true';
+
+/**
+ * 운영 환경 판정 — APP_ENV 우선, 없으면 NODE_ENV. 'prod'|'production' 만 운영.
+ * fail-closed 보안 결정(웹훅 서명·시크릿 강도 등)이 이 함수로 로컬/운영을 가른다.
+ */
+export function isProdEnv(env: Record<string, unknown> = process.env): boolean {
+  const v = (env.APP_ENV ?? env.NODE_ENV) as string | undefined;
+  return v === 'prod' || v === 'production';
+}
 
 export function validateEnv(config: Record<string, unknown>) {
   const validated = plainToInstance(EnvironmentVariables, config, {

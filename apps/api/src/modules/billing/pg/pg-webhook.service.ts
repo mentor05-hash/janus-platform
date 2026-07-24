@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../../common/prisma/prisma.service';
 import { CreditService } from '../credit.service';
+import { isProdEnv } from '../../../config/env.validation';
 import { PgWebhookEvent, PgWebhookType } from './pg.types';
 
 /**
@@ -25,10 +26,10 @@ export class PgWebhookService {
     private readonly config: ConfigService,
   ) {}
 
-  /** 서명검증 — PG_WEBHOOK_SECRET 미설정이면 데모(로컬)로 통과. 실서비스는 반드시 설정. */
+  /** 서명검증 — 시크릿 미설정 시 비운영은 데모 통과, 운영은 fail-closed(위조 결제 차단). */
   verifySignature(rawBody: string, signature?: string): boolean {
     const secret = this.config.get<string>('PG_WEBHOOK_SECRET');
-    if (!secret) return true; // 데모: 시크릿 없으면 검증 생략
+    if (!secret) return !isProdEnv(); // 운영: 시크릿 없으면 거부 · 로컬: 데모 통과
     if (!signature) return false;
     const expected = createHmac('sha256', secret).update(rawBody).digest('hex');
     const a = Buffer.from(expected);
