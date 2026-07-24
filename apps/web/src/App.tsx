@@ -87,6 +87,8 @@ const StudentScoresPage = lazy(() => import('./pages/StudentScoresPage').then((m
 const StudentScoreInputPage = lazy(() => import('./pages/StudentScoreInputPage').then((m) => ({ default: m.StudentScoreInputPage })));
 const DiagnosticPage = lazy(() => import('./pages/DiagnosticPage').then((m) => ({ default: m.DiagnosticPage })));
 const CurriculumPage = lazy(() => import('./pages/CurriculumPage').then((m) => ({ default: m.CurriculumPage })));
+const AdminAcademicPage = lazy(() => import('./pages/AdminAcademicPage').then((m) => ({ default: m.AdminAcademicPage })));
+const StudentAcademicPage = lazy(() => import('./pages/StudentAcademicPage').then((m) => ({ default: m.StudentAcademicPage })));
 const LecturePage = lazy(() => import('./pages/LecturePage').then((m) => ({ default: m.LecturePage })));
 const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage').then((m) => ({ default: m.LeaderboardPage })));
 const LeagueRulesPage = lazy(() => import('./pages/LeagueRulesPage').then((m) => ({ default: m.LeagueRulesPage })));
@@ -233,6 +235,7 @@ export function App() {
         <Route path="diagnostics" element={<AdminDiagnosticPage />} />
         <Route path="audit" element={<AdminAuditPage />} />
         <Route path="payroll" element={<AdminPayrollPage />} />
+        <Route path="academic" element={<AdminAcademicPage />} />
         <Route path="scores" element={<AdminScoresPage />} />
         <Route path="sr-guard" element={<AdminSchoolRecordGuardPage />} />
         <Route path="legal" element={<LegalPage />} />
@@ -259,6 +262,7 @@ export function App() {
         <Route path="league" element={<LeaderboardPage />} />
         <Route path="league/rules" element={<LeagueRulesPage />} />
         <Route path="scores" element={<StudentScoresPage />} />
+        <Route path="academic" element={<StudentAcademicPage />} />
         <Route path="scores/input" element={<StudentScoreInputPage />} />
         <Route path="diagnostic" element={<DiagnosticPage />} />
         <Route path="curriculum" element={<CurriculumPage />} />
