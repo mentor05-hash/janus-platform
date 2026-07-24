@@ -69,12 +69,16 @@ export const INTENT_CARDS: Record<GatewayIntent, GatewayCard[]> = {
 const PHONE = /01[016789][ -]?\d{3,4}[ -]?\d{4}/g;
 const TEL = /0\d{1,2}[ -]?\d{3,4}[ -]?\d{4}/g;
 const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
-const RRN = /\d{6}[ -]?[1-4]\d{6}/g;
+// 주민·외국인등록번호 — 7번째 자리 1~8(내국인 1-4·외국인 5-8). 기존 [1-4]는 외국인 미포함(누락).
+const RRN = /\d{6}[ -]?[1-8]\d{6}/g;
+// 카드번호(4-4-4-4, 구분자 선택). RRN 보다 먼저 치환해 16자리 숫자열이 부분 마스킹되지 않게.
+const CARD = /\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{1,4}/g;
 
 export function maskSensitive(text: string): { masked: string; hits: number } {
   let hits = 0;
   const count = (m: string) => { hits += 1; return m; };
   let masked = (text ?? '');
+  masked = masked.replace(CARD, (m) => (count(m), '[카드번호]'));
   masked = masked.replace(RRN, (m) => (count(m), '[주민번호]'));
   masked = masked.replace(PHONE, (m) => (count(m), '[전화번호]'));
   masked = masked.replace(EMAIL, (m) => (count(m), '[이메일]'));

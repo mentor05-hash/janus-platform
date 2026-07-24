@@ -11,12 +11,14 @@ import {
 import { Server, Socket } from 'socket.io';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { detectDirectContact, DIRECT_CONTACT_WARNING } from '../../common/moderation/direct-contact';
+import { resolveCorsOrigin } from '../../common/cors-origin';
 import { RealtimeService } from './realtime.service';
 
 type SockUser = { id: string; role: string; centerId: string | null; loginId: string };
 
 /** 실시간 게이트웨이 — 예약 기반 채팅·화이트보드 + 유저룸 알림. path 는 nginx /api/ 프록시와 정합. */
-@WebSocketGateway({ path: '/api/v1/socket.io', cors: { origin: true, credentials: true } })
+// cors.origin 은 HTTP(main.ts)와 동일 정책(CORS_ORIGINS allowlist·운영 거부) — 임의 오리진 인증 WS 차단.
+@WebSocketGateway({ path: '/api/v1/socket.io', cors: { origin: resolveCorsOrigin(), credentials: true } })
 export class RealtimeGateway implements OnGatewayConnection {
   private readonly logger = new Logger('Realtime');
   @WebSocketServer() server!: Server;

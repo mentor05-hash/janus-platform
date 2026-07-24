@@ -11,18 +11,26 @@ type Deductions = { 국민연금: number; 건강보험: number; 장기요양: nu
 type Payslip = { period: string; teacherName: string; center: string; status: string; paidAt: string | null; gross: number; deductions: Deductions | null; net: number };
 const DED_ROWS: (keyof Deductions)[] = ['국민연금', '건강보험', '장기요양', '고용보험', '소득세', '지방소득세'];
 
+/** HTML 이스케이프 — document.write 인쇄창에 서버 문자열(이름·센터 등)이 그대로 들어가는 XSS 싱크 차단. */
+export const esc = (s: string | null | undefined): string =>
+  String(s ?? '').replace(
+    /[&<>"']/g,
+    (c) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c,
+  );
+
 /** 명세서를 인쇄용 새 창으로 열어 브라우저에서 PDF로 저장. */
 export function printPayslip(ps: Payslip) {
   const d = ps.deductions;
   const rows = d ? DED_ROWS.map((k) => `<tr><td>${k}</td><td style="text-align:right">- ${d[k].toLocaleString()}원</td></tr>`).join('') : '';
-  const html = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>급여명세서 ${ps.period}</title>
+  const html = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>급여명세서 ${esc(ps.period)}</title>
   <style>body{font-family:'Pretendard',-apple-system,system-ui,sans-serif;color:#1e3550;padding:32px;max-width:640px;margin:0 auto}
   h1{font-size:20px;margin:0 0 4px}.muted{color:#52627a;font-size:13px}
   table{width:100%;border-collapse:collapse;margin-top:16px}td{padding:8px 4px;border-bottom:1px solid #e4eaf1;font-size:14px}
   .tot{font-weight:800}.net{font-size:18px;color:#2f6fb3;font-weight:800}
   .box{border:1px solid #e4eaf1;border-radius:10px;padding:16px;margin-top:16px}
   @media print{button{display:none}}</style></head><body>
-  <h1>급여명세서</h1><div class="muted">${ps.center} · ${ps.teacherName} 선생님 · ${ps.period} · 상태: ${ps.status === 'paid' ? '지급완료' : '정산확정'}</div>
+  <h1>급여명세서</h1><div class="muted">${esc(ps.center)} · ${esc(ps.teacherName)} 선생님 · ${esc(ps.period)} · 상태: ${ps.status === 'paid' ? '지급완료' : '정산확정'}</div>
   <div class="box"><table>
   <tr><td>지급 총액(세전)</td><td style="text-align:right" class="tot">${ps.gross.toLocaleString()}원</td></tr>
   ${rows}

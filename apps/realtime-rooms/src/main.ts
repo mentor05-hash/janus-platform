@@ -1,3 +1,4 @@
+import 'dotenv/config'; // WS 게이트웨이 cors 데코레이터가 import 시점에 ROOMS_CORS_ORIGINS·NODE_ENV 를 읽음 — 제거 금지.
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { IoAdapter } from '@nestjs/platform-socket.io';

@@ -38,10 +38,18 @@ export function EmbedSessionPage() {
 
   const [ready, setReady] = useState(false);
   useEffect(() => {
-    // 토큰 주입: WebView 전역 → 쿼리 순. 세션 동안만 사용.
-    const access = window.__JANUS_TOKEN || window.__ITALL_TOKEN || q.get('token') || tokens.access;
-    const refresh = window.__JANUS_REFRESH || window.__ITALL_REFRESH || q.get('refresh') || access;
+    // 토큰 주입: WebView 전역 → fragment(#) → 쿼리 순. 세션 동안만 사용.
+    const h = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const access = window.__JANUS_TOKEN || window.__ITALL_TOKEN || h.get('token') || q.get('token') || tokens.access;
+    const refresh = window.__JANUS_REFRESH || window.__ITALL_REFRESH || h.get('refresh') || q.get('refresh') || access;
     if (access) tokens.set(access, refresh || access);
+    // URL 로 토큰이 실려 왔다면 히스토리에서 제거(주소창·Referer 노출 회피). booking/kind/title 은 유지.
+    if (window.location.hash || q.has('token') || q.has('refresh')) {
+      const clean = new URLSearchParams(window.location.search);
+      clean.delete('token'); clean.delete('refresh');
+      const qs = clean.toString();
+      window.history.replaceState(null, '', window.location.pathname + (qs ? `?${qs}` : ''));
+    }
     setReady(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

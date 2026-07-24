@@ -1,8 +1,9 @@
 import { lazy, Suspense } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
 import { RealtimeNotifier } from './components/RealtimeNotifier';
 import { SchoolRecordBlockModal } from './components/SchoolRecordGuard';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { roleHome } from './auth/roleHome';
 import { AppLayout } from './components/AppLayout';
 import { AdminLayout } from './components/AdminLayout';
@@ -114,10 +115,12 @@ function HomeRedirect() {
 }
 
 export function App() {
+  const location = useLocation();
   return (
     <>
     <RealtimeNotifier />
     <SchoolRecordBlockModal />
+    <ErrorBoundary resetKey={location.pathname}>
     <Suspense fallback={<div style={{ padding: 40, color: 'var(--muted)' }}>불러오는 중…</div>}>
     <Routes>
       <Route path="/" element={<JanusLandingPage />} />
@@ -275,6 +278,7 @@ export function App() {
       <Route path="*" element={<HomeRedirect />} />
     </Routes>
     </Suspense>
+    </ErrorBoundary>
     </>
   );
 }

@@ -6,6 +6,7 @@ import { MetricsService } from './metrics.service';
 import { detectDirectContact, DIRECT_CONTACT_WARNING } from './moderation';
 import { RoomsService, type RoomRow, type Feature } from './rooms.service';
 import { TokenService } from './token.service';
+import { resolveCorsOrigin } from '../cors-origin';
 
 type Ctx = { roomId: string; participantId: string; name?: string; role?: string };
 const MAX_BODY = 4000; // 채팅 본문 길이 상한(저장 폭주 방지)
@@ -15,7 +16,8 @@ const MAX_BODY = 4000; // 채팅 본문 길이 상한(저장 폭주 방지)
  * 접속 토큰이 룸/참가자를 고정하므로 payload 의 roomId 를 신뢰하지 않고 토큰 값만 사용.
  * 시간창(opens/closes)·기능 플래그(features)로 게이팅. 창 밖/기능 off 면 쓰기 거부.
  */
-@WebSocketGateway({ path: '/api/rt/v1/socket.io', cors: { origin: true, credentials: true } })
+// cors.origin 은 HTTP(main.ts)와 동일 정책(allowlist/운영 거부) — 임의 오리진 인증 WS 차단.
+@WebSocketGateway({ path: '/api/rt/v1/socket.io', cors: { origin: resolveCorsOrigin(), credentials: true } })
 export class RoomsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private readonly logger = new Logger('RoomsRT');
   @WebSocketServer() server!: Server;
