@@ -1799,3 +1799,24 @@ model academic_event {
   @@index([start_date])
   @@index([center_id, start_date])
 }
+
+/// 맞춤 할 일(체크리스트) — 격차·학사일정 자동 제안 + 수동. source_key 로 자동생성 멱등(부분 유니크는 DB 인덱스).
+/// category: gap|academic|consult|qna|custom, 그리고 'plan' 예약 — planner 학습량 원장(성적맹 Sealed<T>)이
+/// 향후 같은 셸에 category='plan' 로 렌더(O100 D1: student_task[액션 인박스] ↔ planner.Todo[학습량 원장] 두 축 공존).
+model student_task {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  student_id String    @db.Uuid
+  title      String
+  category   String    @default("custom")
+  subject    String?
+  due_date   DateTime? @db.Date
+  status     String    @default("todo")
+  source_key String?
+  cta_href   String?
+  created_by String    @default("self")
+  reminded   String[]  @default([])
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  done_at    DateTime? @db.Timestamptz(6)
+
+  @@index([student_id, status])
+}

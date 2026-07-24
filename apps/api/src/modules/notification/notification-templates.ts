@@ -57,6 +57,7 @@ const TEMPLATES: Record<string, Tmpl> = {
   consult_report_reminder: { title: '아직 안 읽은 상담 리포트 📋', body: '선생님이 보낸 상담 요약을 아직 확인하지 않았어요. 상담 리포트에서 열어보세요.' },
   score_uploaded: { title: '성적 업데이트', body: '성적이 업데이트되었어요. 성적·배치에서 확인하세요.' },
   academic_reminder: { title: '{ddayLabel} · {title}', body: '{dateLabel} 학사일정이 다가와요. 미리 준비하세요.' },
+  task_reminder: { title: '할 일 마감 임박', body: "'{title}' 할 일이 {when} 마감이에요. 잊지 말고 챙겨요." },
   entitlement_expiring: { title: '이용권 만료 임박', body: '{product} 이용권이 {days}일 뒤 만료돼요. 내 이용권에서 확인·연장하세요.' },
   qna_answered: { title: '질문 답변', body: '등록한 질문에 답변이 달렸어요.' },
   qna_claimed: { title: '선생님 확인 중', body: '선생님이 내 질문을 확인하고 있어요. 곧 답변이 도착합니다.' },

@@ -172,8 +172,8 @@ export class AcademicService {
     { days: 0, key: 'd0', label: 'D-DAY' },
   ];
 
-  /** 매일 08:00 KST(23:00 UTC): D-7/D-1/당일 도래 일정 → 대상 학생·학부모 알림(오프셋별 1회). */
-  @Cron('0 23 * * *')
+  /** 매일 08:00 KST: D-7/D-1/당일 도래 일정 → 대상 학생·학부모 알림(오프셋별 1회). */
+  @Cron('0 8 * * *', { timeZone: 'Asia/Seoul' })
   async reminderTick() {
     await withCronLock(
       this.cache,
