@@ -42,6 +42,7 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
 import { RoomsBridgeModule } from './modules/rooms-bridge/rooms-bridge.module';
 import { InboxModule } from './modules/inbox/inbox.module';
 import { AssignmentModule } from './modules/assignment/assignment.module';
+import { SsoModule } from './modules/sso/sso.module';
 
 @Module({
   imports: [
@@ -85,6 +86,7 @@ import { AssignmentModule } from './modules/assignment/assignment.module';
     RoomsBridgeModule,
     InboxModule,
     AssignmentModule,
+    SsoModule,
   ],
   providers: [
     // 전역 가드: rate limit(§10) → 인증 → 인가 순. @Public() 은 인증 통과, @Roles() 로 역할 제한.

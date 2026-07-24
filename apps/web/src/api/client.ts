@@ -176,4 +176,20 @@ export const api = {
   signup: (body: { loginId: string; password: string; name: string; role: 'student' | 'teacher' | 'guardian'; centerId?: string }) =>
     raw<{ id: string; status: string }>('POST', '/auth/signup', body, false),
   logout: () => tokens.clear(),
+  /**
+   * 크로스서비스 SSO: 로그인 세션으로 연계 서비스(학습 플래너 등) 진입 토큰을 발급받아 URL 반환.
+   * 티어 미달이면 ApiError(FORBIDDEN). 반환 URL 을 window.open 하면 재로그인 없이 진입.
+   */
+  sso: {
+    services: () => request<{ id: string; name: string; minTier: string; allowed: boolean }[]>('GET', '/sso/services'),
+    token: (service: string, scope?: string[]) =>
+      request<{ token: string; url: string; service: string; name: string; tier: string; scope: string[]; expiresIn: number }>('POST', '/sso/token', { service, scope }),
+    /** 진입 토큰 발급 후 새 창으로 연계 서비스 열기(팝업 차단 시 현재 창 이동). */
+    open: async (service: string, scope?: string[]) => {
+      const { url } = await api.sso.token(service, scope);
+      const win = window.open(url, '_blank', 'noopener');
+      if (!win) window.location.assign(url);
+      return url;
+    },
+  },
 };

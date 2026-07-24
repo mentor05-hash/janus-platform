@@ -113,6 +113,15 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   ROOMS_PUBLIC_URL?: string; // 브라우저가 접속할 공개 URL(예: http://localhost:3100)
+
+  // 크로스서비스 SSO(연계 서비스 세션 연결). 시크릿은 플랫폼·검증 게이트만 보유(rooms 와 분리).
+  @IsOptional()
+  @IsString()
+  SSO_JWT_SECRET?: string;
+
+  @IsOptional()
+  @IsString()
+  SSO_REDIRECT_ORIGIN?: string; // `?sso=` 토큰 전달 허용 origin(예: https://pages.janus.example)
 }
 
 /** 대시보드 권한 ENV 플래그 — 'true' 만 활성, 그 외/부재는 false(fail-closed). */
