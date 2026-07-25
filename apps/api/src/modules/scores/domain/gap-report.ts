@@ -135,9 +135,10 @@ function buildVolatility(recent: number[] | undefined, cut: number, unitLabel: s
         ? `${range} — 어느 회차로 봐도 '${bestBand}' 구간이에요.`
         : direction === 'improving'
           ? // 흔들림이 아니라 향상이다 — 옛 회차를 '갈림'으로 제시하면 사실과 다르게 운으로 프레이밍된다.
-            `최근 ${vals.length}회 ${unitLabel} ${first}→${last}${suffix}로 꾸준히 올랐어요 — 흔들린 게 아니라 향상이라, 예전 회차 기준 '${worstBand}'가 아니라 최근 '${bestBand}'로 보는 게 맞아요.`
+            // 조사: 밴드 4종(안정·적정·소신·상향) 모두 받침이 있어 '이/으로' 로 고정한다.
+            `최근 ${vals.length}회 ${unitLabel} ${first}→${last}${suffix}로 꾸준히 올랐어요 — 흔들린 게 아니라 향상이라, 예전 회차 기준 '${worstBand}'이 아니라 최근 '${bestBand}'으로 보는 게 맞아요.`
           : direction === 'worsening'
-            ? `최근 ${vals.length}회 ${unitLabel} ${first}→${last}${suffix}로 계속 내려갔어요 — 예전 회차 기준 '${bestBand}'가 아니라 최근 '${worstBand}'가 지금 위치예요.`
+            ? `최근 ${vals.length}회 ${unitLabel} ${first}→${last}${suffix}로 계속 내려갔어요 — 예전 회차 기준 '${bestBand}'이 아니라 최근 '${worstBand}'이 지금 위치예요.`
             : `${range} — 회차에 따라 '${bestBand}'에서 '${worstBand}'까지 갈립니다. 한 회차 결과만으로 단정하지 마세요.`;
   return { count: vals.length, best, worst, spread, bestBand, worstBand, consistent, smallSample, direction, message };
 }

@@ -145,6 +145,26 @@ describe('목표 후보(goal candidates)', () => {
       expect(rep.flipCount).toBe(3);
     });
 
+    it('방향은 목록 레벨에 1회 — 후보 불변값이고, 향상 중인 학생을 "흔들림"으로 프레이밍하지 않기 위한 키다', async () => {
+      const rep = await scores.goalCandidateReport(student, 'jeongsi');
+      // 시드 1.9→3.1→2.4 는 단조가 아니므로 mixed. 값은 정본 buildVolatility 에서 들어올린 것이어야 한다
+      // (서비스가 '3회 이상' 규칙을 재구현하면 임계값이 갈라진다).
+      expect(rep.direction).toBe('mixed');
+      // 후보 행에는 방향을 싣지 않는다(후보 3개에 같은 값 3중복 금지 — 3키 투영 원칙).
+      expect(rep.candidates.every((c) => !c.volatility || !('direction' in c.volatility))).toBe(true);
+    });
+
+    it('꾸준히 향상한 이력이면 direction=improving — 데모 시드가 실제로 이 분기를 태운다', async () => {
+      // 창에는 데모 시드 회차도 함께 잡히므로(3.1 → 2.6 → 2.3 → …) **그 뒤로 계속 내려가는** 값을 써야
+      // 전체 계열이 단조 향상이 된다. 앞 회차보다 큰 값을 넣으면 mixed 로 판정되는 게 정상이다.
+      const set = async (i: number, nb: number) =>
+        prisma.score_report.updateMany({ where: { student_id: student.id, period: `${SEED_PREFIX}${i}` }, data: { placement: { nb, gye: '이과' } } });
+      await set(1, 2.0); await set(2, 1.8); await set(3, 1.6);
+      const rep = await scores.goalCandidateReport(student, 'jeongsi');
+      expect(rep.direction).toBe('improving');
+      await set(1, 1.9); await set(2, 3.1); await set(3, 2.4);
+    });
+
     it('수시는 volatility 전부 null + 사유 문장 — 침묵하면 "수시가 더 확실하다"로 오독된다', async () => {
       // 상한은 모드별이므로 수시 후보를 따로 담아 '후보가 0개라 통과'하는 공허한 검증을 피한다.
       await scores.addGoalCandidate(student, { mode: 'susi', univ: '수시검증대', dept: '내신과', cut: 2.0 });

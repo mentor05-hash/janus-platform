@@ -372,6 +372,9 @@ export class ScoresService {
     // 수시는 등급이 매 요청 입력이라 비교할 이력이 없다.
     const recent = mode === 'jeongsi' ? await this.recentNbValues(user.id) : [];
     let anyAdmitHint = false;
+    // 방향(improving|worsening|mixed)은 회차 계열만의 함수라 **후보 불변값**이다 → 목록 레벨로 올린다.
+    // 서비스에서 다시 계산하지 않고 정본 산출물에서 들어올린다(임계값 '3회 이상' 규칙이 갈라지지 않게).
+    let direction: NonNullable<JanusReport['volatility']>['direction'] = null;
     const reports = candidates.map((c) => {
       const r = buildGapReport({
         mode, gye, myValue, target: { univ: c.univ, dept: c.dept, cut: c.cut, track: c.track ?? undefined },
@@ -384,6 +387,7 @@ export class ScoresService {
       // volatility 는 **컷에 종속된 3키만** 투영한다 — count·best·worst·spread·smallSample·message 는 후보 불변값이라
       // 후보 3개에 똑같은 문장이 3번 실린다(admitProbHint 를 목록 1회로 올린 것과 같은 판단). 범위·표본은 목록 레벨이 담당.
       const v = r.volatility;
+      direction ??= v?.direction ?? null;
       const volatility = v ? { bestBand: v.bestBand, worstBand: v.worstBand, consistent: v.consistent } : null;
       return { id: c.id, univ: c.univ, dept: c.dept, track: c.track, cutSource: c.cut_source, note: c.note, cut: c.cut, ...gap, volatility };
     });
@@ -406,6 +410,12 @@ export class ScoresService {
       smallSample: spread ? spread.count < 3 : null,
       /** 판정이 뒤집히는 후보 수 — 0이면 '흔들렸지만 순서는 그대로'로 안내해 불필요한 불안을 만들지 않는다. */
       flipCount: reports.filter((r) => r.volatility && !r.volatility.consistent).length,
+      /**
+       * 회차 방향(3회 이상에서만). **꾸준히 향상한 학생에게 '회차에 따라 갈려요'만 보여주면
+       * 향상을 운·변동으로 잘못 프레이밍한다** — 도메인 message 에서 이미 분기한 것과 같은 이유로
+       * 목록 카피도 여기서 분기해야 한다(후보 화면은 도메인 message 를 쓰지 않는다).
+       */
+      direction,
       /** 정렬 기준 — 화면 라벨('안전한 순서')이 최선/최악 기준으로 오독되지 않게 이름으로 못박는다. */
       sortKey: 'delta' as const,
       /** 수시에 변동 표시가 없는 **사유**(침묵하면 '수시는 더 확실하다'로 오독된다). 사실 진술만 — 지원 약속 금지. */

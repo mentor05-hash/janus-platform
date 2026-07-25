@@ -119,6 +119,9 @@ describe('회차 변동성 판정(O108) — 한 점으로 단정하지 않기', 
     expect(v.direction).toBe('improving');
     expect(v.message).toContain('꾸준히 올랐어요');
     expect(v.message).not.toContain('단정하지 마세요');
+    // 조사 — 밴드 4종 모두 받침이 있다. '상향가'·'소신로' 같은 오류를 고정으로 막는다.
+    expect(v.message).toMatch(/'[안적소상][정신향]'이 아니라/);
+    expect(v.message).toContain("'적정'으로 보는 게 맞아요");
   });
 
   it('계속 하락한 이력은 최근 회차가 지금 위치라고 말한다', () => {

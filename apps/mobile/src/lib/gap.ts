@@ -62,6 +62,8 @@ export type GoalCandidateReport = {
   smallSample: boolean | null;
   /** 판정이 갈리는 후보 수 — 0이면 '흔들렸지만 순서는 그대로'로 안내한다. */
   flipCount: number;
+  /** 회차 방향(3회 이상) — 향상 중인 학생을 '흔들림'으로 프레이밍하지 않기 위한 분기 키. */
+  direction: 'improving' | 'worsening' | 'mixed' | null;
   /** 수시에 변동 표시가 없는 사유(서버 고정 문구 — 웹·모바일 카피가 갈라지지 않게). */
   volatilityNote: string | null;
   candidates: { id: string; univ: string; dept: string; track: string | null; cut: number; band: Band; delta: number; shortfall: number; message: string; volatility: CandVolatility | null }[];

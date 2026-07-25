@@ -23,6 +23,8 @@ type CandReport = {
   spread: { count: number; best: number; worst: number; spread: number } | null;
   smallSample: boolean | null;
   flipCount: number;
+  /** 회차 방향(3회 이상) — 향상 중인 학생을 '흔들림'으로 프레이밍하지 않기 위한 분기 키. */
+  direction: 'improving' | 'worsening' | 'mixed' | null;
   volatilityNote: string | null;
   candidates: CandRow[];
   admitHintNote: string | null;
@@ -226,9 +228,15 @@ export function StudentGoalPage() {
                 폭이 있어도 어느 후보도 안 갈리는 흔한 경우에 근거 없는 불안을 만들지 않게. */}
             {report.spread && report.spread.spread > 0 && (
               <div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 10 }}>
-                {report.flipCount > 0
-                  ? `시험은 회차마다 흔들려요(컨디션·난이도). ${report.flipCount}곳은 어느 회차로 보느냐에 따라 판정이 갈려요.`
-                  : '회차마다 흔들렸지만, 어느 회차로 봐도 후보들의 판정은 그대로예요.'}
+                {/* 향상·하락 중이면 '흔들림'이 아니라 방향을 먼저 말한다 — 도메인 message 와 같은 이유(사실과 다른
+                    운 프레이밍 방지). 후보 화면은 도메인 message 를 쓰지 않으므로 여기서 분기해야 한다. */}
+                {report.direction === 'improving'
+                  ? `최근 ${report.spread.count}회 ${report.spread.worst} → ${report.myValue}${report.unit.suffix}로 꾸준히 올랐어요. 아래 구간은 예전 회차까지 포함한 범위예요 — 지금 위치는 최근 회차 기준이에요.`
+                  : report.direction === 'worsening'
+                    ? `최근 ${report.spread.count}회 ${report.spread.best} → ${report.myValue}${report.unit.suffix}로 계속 내려갔어요. 지금 위치는 최근 회차 기준이에요.`
+                    : report.flipCount > 0
+                      ? `시험은 회차마다 흔들려요(컨디션·난이도). ${report.flipCount}곳은 어느 회차로 보느냐에 따라 판정이 갈려요.`
+                      : '회차마다 흔들렸지만, 어느 회차로 봐도 후보들의 판정은 그대로예요.'}
                 {report.smallSample ? ` 아직 ${report.spread.count}회뿐이라 추세로 보기엔 일러요.` : ''}
               </div>
             )}
