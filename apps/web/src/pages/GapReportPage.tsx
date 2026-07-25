@@ -4,6 +4,7 @@ import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { track } from '../utils/track';
 import { MatchRecommendCards } from '../components/MatchRecommendCards';
+import { Card } from '../components/ui';
 
 /** 격차 리포트 v1 (janus_report·C5). 정시(전국누백)/수시(내신등급) 격차를 근거·처방과 함께. */
 type RelTier = 'measured' | 'multiyear' | 'estimated';
@@ -16,6 +17,12 @@ type GapReport = {
   prescription: { headline: string; actions: Array<{ label: string; to: string; ctaId?: string; free?: boolean }> };
   disclaimer: string;
 };
+type GapPayloadFull = GapReport & {
+  target: { univ: string; dept: string; cut: number; track?: string };
+  generatedFor: { gye: string | null; value: number };
+};
+/** GET /me/reports — janus_report 이력 행(payload = 트렁크 JanusReport 봉투). */
+type GapHistory = { id: string; kind: string; status: string; created_at: string; payload: GapPayloadFull };
 type JScore = { gye: string | null; mode: string; nb?: number };
 
 const BAND_COLOR: Record<string, string> = { 안정: '#2A8A5F', 적정: '#2F6FB3', 소신: '#CF9A3A', 상향: '#E5484D' };
@@ -40,6 +47,13 @@ export function GapReportPage() {
   const [tResults, setTResults] = useState<Array<{ univ: string; dept: string; track?: string; cut: number }>>([]);
   const [picked, setPicked] = useState(false);
   const [goalTarget, setGoalTarget] = useState<{ university: string | null; department: string | null } | null>(null);
+  const [history, setHistory] = useState<GapHistory[]>([]);
+  // 산출물 이력(janus_report) — 학생 본인 것만. 실패는 무해(이력은 부가 정보).
+  const loadHistory = () => {
+    if (user?.role !== 'student') return;
+    api.get<GapHistory[]>('/me/reports?kind=gap&limit=5').then((r) => setHistory(Array.isArray(r) ? r : [])).catch(() => {});
+  };
+  useEffect(loadHistory, [user]);
   const cutSuffix = mode === 'susi' ? '등급' : '%';
 
   useEffect(() => { track('baechi', 'view', undefined, { view: 'gap' }); }, []);
@@ -108,6 +122,7 @@ export function GapReportPage() {
         { mode, univ: univ.trim(), dept: dept.trim(), cutNb: cut, ...(mode === 'susi' ? { myGrade: grade } : {}) };
       const r = await api.post<GapReport>('/scores/gap-report', body);
       setReport(r);
+      loadHistory(); // 새 산출이 적재됐으면 이력에 반영(동일 산출이면 서버가 skip)
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : '격차 리포트 생성 실패');
     } finally { setBusy(false); }
@@ -268,6 +283,33 @@ export function GapReportPage() {
 
           <p style={{ fontSize: 11.5, color: 'var(--muted)', lineHeight: 1.6, textAlign: 'center' }}>{report.disclaimer}</p>
         </>
+      )}
+
+      {/* 산출물 이력(janus_report) — 이전에 무엇을 언제 봤는지 재현. 같은 산출은 적재되지 않아 변화만 쌓인다. */}
+      {history.length > 0 && (
+        <Card title="이전 리포트 이력" style={{ marginTop: 16 }}>
+          <div style={{ display: 'grid', gap: 8 }}>
+            {history.map((h) => {
+              const p = h.payload;
+              return (
+                <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 8, borderBottom: '1px solid var(--line)', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 12, color: 'var(--muted)', minWidth: 96 }}>{new Date(h.created_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit' })}</span>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: BAND_COLOR[p.gap.band] ?? 'var(--ink)' }}>{p.gap.band}</span>
+                  <span style={{ fontSize: 13, color: 'var(--ink)', flex: 1, minWidth: 160 }}>
+                    {p.target.univ} {p.target.dept} · 컷 {p.target.cut}{p.unit.suffix}
+                  </span>
+                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                    내 {p.unit.label} {p.generatedFor.value}{p.unit.suffix}
+                    {p.gap.shortfall > 0 ? ` · ${p.gap.shortfall} 부족` : ' · 도달'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--muted)' }}>
+            같은 목표·같은 내 위치로 다시 열면 새로 쌓이지 않아요(변화만 기록).
+          </div>
+        </Card>
       )}
     </div>
   );
