@@ -245,10 +245,17 @@ export function GapReportPage() {
             {/* 회차 변동성(O108) — 시험 1회성 편차. 밴드가 뒤집히면 구간으로 알려준다. */}
             {report.volatility && (
               <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, background: 'var(--surface-2, #f0f3f7)', fontSize: 12.5, color: 'var(--ink-body)', lineHeight: 1.6 }}>
+                {/* 뒤집히는 경우엔 두 밴드를 색으로 먼저 보여준다 — 문장이 이미 '회차에 따라 …갈립니다'를
+                    설명하므로 여기서 같은 말을 반복하지 않고 시각적 대비만 담당한다. */}
                 {!report.volatility.consistent && (
-                  <b style={{ color: BAND_COLOR[report.volatility.worstBand] ?? 'var(--ink)' }}>
-                    회차에 따라 {report.volatility.bestBand}~{report.volatility.worstBand}{' · '}
-                  </b>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+                    {[report.volatility.bestBand, report.volatility.worstBand].map((b, i) => (
+                      <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {i ? <span style={{ color: 'var(--muted)', fontWeight: 700 }}>~</span> : null}
+                        <span style={{ fontSize: 11.5, fontWeight: 800, color: '#fff', background: BAND_COLOR[b] ?? 'var(--muted)', borderRadius: 999, padding: '2px 9px' }}>{b}</span>
+                      </span>
+                    ))}
+                  </div>
                 )}
                 {report.volatility.message}
                 {report.volatility.smallSample && (
