@@ -108,6 +108,25 @@ export function effectiveIntensity(journey: Journey): 1 | 2 | 3 {
 /** 학습 환경 — 배정 힌트의 근거(§2-1 env 규칙). */
 export type Env = 'home' | 'study' | 'academy' | 'school' | 'transit' | 'etc';
 
+/**
+ * 이 슬롯에서 가능한 소통 모드 — **상담(화상/음성/채팅) 예약의 교집합 계산 입력**.
+ *
+ * 왜 availability 에 있는가: 환경(env)과 가능한 모드는 같은 사실의 두 면이다.
+ * 독서실이면 chat+whiteboard, 카페면 voice 까지, 집이면 video 까지 — 시간대마다 다르다.
+ * 상담용으로 별도 스키마를 만들면 같은 사실이 두 곳에 저장돼 어긋난다(availability 규약 재사용 원칙).
+ */
+export type SlotMode = 'video' | 'voice' | 'chat' | 'whiteboard';
+
+/** 환경별 기본 가능 모드 — 사용자가 지정하지 않았을 때의 보수적 추정(항상 덮어쓸 수 있다). */
+export const DEFAULT_MODES_BY_ENV: Readonly<Record<Env, readonly SlotMode[]>> = Object.freeze({
+  home: ['video', 'voice', 'chat', 'whiteboard'],
+  study: ['chat', 'whiteboard'],            // 독서실 — 소리 불가
+  academy: ['voice', 'chat', 'whiteboard'], // 독학학원 — 이어폰 가능 가정
+  school: ['chat', 'whiteboard'],
+  transit: ['voice', 'chat'],               // 이동 중 — 판서 불가
+  etc: ['chat'],                            // 알 수 없으면 가장 좁게
+});
+
 export interface WeeklySlot {
   dow: Dow;
   /** 'HH:MM' */
@@ -115,6 +134,27 @@ export interface WeeklySlot {
   /** 'HH:MM' */
   end: string;
   env: Env;
+  /**
+   * 이 시간대에 가능한 소통 모드. 생략하면 env 기본값(DEFAULT_MODES_BY_ENV)으로 해석한다 —
+   * **없다고 해서 '전부 가능'으로 넓히지 않는다**(예약 기대 불일치가 사고로 이어지므로 보수적 기본값).
+   */
+  modes?: readonly SlotMode[];
+}
+
+/** 슬롯의 실효 모드 — 명시값 우선, 없으면 env 기본값. 빈 배열은 '명시적으로 없음'으로 존중한다. */
+export function slotModes(slot: WeeklySlot): readonly SlotMode[] {
+  return slot.modes ?? DEFAULT_MODES_BY_ENV[slot.env];
+}
+
+/**
+ * 양측 슬롯의 **교집합 모드** — 예약 시 "이 시간엔 어떤 상담이 가능한가"의 답.
+ * 교집합이 비면 그 시간대는 상담 불가(예약 단계에서 걸러야 한다 — 입장 후 알면 늦다).
+ * 모드 우선순위(풍부한 쪽 우선)로 정렬해 첫 항목을 기본 제안으로 쓸 수 있게 한다.
+ */
+const MODE_RANK: readonly SlotMode[] = ['video', 'voice', 'whiteboard', 'chat'];
+export function intersectModes(a: WeeklySlot, b: WeeklySlot): readonly SlotMode[] {
+  const bs = new Set(slotModes(b));
+  return MODE_RANK.filter((m) => bs.has(m) && slotModes(a).includes(m));
 }
 
 /** 특정 날짜의 예외 — 통째 휴무(off)거나 슬롯 추가(add). */
