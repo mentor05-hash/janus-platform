@@ -3,6 +3,9 @@ import { Test } from '@nestjs/testing';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/common/prisma/prisma.service';
 import { GuardianService } from '../src/modules/people/guardian.service';
+import { GuardianLinkRequestDto } from '../src/modules/people/dto/guardian.dto';
+import { validate } from 'class-validator';
+import { plainToInstance } from 'class-transformer';
 import { ACCOUNTS } from './fixtures/demo-accounts';
 
 /**
@@ -90,5 +93,22 @@ describe('학부모–자녀 연결', () => {
     await svc.respondLink(link.id, { action: 'revoke' }, student);
     const children = await svc.listChildren(guardian);
     expect(children.find((c: any) => c.studentId === student.id)).toBeUndefined();
+  });
+
+  /**
+   * 아래 2건은 **화면 문구의 근거**다.
+   * 모바일 승인 카드는 거절·해제에 '지금은 다시 신청할 수 없어요'라고 말한다 — 그 말이 참인지 여기서 고정한다.
+   * (재신청을 허용할지는 정책 결정이라 이 스펙은 현재 계약을 기록할 뿐 옳다고 주장하지 않는다.)
+   */
+  it('해제된 뒤에는 보호자가 재신청할 수 없다 — 종착 상태라 되돌릴 경로가 없다', async () => {
+    await expect(svc.requestLink(guardian, { studentLoginId })).rejects.toThrow(/이미 연결 신청이 존재합니다/);
+  });
+
+  it('relation 은 부/모/기타로 좁혀져 있다 — 이 값이 자녀 승인 카드에 그대로 렌더되므로 자유 텍스트면 문구를 심을 수 있다', async () => {
+    const inject = plainToInstance(GuardianLinkRequestDto, { studentLoginId, relation: '지금 승인하세요! 미승인 시 계정 정지' });
+    expect((await validate(inject)).some((e) => e.property === 'relation')).toBe(true);
+    for (const ok of ['부', '모', '기타']) {
+      expect(await validate(plainToInstance(GuardianLinkRequestDto, { studentLoginId, relation: ok }))).toHaveLength(0);
+    }
   });
 });

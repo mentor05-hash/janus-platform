@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, Child, ChildCredits, Note, PaymentRequest } from '../api';
 import { R, SP, useTheme, useUI, type Palette } from '../theme';
+import { showAlert } from '../lib/alertHost';
 import { ScoreTrendView, type Trend } from './ScoreTrendView';
 import { AcademicUpcoming } from './AcademicUpcoming';
 import { GuardianPlanScreen } from './GuardianPlanScreen';
@@ -184,20 +185,20 @@ function GuardianConsentSection({ studentId }: { studentId: string | null }) {
   const inputStyle = { borderWidth: 1, borderColor: C.line, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, color: C.ink, marginBottom: 8, fontSize: 13 };
 
   const verify = async () => {
-    if (name.trim().length < 2) { Alert.alert('안내', '보호자 성함을 입력하세요.'); return; }
+    if (name.trim().length < 2) { showAlert('안내', '보호자 성함을 입력하세요.'); return; }
     setBusy(true);
     try { await api.post('/guardian/consent/verify', { studentId, name: name.trim(), method: 'phone', birth: birth || undefined, phone: phone || undefined }); setName(''); setBirth(''); setPhone(''); load(); }
-    catch (e) { Alert.alert('본인확인 실패', e instanceof ApiError ? e.message : '다시 시도해 주세요.'); }
+    catch (e) { showAlert('본인확인 실패', e instanceof ApiError ? e.message : '다시 시도해 주세요.'); }
     finally { setBusy(false); }
   };
   const grant = async () => {
-    if (!agree) { Alert.alert('안내', '동의 항목에 체크해야 합니다.'); return; }
+    if (!agree) { showAlert('안내', '동의 항목에 체크해야 합니다.'); return; }
     setBusy(true);
     try { await api.post('/guardian/consent', { studentId }); setAgree(false); load(); }
-    catch (e) { Alert.alert('동의 실패', e instanceof ApiError ? e.message : '다시 시도해 주세요.'); }
+    catch (e) { showAlert('동의 실패', e instanceof ApiError ? e.message : '다시 시도해 주세요.'); }
     finally { setBusy(false); }
   };
-  const revoke = () => Alert.alert('동의 철회', '전달 동의를 철회할까요?', [
+  const revoke = () => showAlert('동의 철회', '전달 동의를 철회할까요?', [
     { text: '취소', style: 'cancel' },
     { text: '철회', style: 'destructive', onPress: async () => { setBusy(true); try { await api.del(`/guardian/consent?studentId=${studentId}`); load(); } catch { /* noop */ } finally { setBusy(false); } } },
   ]);
@@ -311,7 +312,7 @@ export function GuardianHome({ children, activeId, setActiveId, goTab, onLinked 
   };
   const toggleConsent = (next: boolean) => {
     if (next) { applyConsent(true); return; }
-    Alert.alert('동의 철회', '철회하면 이후 상담의 AI 요약 리포트가 제공되지 않습니다(녹음 자체는 상담 당사자 동의 체계를 따릅니다).', [
+    showAlert('동의 철회', '철회하면 이후 상담의 AI 요약 리포트가 제공되지 않습니다(녹음 자체는 상담 당사자 동의 체계를 따릅니다).', [
       { text: '취소', style: 'cancel' },
       { text: '철회', style: 'destructive', onPress: () => applyConsent(false) },
     ]);

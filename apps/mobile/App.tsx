@@ -22,12 +22,15 @@ import { GuardianHome, GuardianConsult, GuardianPay, GuardianCharge, GuardianMem
 import { GuardianLinkScreen } from './src/screens/GuardianLinkScreen';
 import { TeacherInbox, TeacherToday, TeacherSessions, TeacherRecords, TeacherMy } from './src/screens/TeacherScreens';
 import { ThemeProvider, useTheme, type Palette, SP } from './src/theme';
+import { AlertHost } from './src/lib/alertHost';
 import { APP_NAME } from './src/branding.generated';
 
 export default function App() {
   return (
     <ThemeProvider>
       <AppInner />
+      {/* 앱 내 알림 대화상자 — react-native-web 의 Alert 가 빈 함수라 웹 빌드에서 안내가 전부 무음이었다. */}
+      <AlertHost />
     </ThemeProvider>
   );
 }
@@ -45,6 +48,7 @@ function AppInner() {
   const [bookSub, setBookSub] = useState<string | undefined>(undefined); // 세부 유형(과목 등)
   const [children, setChildren] = useState<Child[]>([]);
   const [activeChild, setActiveChild] = useState<string | null>(null);
+  const [childState, setChildState] = useState<'loading' | 'ok' | 'error'>('loading');
   const [searchOpen, setSearchOpen] = useState(false); // 전역 통합검색 오버레이(학생)
   const [exitHint, setExitHint] = useState(false); // 홈에서 '한 번 더 누르면 종료' 토스트
   const exitArmed = useRef(false);
@@ -84,14 +88,21 @@ function AppInner() {
   }, [me?.id, me?.role]);
 
   // 연결 신청 후에도 다시 부른다(승인 전이면 여전히 0명이 정상 — 그때는 신청 화면이 계속 열려 있다).
+  // 조회 **실패**를 '0명'과 같이 다루면 안 된다: 이미 연결된 학부모가 일시적 오류로 신청 폼으로 강등된다.
   const loadChildren = useCallback(() => {
     if (me?.role !== 'guardian') return;
     api.get<Child[]>('/guardian/children').then((cs) => {
       setChildren(cs);
-      setActiveChild((prev) => prev ?? cs[0]?.studentId ?? null);
-    }).catch(() => {});
+      setChildState('ok');
+      // 새 목록과 대조한다 — 계정을 바꾸거나 연결이 해제되면 이전 자녀를 계속 가리키게 된다.
+      setActiveChild((prev) => (prev && cs.some((c) => c.studentId === prev) ? prev : cs[0]?.studentId ?? null));
+    }).catch(() => setChildState('error'));
   }, [me?.role]);
-  useEffect(() => { loadChildren(); }, [me, loadChildren]);
+  useEffect(() => {
+    // 계정이 바뀌면 이전 계정의 자녀를 먼저 지운다(fetch 완료 전까지 남으면 남의 자녀를 가리킨다).
+    setChildren([]); setActiveChild(null); setChildState(me?.role === 'guardian' ? 'loading' : 'ok');
+    loadChildren();
+  }, [me, loadChildren]);
 
   // 푸시 토큰 등록 — 네이티브는 expo-notifications 실 토큰, 웹은 데모 토큰.
   useEffect(() => {
@@ -238,7 +249,17 @@ function AppInner() {
         {isGuardian && (
           // 자녀가 0명이면 5탭 전부가 안내 한 줄이었고 **신청 화면이 없어** 학생에게 승인할 것도 생기지 않았다(교착).
           // 유일한 탈출구이므로 안내 대신 신청 화면 자체를 띄운다.
-          children.length === 0 ? (
+          // 단 '조회 실패'는 0명이 아니다 — 연결된 학부모를 신청 폼으로 강등시키면 안 된다.
+          childState === 'loading' ? (
+            <View style={styles.center}><ActivityIndicator color={C.teal} /></View>
+          ) : childState === 'error' ? (
+            <View style={{ padding: SP.xl }}>
+              <Text style={styles.notice}>자녀 목록을 불러오지 못했어요.</Text>
+              <TouchableOpacity onPress={loadChildren} style={{ marginTop: SP.md }}>
+                <Text style={{ color: C.teal, fontWeight: '700' }}>다시 시도</Text>
+              </TouchableOpacity>
+            </View>
+          ) : children.length === 0 ? (
             <GuardianLinkScreen onLinked={loadChildren} />
           ) : tab === 'a' ? (
             <GuardianHome children={children} activeId={activeChild} setActiveId={setActiveChild} goTab={goTab} onLinked={loadChildren} />
@@ -254,7 +275,8 @@ function AppInner() {
         )}
       </View>
 
-      {(isStudent || isGuardian || isTeacher) && (
+      {/* 학부모는 자녀가 있어야 탭이 의미를 갖는다 — 0명일 때 탭을 두면 하이라이트만 움직이고 화면은 그대로다(거짓 이동). */}
+      {(isStudent || isTeacher || (isGuardian && childState === 'ok' && children.length > 0)) && (
         <View style={styles.tabs}>
           {tabs.map((t) => (
             <TouchableOpacity

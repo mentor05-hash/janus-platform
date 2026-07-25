@@ -36,6 +36,7 @@ export function GuardianLinkScreen({ onBack, onLinked }: { onBack?: () => void; 
   const [loginId, setLoginId] = useState('');
   const [relation, setRelation] = useState<string>('모');
   const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
 
@@ -54,11 +55,26 @@ export function GuardianLinkScreen({ onBack, onLinked }: { onBack?: () => void; 
       await api.post('/guardian/links', { studentLoginId: id, relation: relation || undefined });
       setMsg('연결을 신청했어요. 자녀가 승인하면 자녀 화면이 열립니다.');
       setLoginId(''); // 관계는 유지 — 자녀가 여럿이어도 보통 같은 관계다
-      await loadLinks();
-      onLinked?.(); // 상위(App)가 자녀 목록을 다시 읽게 한다 — 승인 전에는 아직 비어 있는 것이 정상
     } catch (e) {
       setError(e instanceof ApiError ? e.message : '연결 신청 실패');
-    } finally { setBusy(false); }
+    } finally {
+      // 성공·실패 모두 상태를 다시 읽는다 — '이미 신청이 존재합니다'는 사실상 '그 사이 승인됐다'는 신호일 수 있다.
+      await refresh();
+      setBusy(false);
+    }
+  }
+
+  /**
+   * 상태 새로고침 — **이 화면의 탈출구**다.
+   * 자녀가 승인해도 앱에는 알려주는 트리거가 없어(푸시 수신 훅 없음) 학부모는 '승인 대기 중' 화면에 갇힌다.
+   * onLinked 가 상위의 자녀 목록 조회를 다시 돌리므로, 이미 승인됐다면 그 자리에서 자녀 화면으로 넘어간다.
+   */
+  async function refresh() {
+    setRefreshing(true);
+    try {
+      await loadLinks();
+      onLinked?.();
+    } finally { setRefreshing(false); }
   }
 
   return (
@@ -103,7 +119,13 @@ export function GuardianLinkScreen({ onBack, onLinked }: { onBack?: () => void; 
       </View>
 
       <View style={[ui.card, { marginTop: SP.md }]}>
-        <Text style={s.sec}>내 신청 상태</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Text style={[s.sec, { flex: 1 }]}>내 신청 상태</Text>
+          <TouchableOpacity onPress={refresh} disabled={refreshing}>
+            <Text style={s.refresh}>{refreshing ? '확인 중…' : '↻ 새로고침'}</Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={[ui.sub, { marginBottom: 4 }]}>자녀가 승인했는데 화면이 그대로면 새로고침을 눌러 주세요.</Text>
         {links === null ? (
           <Text style={ui.sub}>불러오는 중…</Text>
         ) : links.length === 0 ? (
@@ -127,6 +149,7 @@ export function GuardianLinkScreen({ onBack, onLinked }: { onBack?: () => void; 
 const makeStyles = (C: Palette) => StyleSheet.create({
   back: { color: C.teal, fontSize: 14, fontWeight: '700', marginBottom: 8 },
   sec: { fontSize: 15, fontWeight: '800', color: C.ink, marginBottom: 8 },
+  refresh: { fontSize: 13, color: C.teal, fontWeight: '700' },
   b: { fontWeight: '800', color: C.body },
   ok: { color: C.done, fontSize: 13, marginTop: SP.sm, fontWeight: '600' },
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },

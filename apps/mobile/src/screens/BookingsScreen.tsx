@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, Booking, Note, Teacher } from '../api';
 import { R, SP, useTheme, useUI, type Palette } from '../theme';
+import { showAlert } from '../lib/alertHost';
 import { useWebBack } from '../webBack';
 import { RescheduleScreen } from './RescheduleScreen';
 import { SessionChatScreen } from './SessionChatScreen';
@@ -166,7 +167,7 @@ export function BookingsScreen({ myId }: { myId?: string }) {
     finally { setBusy(null); }
   }
   function confirmNoshow(id: string) {
-    Alert.alert('미진행 신고', '이 상담이 실제로 진행되지 않았나요? 관리자에게 신고됩니다.', [
+    showAlert('미진행 신고', '이 상담이 실제로 진행되지 않았나요? 관리자에게 신고됩니다.', [
       { text: '취소', style: 'cancel' },
       { text: '신고', style: 'destructive', onPress: () => reportNoshow(id) },
     ]);

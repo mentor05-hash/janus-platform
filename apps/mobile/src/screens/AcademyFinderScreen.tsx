@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api, ApiError } from '../api';
 import { R, SP, useTheme, useUI, type Palette } from '../theme';
+import { showAlert } from '../lib/alertHost';
 
 /* 학원찾기(모바일) — 웹 AcademyFinderPage/AcademyDetailPage 파리티. 검색→상세→상담 신청·재원 동의. */
 type Card = { id: string; name: string; addr: string | null; sourceLabel: string; verified: boolean; busPass: boolean; score: number; nearestStation: { name?: string; walk_min?: number } | null; repClass: { subject: string; level: string; tuitionKrw: number | null; tuitionLabel: string } | null };
@@ -97,15 +98,15 @@ function AcademyDetail({ id, onBack }: { id: string; onBack: () => void }) {
     try {
       if (enrolled) { await api.del(`/enrollments/${id}`); setEnrolled(false); }
       else { await api.post('/enrollments', { academyId: id, consentStats: true }); setEnrolled(true); }
-    } catch (e) { Alert.alert('안내', e instanceof ApiError ? e.message : '처리 실패'); }
+    } catch (e) { showAlert('안내', e instanceof ApiError ? e.message : '처리 실패'); }
   };
   const openSheet = async () => { setSheet(true); try { setPreview(await api.get<Preview>('/leads/preview')); } catch { setPreview(null); } };
   const submit = async () => {
     try {
       const r = await api.post<{ consentScope: string[] }>(`/academies/${id}/leads`, { message: message || undefined, contact: contact || undefined, shareName: share.name, shareGrade: share.grade, shareGoal: share.goal });
       setSheet(false); setMessage(''); setContact('');
-      Alert.alert('신청 완료', `공유 항목: ${r.consentScope.join(', ') || '없음'}. 응답은 학원이 확인 후 회신합니다.`);
-    } catch (e) { Alert.alert('신청 실패', e instanceof ApiError ? e.message : '다시 시도해 주세요.'); }
+      showAlert('신청 완료', `공유 항목: ${r.consentScope.join(', ') || '없음'}. 응답은 학원이 확인 후 회신합니다.`);
+    } catch (e) { showAlert('신청 실패', e instanceof ApiError ? e.message : '다시 시도해 주세요.'); }
   };
 
   if (!d) return <View style={{ flex: 1, justifyContent: 'center' }}><ActivityIndicator color={C.teal} /></View>;

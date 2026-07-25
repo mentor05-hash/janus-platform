@@ -51,8 +51,12 @@ export function LegalScreen({ onBack, onWithdrawn }: { onBack: () => void; onWit
   const [links, setLinks] = useState<GuardianLink[] | null>(null);
   const [linkBusy, setLinkBusy] = useState(false);
   const [linkErr, setLinkErr] = useState('');
+  const [linksFailed, setLinksFailed] = useState(false);
+  // 조회 실패를 빈 배열로 삼키면 **승인 UI 자체가 사라진다** — 대기 중 요청이 있어도 학생이 모른다.
   const loadLinks = () =>
-    api.get<GuardianLink[]>('/me/guardian-links').then((r) => setLinks(Array.isArray(r) ? r : [])).catch(() => setLinks([]));
+    api.get<GuardianLink[]>('/me/guardian-links')
+      .then((r) => { setLinks(Array.isArray(r) ? r : []); setLinksFailed(false); })
+      .catch(() => { setLinks([]); setLinksFailed(true); });
   const [termsAgreed, setTermsAgreed] = useState(false);
   const [privacyAgreed, setPrivacyAgreed] = useState(false);
   const [marketingAgreed, setMarketingAgreed] = useState(false);
@@ -143,7 +147,8 @@ export function LegalScreen({ onBack, onWithdrawn }: { onBack: () => void; onWit
    * react-native-web 의 Alert 는 **빈 함수**(`static alert() {}`)라 웹 빌드(:8090)에서 아무 일도 일어나지 않는다.
    * 같은 화면의 회원 탈퇴가 쓰는 인라인 2단계 확인을 따른다 — 웹·네이티브 양쪽에서 동작한다.
    */
-  const [revokeId, setRevokeId] = useState<string | null>(null);
+  // 확인 대기 중인 행 — 거절·해제 **둘 다** 되돌릴 수 없으므로 같은 절차를 쓴다.
+  const [confirming, setConfirming] = useState<{ id: string; action: 'reject' | 'revoke' } | null>(null);
 
   async function toggleShare(guardianId: string, next: boolean) {
     setShareBusy(true);
@@ -161,52 +166,71 @@ export function LegalScreen({ onBack, onWithdrawn }: { onBack: () => void; onWit
       <Text style={ui.h}>약관·개인정보</Text>
 
       {/* 보호자 연결 — 공유 동의의 **선결조건**이라 위에 둔다(연결 승인 → 그 다음 공유 동의). */}
+      {linksFailed ? (
+        <View style={[ui.card, { marginTop: SP.md }]}>
+          <Text style={ui.sub}>보호자 연결 정보를 불러오지 못했어요. 대기 중인 신청이 있을 수 있으니 다시 시도해 주세요.</Text>
+          <TouchableOpacity onPress={loadLinks} style={{ marginTop: 8 }}>
+            <Text style={{ color: C.teal, fontWeight: '700', fontSize: 13 }}>↻ 다시 시도</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
       {links && links.length > 0 && (
         <View style={[ui.card, { marginTop: SP.md }]}>
           <Text style={styles.sec}>보호자 연결</Text>
+          {/* 미성년은 '무엇을 보여줄지'를 스스로 고르지 못한다(O105 · 공유 동의는 성인 전용) — 없는 통제권을 약속하지 않는다. */}
           <Text style={ui.sub}>
-            보호자가 연결을 신청하면 여기에서 승인하거나 거절할 수 있어요. 승인해야 보호자 화면이 열리고,
-            무엇을 보여줄지는 아래 공유 동의에서 따로 정합니다(연결 = 열람 허용이 아니에요).
+            {share?.isMinor
+              ? '보호자가 연결을 신청하면 여기에서 승인하거나 거절할 수 있어요. 승인하면 보호자가 법정대리인 권한으로 내 학습 정보를 볼 수 있어요(보호자 본인확인·동의 완료 시). 공유 범위를 따로 고르는 기능은 성인이 된 뒤에 열려요.'
+              : '보호자가 연결을 신청하면 여기에서 승인하거나 거절할 수 있어요. 승인해야 보호자 화면이 열리고, 무엇을 보여줄지는 아래 공유 동의에서 따로 정합니다(연결 = 열람 허용이 아니에요).'}
           </Text>
           {linkErr ? <Text style={ui.error}>{linkErr}</Text> : null}
-          {links.map((l) => (
+          {links.map((l) => {
+            const pend = confirming?.id === l.id ? confirming.action : null;
+            return (
             <View key={l.id} style={styles.linkRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.linkName}>
+                <Text style={styles.linkName} numberOfLines={1} ellipsizeMode="tail">
                   {l.counterpartName}
                   {l.relation ? <Text style={styles.linkRel}> · {l.relation}</Text> : null}
                 </Text>
                 <Text style={styles.linkStatus}>
-                  {revokeId === l.id ? '해제하면 보호자 화면이 닫혀요. 정말 해제할까요?' : (LINK_STATUS[l.status] ?? l.status)}
+                  {pend === 'revoke'
+                    ? '해제하면 보호자 화면이 닫힙니다. 지금은 이 보호자가 다시 신청할 수 없으니 신중히 선택해 주세요.'
+                    : pend === 'reject'
+                    ? '거절하면 이 보호자는 지금은 다시 신청할 수 없어요. 정말 거절할까요?'
+                    : (LINK_STATUS[l.status] ?? l.status)}
                 </Text>
+                {(l.status === 'rejected' || l.status === 'revoked') && !pend ? (
+                  <Text style={styles.linkStatus}>다시 연결하려면 관리자에게 문의해 주세요.</Text>
+                ) : null}
               </View>
-              {l.canRespond ? (
+              {pend ? (
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  <TouchableOpacity disabled={linkBusy} onPress={() => setConfirming(null)} style={[styles.linkBtn, linkBusy && { opacity: 0.6 }]}>
+                    <Text style={styles.linkBtnT}>취소</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity disabled={linkBusy} onPress={() => { setConfirming(null); void respondLink(l.id, pend); }} style={[styles.linkBtn, styles.linkBtnDanger, linkBusy && { opacity: 0.6 }]}>
+                    <Text style={styles.linkBtnDangerT}>{pend === 'revoke' ? '해제 확정' : '거절 확정'}</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : l.canRespond ? (
                 <View style={{ flexDirection: 'row', gap: 6 }}>
                   <TouchableOpacity disabled={linkBusy} onPress={() => respondLink(l.id, 'approve')} style={[styles.linkBtn, styles.linkBtnOn, linkBusy && { opacity: 0.6 }]}>
                     <Text style={styles.linkBtnOnT}>승인</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity disabled={linkBusy} onPress={() => respondLink(l.id, 'reject')} style={[styles.linkBtn, linkBusy && { opacity: 0.6 }]}>
+                  {/* 거절도 되돌릴 수 없다 — 해제와 같은 2단계를 쓴다(비대칭이면 한쪽만 오탭으로 파괴된다). */}
+                  <TouchableOpacity disabled={linkBusy} onPress={() => setConfirming({ id: l.id, action: 'reject' })} style={[styles.linkBtn, linkBusy && { opacity: 0.6 }]}>
                     <Text style={styles.linkBtnT}>거절</Text>
                   </TouchableOpacity>
                 </View>
               ) : l.status === 'approved' ? (
-                revokeId === l.id ? (
-                  <View style={{ flexDirection: 'row', gap: 6 }}>
-                    <TouchableOpacity disabled={linkBusy} onPress={() => setRevokeId(null)} style={[styles.linkBtn, linkBusy && { opacity: 0.6 }]}>
-                      <Text style={styles.linkBtnT}>취소</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity disabled={linkBusy} onPress={() => { setRevokeId(null); void respondLink(l.id, 'revoke'); }} style={[styles.linkBtn, styles.linkBtnDanger, linkBusy && { opacity: 0.6 }]}>
-                      <Text style={styles.linkBtnDangerT}>해제 확정</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <TouchableOpacity disabled={linkBusy} onPress={() => setRevokeId(l.id)} style={[styles.linkBtn, linkBusy && { opacity: 0.6 }]}>
-                    <Text style={styles.linkBtnT}>연결 해제</Text>
-                  </TouchableOpacity>
-                )
+                <TouchableOpacity disabled={linkBusy} onPress={() => setConfirming({ id: l.id, action: 'revoke' })} style={[styles.linkBtn, linkBusy && { opacity: 0.6 }]}>
+                  <Text style={styles.linkBtnT}>연결 해제</Text>
+                </TouchableOpacity>
               ) : null}
             </View>
-          ))}
+            );
+          })}
         </View>
       )}
 

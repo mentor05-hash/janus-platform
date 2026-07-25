@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, Attachment, Quote, Slot, Teacher } from '../api';
 import { R, SP, useTheme, useUI, type Palette } from '../theme';
+import { showAlert } from '../lib/alertHost';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const DURATION = 3; // 기본 30분 (10분 슬롯 3칸)
@@ -47,10 +48,10 @@ export function SlotsScreen({ teacher, onBack, initialMode, consultType, initial
   }, [teacher.id]);
   async function toggleFav() {
     try {
-      if (faved) { await api.del(`/me/teacher-lists/${teacher.id}`); Alert.alert('찜 해제', '내 선생님(찜)에서 제거했어요.'); }
-      else { await api.post('/me/teacher-lists', { teacherId: teacher.id, listKind: 'fit' }); Alert.alert('찜', '내 선생님(찜)에 추가했어요.'); }
+      if (faved) { await api.del(`/me/teacher-lists/${teacher.id}`); showAlert('찜 해제', '내 선생님(찜)에서 제거했어요.'); }
+      else { await api.post('/me/teacher-lists', { teacherId: teacher.id, listKind: 'fit' }); showAlert('찜', '내 선생님(찜)에 추가했어요.'); }
       setFaved(!faved);
-    } catch (e) { Alert.alert('실패', e instanceof ApiError ? e.message : '오류'); }
+    } catch (e) { showAlert('실패', e instanceof ApiError ? e.message : '오류'); }
   }
   // 선생님이 제공하는 방식만 노출(방식 먼저 선택 흐름). 비어 있으면 전체.
   const modeList = teacher.modes?.length ? MODES.filter((m) => teacher.modes!.includes(m.mode)) : MODES;
@@ -116,7 +117,7 @@ export function SlotsScreen({ teacher, onBack, initialMode, consultType, initial
   // 문제 파일 첨부(웹: 브라우저 파일창 → /files 업로드 → id 연결)
   function pickFiles() {
     if (typeof document === 'undefined') {
-      Alert.alert('안내', '파일 첨부는 웹에서 지원됩니다. (앱은 추후 지원)');
+      showAlert('안내', '파일 첨부는 웹에서 지원됩니다. (앱은 추후 지원)');
       return;
     }
     const input = document.createElement('input');
@@ -133,7 +134,7 @@ export function SlotsScreen({ teacher, onBack, initialMode, consultType, initial
           setAttachments((prev) => [...prev, { id: r.id, name: r.filename, type: r.contentType }]);
         }
       } catch (e) {
-        Alert.alert('업로드 실패', e instanceof ApiError ? e.message : '오류가 발생했어요.');
+        showAlert('업로드 실패', e instanceof ApiError ? e.message : '오류가 발생했어요.');
       } finally {
         setUploading(false);
       }
@@ -145,22 +146,22 @@ export function SlotsScreen({ teacher, onBack, initialMode, consultType, initial
     if (selStart === null || selEnd === null) return;
     try {
       await api.post('/bookings', { teacherId: teacher.id, date, consultType: ctype, subType: subject, mode, slotStart: selStart, slotEnd: selEnd + 1, content, attachments });
-      Alert.alert('예약 완료', '상담이 신청되었습니다.');
+      showAlert('예약 완료', '상담이 신청되었습니다.');
       onBack();
     } catch (e) {
       if (e instanceof ApiError && e.status === 409 && /줌.*초과/.test(e.message)) {
-        Alert.alert('줌 상담실 만석', '지금은 줌 상담실이 가득 찼어요. 채팅·필기·오프라인 등 다른 방식을 선택해 주세요.');
+        showAlert('줌 상담실 만석', '지금은 줌 상담실이 가득 찼어요. 채팅·필기·오프라인 등 다른 방식을 선택해 주세요.');
         return;
       }
       if (e instanceof ApiError && e.status === 409) {
         // 다른 학생이 먼저 예약함 등 슬롯 충돌 → 선택 해제 + 슬롯 새로고침.
-        Alert.alert('예약할 수 없어요', e.message);
+        showAlert('예약할 수 없어요', e.message);
         resetSel();
         loadSlots();
         return;
       }
       const msg = e instanceof ApiError ? e.message : '예약 실패';
-      Alert.alert(e instanceof ApiError && e.status === 402 ? '크레딧 부족' : '예약 실패', msg);
+      showAlert(e instanceof ApiError && e.status === 402 ? '크레딧 부족' : '예약 실패', msg);
     }
   }
 
@@ -245,10 +246,10 @@ export function SlotsScreen({ teacher, onBack, initialMode, consultType, initial
         <TouchableOpacity style={styles.actBtn} onPress={() => void toggleFav()}>
           <Text style={[styles.actT, faved && { color: '#CF9A3A' }]}>{faved ? '★ 찜됨' : '☆ 찜'}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actBtn} onPress={async () => { try { await api.post('/teacher-blocks', { teacherId: teacher.id }); Alert.alert('차단', '차단했어요.'); } catch (e) { Alert.alert('실패', e instanceof ApiError ? e.message : '오류'); } }}>
+        <TouchableOpacity style={styles.actBtn} onPress={async () => { try { await api.post('/teacher-blocks', { teacherId: teacher.id }); showAlert('차단', '차단했어요.'); } catch (e) { showAlert('실패', e instanceof ApiError ? e.message : '오류'); } }}>
           <Text style={styles.actT}>🚫 차단</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actBtn} onPress={() => { const reason = typeof prompt !== 'undefined' ? prompt('신고 사유') : '부적절'; if (reason) api.post('/reports', { targetType: 'teacher', targetId: teacher.id, reason }).then(() => Alert.alert('신고', '접수되었습니다.')).catch((e) => Alert.alert('실패', e instanceof ApiError ? e.message : '오류')); }}>
+        <TouchableOpacity style={styles.actBtn} onPress={() => { const reason = typeof prompt !== 'undefined' ? prompt('신고 사유') : '부적절'; if (reason) api.post('/reports', { targetType: 'teacher', targetId: teacher.id, reason }).then(() => showAlert('신고', '접수되었습니다.')).catch((e) => showAlert('실패', e instanceof ApiError ? e.message : '오류')); }}>
           <Text style={styles.actT}>🚩 신고</Text>
         </TouchableOpacity>
       </View>
