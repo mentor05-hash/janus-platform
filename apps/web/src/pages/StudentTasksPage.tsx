@@ -30,15 +30,32 @@ const dday = (d: string | null) => {
   return diff === 0 ? 'D-DAY' : diff > 0 ? `D-${diff}` : `D+${Math.abs(diff)}`;
 };
 
-/** 맞춤 할 일 — 격차·학사일정 자동 제안 + 수동. 진단→실행. */
+/** 학부모 제안(O106) — 수락 전에는 할 일이 아니다. 수락 시 내 할 일로 들어온다. */
+type PlanProposal = { id: string; title: string; subject: string | null; dueDate: string | null; note: string | null; proposedAt: string | null; guardianName: string | null };
+
+/** 맞춤 할 일 — 격차·학사일정 자동 제안 + 수동 + 학부모 제안 수락. 진단→실행. */
 export function StudentTasksPage() {
   const [tasks, setTasks] = useState<StudentTask[] | null>(null);
+  const [proposals, setProposals] = useState<PlanProposal[]>([]);
   const [error, setError] = useState('');
   const [newTitle, setNewTitle] = useState('');
   const [busy, setBusy] = useState(false);
 
   const load = () => api.get<StudentTask[]>('/me/tasks').then(setTasks).catch((e) => { setError(e instanceof ApiError ? e.message : '조회 실패'); setTasks([]); });
-  useEffect(() => { load(); }, []);
+  // 학부모 제안 — 수락/거절은 학생이 결정한다(학생 자율성). 실패는 무해(제안이 없을 수도 있다).
+  const loadProposals = () => api.get<PlanProposal[]>('/me/plan-proposals').then((r) => setProposals(Array.isArray(r) ? r : [])).catch(() => setProposals([]));
+  useEffect(() => { load(); loadProposals(); }, []);
+
+  async function respond(id: string, action: 'accept' | 'decline') {
+    setProposals((p) => p.filter((x) => x.id !== id)); // 낙관적 제거
+    try {
+      await api.post(`/me/plan-proposals/${id}/${action}`, {});
+      if (action === 'accept') load(); // 수락하면 내 할 일에 추가된다
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : '응답 실패');
+      loadProposals();
+    }
+  }
 
   async function toggle(t: StudentTask) {
     setTasks((p) => p && p.map((x) => (x.id === t.id ? { ...x, status: t.status === 'done' ? 'todo' : 'done' } : x)));
@@ -65,6 +82,10 @@ export function StudentTasksPage() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 0', borderBottom: '1px solid var(--line)' }}>
         <input type="checkbox" checked={t.status === 'done'} onChange={() => toggle(t)} aria-label={`${t.title} 완료`} style={{ width: 18, height: 18, cursor: 'pointer', flexShrink: 0 }} />
         <span style={{ fontSize: 12, fontWeight: 700, color: c.color, background: 'var(--surface-2, #f0f3f7)', borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap' }}>{c.icon} {c.label}</span>
+        {/* 출처 구분(created_by: auto|self|guardian) — 학부모 제안에서 수락된 할 일임을 밝힌다. */}
+        {t.created_by === 'guardian' && (
+          <span title="학부모 제안을 수락한 할 일" style={{ fontSize: 11.5, fontWeight: 700, color: '#2F6FB3', whiteSpace: 'nowrap' }}>👪</span>
+        )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, color: t.status === 'done' ? 'var(--muted)' : 'var(--ink)', textDecoration: t.status === 'done' ? 'line-through' : 'none' }}>{t.title}</div>
           {dl && <div style={{ fontSize: 12, color: 'var(--muted)' }}>{dl} · {t.due_date?.slice(0, 10)}</div>}
@@ -79,6 +100,34 @@ export function StudentTasksPage() {
     <div>
       <PageHeader title="할 일" sub="격차 리포트가 찾은 약점과 다가오는 학사일정에서 자동으로 제안돼요. 직접 추가도 가능해요." />
       <ErrorText>{error}</ErrorText>
+
+      {proposals.length > 0 && (
+        <Card title={`학부모 제안 (${proposals.length})`} style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, color: 'var(--ink-body)', marginBottom: 10 }}>
+            수락하면 내 할 일에 추가돼요. 거절해도 괜찮아요 — 내 계획은 내가 정해요.
+          </div>
+          <div style={{ display: 'grid', gap: 10 }}>
+            {proposals.map((p) => (
+              <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 10, borderBottom: '1px solid var(--line)', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 12, fontWeight: 800, color: '#2F6FB3', background: 'var(--surface-2, #f0f3f7)', borderRadius: 999, padding: '3px 9px', whiteSpace: 'nowrap' }}>
+                  👪 {p.guardianName ?? '학부모'}
+                </span>
+                <div style={{ flex: 1, minWidth: 160 }}>
+                  <div style={{ fontSize: 14, color: 'var(--ink)' }}>{p.title}</div>
+                  {(p.subject || p.dueDate) && (
+                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                      {p.subject ?? ''}{p.subject && p.dueDate ? ' · ' : ''}
+                      {p.dueDate ? `마감 ${p.dueDate.slice(0, 10)}` : ''}
+                    </div>
+                  )}
+                </div>
+                <button className="btn sm" onClick={() => respond(p.id, 'accept')} data-janus-cta="plan_accept">수락</button>
+                <button className="btn ghost sm" onClick={() => respond(p.id, 'decline')}>거절</button>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <Card style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 8 }}>

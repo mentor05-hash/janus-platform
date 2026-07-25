@@ -10,6 +10,17 @@ type Note = { bookingId: string; teacherId: string; consultType: string | null; 
 
 /** 학부모 주간 통합 리포트 — 자녀 성적·출석·상담·Q&A 요약(야누스에서만 생성). */
 type Child = { studentId: string; name: string }; // GET /guardian/children(people) 형태의 부분집합
+/** 자녀 격차 리포트 이력 행(payload=트렁크 JanusReport 봉투). 열람은 O105 연령 게이트를 통과해야 한다. */
+type GapHist = {
+  id: string; created_at: string;
+  payload: {
+    unit: { label: string; suffix: string };
+    gap: { band: string; shortfall: number };
+    target: { univ: string; dept: string; cut: number };
+    generatedFor: { value: number };
+  };
+};
+const HIST_BAND_COLOR: Record<string, string> = { 안정: '#2A8A5F', 적정: '#2F6FB3', 소신: '#CF9A3A', 상향: '#E5484D' };
 type Report = {
   kind: string; version: string;
   student: { name: string };
@@ -37,6 +48,9 @@ export function GuardianReportPage() {
   const [err, setErr] = useState<string | null>(null);
   // 보호자 동의(본부 결정 2026-07-19) — 상담 녹음·AI 요약(외부 STT)은 동의 자녀에 한해 제공.
   const [consent, setConsent] = useState<{ granted: boolean; grantedAt: string | null; retentionDays: number } | null>(null);
+  // 자녀 산출물 이력(janus_report) — O105 게이트 통과 시에만 온다. 403 이면 사유를 안내한다.
+  const [gapHist, setGapHist] = useState<GapHist[] | null>(null);
+  const [gapGate, setGapGate] = useState<string>('');
   const [consentBusy, setConsentBusy] = useState(false);
 
   useEffect(() => {
@@ -56,6 +70,11 @@ export function GuardianReportPage() {
       .catch((e) => setErr(e?.message ?? '리포트를 불러오지 못했습니다.'));
     api.get<Note[]>(`/students/${encodeURIComponent(sel)}/notes`)
       .then((ns) => setNotes(Array.isArray(ns) ? ns : [])).catch(() => setNotes([]));
+    // 자녀 산출물 이력 — 게이트(O105) 미충족이면 403 이 오고, 사유를 그대로 안내한다.
+    setGapHist(null); setGapGate('');
+    api.get<GapHist[]>(`/guardian/reports?studentId=${encodeURIComponent(sel)}&kind=gap&limit=5`)
+      .then((r) => setGapHist(Array.isArray(r) ? r : []))
+      .catch((e) => { setGapHist([]); setGapGate(e?.message ?? '열람 권한이 없습니다.'); });
   }, [sel]);
 
   useEffect(() => {
@@ -208,6 +227,44 @@ export function GuardianReportPage() {
               {consentBusy ? '처리 중…' : consent.granted ? '동의 철회' : '동의하기'}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* 자녀 격차 리포트 이력(O104·O105) — 열람은 연령별 동의 게이트를 통과해야 한다. */}
+      {sel && (
+        <div style={{ background: 'var(--surface,#fff)', border: '1px solid var(--line,#e4eaf1)', borderRadius: 14, padding: 18, marginTop: 16 }}>
+          <b style={{ fontSize: 14.5 }}>자녀 격차 리포트 이력</b>
+          {gapGate ? (
+            <div style={{ fontSize: 12.5, color: 'var(--muted,#5a6b83)', lineHeight: 1.7, marginTop: 6 }}>
+              {gapGate}
+              <div style={{ marginTop: 4 }}>
+                미성년 자녀는 <b>본인확인·데이터 전달 동의</b>를 완료하면 열람할 수 있고(동의·본인확인 메뉴),
+                성인 자녀는 <b>자녀 본인이 공유에 동의</b>해야 열람할 수 있어요.
+              </div>
+            </div>
+          ) : gapHist === null ? (
+            <div style={{ fontSize: 12.5, color: 'var(--muted,#5a6b83)', marginTop: 6 }}>불러오는 중…</div>
+          ) : gapHist.length === 0 ? (
+            <div style={{ fontSize: 12.5, color: 'var(--muted,#5a6b83)', marginTop: 6 }}>아직 생성된 격차 리포트가 없어요.</div>
+          ) : (
+            <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
+              {gapHist.map((h) => (
+                <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 8, borderBottom: '1px solid var(--line,#e4eaf1)', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 12, color: 'var(--muted,#5a6b83)', minWidth: 62 }}>
+                    {new Date(h.created_at).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })}
+                  </span>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: HIST_BAND_COLOR[h.payload.gap.band] ?? 'var(--ink)' }}>{h.payload.gap.band}</span>
+                  <span style={{ fontSize: 13, flex: 1, minWidth: 150 }}>
+                    {h.payload.target.univ} {h.payload.target.dept} · 컷 {h.payload.target.cut}{h.payload.unit.suffix}
+                  </span>
+                  <span style={{ fontSize: 12, color: 'var(--muted,#5a6b83)' }}>
+                    {h.payload.unit.label} {h.payload.generatedFor.value}{h.payload.unit.suffix}
+                    {h.payload.gap.shortfall > 0 ? ` · ${h.payload.gap.shortfall} 부족` : ' · 도달'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

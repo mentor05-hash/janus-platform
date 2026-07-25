@@ -92,6 +92,7 @@ const StudentAcademicPage = lazy(() => import('./pages/StudentAcademicPage').the
 const StudentTasksPage = lazy(() => import('./pages/StudentTasksPage').then((m) => ({ default: m.StudentTasksPage })));
 const StudentGoalPage = lazy(() => import('./pages/StudentGoalPage').then((m) => ({ default: m.StudentGoalPage })));
 const StudentGapPage = lazy(() => import('./pages/StudentGapPage').then((m) => ({ default: m.StudentGapPage })));
+const GuardianPlanPage = lazy(() => import('./pages/GuardianPlanPage').then((m) => ({ default: m.GuardianPlanPage })));
 const LecturePage = lazy(() => import('./pages/LecturePage').then((m) => ({ default: m.LecturePage })));
 const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage').then((m) => ({ default: m.LeaderboardPage })));
 const LeagueRulesPage = lazy(() => import('./pages/LeagueRulesPage').then((m) => ({ default: m.LeagueRulesPage })));
@@ -165,6 +166,7 @@ export function App() {
         <Route path="report" element={<GuardianReportPage />} />
         <Route path="consult-reports" element={<GuardianConsultReportsPage />} />
         <Route path="consent" element={<GuardianConsentPage />} />
+        <Route path="plan" element={<GuardianPlanPage />} />
         <Route path="pay" element={<GuardianPayPage />} />
         <Route path="community" element={<CommunityBoardPage />} />
         <Route path="notifications" element={<NotificationsPage />} />

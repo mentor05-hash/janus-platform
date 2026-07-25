@@ -12,7 +12,31 @@ type Consent = {
 };
 
 /** 약관·개인정보 — 동의 현황·재동의, 데이터 내보내기, 회원 탈퇴(인증). */
+/** 보호자 공유 동의(O105) — 성인 학생은 이 동의가 없으면 보호자가 내 산출물을 볼 수 없다. */
+type ShareConsents = {
+  scope: string;
+  isMinor: boolean;
+  guardians: Array<{ guardianId: string; guardianName: string | null; relation: string | null; granted: boolean; grantedAt: string | null; revokedAt: string | null }>;
+};
+
 export function LegalPage() {
+  const [share, setShare] = useState<ShareConsents | null>(null);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareErr, setShareErr] = useState('');
+  const loadShare = () => api.get<ShareConsents>('/me/share-consents').then(setShare).catch(() => setShare(null));
+  useEffect(() => { loadShare(); }, []);
+
+  async function toggleShare(guardianId: string, next: boolean) {
+    setShareBusy(true); setShareErr('');
+    try {
+      if (next) await api.post('/me/share-consents', { guardianId });
+      else await api.del(`/me/share-consents?guardianId=${encodeURIComponent(guardianId)}`);
+      await loadShare();
+    } catch (e) {
+      setShareErr(e instanceof ApiError ? e.message : '동의 변경 실패');
+    } finally { setShareBusy(false); }
+  }
+
   const { logout } = useAuth();
   const [consent, setConsent] = useState<Consent | null>(null);
   const [terms, setTerms] = useState(false);
@@ -193,6 +217,37 @@ export function LegalPage() {
           <p style={{ fontSize: 13, color: 'var(--muted)', margin: '0 0 10px' }}>보유 중인 내 정보(프로필·예약·크레딧·질문·후기)를 JSON으로 내려받습니다.</p>
           <Button variant="ghost" onClick={exportData}>JSON 내보내기</Button>
         </Card>
+
+        {/* 보호자 공유 동의(O105) — 성인 학생 전용 게이트. 미성년은 보호자 권한이라 토글이 열람 여부를 바꾸지 않는다. */}
+        {share && share.guardians.length > 0 && (
+          <Card>
+            <h3 style={{ margin: '0 0 6px', fontSize: 15 }}>보호자에게 내 리포트 공유</h3>
+            <p style={{ fontSize: 13, color: 'var(--muted)', margin: '0 0 10px' }}>
+              {share.isMinor
+                ? '미성년 회원은 보호자가 법정대리인 권한으로 열람할 수 있어요(보호자 본인확인·동의 완료 시). 아래 설정은 성인이 되면 적용됩니다.'
+                : '동의한 보호자만 내 격차 리포트 이력을 볼 수 있어요. 언제든 철회할 수 있고, 철회하면 바로 볼 수 없게 됩니다.'}
+            </p>
+            <ErrorText>{shareErr}</ErrorText>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {share.guardians.map((g) => (
+                <div key={g.guardianId} style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 8, borderBottom: '1px solid var(--line)', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 160 }}>
+                    <div style={{ fontSize: 14, color: 'var(--ink)' }}>
+                      <b>{g.guardianName ?? '보호자'}</b>{g.relation ? <span style={{ color: 'var(--muted)' }}> · {g.relation}</span> : null}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                      {g.granted ? `동의 중${g.grantedAt ? ` · ${g.grantedAt.slice(0, 10)}` : ''}` : '동의하지 않음'}
+                    </div>
+                  </div>
+                  <Badge kind={g.granted ? 'done' : 'soft'}>{g.granted ? '공유 중' : '비공개'}</Badge>
+                  <Button variant={g.granted ? 'ghost' : undefined} onClick={() => toggleShare(g.guardianId, !g.granted)} disabled={shareBusy}>
+                    {g.granted ? '철회' : '공유 동의'}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
 
         {/* 회원 탈퇴 */}
         <Card>
