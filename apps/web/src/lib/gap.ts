@@ -105,7 +105,14 @@ export function computeSubjectGaps(trend: TrendLike | null): SubjectGapModel | n
  * 평균은 **높을수록 상위**라서 best=max·worst=min (누백과 방향이 반대).
  */
 export function avgSpread(trend: TrendLike | null): { count: number; best: number; worst: number; spread: number } | null {
-  const vals = (trend?.points ?? []).map((p) => p.avg).filter((v): v is number => v != null);
+  // ⚠ **표준점수 회차를 섞지 않는다.** 수능 자가입력(O65 표점 모드) 회차는 과목 점수가 100 을 넘어
+  // 평균도 원점수 척도가 아니다(예: 국어 131·수학 135 → 평균 98.8). 원점수 회차(평균 75)와 함께
+  // min/max 를 잡으면 '최근 4회 평균 75~98.8(변동 폭 23.8)' 처럼 **척도가 섞인 무의미한 범위**가 나온다.
+  // 회차별 격차에는 이미 같은 규칙의 가드가 있다(computeSubjectGaps 의 scaleMismatch) — 범위에도 적용한다.
+  const vals = (trend?.points ?? [])
+    .filter((p) => !(p.subjects ?? []).some((s) => s.score != null && s.score > 100))
+    .map((p) => p.avg)
+    .filter((v): v is number => v != null);
   if (vals.length < 2) return null;
   const best = Math.max(...vals);
   const worst = Math.min(...vals);

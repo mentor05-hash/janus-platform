@@ -43,7 +43,11 @@ export function StudentGapPage() {
           <Card title="지금 내 위치">
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 30, fontWeight: 800, color: 'var(--ink)' }}>{m.lastAvg ?? '-'}</span>
-              <span style={{ fontSize: 13, color: 'var(--muted)' }}>현재 평균 · {m.lastLabel ?? '-'}</span>
+              {/* 표점 회차면 척도를 라벨에 밝힌다 — 그러지 않으면 표점 평균(98.8)이 아래 원점수 범위(75~81.8)와
+                  같은 척도로 읽혀 모순처럼 보인다. 범위 쪽은 표점 회차를 아예 제외한다(avgSpread). */}
+              <span style={{ fontSize: 13, color: 'var(--muted)' }}>
+                {m.scaleMismatch ? '표준점수 평균' : '현재 평균'} · {m.lastLabel ?? '-'}
+              </span>
               <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--muted)', background: 'var(--surface-2, #f0f3f7)', borderRadius: 6, padding: '2px 7px' }}>내 성적 기준</span>
             </div>
             {m.goalAvg != null ? (

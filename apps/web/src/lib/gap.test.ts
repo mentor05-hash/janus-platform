@@ -71,4 +71,20 @@ describe('avgSpread (회차 변동 폭)', () => {
   it('회차가 2회 미만이면 null', () => {
     expect(avgSpread({ goal: {}, points: [{ period: 'a', examType: null, avg: 80, subjects: [] }] })).toBeNull();
   });
+  it('표준점수 회차는 범위에서 제외 — 척도가 섞인 무의미한 폭을 만들지 않는다', () => {
+    // 표점 회차(국어 131·수학 135 → 평균 98.8)를 원점수 회차와 섞으면 '75~98.8(폭 23.8)' 이 된다.
+    const t: TrendLike = { goal: { avg: 90 }, points: [
+      { period: 'a', examType: null, avg: 75, subjects: [{ subject: '국어', score: 78 }, { subject: '수학', score: 72 }] },
+      { period: 'b', examType: null, avg: 80, subjects: [{ subject: '국어', score: 82 }, { subject: '수학', score: 78 }] },
+      { period: 'c', examType: null, avg: 98.8, subjects: [{ subject: '국어', score: 131 }, { subject: '수학', score: 135 }] },
+    ] };
+    expect(avgSpread(t)).toEqual({ count: 2, best: 80, worst: 75, spread: 5 });
+  });
+  it('표점 회차를 걸러 2회 미만이 되면 null (억지 범위를 만들지 않는다)', () => {
+    const t: TrendLike = { goal: {}, points: [
+      { period: 'a', examType: null, avg: 75, subjects: [{ subject: '국어', score: 78 }] },
+      { period: 'b', examType: null, avg: 98.8, subjects: [{ subject: '국어', score: 131 }] },
+    ] };
+    expect(avgSpread(t)).toBeNull();
+  });
 });
