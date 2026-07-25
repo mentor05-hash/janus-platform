@@ -76,6 +76,33 @@ export class GuardianService {
     return link;
   }
 
+  /**
+   * 연결 목록 — **양쪽 모두 자기 관점으로 본다**.
+   * 이전에는 조회 API 가 아예 없어 학생은 보호자 신청이 온 줄 몰랐고(승인 UI 부재),
+   * 보호자는 자기 신청이 어떤 상태인지 볼 수 없었다 → 연결이 성립하지 못해 학부모 메뉴 전량이 빈 화면이었다.
+   * 상대 이름만 노출한다(연락처·아이디 등 PII 는 싣지 않는다).
+   */
+  async listLinks(user: AuthUser) {
+    const isGuardian = user.role === AccountRole.GUARDIAN;
+    const rows = await this.prisma.guardian_student_link.findMany({
+      where: isGuardian ? { guardian_id: user.id } : { student_id: user.id },
+      select: {
+        id: true, status: true, relation: true,
+        guardian: { select: { account: { select: { name: true } } } },
+        student_profile: { select: { account: { select: { name: true } } } },
+      },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      status: r.status,
+      relation: r.relation,
+      /** 상대의 이름 — 보호자가 보면 자녀, 학생이 보면 보호자. */
+      counterpartName: (isGuardian ? r.student_profile?.account?.name : r.guardian?.account?.name) ?? '이름 없음',
+      /** 학생만 응답할 수 있다(pending 일 때). 화면이 버튼 노출을 판단하는 근거. */
+      canRespond: !isGuardian && r.status === 'pending',
+    }));
+  }
+
   /** 보호자의 승인된 자녀 목록(대시보드). */
   async listChildren(guardian: AuthUser) {
     const links = await this.prisma.guardian_student_link.findMany({

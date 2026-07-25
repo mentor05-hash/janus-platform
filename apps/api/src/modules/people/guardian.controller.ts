@@ -54,6 +54,23 @@ export class GuardianController {
     return this.guardian.chargeChild(user, studentId, dto.amount, dto.method);
   }
 
+  /** GET /guardian/links — 내가 신청한 연결 목록(보호자). 상태 확인용. */
+  @Get('guardian/links')
+  @Roles('guardian')
+  myLinks(@CurrentUser() user: AuthUser) {
+    return this.guardian.listLinks(user);
+  }
+
+  /**
+   * GET /me/guardian-links — 나에게 온 보호자 연결 신청·승인 목록(학생).
+   * 이 경로가 없어서 학생이 승인할 방법이 없었다(신청 알림만 가고 화면이 없었다).
+   */
+  @Get('me/guardian-links')
+  @Roles('student')
+  myGuardianLinks(@CurrentUser() user: AuthUser) {
+    return this.guardian.listLinks(user);
+  }
+
   /** POST /guardian/links — 자녀 연결 신청(보호자). */
   @Post('guardian/links')
   @Roles('guardian')

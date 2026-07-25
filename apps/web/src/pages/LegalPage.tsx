@@ -19,12 +19,38 @@ type ShareConsents = {
   guardians: Array<{ guardianId: string; guardianName: string | null; relation: string | null; granted: boolean; grantedAt: string | null; revokedAt: string | null }>;
 };
 
+/**
+ * 보호자 연결(승인 대기) — **공유 동의보다 앞선다**. 연결 행이 없으면 공유 동의 카드 자체가 뜨지 않으므로
+ * (guardians 목록이 연결에서 나온다) 승인 UI 가 없으면 O105 게이트 전체가 도달 불가였다.
+ */
+const LINK_STATUS: Record<string, string> = {
+  pending: '승인 대기 중', approved: '연결됨', rejected: '거절함', revoked: '연결 해제됨',
+};
+
+type GuardianLink = { id: string; status: string; relation: string | null; counterpartName: string; canRespond: boolean };
+
 export function LegalPage() {
+  const [links, setLinks] = useState<GuardianLink[] | null>(null);
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [linkErr, setLinkErr] = useState('');
+  const loadLinks = () => api.get<GuardianLink[]>('/me/guardian-links').then((r) => setLinks(Array.isArray(r) ? r : [])).catch(() => setLinks([]));
+
+  async function respond(id: string, action: 'approve' | 'reject' | 'revoke') {
+    setLinkBusy(true); setLinkErr('');
+    try {
+      await api.patch(`/guardian/links/${id}/respond`, { action });
+      await loadLinks();
+      await loadShare(); // 승인하면 공유 동의 대상(보호자)이 생긴다 — 같은 화면에서 이어서 설정하게 한다
+    } catch (e) {
+      setLinkErr(e instanceof ApiError ? e.message : '응답 실패');
+    } finally { setLinkBusy(false); }
+  }
+
   const [share, setShare] = useState<ShareConsents | null>(null);
   const [shareBusy, setShareBusy] = useState(false);
   const [shareErr, setShareErr] = useState('');
   const loadShare = () => api.get<ShareConsents>('/me/share-consents').then(setShare).catch(() => setShare(null));
-  useEffect(() => { loadShare(); }, []);
+  useEffect(() => { loadShare(); loadLinks(); }, []);
 
   async function toggleShare(guardianId: string, next: boolean) {
     setShareBusy(true); setShareErr('');
@@ -217,6 +243,36 @@ export function LegalPage() {
           <p style={{ fontSize: 13, color: 'var(--muted)', margin: '0 0 10px' }}>보유 중인 내 정보(프로필·예약·크레딧·질문·후기)를 JSON으로 내려받습니다.</p>
           <Button variant="ghost" onClick={exportData}>JSON 내보내기</Button>
         </Card>
+
+        {/* 보호자 연결 — 공유 동의의 **선결조건**이라 위에 둔다(연결 승인 → 그 다음 공유 동의). */}
+        {links && links.length > 0 && (
+          <Card>
+            <h3 style={{ margin: '0 0 6px', fontSize: 15 }}>보호자 연결</h3>
+            <p style={{ fontSize: 13, color: 'var(--muted)', margin: '0 0 10px' }}>
+              보호자가 연결을 신청하면 여기에서 승인하거나 거절할 수 있어요. 승인해야 보호자 화면이 열리고,
+              <b> 무엇을 보여줄지는 아래 공유 동의에서 따로 정합니다</b>(연결 = 열람 허용이 아니에요).
+            </p>
+            <ErrorText>{linkErr}</ErrorText>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {links.map((l) => (
+                <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: '1px solid var(--line)' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14 }}><b>{l.counterpartName}</b>{l.relation ? <span style={{ color: 'var(--muted)' }}> · {l.relation}</span> : null}</div>
+                    <div style={{ fontSize: 12.5, color: 'var(--muted)' }}>{LINK_STATUS[l.status] ?? l.status}</div>
+                  </div>
+                  {l.canRespond ? (
+                    <>
+                      <Button size="sm" onClick={() => respond(l.id, 'approve')} disabled={linkBusy}>승인</Button>
+                      <Button size="sm" variant="ghost" onClick={() => respond(l.id, 'reject')} disabled={linkBusy}>거절</Button>
+                    </>
+                  ) : l.status === 'approved' ? (
+                    <Button size="sm" variant="ghost" onClick={() => respond(l.id, 'revoke')} disabled={linkBusy}>연결 해제</Button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
 
         {/* 보호자 공유 동의(O105) — 성인 학생 전용 게이트. 미성년은 보호자 권한이라 토글이 열람 여부를 바꾸지 않는다. */}
         {share && share.guardians.length > 0 && (

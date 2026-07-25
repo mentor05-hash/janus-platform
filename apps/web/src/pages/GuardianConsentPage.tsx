@@ -23,7 +23,34 @@ type Status = {
 const D = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString('ko-KR', { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
+/** 내 연결 신청 목록 — 승인 전에는 자녀가 안 보이므로 상태를 알 방법이 필요하다. */
+type GLink = { id: string; status: string; relation: string | null; counterpartName: string };
+const LINK_STATUS: Record<string, string> = {
+  pending: '자녀 승인 대기 중', approved: '연결됨', rejected: '자녀가 거절함', revoked: '연결 해제됨',
+};
+
 export function GuardianConsentPage() {
+  const [links, setLinks] = useState<GLink[] | null>(null);
+  const [linkForm, setLinkForm] = useState({ studentLoginId: '', relation: '모' });
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [linkMsg, setLinkMsg] = useState('');
+  const [linkErr, setLinkErr] = useState('');
+  const loadLinks = () => api.get<GLink[]>('/guardian/links').then((r) => setLinks(Array.isArray(r) ? r : [])).catch(() => setLinks([]));
+
+  async function requestLink() {
+    const id = linkForm.studentLoginId.trim();
+    if (!id) { setLinkErr('자녀 아이디를 입력하세요.'); return; }
+    setLinkBusy(true); setLinkMsg(''); setLinkErr('');
+    try {
+      await api.post('/guardian/links', { studentLoginId: id, relation: linkForm.relation || undefined });
+      setLinkMsg('연결을 신청했어요. 자녀가 승인하면 자녀 화면이 열립니다.');
+      setLinkForm({ ...linkForm, studentLoginId: '' });
+      await loadLinks();
+    } catch (e) {
+      setLinkErr(e instanceof ApiError ? e.message : '연결 신청 실패');
+    } finally { setLinkBusy(false); }
+  }
+
   const [children, setChildren] = useState<Child[] | null>(null);
   const [sel, setSel] = useState('');
   const [st, setSt] = useState<Status | null>(null);
@@ -36,7 +63,8 @@ export function GuardianConsentPage() {
 
   useEffect(() => {
     api.get<Child[]>('/guardian/children').then((cs) => { setChildren(cs); if (cs[0]) setSel(cs[0].studentId); }).catch(() => setChildren([]));
-  }, []);
+    void loadLinks();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadStatus = useCallback(async (studentId: string) => {
     setMsg(''); setErr('');
@@ -87,11 +115,43 @@ export function GuardianConsentPage() {
       <h1 className="page-title">동의 · 본인확인</h1>
       <p className="page-sub">자녀 정보를 학부모께 전달하기 위한 <b>성인 본인확인</b>과 <b>전달 동의</b> 절차입니다. 미성년 자녀 보호를 위해 반드시 필요합니다.</p>
 
-      {children && children.length === 0 && (
-        <div className="card" style={{ padding: 18 }}>
-          <p style={{ color: 'var(--muted)', fontSize: 14 }}>연결된 자녀가 없습니다. 먼저 자녀 계정 연결을 승인받아 주세요.</p>
+      {/* 자녀 연결 — **모든 학부모 기능의 선결조건**. 이전에는 '승인받아 주세요'라고만 적혀 있고
+          신청할 화면이 웹·모바일 어디에도 없어(API 는 있었다) 학부모 메뉴 전량이 빈 화면이었다. */}
+      <div className="card" style={{ padding: 18, marginBottom: 16 }}>
+        <h3 style={{ margin: '0 0 6px', fontSize: 15 }}>자녀 연결</h3>
+        <p style={{ color: 'var(--muted)', fontSize: 13, margin: '0 0 10px' }}>
+          자녀의 아이디로 연결을 신청하면 자녀가 승인합니다. <b>연결은 '열람 허용'이 아니에요</b> —
+          무엇을 볼 수 있는지는 자녀의 연령과 아래 본인확인·동의(또는 성인 자녀의 공유 동의)로 정해집니다.
+        </p>
+        {linkErr ? <p style={{ color: 'var(--danger, #E5484D)', fontSize: 13 }}>{linkErr}</p> : null}
+        {linkMsg ? <p style={{ color: 'var(--teal, #2A8A5F)', fontSize: 13 }}>{linkMsg}</p> : null}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <input
+            value={linkForm.studentLoginId}
+            onChange={(e) => setLinkForm({ ...linkForm, studentLoginId: e.target.value })}
+            placeholder="자녀 아이디"
+            style={{ flex: '1 1 180px', minWidth: 140, padding: '8px 10px', border: '1px solid var(--line)', borderRadius: 8 }}
+          />
+          <select
+            value={linkForm.relation}
+            onChange={(e) => setLinkForm({ ...linkForm, relation: e.target.value })}
+            style={{ padding: '8px 10px', border: '1px solid var(--line)', borderRadius: 8 }}
+          >
+            {['모', '부', '기타'].map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+          <button className="btn" onClick={requestLink} disabled={linkBusy}>연결 신청</button>
         </div>
-      )}
+        {links && links.length > 0 && (
+          <div style={{ marginTop: 12, display: 'grid', gap: 6 }}>
+            {links.map((l) => (
+              <div key={l.id} style={{ display: 'flex', gap: 10, fontSize: 13.5, paddingTop: 8, borderTop: '1px solid var(--line)' }}>
+                <b style={{ flex: 1 }}>{l.counterpartName}{l.relation ? <span style={{ color: 'var(--muted)', fontWeight: 400 }}> · {l.relation}</span> : null}</b>
+                <span style={{ color: 'var(--muted)' }}>{LINK_STATUS[l.status] ?? l.status}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {children && children.length > 0 && (
         <>
