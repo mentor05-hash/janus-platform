@@ -29,17 +29,34 @@ const dday = (d: string | null) => {
   return diff === 0 ? 'D-DAY' : diff > 0 ? `D-${diff}` : `D+${Math.abs(diff)}`;
 };
 
-/** 맞춤 할 일(모바일) — 격차·학사 자동 제안 + 수동. CTA는 관련 탭으로. */
+/** 학부모 제안(O106) — 수락 전에는 할 일이 아니다. 수락하면 내 할 일로 들어온다. */
+type Proposal = { id: string; title: string; subject: string | null; dueDate: string | null; guardianName: string | null };
+
+/** 맞춤 할 일(모바일) — 격차·학사 자동 제안 + 수동 + 학부모 제안 수락. CTA는 관련 탭으로. */
 export function TasksScreen({ onBack, goTab }: { onBack: () => void; goTab?: (t: string) => void }) {
   const { C } = useTheme();
   const ui = useUI();
   const s = useMemo(() => makeStyles(C), [C]);
   const [tasks, setTasks] = useState<Task[] | null>(null);
+  const [proposals, setProposals] = useState<Proposal[]>([]);
   const [title, setTitle] = useState('');
   const [error, setError] = useState('');
 
   const load = () => api.get<Task[]>('/me/tasks').then((r) => setTasks(Array.isArray(r) ? r : [])).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
-  useEffect(() => { load(); }, []);
+  // 학부모 제안 — 수락/거절은 학생이 결정한다(자율성). 실패는 무해(제안이 없을 수도 있다).
+  const loadProposals = () => api.get<Proposal[]>('/me/plan-proposals').then((r) => setProposals(Array.isArray(r) ? r : [])).catch(() => setProposals([]));
+  useEffect(() => { load(); loadProposals(); }, []);
+
+  async function respond(id: string, action: 'accept' | 'decline') {
+    setProposals((p) => p.filter((x) => x.id !== id)); // 낙관적 제거
+    try {
+      await api.post(`/me/plan-proposals/${id}/${action}`, {});
+      if (action === 'accept') load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : '응답 실패');
+      loadProposals();
+    }
+  }
 
   async function toggle(t: Task) {
     const next = t.status === 'done' ? 'todo' : 'done';
@@ -70,6 +87,8 @@ export function TasksScreen({ onBack, goTab }: { onBack: () => void; goTab?: (t:
           {t.status === 'done' && <Text style={s.cbTick}>✓</Text>}
         </TouchableOpacity>
         <View style={[s.catChip, { backgroundColor: C.fill }]}><Text style={[s.catT, { color: c.color }]}>{c.icon} {c.label}</Text></View>
+        {/* 출처 구분(created_by: auto|self|guardian) — 학부모 제안을 수락한 할 일. */}
+        {t.created_by === 'guardian' && <Text style={{ fontSize: 12 }}>👪</Text>}
         <View style={{ flex: 1 }}>
           <Text style={[s.title, t.status === 'done' && s.titleDone]} numberOfLines={2}>{t.title}</Text>
           {dl && <Text style={s.due}>{dl} · {t.due_date?.slice(0, 10)}</Text>}
@@ -86,6 +105,24 @@ export function TasksScreen({ onBack, goTab }: { onBack: () => void; goTab?: (t:
       <Text style={ui.h}>할 일</Text>
       <Text style={[ui.sub, { marginBottom: SP.md }]}>약점·학사일정에서 자동 제안된 할 일. 직접 추가도 가능해요.</Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}
+
+      {proposals.length > 0 && (
+        <View style={[ui.card, { marginBottom: 10 }]}>
+          <Text style={[s.sec, { marginTop: 0 }]}>학부모 제안 ({proposals.length})</Text>
+          <Text style={ui.sub}>수락하면 내 할 일에 추가돼요. 거절해도 괜찮아요 — 내 계획은 내가 정해요.</Text>
+          {proposals.map((p) => (
+            <View key={p.id} style={s.row}>
+              <View style={[s.catChip, { backgroundColor: C.fill }]}><Text style={[s.catT, { color: '#2F6FB3' }]}>👪 {p.guardianName ?? '학부모'}</Text></View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.title} numberOfLines={2}>{p.title}</Text>
+                {(p.subject || p.dueDate) ? <Text style={s.due}>{p.subject ?? ''}{p.subject && p.dueDate ? ' · ' : ''}{p.dueDate ? `마감 ${p.dueDate.slice(0, 10)}` : ''}</Text> : null}
+              </View>
+              <TouchableOpacity onPress={() => respond(p.id, 'accept')}><Text style={s.go}>수락</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => respond(p.id, 'decline')}><Text style={s.del}>거절</Text></TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      )}
 
       <View style={[ui.card, { flexDirection: 'row', gap: 8, alignItems: 'center' }]}>
         <TextInput value={title} onChangeText={setTitle} placeholder="직접 할 일 추가" placeholderTextColor={C.muted} style={[ui.input, { flex: 1 }]} onSubmitEditing={add} />

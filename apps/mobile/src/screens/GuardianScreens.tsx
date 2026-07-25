@@ -4,6 +4,7 @@ import { api, ApiError, Child, ChildCredits, Note, PaymentRequest } from '../api
 import { R, SP, useTheme, useUI, type Palette } from '../theme';
 import { ScoreTrendView, type Trend } from './ScoreTrendView';
 import { AcademicUpcoming } from './AcademicUpcoming';
+import { GuardianPlanScreen } from './GuardianPlanScreen';
 
 const won = (n: number) => `${n.toLocaleString()}원`;
 const fmt = (n: number) => n.toLocaleString();
@@ -248,6 +249,13 @@ function GuardianConsentSection({ studentId }: { studentId: string | null }) {
   );
 }
 
+/** 자녀 격차 리포트 이력 행 — 열람은 O105 연령 게이트를 통과해야 온다. */
+type GapHist = {
+  id: string; created_at: string;
+  payload: { unit: { label: string; suffix: string }; gap: { band: string; shortfall: number }; target: { univ: string; dept: string; cut: number }; generatedFor: { value: number } };
+};
+const HIST_BAND: Record<string, string> = { 안정: '#2a8a5f', 적정: '#57a86a', 소신: '#cf9f2f', 상향: '#d06b52' };
+
 export function GuardianHome({ children, activeId, setActiveId, goTab }: Props) {
   const { C } = useTheme();
   const ui = useUI();
@@ -264,6 +272,10 @@ export function GuardianHome({ children, activeId, setActiveId, goTab }: Props) 
   useEffect(() => { api.get<{ showTrend: boolean; showPlacement: boolean }>('/me/scores/access').then(setAccess).catch(() => setAccess({ showTrend: false, showPlacement: false })); }, []);
   const child0 = activeId ?? children[0]?.studentId ?? null;
   const [report, setReport] = useState<WeeklyReport | null>(null);
+  // 자녀 계획(O106) 하위 화면 + 자녀 산출물 이력(O104·O105 게이트).
+  const [planOpen, setPlanOpen] = useState(false);
+  const [gapHist, setGapHist] = useState<GapHist[] | null>(null);
+  const [gapGate, setGapGate] = useState('');
   useEffect(() => {
     if (!access?.showTrend || !child0) { setTrend(null); return; }
     api.get<Trend>(`/guardian/scores/trend?studentId=${child0}`).then(setTrend).catch(() => setTrend(null));
@@ -271,6 +283,13 @@ export function GuardianHome({ children, activeId, setActiveId, goTab }: Props) 
   useEffect(() => {
     if (!child0) { setReport(null); return; }
     api.get<WeeklyReport>(`/guardian/report?studentId=${child0}`).then(setReport).catch(() => setReport(null));
+  }, [child0]);
+  useEffect(() => {
+    if (!child0) { setGapHist(null); setGapGate(''); return; }
+    setGapHist(null); setGapGate('');
+    api.get<GapHist[]>(`/guardian/reports?studentId=${child0}&kind=gap&limit=5`)
+      .then((r) => setGapHist(Array.isArray(r) ? r : []))
+      .catch((e) => { setGapHist([]); setGapGate(e instanceof ApiError ? e.message : '열람 권한이 없습니다.'); });
   }, [child0]);
   // 보호자 동의(본부 결정 2026-07-19) — 상담 녹음·AI 요약(외부 STT)은 동의 자녀 한정. 주 사용 채널(모바일) 우선 노출.
   const [consent, setConsent] = useState<{ granted: boolean; grantedAt: string | null; retentionDays: number } | null>(null);
@@ -300,6 +319,10 @@ export function GuardianHome({ children, activeId, setActiveId, goTab }: Props) 
   const unread = notifs.filter((n) => !n.read_at).length;
   const activeName = child0 ? nameOf(child0) : null;
 
+  if (planOpen && child0) {
+    return <GuardianPlanScreen studentId={child0} studentName={activeName ?? '자녀'} onBack={() => setPlanOpen(false)} />;
+  }
+
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -311,6 +334,47 @@ export function GuardianHome({ children, activeId, setActiveId, goTab }: Props) 
       <Text style={[ui.sub, { marginBottom: SP.md }]}>
         {activeName ? `${activeName} 학생의 상담·크레딧을 한눈에.` : '자녀의 상담과 크레딧을 한눈에 확인하세요.'}
       </Text>
+
+      {/* 자녀 계획(O106) — 내 공간에서 세우고 제안하면 자녀가 수락/거절 */}
+      {child0 && (
+        <TouchableOpacity onPress={() => setPlanOpen(true)} style={[ui.card, { marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 10 }]}>
+          <Text style={{ fontSize: 18 }}>🗒</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={[s.sec, { marginBottom: 2 }]}>자녀 계획 세우기</Text>
+            <Text style={ui.sub}>내 공간에서 계획을 세우고 제안하면 자녀가 수락/거절해요</Text>
+          </View>
+          <Text style={{ color: C.teal, fontWeight: '700' }}>›</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* 자녀 격차 리포트 이력(O104·O105) — 게이트 미충족이면 사유·해결법을 안내 */}
+      {child0 && (
+        <View style={[ui.card, { marginBottom: 8 }]}>
+          <Text style={s.sec}>자녀 격차 리포트 이력</Text>
+          {gapGate ? (
+            <Text style={ui.sub}>
+              {gapGate}{'\n'}미성년 자녀는 본인확인·데이터 전달 동의를 완료하면 열람할 수 있고, 성인 자녀는 자녀 본인이 공유에 동의해야 열람할 수 있어요.
+            </Text>
+          ) : gapHist === null ? (
+            <Text style={ui.sub}>불러오는 중…</Text>
+          ) : gapHist.length === 0 ? (
+            <Text style={ui.sub}>아직 생성된 격차 리포트가 없어요.</Text>
+          ) : (
+            gapHist.map((h) => (
+              <View key={h.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: C.lineSoft }}>
+                <Text style={{ fontSize: 11.5, color: C.muted, minWidth: 42 }}>{h.created_at.slice(5, 10)}</Text>
+                <Text style={{ fontSize: 11.5, fontWeight: '800', color: HIST_BAND[h.payload.gap.band] ?? C.ink }}>{h.payload.gap.band}</Text>
+                <Text style={{ fontSize: 12.5, color: C.ink, flex: 1 }} numberOfLines={1}>
+                  {h.payload.target.univ} {h.payload.target.dept}
+                </Text>
+                <Text style={{ fontSize: 11.5, color: C.muted }}>
+                  {h.payload.generatedFor.value}{h.payload.unit.suffix}{h.payload.gap.shortfall > 0 ? ` · ${h.payload.gap.shortfall} 부족` : ' · 도달'}
+                </Text>
+              </View>
+            ))
+          )}
+        </View>
+      )}
 
       {/* 최근 알림 */}
       {notifs.length > 0 && (
@@ -446,6 +510,10 @@ export function GuardianConsult({ children, activeId, setActiveId }: Props) {
   const [notes, setNotes] = useState<Note[] | null>(null);
   const [error, setError] = useState('');
   const [report, setReport] = useState<WeeklyReport | null>(null);
+  // 자녀 계획(O106) 하위 화면 + 자녀 산출물 이력(O104·O105 게이트).
+  const [planOpen, setPlanOpen] = useState(false);
+  const [gapHist, setGapHist] = useState<GapHist[] | null>(null);
+  const [gapGate, setGapGate] = useState('');
   const [trend, setTrend] = useState<Trend | null>(null);
   const [access, setAccess] = useState<{ showTrend: boolean; showPlacement: boolean } | null>(null);
   useEffect(() => { api.get<{ showTrend: boolean; showPlacement: boolean }>('/me/scores/access').then(setAccess).catch(() => setAccess({ showTrend: false, showPlacement: false })); }, []);

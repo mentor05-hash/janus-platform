@@ -13,6 +13,12 @@ type Consent = {
 };
 const KST = (iso: string) => new Date(iso).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' });
 
+/** 보호자 공유 동의(O105) — 성인 학생은 이 동의가 없으면 보호자가 내 산출물을 볼 수 없다. */
+type ShareConsents = {
+  isMinor: boolean;
+  guardians: Array<{ guardianId: string; guardianName: string | null; relation: string | null; granted: boolean; grantedAt: string | null }>;
+};
+
 export function LegalScreen({ onBack, onWithdrawn }: { onBack: () => void; onWithdrawn: () => void }) {
   const { C } = useTheme();
   const ui = useUI();
@@ -25,6 +31,10 @@ export function LegalScreen({ onBack, onWithdrawn }: { onBack: () => void; onWit
 
   // 동의 현황
   const [consent, setConsent] = useState<Consent | null>(null);
+  // 보호자 공유 동의(O105) — 성인 학생 전용 게이트. 실패는 무해(보호자 연결이 없을 수도 있다).
+  const [share, setShare] = useState<ShareConsents | null>(null);
+  const [shareBusy, setShareBusy] = useState(false);
+  const loadShare = () => api.get<ShareConsents>('/me/share-consents').then(setShare).catch(() => setShare(null));
   const [termsAgreed, setTermsAgreed] = useState(false);
   const [privacyAgreed, setPrivacyAgreed] = useState(false);
   const [marketingAgreed, setMarketingAgreed] = useState(false);
@@ -97,10 +107,45 @@ export function LegalScreen({ onBack, onWithdrawn }: { onBack: () => void; onWit
     </View>
   );
 
+  useEffect(() => { loadShare(); }, []);
+
+  async function toggleShare(guardianId: string, next: boolean) {
+    setShareBusy(true);
+    try {
+      if (next) await api.post('/me/share-consents', { guardianId });
+      else await api.del(`/me/share-consents?guardianId=${encodeURIComponent(guardianId)}`);
+      await loadShare();
+    } catch { /* 무해 — 상태를 다시 읽는다 */ await loadShare(); }
+    finally { setShareBusy(false); }
+  }
+
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
       <TouchableOpacity onPress={onBack}><Text style={styles.back}>‹ 뒤로</Text></TouchableOpacity>
       <Text style={ui.h}>약관·개인정보</Text>
+
+      {/* 보호자 공유 동의(O105) — 동의한 보호자만 내 산출물 이력을 볼 수 있다. */}
+      {share && share.guardians.length > 0 && (
+        <View style={[ui.card, { marginTop: SP.md }]}>
+          <Text style={styles.sec}>보호자에게 내 리포트 공유</Text>
+          <Text style={ui.sub}>
+            {share.isMinor
+              ? '미성년 회원은 보호자가 법정대리인 권한으로 열람할 수 있어요(보호자 본인확인·동의 완료 시). 아래 설정은 성인이 되면 적용됩니다.'
+              : '동의한 보호자만 내 격차 리포트 이력을 볼 수 있어요. 언제든 철회할 수 있고, 철회하면 바로 볼 수 없게 됩니다.'}
+          </Text>
+          {share.guardians.map((g) => (
+            <View key={g.guardianId} style={styles.switchRow}>
+              <Text style={styles.switchLabel}>
+                {g.guardianName ?? '보호자'}{g.relation ? ` · ${g.relation}` : ''}
+                {'\n'}
+                <Text style={{ fontSize: 11.5, color: C.muted }}>{g.granted ? `공유 중${g.grantedAt ? ` · ${g.grantedAt.slice(0, 10)}` : ''}` : '비공개'}</Text>
+              </Text>
+              <Switch value={g.granted} disabled={shareBusy} onValueChange={(v) => toggleShare(g.guardianId, v)}
+                trackColor={{ true: C.teal, false: C.lineSoft }} />
+            </View>
+          ))}
+        </View>
+      )}
 
       {/* 약관·방침 보기 */}
       <View style={[ui.card, { marginTop: SP.md }]}>

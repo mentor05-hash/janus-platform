@@ -98,6 +98,17 @@ describe('학부모 계획 트랙', () => {
     expect(await plan.myProposals(student)).toHaveLength(0); // 대기 목록에서 빠짐
   });
 
+  it('수락을 동시에 두 번 눌러도 할 일이 하나만 생긴다(이중 탭 방어)', async () => {
+    const item = await plan.create(guardian, student.id, { title: '이중탭 방어 검증' });
+    await plan.propose(guardian, item.id);
+    const before = (await guardianTasks()).length;
+    // 동시 실행 — 원자적 claim 이 없으면 둘 다 통과해 할 일이 2건 생긴다(모바일 이중 탭 실측 재현).
+    const results = await Promise.allSettled([plan.accept(student, item.id), plan.accept(student, item.id)]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
+    expect((await guardianTasks()).length).toBe(before + 1); // 정확히 1건만 증가
+  });
+
   it('이미 응답한 제안은 재응답 불가', async () => {
     const [item] = await plan.list(guardian, student.id);
     await expect(plan.accept(student, item.id)).rejects.toThrow();

@@ -146,10 +146,25 @@ export class GuardianPlanService {
     return row;
   }
 
+  /**
+   * 상태를 **원자적으로 선점**한다(이중 탭·동시 요청 방어).
+   * 읽고-쓰기 사이에 다른 요청이 끼면 할 일이 중복 생성되므로, updateMany 조건부 갱신으로 한 명만 이기게 한다
+   * (tasks.service 의 리마인더 claim 과 같은 패턴). 이긴 쪽만 count===1 을 받는다.
+   */
+  private async claimProposal(user: AuthUser, id: string, next: 'accepted' | 'declined') {
+    const row = await this.proposedToMe(user, id); // 존재·소유·상태 사전 검증(친절한 오류 메시지용)
+    const claim = await this.prisma.guardian_plan_item.updateMany({
+      where: { id, student_id: user.id, status: 'proposed' },
+      data: { status: next, responded_at: new Date(), updated_at: new Date() },
+    });
+    if (claim.count !== 1) throw new BadRequestException('이미 응답한 제안입니다.');
+    return row;
+  }
+
   /** 제안 수락 → 내 할 일로 만든다(created_by='guardian' 로 출처 표시). */
   async accept(user: AuthUser, id: string) {
     this.assertStudent(user);
-    const row = await this.proposedToMe(user, id);
+    const row = await this.claimProposal(user, id, 'accepted'); // 선점 성공한 요청만 진행
     const task = await this.prisma.student_task.create({
       data: {
         student_id: user.id, title: row.title, category: 'custom',
@@ -157,9 +172,7 @@ export class GuardianPlanService {
         created_by: 'guardian', // 자동 제안(auto)·본인 추가(self)와 구분 — 출처를 화면에 표시
       },
     });
-    await this.prisma.guardian_plan_item.update({
-      where: { id }, data: { status: 'accepted', student_task_id: task.id, responded_at: new Date(), updated_at: new Date() },
-    });
+    await this.prisma.guardian_plan_item.update({ where: { id }, data: { student_task_id: task.id } });
     await this.notify.notify(row.guardian_id, 'guardian_plan_accepted', { planId: row.id, title: row.title });
     return { id, accepted: true, taskId: task.id };
   }
@@ -167,10 +180,7 @@ export class GuardianPlanService {
   /** 제안 거절 — 할 일을 만들지 않는다. 학부모 트랙에는 declined 로 남아 결과가 보인다. */
   async decline(user: AuthUser, id: string) {
     this.assertStudent(user);
-    const row = await this.proposedToMe(user, id);
-    await this.prisma.guardian_plan_item.update({
-      where: { id }, data: { status: 'declined', responded_at: new Date(), updated_at: new Date() },
-    });
+    const row = await this.claimProposal(user, id, 'declined');
     await this.notify.notify(row.guardian_id, 'guardian_plan_declined', { planId: row.id, title: row.title });
     return { id, declined: true };
   }
