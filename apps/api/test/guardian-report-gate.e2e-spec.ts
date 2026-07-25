@@ -33,6 +33,14 @@ describe('학부모 열람 게이트(janus_report)', () => {
     student = { id: s.id, role: 'student', centerId: s.center_id };
     guardian = { id: g.id, role: 'guardian', centerId: g.center_id };
 
+    // 승인된 연결을 **이 스펙이 보장**한다 — guardian.e2e-spec 이 afterAll 에서 링크를 지우고 복원하지 않아
+    // 전체 e2e 순서에 따라 이 스위트가 통째로 무너졌다(데모 시드에도 링크가 없다).
+    await prisma.guardian_student_link.upsert({
+      where: { guardian_id_student_id: { guardian_id: g.id, student_id: s.id } },
+      create: { guardian_id: g.id, student_id: s.id, relation: '모', status: 'approved', link_method: 'test' },
+      update: { status: 'approved' },
+    });
+
     const uc = await prisma.user_consent.findUnique({ where: { account_id: s.id }, select: { is_minor: true } });
     prevIsMinor = uc?.is_minor ?? null;
 
