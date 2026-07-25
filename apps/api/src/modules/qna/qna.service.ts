@@ -61,7 +61,7 @@ interface QnaRow {
 
 /**
  * 온라인 Q&A (CLAUDE.md §6 Phase 3). 질문 건당 과금(§5-2), 공개질문 수임 게이트(§5-9),
- * 채택 시 답변 급여 적격(pay_eligible) — payroll 정산에서 합산.
+ * 채택 시 pay_eligible 표시 — **급여와 무관**(O113 으로 Q&A 채택 보상 폐지). 채택 이력·품질 지표용.
  */
 @Injectable()
 export class QnaService {
@@ -664,7 +664,7 @@ export class QnaService {
     return { id: fu.id, createdAt: fu.created_at, moderationWarning };
   }
 
-  /** 답변 채택(질문 학생) — 채택 답변 급여 적격(pay_eligible), 질문 마감. */
+  /** 답변 채택(질문 학생) — pay_eligible 표시(급여 미반영, O113), 질문 마감. */
   async acceptAnswer(answerId: string, student: AuthUser) {
     const ans = await this.prisma.qna_answer.findUnique({
       where: { id: answerId },

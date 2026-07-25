@@ -4,43 +4,26 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { tutorSourceOf } from '../metrics/tutor-source';
-import {
-  hhmmToMin,
-  kstDateString,
-  weekdayKst,
-} from '../../common/time/kst';
 import { AccountRole, BookingStatus } from '../../config/enums';
 import { CREDIT_WON_RATIO } from '../../config/constants';
-import {
-  mondayOf,
-  WeeklyTemplate,
-  WeekPlan,
-} from '../availability/availability.service';
-import {
-  computeIncentive,
-  computePayroll,
-  IncentivePolicy,
-  PayrollRates,
-} from './domain/payroll';
 import { AuditService } from '../audit/audit.service';
 import { computeDeductions, computeEmployerContribution, severanceAccrual, computeFreelancer } from './domain/deductions';
 import { isFullTime } from '../../common/consult-assignment';
 
-const STALE_ANSWER_HOURS = 48; // 48시간 미답 → 답변 보상 기준(T5c)
-
 /**
- * 급여 정산 (CLAUDE.md §payroll, §3.4).
- * 확정분(완료)+예상분(예정)+Q&A 적격(pay_eligible)+자동 인센티브. 단가/조건은 정책 또는 ENV(O20).
+ * 급여 정산 (CLAUDE.md §payroll) — **매출 배분 단일 모델**(O113).
+ * 완료(확정)·예정 세션의 크레딧 매출 × CREDIT_WON_RATIO(0.5) → 배분율(payroll_share_policy, 기본 60%)
+ * → 급여 모델(payroll_model_policy: share | floor | base_incentive) → 4대보험·소득세 공제.
+ * ⚠ 건당 정액·Q&A 채택 보상·자동 인센티브·등급수당·시급은 **폐지**됐다(응답의 incentive 는 0 고정).
+ *   과거 단가 계산(computePayroll/computeIncentive·ENV PAYROLL_*)은 이 커밋에서 제거했다.
  */
 @Injectable()
 export class PayrollService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly config: ConfigService,
     private readonly audit: AuditService,
   ) {}
 
@@ -418,60 +401,4 @@ export class PayrollService {
     };
   }
 
-  /**
-   * 단가 결정 우선순위: 근무자별 지정(teacher) → payroll_policy → ENV.
-   * 기본급(basePay)은 근무자별 pay_base(고정 월 기본급).
-   */
-  private resolveRates(
-    policy: {
-      per_case_rate: number | null;
-      qna_rate: number | null;
-      grade_allowance: unknown;
-      hourly_rate?: number | null;
-      auto_incentive?: unknown;
-    } | null,
-    grade: string,
-    teacher?: { perCaseRate?: number | null; hourlyRate?: number | null; basePay?: number | null },
-  ): PayrollRates {
-    const envNum = (key: string, fallback: number) =>
-      Number(this.config.get(key) ?? fallback);
-    const gradeMap =
-      (policy?.grade_allowance as Record<string, number> | null) ?? null;
-    const ai = (policy?.auto_incentive as { staleBonus?: number } | null) ?? null;
-    return {
-      perCaseRate:
-        teacher?.perCaseRate ?? policy?.per_case_rate ?? envNum('PAYROLL_PER_CASE_RATE', 30_000),
-      qnaRate: policy?.qna_rate ?? envNum('PAYROLL_QNA_RATE', 5_000),
-      gradeAllowance: gradeMap?.[grade] ?? envNum('PAYROLL_GRADE_ALLOWANCE', 0),
-      hourlyRate: teacher?.hourlyRate ?? policy?.hourly_rate ?? envNum('PAYROLL_HOURLY_RATE', 0),
-      staleAnswerBonus: ai?.staleBonus ?? envNum('PAYROLL_STALE_BONUS', 0),
-      basePay: teacher?.basePay ?? 0,
-    };
-  }
-
-  /** 이번 달(KST) 예정 근무 분 합계 — 주계획 override 반영, 시급 급여(T5b) 산정용. */
-  private monthWorkMinutes(
-    ws: { recurring_template: unknown; week_plans: unknown } | null,
-    now = new Date(),
-  ): number {
-    if (!ws) return 0;
-    const recurring = (ws.recurring_template as WeeklyTemplate) ?? {};
-    const plans: WeekPlan[] = Array.isArray(ws.week_plans)
-      ? (ws.week_plans as WeekPlan[]).filter((p) => p && p.weekStart && p.template)
-      : [];
-    const ym = kstDateString(now).slice(0, 7); // 'YYYY-MM'
-    const [y, m] = ym.split('-').map(Number);
-    const days = new Date(Date.UTC(y, m, 0)).getUTCDate();
-    let total = 0;
-    for (let d = 1; d <= days; d++) {
-      const dateStr = `${ym}-${String(d).padStart(2, '0')}`;
-      const plan = plans.find((p) => p.weekStart === mondayOf(dateStr));
-      const tpl: WeeklyTemplate = plan
-        ? { ...recurring, ...plan.template }
-        : recurring;
-      const wins = tpl[String(weekdayKst(dateStr))] ?? [];
-      for (const w of wins) total += Math.max(0, hhmmToMin(w.end) - hhmmToMin(w.start));
-    }
-    return total;
-  }
 }
