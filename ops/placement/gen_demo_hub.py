@@ -25,20 +25,33 @@ BANDS = [
     ("소신", "#d97706", "붙으면 이득, 계산된 도전"),
     ("상향", "#dc2626", "판을 흔드는 한 장"),
 ]
+# (대학, 학과, 정시 목표컷=전국누백%) — 누백은 **낮을수록 상위**다(gap-report 도메인 규약·targets.example.json).
+# 목록은 경쟁도 높은 순(누백 오름차순). susi 의 cutGrade(1.3~3.1)와 방향이 일치해야 한다.
+# ⚠ 과거에 백분위(88/86/85…)를 그대로 cutNb 로 넣어 방향이 반대였고, 그 값으로 밴드를 계산하면
+#    안정/상향이 정확히 뒤집혔다(내 누백 2.4 - cut 88 = -85.6 → 전 후보 '안정').
 DEMO_UNIVS = [
-    ("한빛대", "산업공학", 88), ("가온대", "소프트웨어", 86), ("나래대", "데이터과학", 85),
-    ("아름대", "인공지능", 82), ("다솜대", "컴퓨터공학", 80), ("벼리대", "전자공학", 74),
-    ("슬기대", "정보보안", 72), ("여울대", "산업디자인", 63),
+    ("한빛대", "산업공학", 1.2), ("가온대", "소프트웨어", 1.6), ("나래대", "데이터과학", 2.0),
+    ("아름대", "인공지능", 2.4), ("다솜대", "컴퓨터공학", 2.9), ("벼리대", "전자공학", 3.5),
+    ("슬기대", "정보보안", 4.2), ("여울대", "산업디자인", 5.6),
 ]
 
 
+def _band_for(i: int, total: int) -> tuple:
+    """목록은 경쟁도 높은 순(누백 오름차순)이므로 앞쪽이 상향, 뒤쪽이 안정이다.
+    기존 i % 4 는 순환이라 가장 경쟁 높은 학교에 '안정'이 붙는 오해를 만들었다."""
+    q = max(1, total // len(BANDS))
+    return BANDS[min(len(BANDS) - 1, len(BANDS) - 1 - min(len(BANDS) - 1, i // q))]
+
+
 def synthetic_html(title: str, kind: str) -> str:
+    total = len(DEMO_UNIVS)
     rows = "".join(
         f'<tr><td>{u}</td><td>{d}</td><td style="text-align:right">{s}</td>'
-        f'<td><span style="color:{BANDS[i % 4][1]};font-weight:700">{BANDS[i % 4][0]}</span></td></tr>'
+        f'<td><span style="color:{_band_for(i, total)[1]};font-weight:700">{_band_for(i, total)[0]}</span></td></tr>'
         for i, (u, d, s) in enumerate(DEMO_UNIVS)
     )
-    col = "백분위(누백)" if kind in ("jeongsi", "gap") else "환산컷"
+    # 정시 컷 단위는 전국누백(%) — '백분위'와 혼용하면 방향(낮을수록 상위)이 오해된다.
+    col = "전국누백(%)" if kind in ("jeongsi", "gap") else "환산컷"
     return f"""<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="{DEMO_MARK}" content="1">
 <meta name="viewport" content="width=device-width, initial-scale=1">

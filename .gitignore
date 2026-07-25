@@ -53,3 +53,8 @@ esteacher_*.json
 보정_calib_*.json
 *_INTERNAL.json
 admission-data.json
+# 배치표 목표컷(N29) — 실컷은 JANUS_DATA_DIR/placement-hub/ 에만. repo 내 어느 경로든 차단.
+# 예시 파일은 ops/placement/targets.example.json(합성) 하나만 허용.
+targets.json
+placement-hub/
+!ops/placement/targets.example.json
