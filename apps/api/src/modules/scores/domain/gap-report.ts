@@ -31,6 +31,12 @@ export interface GapInput {
   gye: '이과' | '문과' | null;
   myValue: number; // 정시=전국누백, 수시=내신 평균등급
   target: GapTarget;
+  /**
+   * 최근 회차 값들(같은 단위, 최신 포함). 있으면 **변동성 판정**을 함께 산출한다(O108).
+   * 시험은 1회성이라 컨디션·난이도로 흔들리므로 한 점만 보고 밴드를 단정하지 않기 위한 입력.
+   * 저장된 값의 기술통계만 쓴다 — 예측·환산은 하지 않는다(O65).
+   */
+  recent?: number[];
 }
 
 export type GapBand = '안정' | '적정' | '소신' | '상향';
@@ -45,10 +51,29 @@ export interface JanusReport {
   gap: {
     delta: number; // myValue - target.cut (양수 = 목표까지 부족)
     shortfall: number; // max(0, delta)
-    band: GapBand;
+    band: GapBand; // **점 판정**(최신 회차 기준) — 기존 계약 유지
     admitProbHint: number | null;
     message: string;
   };
+  /**
+   * 회차 변동성 판정(O108) — recent 가 2회 이상일 때만. 없으면 null(기존 페이로드와 호환).
+   * band 를 대체하지 않고 **덧붙인다**: 이미 저장된 janus_report 이력과 소비자가 그대로 동작해야 하기 때문.
+   * n 이 작아(보통 2~5회) 표준편차·신뢰구간은 통계적으로 무의미하므로 **산출하지 않는다** —
+   * 대신 '최고/최저 회차로 각각 판정하면 밴드가 뒤집히는가'라는, 데이터가 실제로 답할 수 있는 질문만 답한다.
+   */
+  volatility: {
+    count: number;
+    best: number; // 가장 유리한 회차 값(정시 누백·수시 등급 모두 '낮을수록 상위')
+    worst: number;
+    spread: number; // worst - best
+    bestBand: GapBand;
+    worstBand: GapBand;
+    /** 최고·최저 회차의 밴드가 같은가 — false 면 회차에 따라 판정이 흔들린다는 뜻. */
+    consistent: boolean;
+    /** 표본이 적어(3회 미만) 해석에 특히 주의가 필요한 경우. */
+    smallSample: boolean;
+    message: string;
+  } | null;
   evidence: JanusEvidence[];
   prescription: {
     headline: string;
@@ -68,6 +93,28 @@ function bandOf(delta: number): GapBand {
   if (delta <= 0) return '적정';
   if (delta <= 0.5) return '소신';
   return '상향';
+}
+
+/**
+ * 회차 변동성 판정(O108) — 최고·최저 회차로 각각 밴드를 매겨 '판정이 뒤집히는지'만 답한다.
+ * 왜 σ·신뢰구간이 아닌가: 실제 회차 수가 보통 2~5회라 분산 추정이 통계적으로 무의미하고,
+ * 정밀한 수치를 보여주면 근거 신뢰도(C5)·예측한계 표시 원칙에 어긋난다.
+ * 정시 누백·수시 등급 모두 '낮을수록 상위'라 best=min, worst=max 로 동일하게 처리된다.
+ */
+function buildVolatility(recent: number[] | undefined, cut: number, unitLabel: string, suffix: string): JanusReport['volatility'] {
+  const vals = (recent ?? []).filter((v) => Number.isFinite(v));
+  if (vals.length < 2) return null; // 1회뿐이면 '변동'을 말할 근거가 없다
+  const best = Math.min(...vals);
+  const worst = Math.max(...vals);
+  const bestBand = bandOf(round2(best - cut));
+  const worstBand = bandOf(round2(worst - cut));
+  const consistent = bestBand === worstBand;
+  const smallSample = vals.length < 3;
+  const spread = round2(worst - best);
+  const message = consistent
+    ? `최근 ${vals.length}회 ${unitLabel} ${best}~${worst}${suffix}(변동 폭 ${spread}) — 어느 회차로 봐도 '${bestBand}' 구간이에요.`
+    : `최근 ${vals.length}회 ${unitLabel} ${best}~${worst}${suffix}(변동 폭 ${spread}) — 회차에 따라 '${bestBand}'에서 '${worstBand}'까지 갈립니다. 한 회차 결과만으로 단정하지 마세요.`;
+  return { count: vals.length, best, worst, spread, bestBand, worstBand, consistent, smallSample, message };
 }
 
 // 정시(어디가 70%컷 백테스트)만 컷 근접 구간 합격률 힌트(≈37%). 수시는 정량 단언 회피.
@@ -136,6 +183,7 @@ export function buildGapReport(input: GapInput): JanusReport {
     generatedFor: { gye, value: myValue },
     target,
     gap: { delta, shortfall, band, admitProbHint, message },
+    volatility: buildVolatility(input.recent, target.cut, unit.label, unit.suffix),
     evidence: evidenceFor(mode, target, unit),
     prescription: { headline: bandHeadline(band, target, shortfall, unit.label), actions },
     disclaimer:

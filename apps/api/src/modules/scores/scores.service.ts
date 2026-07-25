@@ -313,6 +313,16 @@ export class ScoresService {
    * 누백 이력의 분포를 함께 돌려준다(저장된 값의 기술통계일 뿐 — 환산·예측은 배치표 엔진 몫, O65).
    * 장기적으로 여기에 가중평균·신뢰구간을 넣어 밴드 판정 자체를 분포 기반으로 확장한다.
    */
+  /** 최근 누백 값들(오래된 순) — 변동성 판정(O108) 입력. 저장값만 읽고 예측·환산은 하지 않는다(O65). */
+  private async recentNbValues(studentId: string): Promise<number[]> {
+    const reports = await this.prisma.score_report.findMany({
+      where: { student_id: studentId }, orderBy: { period: 'asc' }, select: { placement: true }, take: 12,
+    });
+    return reports
+      .map((r) => (r.placement as Record<string, unknown> | null)?.nb)
+      .filter((v): v is number => typeof v === 'number');
+  }
+
   private async nbSpread(studentId: string) {
     const reports = await this.prisma.score_report.findMany({
       where: { student_id: studentId }, orderBy: { period: 'asc' }, select: { period: true, placement: true },
@@ -578,7 +588,9 @@ export class ScoresService {
     if (js.nb == null) {
       throw new BadRequestException({ code: 'NO_NB', message: '전국누백이 필요합니다 — 배치표에서 점수를 적용하면 자동 계산됩니다.' });
     }
-    const jeongsi = buildGapReport({ mode: 'jeongsi', gye: js.gye, myValue: js.nb, target });
+    // 회차 변동성(O108) — 정시만. 수시 등급은 매 요청 입력값이라 비교할 이력이 없다.
+    const recent = await this.recentNbValues(opts.studentId ?? actor.id);
+    const jeongsi = buildGapReport({ mode: 'jeongsi', gye: js.gye, myValue: js.nb, target, recent });
     await this.archiveReport(opts.studentId ?? actor.id, jeongsi);
     return jeongsi;
   }

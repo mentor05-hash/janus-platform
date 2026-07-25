@@ -13,6 +13,11 @@ type GapReport = {
   kind: 'gap'; version: string; mode: Mode;
   unit: { label: string; suffix: string };
   gap: { delta: number; shortfall: number; band: '안정' | '적정' | '소신' | '상향'; admitProbHint: number | null; message: string };
+  /** 회차 변동성(O108) — 최고·최저 회차로 각각 판정해 '밴드가 뒤집히는지'만 알려준다. 구 페이로드는 null/미존재. */
+  volatility?: {
+    count: number; best: number; worst: number; spread: number;
+    bestBand: string; worstBand: string; consistent: boolean; smallSample: boolean; message: string;
+  } | null;
   evidence: Array<{ claim: string; source: string; relTier: RelTier }>;
   prescription: { headline: string; actions: Array<{ label: string; to: string; ctaId?: string; free?: boolean }> };
   disclaimer: string;
@@ -237,6 +242,20 @@ export function GapReportPage() {
             </div>
             <div style={{ fontSize: 17, fontWeight: 800, lineHeight: 1.5, marginBottom: 8 }}>{report.prescription.headline}</div>
             <div style={{ fontSize: 14, color: 'var(--muted)' }}>{report.gap.message}</div>
+            {/* 회차 변동성(O108) — 시험 1회성 편차. 밴드가 뒤집히면 구간으로 알려준다. */}
+            {report.volatility && (
+              <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, background: 'var(--surface-2, #f0f3f7)', fontSize: 12.5, color: 'var(--ink-body)', lineHeight: 1.6 }}>
+                {!report.volatility.consistent && (
+                  <b style={{ color: BAND_COLOR[report.volatility.worstBand] ?? 'var(--ink)' }}>
+                    회차에 따라 {report.volatility.bestBand}~{report.volatility.worstBand}{' · '}
+                  </b>
+                )}
+                {report.volatility.message}
+                {report.volatility.smallSample && (
+                  <span style={{ color: 'var(--muted)' }}> (회차가 {report.volatility.count}회뿐이라 추세로 보기엔 이릅니다)</span>
+                )}
+              </div>
+            )}
           </div>
 
           <div style={card}>
