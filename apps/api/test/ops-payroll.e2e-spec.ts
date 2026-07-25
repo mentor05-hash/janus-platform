@@ -7,8 +7,14 @@ import { OpsService } from '../src/modules/ops/ops.service';
 
 /**
  * 2.6 DoD 통합테스트 (실 DB):
- *  - 예상급여: 완료 상담 수 × 단가(ENV 기본 30,000) 산정, 역할 권한 가드.
+ *  - 예상급여: **매출 배분(share) 단일 모델** — 완료·예정 예약의 크레딧 매출을 원(×CREDIT_WON_RATIO 0.5)으로
+ *    환산한 뒤 배분율(기본 60%)을 적용한다. 역할·센터 권한 가드.
  *  - 운영 대시보드: 집계 응답 {data, meta} 규약, 관리자/HR 권한.
+ *
+ * ⚠ 계약 이력: 원래는 '완료 건수 × 단가 30,000 + Q&A 5,000 + 자동 인센티브 50,000' 이었다.
+ *   급여 두 모델을 매출 배분 하나로 통합하면서(payroll.service.ts:371-410) 건당 단가·Q&A 보상·자동
+ *   인센티브는 **급여 산정에서 사라졌다**(`incentive: 0`·`incentiveOn: false` 하드코딩).
+ *   이 스펙은 그 전 계약에 남아 있어 실패했다 — 기대값을 낮춘 게 아니라 **계약이 바뀐 것**이다(O113 기록).
  */
 const CENTER = '00000000-0000-4000-8000-0000000000c1';
 const STUDENT = '00000000-0000-4000-8000-0000000000a1';
@@ -32,12 +38,20 @@ const adminUser: any = {
   centerId: CENTER,
 };
 
+/** 급여 계약 상수 — 매출 배분 모델. 예약 2건 × 20,000크레딧 → 원 매출 20,000 → 배분 60% = 12,000원. */
+const DONE_CREDITS_EACH = 20_000;
+const SHARE_PCT = 60;
+const CREDIT_WON = 0.5; // config/constants.ts CREDIT_WON_RATIO
+const EXPECTED_CONFIRMED = Math.round(Math.round(2 * DONE_CREDITS_EACH * CREDIT_WON) * SHARE_PCT / 100); // 12,000
+const POLICY_KEYS = ['payroll_share_policy', 'payroll_model_policy'] as const;
+
 describe('2.6 운영·예상급여 통합', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let payroll: PayrollService;
   let ops: OpsService;
   const bookingIds: string[] = [];
+  const prevPolicies = new Map<string, unknown>();
   let qnaPostId: string | undefined;
 
   beforeAll(async () => {
@@ -66,6 +80,8 @@ describe('2.6 운영·예상급여 통합', () => {
     await prisma.teacher_profile.create({
       data: { account_id: TEACHER_P, center_id: CENTER, grade: 'B' as any },
     });
+    // 완료 예약 2건 — **charged_credits 를 반드시 지정**한다. 급여가 매출 배분으로 바뀐 뒤로
+    // 이 값이 곧 매출이며, 생략하면 schema 의 @default(0) 때문에 매출 0 → 급여 0 이 된다(옛 스펙의 실패 원인).
     for (let i = 0; i < 2; i++) {
       const b = await prisma.booking.create({
         data: {
@@ -75,10 +91,28 @@ describe('2.6 운영·예상급여 통합', () => {
           consult_type: 'subject' as any,
           mode: 'zoom' as any,
           status: 'done' as any,
+          charged_credits: DONE_CREDITS_EACH,
         },
       });
       bookingIds.push(b.id);
     }
+
+    // 배분율·모델을 **고정**한다 — 전역 정책이라 DB 값에 따라 기대 금액이 흔들리면 안 된다.
+    // 스냅샷 후 afterAll 에서 원복(원래 없던 키는 삭제)한다.
+    for (const key of POLICY_KEYS) {
+      const row = await prisma.system_setting.findUnique({ where: { key } });
+      prevPolicies.set(key, row ? (row.value as unknown) : null);
+    }
+    await prisma.system_setting.upsert({
+      where: { key: 'payroll_share_policy' },
+      create: { key: 'payroll_share_policy', value: { sharePct: SHARE_PCT } },
+      update: { value: { sharePct: SHARE_PCT } },
+    });
+    await prisma.system_setting.upsert({
+      where: { key: 'payroll_model_policy' },
+      create: { key: 'payroll_model_policy', value: { mode: 'share', base: 2_000_000, incentivePct: 30 } },
+      update: { value: { mode: 'share', base: 2_000_000, incentivePct: 30 } },
+    });
   });
 
   afterAll(async () => {
@@ -93,13 +127,24 @@ describe('2.6 운영·예상급여 통합', () => {
     });
     await prisma.booking.deleteMany({ where: { id: { in: bookingIds } } });
     await prisma.account.deleteMany({ where: { id: TEACHER_P } });
+    // 전역 정책 원복 — 원래 없던 키는 삭제해 제품 기본값(SHARE_DEFAULT·MODEL_DEFAULT)으로 되돌린다.
+    for (const [key, value] of prevPolicies) {
+      if (value === null) await prisma.system_setting.deleteMany({ where: { key } });
+      else await prisma.system_setting.update({ where: { key }, data: { value: value as never } });
+    }
     await app.close();
   });
 
-  it('예상급여: 완료 2건 × 30,000 = 60,000(확정분)', async () => {
+  it('예상급여: 완료 2건 크레딧 매출 → 원 환산(×0.5) → 배분 60% = 12,000(확정분)', async () => {
     const r: any = await payroll.estimate(TEACHER_P, teacherUser);
-    expect(r.breakdown.doneCases).toBe(2);
-    expect(r.confirmedAmount).toBe(60_000);
+    // 계약을 breakdown 으로 못박는다 — 모델·배분율·환산비가 바뀌면 여기서 깨져야 한다.
+    expect(r.breakdown.model).toBe('share');
+    expect(r.breakdown.sharePct).toBe(SHARE_PCT);
+    expect(r.breakdown.creditWonRatio).toBe(CREDIT_WON);
+    expect(r.breakdown.doneSessions).toBe(2);
+    expect(r.breakdown.confirmedCredits).toBe(2 * DONE_CREDITS_EACH);
+    expect(r.breakdown.confirmedRevenue).toBe(Math.round(2 * DONE_CREDITS_EACH * CREDIT_WON));
+    expect(r.confirmedAmount).toBe(EXPECTED_CONFIRMED);
   });
 
   it('급여 권한 가드: 타인(학생)은 조회 불가', async () => {
@@ -116,7 +161,7 @@ describe('2.6 운영·예상급여 통합', () => {
     await expect(payroll.settle(TEACHER_P, otherAdmin)).rejects.toThrow();
   });
 
-  it('3.4 Q&A 적격(pay_eligible) + 자동 인센티브 합산', async () => {
+  it('3.4 Q&A 적격(pay_eligible)은 급여에 반영되지 않는다(매출 배분 단일 모델)', async () => {
     await prisma.payroll_policy.create({
       data: {
         center_id: CENTER,
@@ -145,19 +190,22 @@ describe('2.6 운영·예상급여 통합', () => {
     });
 
     const r: any = await payroll.estimate(TEACHER_P, teacherUser);
-    expect(r.breakdown.qnaAccepted).toBe(1);
-    expect(r.incentive).toBe(50_000);
-    expect(r.confirmedAmount).toBe(2 * 30_000 + 1 * 5_000 + 50_000); // 115,000
+    // 매출 배분 단일 모델로 통합된 뒤 **Q&A 채택·자동 인센티브는 급여에 반영되지 않는다**.
+    // 옛 계약(Q&A 5,000 + 인센티브 50,000 → 115,000)으로 되돌아가지 않도록 여기서 고정한다.
+    expect(r.incentive).toBe(0);
+    expect(r.incentiveOn).toBe(false);
+    expect(r.breakdown.qnaAccepted).toBeUndefined();
+    expect(r.confirmedAmount).toBe(EXPECTED_CONFIRMED); // Q&A 채택 전과 동일
   });
 
   it('3.4 확정 정산 기록(payroll_estimate)', async () => {
     const r: any = await payroll.settle(TEACHER_P, adminUser);
     expect(r.id).toBeDefined();
-    expect(r.confirmedAmount).toBe(115_000);
+    expect(r.confirmedAmount).toBe(EXPECTED_CONFIRMED);
     const row = await prisma.payroll_estimate.findUnique({
       where: { id: r.id },
     });
-    expect(row!.confirmed_amount).toBe(115_000);
+    expect(row!.confirmed_amount).toBe(EXPECTED_CONFIRMED);
 
     // fix-7 멱등: 같은 기간 재정산해도 중복 행 없음
     await payroll.settle(TEACHER_P, adminUser);
