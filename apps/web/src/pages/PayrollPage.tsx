@@ -66,7 +66,7 @@ export function PayrollPage() {
 
   return (
     <div>
-      <PageHeader title="급여 · 예상급여" sub="정산 주기 월 1회 기본(카테고리별 변경 가능) · 자동 인센티브 적용" />
+      <PageHeader title="급여 · 예상급여" sub="정산 주기 월 1회 · 매출 배분(share) 기준" />
 
       {/* 확정 / 예상 토글 */}
       <div style={{ display: 'inline-flex', background: 'var(--fill,#eef2f7)', borderRadius: 10, padding: 3, marginBottom: 14 }}>

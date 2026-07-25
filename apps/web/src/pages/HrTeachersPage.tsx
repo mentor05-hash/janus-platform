@@ -68,7 +68,7 @@ export function HrTeachersPage() {
 
   return (
     <div>
-      <PageHeader title="선생님 등록 · 관리" sub="자격·급여 기준·직군 등록 → 예상급여(급여 화면)와 연동됩니다." />
+      <PageHeader title="선생님 등록 · 관리" sub="자격·과목·등급·직군 등록 (급여는 매출 배분 정책에서 산정 — 이 화면과 무관)" />
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         <input ref={excelRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={onExcel} />
         <Button onClick={() => excelRef.current?.click()}>📗 엑셀 일괄 등록</Button>

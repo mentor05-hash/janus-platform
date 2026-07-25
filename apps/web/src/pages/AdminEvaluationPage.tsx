@@ -302,7 +302,7 @@ export function AdminEvaluationPage() {
       )}
 
       {isAdmin && (
-        <SectionCard title="월간 시수·단가 엑셀 업로드" desc="건당·기본급·시급 근무자의 월 근무시수와 단가를 한 번에 입력합니다(시간당 상담·급여 산정 반영). 열: 아이디·기간(YYYY-MM)·시수·고용형태 + 선택(기본급·시급·건당단가). 단가 칸을 비우면 센터 정책 단가를 사용합니다.">
+        <SectionCard title="월간 시수·단가 엑셀 업로드" desc="월 근무시수·고용형태를 한 번에 입력합니다 — **평가·시수 지표용이며 급여 산정과는 무관합니다**(급여는 매출 배분 정책, O113). 열: 아이디·기간(YYYY-MM)·시수·고용형태. 단가 열(기본급·시급·건당단가)은 저장은 되지만 지급액에 반영되지 않습니다.">
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <input ref={hoursExcelRef} type="file" accept=".xlsx,.xls" hidden onChange={onHoursExcel} />
             <Button size="sm" onClick={() => hoursExcelRef.current?.click()}>엑셀 업로드(.xlsx)</Button>
