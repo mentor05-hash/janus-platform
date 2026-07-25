@@ -20,7 +20,8 @@ type Post = {
   scope: string;
   body: string;
   status: string;
-  q_type?: string | null;
+  /** 요금 티어 — API 는 camelCase 로 준다. 구 `q_type` 은 응답에 없던 이름이라 항상 undefined 였다. */
+  qType?: 'general' | 'item' | string | null;
   created_at: string;
   rating?: number | null;
   continuePref?: boolean | null;
@@ -259,7 +260,9 @@ export function StudentQnaPage() {
       ? `무료 질문권 1건이 사용됩니다(이번 주 ${freeLeft}건 남음).`
       : ticketLeft > 0
         ? `보유 질문권 1건이 사용됩니다(${ticketLeft}건 보유).`
-        : `크레딧 ${(fee?.generalFee ?? 0).toLocaleString()}이 차감됩니다.`;
+        // **이 질문의** 요금 티어로 금액을 말한다 — 예전엔 항상 generalFee 를 써서, 문항형(8,000)을
+        // 골라 등록한 학생에게 4,000 을 안내했다(게시 화면의 표시와도 서로 어긋났다).
+        : `크레딧 ${((posts?.find((p) => p.id === postId)?.qType === 'item' ? fee?.itemFee : fee?.generalFee) ?? 0).toLocaleString()}이 차감됩니다.`;
     if (!confirm(`선생님 답변을 요청할까요?\n\n${cost}`)) return;
     try {
       const r = await api.post<{ freeUsed?: boolean; freeRemaining?: number; usedTicket?: boolean; ticketRemaining?: number; chargedCredits?: number }>(`/qna/posts/${postId}/request-teacher`, {});
@@ -465,7 +468,7 @@ export function StudentQnaPage() {
                 {/* P2 퍼널: 충분하면 무료 종료, 부족하면 이 시점에 무료질문권/크레딧으로 사람 답변 */}
                 {p.status === 'ai_pending' && (
                   <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <Button size="sm" onClick={() => requestTeacher(p.id)}>👩‍🏫 선생님 답변 받기{fee?.freeQuota && fee.freeQuota.remaining > 0 ? ` (무료 ${fee.freeQuota.remaining}건 남음)` : (fee?.ticketRemaining ?? 0) > 0 ? ` (질문권 ${fee!.ticketRemaining}건 보유)` : fee ? ` (${(p.q_type === 'item' ? fee.itemFee : fee.generalFee).toLocaleString()} 크레딧)` : ''}</Button>
+                    <Button size="sm" onClick={() => requestTeacher(p.id)}>👩‍🏫 선생님 답변 받기{fee?.freeQuota && fee.freeQuota.remaining > 0 ? ` (무료 ${fee.freeQuota.remaining}건 남음)` : (fee?.ticketRemaining ?? 0) > 0 ? ` (질문권 ${fee!.ticketRemaining}건 보유)` : fee ? ` (${(p.qType === 'item' ? fee.itemFee : fee.generalFee).toLocaleString()} 크레딧)` : ''}</Button>
                     <button type="button" onClick={() => resolveAi(p.id)}
                       style={{ fontSize: 12.5, border: '1px solid var(--input-border)', background: 'var(--surface)', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', color: 'var(--muted)' }}>
                       충분해요 — 해결로 표시

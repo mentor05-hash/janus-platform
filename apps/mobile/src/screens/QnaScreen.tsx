@@ -6,7 +6,7 @@ import { R, SP, useTheme, useUI, type Palette } from '../theme';
 
 type Attachment = { id: string; name: string; type?: string };
 type Answer = { id: string; body: string; accepted: boolean; teacherName: string; escalationOk?: boolean };
-type Post = { id: string; subject: string | null; difficulty: string | null; scope: string; body: string; status: string; created_at: string; aiDraft?: string | null; claimedAt?: string | null; firstReplyAt?: string | null; assignedTeacherId?: string | null; attachments?: Attachment[]; answers?: Answer[] };
+type Post = { id: string; subject: string | null; difficulty: string | null; scope: string; qType?: 'general' | 'item' | string | null; body: string; status: string; created_at: string; aiDraft?: string | null; claimedAt?: string | null; firstReplyAt?: string | null; assignedTeacherId?: string | null; attachments?: Attachment[]; answers?: Answer[] };
 // P6 — 교과 + 비교과(학습법·입시·진로). 비교과는 입시 컨설턴트 풀로 매칭.
 const SUBJECTS = ['국어', '수학', '영어', '탐구', '학습법', '입시', '진로'];
 const NON_ACADEMIC = ['학습법', '입시', '진로'];
@@ -60,6 +60,9 @@ export function QnaScreen() {
   const [subject, setSubject] = useState('수학');
   const [scope, setScope] = useState('open');
   const [difficulty, setDifficulty] = useState('중'); // 난이도 → 답변블록 시간 차등
+  // 요금 티어(웹 파리티) — 이전엔 'general' 이 하드코딩돼 모바일 학생은 문항형을 **고를 수 없었다**.
+  // 난이도(답변블록 시간)와는 별개 축이다: 난이도=시간, 유형=요금.
+  const [qType, setQType] = useState<'general' | 'item'>('general');
   const [body, setBody] = useState('');
   const [atts, setAtts] = useState<Attachment[]>([]);
   const [msg, setMsg] = useState('');
@@ -134,9 +137,10 @@ export function QnaScreen() {
     setError(''); setMsg('');
     if (!body.trim()) { setError('질문 내용을 입력하세요.'); return; }
     // 실수 등록 방지(웹 파리티) — 등록은 무료(P2), 과금은 [선생님 답변 받기] 시점.
-    if (!ask(`이 상태로 질문을 등록할까요?\n\n· 과목: ${subject} (${scope === 'assigned' ? '지정' : '공개'} · 난이도 ${difficulty})\n· 사진 첨부: ${atts.length}장\n\n등록은 무료예요 — 질문권·크레딧은 [선생님 답변 받기]를 누를 때만 사용됩니다.`)) return;
+    const feeNow = qType === 'item' ? fee?.itemFee : fee?.generalFee;
+    if (!ask(`이 상태로 질문을 등록할까요?\n\n· 과목: ${subject} (${scope === 'assigned' ? '지정' : '공개'} · 난이도 ${difficulty})\n· 유형: ${qType === 'item' ? '문항(고난도)' : '일반'}${feeNow != null ? ` · 선생님 답변 요청 시 ${feeNow.toLocaleString()} 크레딧` : ''}\n· 사진 첨부: ${atts.length}장\n\n등록은 무료예요 — 질문권·크레딧은 [선생님 답변 받기]를 누를 때만 사용됩니다.`)) return;
     try {
-      await api.post('/qna/posts', { subject, qType: 'general', scope, difficulty, body, attachments: atts });
+      await api.post('/qna/posts', { subject, qType, scope, difficulty, body, attachments: atts });
       setMsg('질문이 등록됐어요 — AI 풀이가 곧 도착합니다. 부족하면 [선생님 답변 받기]를 눌러주세요.');
       setBody(''); setAtts([]); setOpen(false); load();
     } catch (e) { setError(e instanceof ApiError ? (e.status === 402 ? '크레딧이 부족합니다.' : e.message) : '등록 실패'); }
@@ -154,11 +158,13 @@ export function QnaScreen() {
     setError(''); setMsg('');
     const freeLeft = fee?.freeQuota?.remaining ?? 0;
     const ticketLeft = fee?.ticketRemaining ?? 0;
+    // **이 질문의** 요금 티어로 금액을 말한다(웹 파리티) — 항상 generalFee 를 쓰면 문항형에서 어긋난다.
+    const tierFee = (posts?.find((x) => x.id === postId)?.qType === 'item' ? fee?.itemFee : fee?.generalFee) ?? 0;
     const cost = freeLeft > 0
       ? `무료 질문권 1건이 사용됩니다(이번 주 ${freeLeft}건 남음).`
       : ticketLeft > 0
         ? `보유 질문권 1건이 사용됩니다(${ticketLeft}건 보유).`
-        : `크레딧 ${(fee?.generalFee ?? 0).toLocaleString()}이 차감됩니다.`;
+        : `크레딧 ${tierFee.toLocaleString()}이 차감됩니다.`;
     if (!ask(`선생님 답변을 요청할까요?\n\n${cost}`)) return;
     try {
       const r = await api.post<{ freeUsed?: boolean; freeRemaining?: number; usedTicket?: boolean; ticketRemaining?: number; chargedCredits?: number }>(`/qna/posts/${postId}/request-teacher`, {});
@@ -206,10 +212,18 @@ export function QnaScreen() {
               <TouchableOpacity key={d} style={[styles.pill, difficulty === d && styles.pillOn]} onPress={() => setDifficulty(d)}><Text style={[styles.pillT, difficulty === d && { color: C.white }]}>{d}</Text></TouchableOpacity>
             ))}
           </View>
+          <Text style={styles.lbl}>유형</Text>
+          <View style={styles.pills}>
+            {([['general', '일반'], ['item', '문항(고난도)']] as const).map(([v, l]) => (
+              <TouchableOpacity key={v} style={[styles.pill, qType === v && styles.pillOn]} onPress={() => setQType(v)}>
+                <Text style={[styles.pillT, qType === v && { color: C.white }]}>{l}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
           <View style={styles.qInfo}>
             <Text style={styles.qInfoT}>
               답변블록 약 {blockMin}분
-              {fee?.freeQuota && fee.freeQuota.remaining > 0 ? ` · 이번 주 무료 질문 ${fee.freeQuota.remaining}건 남음` : fee ? ` · 건당 ${fee.generalFee.toLocaleString()} 크레딧` : ''}
+              {fee?.freeQuota && fee.freeQuota.remaining > 0 ? ` · 이번 주 무료 질문 ${fee.freeQuota.remaining}건 남음` : fee ? ` · 건당 ${(qType === 'item' ? fee.itemFee : fee.generalFee).toLocaleString()} 크레딧` : ''}
               {(fee?.ticketRemaining ?? 0) > 0 ? ` · 보유 질문권 ${fee!.ticketRemaining}건` : ''}
             </Text>
             <Text style={styles.qInfoSub}>등록은 무료 — 질문권·크레딧은 [선생님 답변 받기]를 누를 때만 사용돼요. 난이도가 높을수록 답변블록이 길어집니다.</Text>
@@ -262,7 +276,7 @@ export function QnaScreen() {
                   <TouchableOpacity style={styles.humanBtn} onPress={() => void requestTeacher(p.id)}>
                     <Text style={styles.humanT}>
                       👩‍🏫 선생님 답변 받기
-                      {fee?.freeQuota && fee.freeQuota.remaining > 0 ? ` (무료 ${fee.freeQuota.remaining}건)` : (fee?.ticketRemaining ?? 0) > 0 ? ` (질문권 ${fee!.ticketRemaining}건)` : fee ? ` (${fee.generalFee.toLocaleString()} 크레딧)` : ''}
+                      {fee?.freeQuota && fee.freeQuota.remaining > 0 ? ` (무료 ${fee.freeQuota.remaining}건)` : (fee?.ticketRemaining ?? 0) > 0 ? ` (질문권 ${fee!.ticketRemaining}건)` : fee ? ` (${(p.qType === 'item' ? fee.itemFee : fee.generalFee).toLocaleString()} 크레딧)` : ''}
                     </Text>
                   </TouchableOpacity>
                 </View>
