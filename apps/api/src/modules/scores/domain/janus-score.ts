@@ -60,6 +60,17 @@ const intIn = (v: unknown, min: number, max: number): number | null => {
   return r >= min && r <= max ? r : null;
 };
 
+/**
+ * placement.nb → 전국누백(0.01~99.99, 소수 2자리). 범위를 벗어나거나 수치가 아니면 null.
+ * 이력 통계(변동성 판정 O108)도 **이 함수만** 쓴다 — 검증이 갈라지면 오염값(0·음수·150) 하나가
+ * best/worst 를 통째로 바꿔 밴드 뒤집힘 판정이 거짓이 된다.
+ */
+export function parseNb(raw: unknown): number | null {
+  const n = typeof raw === 'string' ? Number(raw) : (raw as number | undefined);
+  if (!Number.isFinite(n) || (n as number) <= 0 || (n as number) >= 100) return null;
+  return Math.round((n as number) * 100) / 100;
+}
+
 /** 최신 리포트 → janus_score. 산출 불가(성적 없음)면 null — API 는 404 NO_SCORE. */
 export function toJanusScore(report: JanusScoreReport | null | undefined): JanusScore | null {
   if (!report) return null;
@@ -85,10 +96,9 @@ export function toJanusScore(report: JanusScoreReport | null | undefined): Janus
   };
 
   // 모드 1 — 전국누백(placement.nb): 소수 허용 0.01~99.99
-  const nbRaw = (pl as { nb?: unknown }).nb;
-  const nb = typeof nbRaw === 'string' ? Number(nbRaw) : (nbRaw as number | undefined);
-  if (Number.isFinite(nb) && (nb as number) > 0 && (nb as number) < 100) {
-    return { ...base, mode: 'nb', nb: Math.round((nb as number) * 100) / 100 };
+  const nb = parseNb((pl as { nb?: unknown }).nb);
+  if (nb != null) {
+    return { ...base, mode: 'nb', nb };
   }
 
   // 모드 2 — 표점 4종(std 0~200, §5). 결측 있으면 산출 불가(부분 자동입력은 클라이언트 몫이나

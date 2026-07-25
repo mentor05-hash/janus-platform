@@ -32,9 +32,12 @@ export interface GapInput {
   myValue: number; // 정시=전국누백, 수시=내신 평균등급
   target: GapTarget;
   /**
-   * 최근 회차 값들(같은 단위, 최신 포함). 있으면 **변동성 판정**을 함께 산출한다(O108).
-   * 시험은 1회성이라 컨디션·난이도로 흔들리므로 한 점만 보고 밴드를 단정하지 않기 위한 입력.
-   * 저장된 값의 기술통계만 쓴다 — 예측·환산은 하지 않는다(O65).
+   * 최근 회차 값들(같은 단위) — **오래된 순, 마지막이 최신이고 그 값이 myValue 와 같아야 한다.**
+   * 있으면 **변동성 판정**을 함께 산출한다(O108). 시험은 1회성이라 컨디션·난이도로 흔들리므로
+   * 한 점만 보고 밴드를 단정하지 않기 위한 입력. 저장된 값의 기술통계만 쓴다 — 예측·환산은 하지 않는다(O65).
+   * ⚠ 순서가 의미를 가진다(direction 판정) — min/max 만 쓰던 초기 구현과 달리 정렬을 어기면 방향이 거짓이 된다.
+   * ⚠ `[best, worst]` 같은 **요약 배열로 줄여 넘기지 마라** — count·smallSample 이 실제 회차 수를 거짓 진술한다(C5).
+   *   buildVolatility 는 min/max 2회뿐이라 후보마다 전체 배열로 반복 호출해도 비용이 없다.
    */
   recent?: number[];
 }
@@ -72,6 +75,13 @@ export interface JanusReport {
     consistent: boolean;
     /** 표본이 적어(3회 미만) 해석에 특히 주의가 필요한 경우. */
     smallSample: boolean;
+    /**
+     * 회차 순서상 방향 — **3회 이상**일 때만 판정한다(2회로 '추세'를 말하는 것이 smallSample 경고와 모순).
+     * 단조 향상/하락을 'mixed'(흔들림)와 구분하는 이유: 2.4→2.1→1.8 처럼 꾸준히 오른 학생에게
+     * "회차에 따라 갈립니다 · 한 회차로 단정하지 마세요"를 띄우면 **사실과 다르게** 운·변동으로 프레이밍된다.
+     * 저장값의 순서를 그대로 기술할 뿐 다음 회차를 예측하지 않는다(O65).
+     */
+    direction: 'improving' | 'worsening' | 'mixed' | null;
     message: string;
   } | null;
   evidence: JanusEvidence[];
@@ -102,7 +112,7 @@ function bandOf(delta: number): GapBand {
  * 정시 누백·수시 등급 모두 '낮을수록 상위'라 best=min, worst=max 로 동일하게 처리된다.
  */
 function buildVolatility(recent: number[] | undefined, cut: number, unitLabel: string, suffix: string): JanusReport['volatility'] {
-  const vals = (recent ?? []).filter((v) => Number.isFinite(v));
+  const vals = (recent ?? []).filter((v) => Number.isFinite(v)).map(round2);
   if (vals.length < 2) return null; // 1회뿐이면 '변동'을 말할 근거가 없다
   const best = Math.min(...vals);
   const worst = Math.max(...vals);
@@ -111,10 +121,25 @@ function buildVolatility(recent: number[] | undefined, cut: number, unitLabel: s
   const consistent = bestBand === worstBand;
   const smallSample = vals.length < 3;
   const spread = round2(worst - best);
-  const message = consistent
-    ? `최근 ${vals.length}회 ${unitLabel} ${best}~${worst}${suffix}(변동 폭 ${spread}) — 어느 회차로 봐도 '${bestBand}' 구간이에요.`
-    : `최근 ${vals.length}회 ${unitLabel} ${best}~${worst}${suffix}(변동 폭 ${spread}) — 회차에 따라 '${bestBand}'에서 '${worstBand}'까지 갈립니다. 한 회차 결과만으로 단정하지 마세요.`;
-  return { count: vals.length, best, worst, spread, bestBand, worstBand, consistent, smallSample, message };
+  const first = vals[0];
+  const last = vals[vals.length - 1];
+  // 방향은 3회 이상에서만 — 낮을수록 상위이므로 값이 내려가면 향상이다.
+  const mono = (cmp: (a: number, b: number) => boolean) => vals.every((v, i) => i === 0 || cmp(v, vals[i - 1]));
+  const direction: NonNullable<JanusReport['volatility']>['direction'] =
+    vals.length < 3 || spread === 0 ? null : mono((v, p) => v <= p) ? 'improving' : mono((v, p) => v >= p) ? 'worsening' : 'mixed';
+  const range = `최근 ${vals.length}회 ${unitLabel} ${best}~${worst}${suffix}(변동 폭 ${spread})`;
+  const message =
+    spread === 0
+      ? `최근 ${vals.length}회 모두 ${unitLabel} ${best}${suffix} — 변동 없이 '${bestBand}' 구간이에요.`
+      : consistent
+        ? `${range} — 어느 회차로 봐도 '${bestBand}' 구간이에요.`
+        : direction === 'improving'
+          ? // 흔들림이 아니라 향상이다 — 옛 회차를 '갈림'으로 제시하면 사실과 다르게 운으로 프레이밍된다.
+            `최근 ${vals.length}회 ${unitLabel} ${first}→${last}${suffix}로 꾸준히 올랐어요 — 흔들린 게 아니라 향상이라, 예전 회차 기준 '${worstBand}'가 아니라 최근 '${bestBand}'로 보는 게 맞아요.`
+          : direction === 'worsening'
+            ? `최근 ${vals.length}회 ${unitLabel} ${first}→${last}${suffix}로 계속 내려갔어요 — 예전 회차 기준 '${bestBand}'가 아니라 최근 '${worstBand}'가 지금 위치예요.`
+            : `${range} — 회차에 따라 '${bestBand}'에서 '${worstBand}'까지 갈립니다. 한 회차 결과만으로 단정하지 마세요.`;
+  return { count: vals.length, best, worst, spread, bestBand, worstBand, consistent, smallSample, direction, message };
 }
 
 // 정시(어디가 70%컷 백테스트)만 컷 근접 구간 합격률 힌트(≈37%). 수시는 정량 단언 회피.
