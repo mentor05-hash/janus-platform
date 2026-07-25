@@ -14,12 +14,16 @@ COPY packages/pricing/package.json packages/pricing/
 COPY packages/media-kit/package.json packages/media-kit/
 COPY packages/board-core/package.json packages/board-core/
 COPY packages/guard-school-record/package.json packages/guard-school-record/
+COPY packages/janus-planner/package.json packages/janus-planner/
 RUN npm ci
 
 # 소스 복사 후 Prisma client 생성 + 빌드 → 런타임 의존성만 남김
-# 생기부 가드(공용 모듈)는 런타임에 apps/api 가 require 하므로 JS 로 선(先)빌드 → dist.
+# 공용 워크스페이스 패키지는 apps/api 가 런타임에 require 하므로 **JS+타입으로 선(先)빌드** → dist.
+#   ⚠ apps/api 빌드보다 **먼저** 와야 한다 — dist 가 없으면 nest build 가 타입 선언을 못 찾아 TS2307 로 죽는다
+#     (janus-planner 를 import 한 뒤 이미지 빌드가 이 이유로 깨졌다. 로컬은 dist 가 남아 있어 통과했다).
 COPY . .
 RUN npm run build --workspace @mentoring/guard-school-record \
+ && npm run build --workspace @mentoring/janus-planner \
  && npm run prisma:generate --workspace apps/api \
  && npm run build --workspace apps/api \
  && npm run build:seed --workspace apps/api \
@@ -36,8 +40,9 @@ WORKDIR /app
 RUN apk add --no-cache dumb-init poppler-utils fontconfig ttf-freefont font-noto
 
 COPY --from=builder /app/node_modules ./node_modules
-# 생기부 가드 워크스페이스 실파일(dist 포함) — node_modules/@mentoring 심링크 대상.
+# 워크스페이스 실파일(dist 포함) — node_modules/@mentoring 심링크 대상.
 COPY --from=builder /app/packages/guard-school-record ./packages/guard-school-record
+COPY --from=builder /app/packages/janus-planner ./packages/janus-planner
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/dist-seed ./apps/api/dist-seed
 COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
