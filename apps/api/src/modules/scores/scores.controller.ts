@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put, Query, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put, Query, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { Type } from 'class-transformer';
@@ -55,6 +55,18 @@ class GoalDto {
   @IsOptional() @IsString() tier?: string | null;
   @IsOptional() @IsNumber() avg?: number | null;
 }
+/** 목표 후보 등록 — cut 단위는 mode 에 따름(정시=전국누백% / 수시=내신등급). */
+class GoalCandidateDto {
+  @IsIn(['jeongsi', 'susi']) mode!: 'jeongsi' | 'susi';
+  @IsString() @MaxLength(60) univ!: string;
+  @IsString() @MaxLength(60) dept!: string;
+  @IsNumber() @Min(0.01) @Max(99.99) cut!: number;
+  @IsOptional() @IsString() @MaxLength(20) track?: string | null;
+  @IsOptional() @IsString() @MaxLength(200) note?: string | null;
+  // 컷 출처 감사(O65) — 배치표 조회값인지 학생 수동 입력인지. 클라이언트 힌트이며 기본은 manual.
+  @IsOptional() @IsIn(['targets_file', 'manual']) cutSource?: 'targets_file' | 'manual';
+}
+
 /** 자가목표(janus_goal) — PUT 전체 교체: 미지정 필드는 null 로 초기화된다. */
 class MyGoalDto {
   // 목표 라인 어휘는 웹 TIER_OPTIONS·모바일 TIERS 와 동일 6종(정본 밖 문자열이 저장되면 목표 매칭이 무력화된다).
@@ -236,6 +248,39 @@ export class ScoresMeController {
       university: dto.university ?? null,
       department: dto.department ?? null,
     });
+  }
+
+  /** GET /me/goal/candidates — 목표 후보 목록(지원 포트폴리오). ?mode= 로 정시/수시 필터. */
+  @Get('me/goal/candidates')
+  @Roles('student')
+  goalCandidates(@CurrentUser() user: AuthUser, @Query('mode') mode?: 'jeongsi' | 'susi') {
+    return this.scores.listGoalCandidates(user, mode === 'susi' || mode === 'jeongsi' ? mode : undefined);
+  }
+
+  /**
+   * GET /me/goal/candidates/report — 후보별 밴드·격차 비교(같은 내 성적 기준) + 회차 변동 폭.
+   * 수시는 ?myGrade= 필요(내신 평균등급). 정시는 janus_score.nb 사용.
+   */
+  @Get('me/goal/candidates/report')
+  @Roles('student')
+  goalCandidateReport(@CurrentUser() user: AuthUser, @Query('mode') mode?: string, @Query('myGrade') myGrade?: string) {
+    const m = mode === 'susi' ? 'susi' : 'jeongsi';
+    const g = myGrade != null && myGrade !== '' ? Number(myGrade) : undefined;
+    return this.scores.goalCandidateReport(user, m, Number.isFinite(g) ? g : undefined);
+  }
+
+  /** POST /me/goal/candidates — 목표 후보 추가(학생 직접 등록). */
+  @Post('me/goal/candidates')
+  @Roles('student')
+  addGoalCandidate(@CurrentUser() user: AuthUser, @Body() dto: GoalCandidateDto) {
+    return this.scores.addGoalCandidate(user, dto);
+  }
+
+  /** DELETE /me/goal/candidates/{id} — 목표 후보 삭제. */
+  @Delete('me/goal/candidates/:id')
+  @Roles('student')
+  removeGoalCandidate(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.scores.removeGoalCandidate(user, id);
   }
 
   /** GET /scores/janus-score — 배치표 자동연동 export(O43·접합계약 C1). guardian 은 ?studentId=. */

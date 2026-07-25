@@ -1803,6 +1803,27 @@ model academic_event {
   @@index([center_id, start_date])
 }
 
+/// 목표 후보 — 기준 목표(student_profile.goal_*) 외 비교용 후보 N개. 학생이 직접 등록·본인만 조회.
+/// cut 단위는 mode 에 따름(jeongsi=전국누백% / susi=내신등급) — gap-report 도메인과 동일 규약.
+/// cut 은 배치표 데이터 또는 수동 입력값만 보관(O65 — 플랫폼 산출 금지), cut_source 로 감사.
+/// 자동 제안·조합 추천·종합 합격확률은 여기서 하지 않는다(전자는 실컷 데이터 선행, 후자는 N28 미결).
+/// 용어: '플랜'(planner·category='plan'·subscription_plan)·'포트폴리오'(N28 예약)와 구분해 candidate.
+model student_goal_candidate {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  student_id String   @db.Uuid
+  mode       String
+  univ       String
+  dept       String
+  track      String?
+  cut        Decimal  @db.Decimal(6, 2)
+  cut_source String   @default("manual")
+  note       String?
+  sort_order Int      @default(0)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([student_id, mode])
+}
+
 /// 맞춤 할 일(체크리스트) — 격차·학사일정 자동 제안 + 수동. source_key 로 자동생성 멱등(부분 유니크는 DB 인덱스).
 /// category: gap|academic|consult|qna|custom, 그리고 'plan' 예약 — planner 학습량 원장(성적맹 Sealed<T>)이
 /// 향후 같은 셸에 category='plan' 로 렌더(O100 D1: student_task[액션 인박스] ↔ planner.Todo[학습량 원장] 두 축 공존).

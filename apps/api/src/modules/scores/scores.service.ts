@@ -262,6 +262,117 @@ export class ScoresService {
     return this.getMyGoal(user);
   }
 
+  // ── 목표 후보 ──
+  // 기준 목표(goal_*) 는 그대로 두고, 비교용 후보를 몇 개 등록해 같은 성적으로 밴드를 나란히 본다.
+  // 후보는 **학생이 직접 등록**한 것만(본인만 조회 — 학부모·선생님 노출은 별도 결정 전까지 하지 않는다).
+  // 하지 않는 것: 자동 제안(실컷 데이터·정시 cut 의미 확정 선행) · 조합 추천 · 종합 합격확률(N28 미결·착수금지).
+  // 상한 3 — 응답 크기·가독성 + '조합 최적화'로 흘러가지 않도록 코드 레벨 제약(N28 침범 방지).
+  private static readonly CANDIDATE_MAX = 3;
+
+  async listGoalCandidates(user: AuthUser, mode?: GapMode) {
+    const rows = await this.prisma.student_goal_candidate.findMany({
+      where: { student_id: user.id, ...(mode ? { mode } : {}) },
+      orderBy: [{ mode: 'asc' }, { sort_order: 'asc' }, { created_at: 'asc' }],
+    });
+    return rows.map((r) => ({ ...r, cut: Number(r.cut) }));
+  }
+
+  async addGoalCandidate(user: AuthUser, dto: { mode: GapMode; univ: string; dept: string; cut: number; track?: string | null; note?: string | null; cutSource?: 'targets_file' | 'manual' }) {
+    const count = await this.prisma.student_goal_candidate.count({ where: { student_id: user.id, mode: dto.mode } });
+    if (count >= ScoresService.CANDIDATE_MAX) {
+      throw new BadRequestException(`후보는 모드별 최대 ${ScoresService.CANDIDATE_MAX}개까지 등록할 수 있습니다.`);
+    }
+    const created = await this.prisma.student_goal_candidate
+      .create({
+        data: {
+          student_id: user.id, mode: dto.mode, univ: dto.univ.trim(), dept: dto.dept.trim(),
+          cut: dto.cut, cut_source: dto.cutSource ?? 'manual',
+          track: dto.track?.trim() || null, note: dto.note?.trim() || null, sort_order: count,
+        },
+      })
+      .catch(() => {
+        throw new BadRequestException('이미 등록한 대학·학과입니다.');
+      });
+    return { ...created, cut: Number(created.cut) };
+  }
+
+  async removeGoalCandidate(user: AuthUser, id: string) {
+    const row = await this.prisma.student_goal_candidate.findUnique({ where: { id } });
+    if (!row) throw new NotFoundException('후보를 찾을 수 없습니다.');
+    if (row.student_id !== user.id) throw new ForbiddenException('본인 후보만 삭제할 수 있습니다.');
+    await this.prisma.student_goal_candidate.delete({ where: { id } });
+    return { id, deleted: true };
+  }
+
+  /**
+   * 회차 변동 폭 — 시험은 1회성이라 컨디션·운으로 점수가 흔들린다. 단일 최신 회차만 보고 밴드를 읽지 않도록
+   * 누백 이력의 분포를 함께 돌려준다(저장된 값의 기술통계일 뿐 — 환산·예측은 배치표 엔진 몫, O65).
+   * 장기적으로 여기에 가중평균·신뢰구간을 넣어 밴드 판정 자체를 분포 기반으로 확장한다.
+   */
+  private async nbSpread(studentId: string) {
+    const reports = await this.prisma.score_report.findMany({
+      where: { student_id: studentId }, orderBy: { period: 'asc' }, select: { period: true, placement: true },
+    });
+    const points = reports
+      .map((r) => ({ period: r.period, nb: (r.placement as Record<string, unknown> | null)?.nb }))
+      .filter((p): p is { period: string; nb: number } => typeof p.nb === 'number');
+    if (points.length < 2) return null;
+    const vals = points.map((p) => p.nb);
+    const best = Math.min(...vals); // 누백은 낮을수록 상위
+    const worst = Math.max(...vals);
+    return { count: points.length, points, best, worst, spread: Math.round((worst - best) * 100) / 100 };
+  }
+
+  /**
+   * 목표 후보 비교 — 같은 내 성적으로 후보별 밴드·격차를 나란히 산출.
+   * gap-report 정본(buildGapReport)을 후보 수만큼 순수 호출한다(O102 — 엔진 무변경).
+   * evidence·disclaimer 는 후보마다 동일하므로 한 번만 실어 중복·오해를 줄인다.
+   */
+  async goalCandidateReport(user: AuthUser, mode: GapMode, myGrade?: number) {
+    const candidates = await this.listGoalCandidates(user, mode);
+    let myValue: number;
+    let gye: '이과' | '문과' | null = null;
+    if (mode === 'susi') {
+      if (myGrade == null) throw new BadRequestException({ code: 'NO_GRADE', message: '내신 평균등급이 필요합니다(1~9).' });
+      myValue = myGrade;
+      try { gye = (await this.janusScore(user)).gye; } catch { /* 성적 없어도 진행 */ }
+    } else {
+      const js = await this.janusScore(user); // 성적 없으면 NO_SCORE
+      if (js.nb == null) throw new BadRequestException({ code: 'NO_NB', message: '전국누백이 필요합니다 — 배치표에서 점수를 적용하면 자동 계산됩니다.' });
+      myValue = js.nb;
+      gye = js.gye;
+    }
+    let anyAdmitHint = false;
+    const reports = candidates.map((c) => {
+      const r = buildGapReport({ mode, gye, myValue, target: { univ: c.univ, dept: c.dept, cut: c.cut, track: c.track ?? undefined } });
+      // admitProbHint(정시 컷근접 37%)는 **후보별로 싣지 않는다** — 컷이 촘촘하면 인접 후보 전부에 같은 37% 가 붙어
+      // "세 대학 합격률이 같다"로 오독된다. 집단 백테스트 상수이므로 목록 수준에서 1회만 안내한다.
+      const { admitProbHint, ...gap } = r.gap;
+      if (admitProbHint != null) anyAdmitHint = true;
+      return { id: c.id, univ: c.univ, dept: c.dept, track: c.track, cut: c.cut, cutSource: c.cut_source, note: c.note, ...gap };
+    });
+    // 격차 작은 순(안정 → 상향)으로 정렬해 포트폴리오 균형이 한눈에 보이도록.
+    reports.sort((a, b) => a.delta - b.delta);
+    const sample = candidates.length
+      ? buildGapReport({ mode, gye, myValue, target: { univ: candidates[0].univ, dept: candidates[0].dept, cut: candidates[0].cut } })
+      : null;
+    return {
+      mode,
+      myValue,
+      gye,
+      unit: sample?.unit ?? (mode === 'susi' ? { label: '내신 등급', suffix: '등급' } : { label: '전국누백', suffix: '%' }),
+      // 정시만 이력 분포 제공(수시 등급은 사용자 입력이라 이력이 없다).
+      spread: mode === 'jeongsi' ? await this.nbSpread(user.id) : null,
+      candidates: reports,
+      // 컷 근접 후보가 하나라도 있을 때만, 목록 전체에 1회 표기(후보별 확률로 오독되지 않도록 문구를 고정).
+      admitHintNote: anyAdmitHint
+        ? '컷 근접 구간 참고 — 작년 70%컷 지원자 집단의 실제 합격률은 약 37%였습니다(집단 백테스트 상수이며 개별 학과 합격률이 아닙니다).'
+        : null,
+      evidence: sample?.evidence ?? [],
+      disclaimer: sample?.disclaimer ?? '',
+    };
+  }
+
   /** 데모 배치 추정 — 평균 → 등급/라인/샘플 대학·학과. 실 배치표 서비스가 덮어쓸 자리. */
   private static estimateLine(avg: number): { tier: string; line: string; universities: string[]; departments: string[] } {
     if (avg >= 95) return { tier: '최상위', line: '서울 최상위·의약학 라인', universities: ['서울대', '연세대', '고려대'], departments: ['의예', '컴퓨터공학', '경영'] };
