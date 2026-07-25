@@ -10,6 +10,22 @@ import { PageHeader, Card, Spinner, ErrorText, Button, TextField, SelectField } 
 
 type Goal = { tier: string | null; avg: number | null; university: string | null; department: string | null };
 
+type Mode = 'jeongsi' | 'susi';
+type Candidate = { id: string; mode: Mode; univ: string; dept: string; track: string | null; cut: number; note: string | null };
+type CandRow = { id: string; univ: string; dept: string; track: string | null; cut: number; band: string; delta: number; shortfall: number; message: string };
+type CandReport = {
+  mode: Mode; myValue: number; unit: { label: string; suffix: string };
+  spread: { count: number; best: number; worst: number; spread: number } | null;
+  candidates: CandRow[];
+  admitHintNote: string | null;
+  evidence: { claim: string; source: string; relTier: string }[];
+  disclaimer: string;
+};
+
+// 신호등 4구간 — 트렁크 gap-report 어휘(안정/적정/소신/상향) 그대로.
+const BAND_COLOR: Record<string, string> = { 안정: '#2a8a5f', 적정: '#57a86a', 소신: '#cf9f2f', 상향: '#d06b52' };
+const REL_LABEL: Record<string, string> = { measured: '실측', multiyear: '다년', estimated: '추정' };
+
 const TIER_OPTIONS = [
   { value: '', label: '선택 안 함' },
   { value: '최상위', label: '최상위 (서울대·의약학 라인)' },
@@ -34,6 +50,69 @@ export function StudentGoalPage() {
   }, []);
 
   const set = (patch: Partial<Goal>) => { setGoal((g) => ({ ...(g as Goal), ...patch })); setSaved(false); };
+
+  // ── 목표 후보 비교 ──
+  const [mode, setMode] = useState<Mode>('jeongsi');
+  const [myGrade, setMyGrade] = useState(''); // 수시: 내신 평균등급
+  const [cands, setCands] = useState<Candidate[] | null>(null);
+  const [report, setReport] = useState<CandReport | null>(null);
+  const [candErr, setCandErr] = useState('');
+  const [form, setForm] = useState({ univ: '', dept: '', cut: '', track: '' });
+  const [busy, setBusy] = useState(false);
+
+  const loadCands = () =>
+    api.get<Candidate[]>(`/me/goal/candidates?mode=${mode}`)
+      .then((r) => setCands(Array.isArray(r) ? r : []))
+      .catch(() => setCands([]));
+
+  // 후보 목록이 바뀌면 비교 리포트를 다시 계산(성적·목표컷은 서버가 판단).
+  const loadReport = () => {
+    const q = mode === 'susi' ? `?mode=susi&myGrade=${encodeURIComponent(myGrade)}` : '?mode=jeongsi';
+    return api.get<CandReport>(`/me/goal/candidates/report${q}`)
+      .then((r) => { setReport(r); setCandErr(''); })
+      .catch((e) => { setReport(null); setCandErr(e instanceof ApiError ? e.message : '비교 실패'); });
+  };
+
+  useEffect(() => { loadCands(); }, [mode]);
+  useEffect(() => {
+    if (!cands?.length) { setReport(null); return; }
+    if (mode === 'susi' && !myGrade.trim()) { setReport(null); return; } // 수시는 내신 등급 입력이 있어야 계산
+    loadReport();
+  }, [cands, mode, myGrade]);
+
+  async function addCand() {
+    const cut = Number(form.cut);
+    if (!form.univ.trim() || !form.dept.trim() || !Number.isFinite(cut) || cut <= 0) {
+      setCandErr('대학·학과·목표 컷을 입력하세요.');
+      return;
+    }
+    setBusy(true); setCandErr('');
+    try {
+      // cutSource=manual — 배치표 조회값이 아니라 학생이 직접 넣은 컷임을 감사 기록(O65 경계).
+      await api.post('/me/goal/candidates', { mode, univ: form.univ.trim(), dept: form.dept.trim(), cut, track: form.track.trim() || null, cutSource: 'manual' });
+      setForm({ univ: '', dept: '', cut: '', track: '' });
+      await loadCands();
+    } catch (e) {
+      setCandErr(e instanceof ApiError ? e.message : '후보 추가 실패');
+    } finally { setBusy(false); }
+  }
+
+  async function delCand(id: string) {
+    await api.del(`/me/goal/candidates/${id}`).catch(() => {});
+    await loadCands();
+  }
+
+  /** 후보를 기준 목표로 승격 — 기존 PUT /me/goal 계약 재사용(대학·학과만 교체, 평균·라인은 유지). */
+  async function promote(c: CandRow) {
+    setBusy(true); setCandErr('');
+    try {
+      const g = await api.put<Goal>('/me/goal', { tier: goal?.tier ?? null, avg: goal?.avg ?? null, university: c.univ, department: c.dept });
+      setGoal({ tier: g.tier ?? null, avg: g.avg ?? null, university: g.university ?? null, department: g.department ?? null });
+      setSaved(true);
+    } catch (e) {
+      setCandErr(e instanceof ApiError ? e.message : '목표 설정 실패');
+    } finally { setBusy(false); }
+  }
 
   const save = async () => {
     if (!goal) return;
@@ -85,6 +164,97 @@ export function StudentGoalPage() {
           </Card>
         </div>
       )}
+
+      {/* 목표 후보 비교 — 학생이 직접 담은 후보 최대 3개를 같은 성적으로 나란히 비교(자동 제안 아님). */}
+      <Card title="목표 후보 비교" style={{ marginTop: 16 }}>
+        <div style={{ fontSize: 13, color: 'var(--ink-body)', marginBottom: 10 }}>
+          목표를 바꿀지 고민될 때, 후보를 최대 3개까지 담아 지금 성적으로 각각 얼마나 남았는지 나란히 보세요.
+          후보는 <b>직접 담은 것만</b> 표시돼요(시스템이 대학을 추천하지 않아요). 목표 컷은 <Link to="/student/placement/hub">배치표 허브</Link>에서 확인해 입력하세요.
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
+          {(['jeongsi', 'susi'] as Mode[]).map((m) => (
+            <button key={m} className={mode === m ? 'btn' : 'btn ghost'} onClick={() => { setMode(m); setReport(null); }}>
+              {m === 'jeongsi' ? '정시(전국누백)' : '수시(내신등급)'}
+            </button>
+          ))}
+          {mode === 'susi' && (
+            <input className="input" type="number" step="0.01" min={1} max={9} placeholder="내 내신 평균등급 (예: 2.3)"
+              value={myGrade} onChange={(e) => setMyGrade(e.target.value)} style={{ maxWidth: 210 }} aria-label="내신 평균등급" />
+          )}
+        </div>
+
+        <ErrorText>{candErr}</ErrorText>
+
+        {/* 후보 담기 — 대학·학과·목표 컷(모드 단위) */}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+          <input className="input" placeholder="대학" value={form.univ} onChange={(e) => setForm({ ...form, univ: e.target.value })} maxLength={60} style={{ maxWidth: 160 }} aria-label="후보 대학" />
+          <input className="input" placeholder="학과" value={form.dept} onChange={(e) => setForm({ ...form, dept: e.target.value })} maxLength={60} style={{ maxWidth: 160 }} aria-label="후보 학과" />
+          <input className="input" type="number" step="0.01" placeholder={mode === 'susi' ? '목표 내신등급' : '목표 전국누백'} value={form.cut} onChange={(e) => setForm({ ...form, cut: e.target.value })} style={{ maxWidth: 170 }} aria-label="목표 컷" />
+          {mode === 'jeongsi' && (
+            <input className="input" placeholder="군(가/나/다)" value={form.track} onChange={(e) => setForm({ ...form, track: e.target.value })} maxLength={20} style={{ maxWidth: 120 }} aria-label="모집군" />
+          )}
+          <Button onClick={addCand} disabled={busy}>후보 담기</Button>
+        </div>
+
+        {cands === null ? <Spinner /> : cands.length === 0 ? (
+          <div style={{ fontSize: 13, color: 'var(--muted)' }}>담은 후보가 없어요. 위에서 후보를 추가하면 밴드가 계산돼요.</div>
+        ) : !report ? (
+          <div style={{ fontSize: 13, color: 'var(--muted)' }}>
+            {mode === 'susi' && !myGrade.trim() ? '내신 평균등급을 입력하면 후보별 격차가 계산돼요.' : '계산 중…'}
+          </div>
+        ) : (
+          <>
+            <div style={{ fontSize: 13, color: 'var(--ink-body)', marginBottom: 8 }}>
+              내 {report.unit.label} <b>{report.myValue}{report.unit.suffix}</b> 기준 · 안전한 순서로 정렬
+              {report.spread && (
+                <span style={{ color: 'var(--muted)' }}>
+                  {' · '}최근 {report.spread.count}회 {report.spread.best}~{report.spread.worst}{report.unit.suffix}(변동 폭 {report.spread.spread})
+                </span>
+              )}
+            </div>
+            {report.spread && report.spread.spread > 0 && (
+              <div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 10 }}>
+                시험은 회차마다 흔들려요(컨디션·난이도). 한 회차 결과만으로 후보를 단정하지 말고 변동 폭을 함께 보세요.
+              </div>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {report.candidates.map((c) => (
+                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--line)', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: BAND_COLOR[c.band] ?? 'var(--ink)', background: 'var(--surface-2, #f0f3f7)', borderRadius: 999, padding: '3px 9px', whiteSpace: 'nowrap' }}>{c.band}</span>
+                  <div style={{ flex: 1, minWidth: 180 }}>
+                    <div style={{ fontSize: 14, color: 'var(--ink)' }}>
+                      <b>{c.univ} {c.dept}</b>{c.track ? <span style={{ color: 'var(--muted)' }}> · {c.track}군</span> : null}
+                    </div>
+                    <div style={{ fontSize: 12.5, color: 'var(--muted)' }}>
+                      목표 컷 {c.cut}{report.unit.suffix} · {c.shortfall > 0 ? `${c.shortfall} 부족` : '도달'}
+                    </div>
+                  </div>
+                  <button className="btn ghost sm" onClick={() => promote(c)} disabled={busy}>이 후보로 목표 설정</button>
+                  <button onClick={() => delCand(c.id)} aria-label="후보 삭제" style={{ border: 'none', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 16 }}>✕</button>
+                </div>
+              ))}
+            </div>
+
+            {/* 합격률 힌트는 후보별이 아니라 목록 전체에 1회만(인접 후보 동일 수치 오독 방지). */}
+            {report.admitHintNote && (
+              <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--muted)' }}>{report.admitHintNote}</div>
+            )}
+
+            {report.evidence.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink-body)', marginBottom: 4 }}>근거</div>
+                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.7 }}>
+                  {report.evidence.map((e, i) => (
+                    <li key={i}>{e.claim} <span style={{ fontWeight: 700 }}>[{REL_LABEL[e.relTier] ?? e.relTier}]</span> <span style={{ opacity: 0.8 }}>— {e.source}</span></li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--muted)' }}>{report.disclaimer} 컷에 도달해도 합격이 보장되지 않아요.</div>
+          </>
+        )}
+      </Card>
     </div>
   );
 }
