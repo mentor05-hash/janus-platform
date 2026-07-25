@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import * as XLSX from 'xlsx';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -20,6 +20,8 @@ const META_KEYS = ['아이디', '학생아이디', '로그인아이디', '이름
 /** 성적 업로드 — 엑셀 일괄·수동·OCR + 미업로드 학생 조회(관리자/HR). */
 @Injectable()
 export class ScoresService {
+  private readonly logger = new Logger(ScoresService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly files: FilesService,
@@ -523,14 +525,61 @@ export class ScoresService {
       // 수시는 내신 등급 입력으로 진행 — 계열(gye)만 성적에서 가져오되 없으면 null.
       let gye: '이과' | '문과' | null = null;
       try { gye = (await this.janusScore(actor, opts.studentId)).gye; } catch { /* 성적 없어도 진행 */ }
-      return buildGapReport({ mode: 'susi', gye, myValue: opts.myGrade, target });
+      const susi = buildGapReport({ mode: 'susi', gye, myValue: opts.myGrade, target });
+      await this.archiveReport(opts.studentId ?? actor.id, susi);
+      return susi;
     }
     // 정시: janus_score.nb 필요
     const js = await this.janusScore(actor, opts.studentId); // 성적 없으면 NO_SCORE throw
     if (js.nb == null) {
       throw new BadRequestException({ code: 'NO_NB', message: '전국누백이 필요합니다 — 배치표에서 점수를 적용하면 자동 계산됩니다.' });
     }
-    return buildGapReport({ mode: 'jeongsi', gye: js.gye, myValue: js.nb, target });
+    const jeongsi = buildGapReport({ mode: 'jeongsi', gye: js.gye, myValue: js.nb, target });
+    await this.archiveReport(opts.studentId ?? actor.id, jeongsi);
+    return jeongsi;
+  }
+
+  // ── janus_report 이력(append-only) ──
+  // '무엇을 언제 산출해 보여줬나'의 재현용. 리포트는 조회 시마다 다시 계산되므로 **동일 산출은 적재하지 않는다**
+  // (같은 목표·같은 내 위치 → 행 폭증 방지). 조회 접근 감사는 audit_log 가 담당하므로 여기엔 actor 를 남기지 않는다.
+
+  /** 산출물 동일성 서명 — 모드·목표(대학·학과·컷)·내 위치·밴드가 같으면 같은 산출로 본다. */
+  private static reportSig(r: JanusReport): string {
+    return [r.kind, r.mode, r.target.univ, r.target.dept, r.target.cut, r.generatedFor.value, r.gap.band, r.gap.delta].join('|');
+  }
+
+  /** 이력 적재(변경분만). 실패가 리포트 응답을 막지 않도록 격리한다. */
+  private async archiveReport(studentId: string, report: JanusReport): Promise<void> {
+    try {
+      const latest = await this.prisma.janus_report.findFirst({
+        where: { student_id: studentId, kind: report.kind },
+        orderBy: { created_at: 'desc' },
+        select: { payload: true },
+      });
+      const prev = latest?.payload as unknown as JanusReport | null;
+      if (prev && ScoresService.reportSig(prev) === ScoresService.reportSig(report)) return; // 동일 산출 → skip
+      // 근거 성적(있으면) 연결 — 정시는 최신 회차의 누백을 썼다.
+      const src = await this.prisma.score_report.findFirst({
+        where: { student_id: studentId }, orderBy: { period: 'desc' }, select: { id: true },
+      });
+      await this.prisma.janus_report.create({
+        data: { student_id: studentId, kind: report.kind, status: 'final', payload: report as unknown as object, score_report_id: src?.id ?? null },
+      });
+    } catch (e) {
+      // 학생 프로필 미존재(FK)·DB 오류 등은 무해하게 넘긴다 — 이력은 부가 기능이고 리포트가 본선이다.
+      this.logger.warn(`janus_report 적재 실패(student=${studentId}): ${(e as Error).message}`);
+    }
+  }
+
+  /** 내 산출물 이력(최신순). 학생 본인만 — 학부모·선생님 열람은 별도 게이트 설계 후. */
+  async listMyReports(user: AuthUser, kind = 'gap', limit = 20) {
+    const rows = await this.prisma.janus_report.findMany({
+      where: { student_id: user.id, kind },
+      orderBy: { created_at: 'desc' },
+      take: Math.min(Math.max(limit, 1), 50),
+      select: { id: true, kind: true, status: true, created_at: true, payload: true },
+    });
+    return rows;
   }
 
   /** 학부모 자녀 성적·배치 추이(연결·정책 게이트). */

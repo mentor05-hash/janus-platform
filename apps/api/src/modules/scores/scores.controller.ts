@@ -250,7 +250,18 @@ export class ScoresMeController {
     });
   }
 
-  /** GET /me/goal/candidates — 목표 후보 목록(지원 포트폴리오). ?mode= 로 정시/수시 필터. */
+  /**
+   * GET /me/reports — 내 산출물 이력(janus_report, 최신순). 기본 kind=gap.
+   * '무엇을 언제 산출해 보여줬나'의 재현용 — 학생 본인만(학부모·선생님 열람은 별도 게이트 설계 후).
+   */
+  @Get('me/reports')
+  @Roles('student')
+  myReports(@CurrentUser() user: AuthUser, @Query('kind') kind?: string, @Query('limit') limit?: string) {
+    const n = limit != null && limit !== '' ? Number(limit) : 20;
+    return this.scores.listMyReports(user, kind === 'diagnosis' || kind === 'weekly' ? kind : 'gap', Number.isFinite(n) ? n : 20);
+  }
+
+  /** GET /me/goal/candidates — 목표 후보 목록. ?mode= 로 정시/수시 필터. */
   @Get('me/goal/candidates')
   @Roles('student')
   goalCandidates(@CurrentUser() user: AuthUser, @Query('mode') mode?: 'jeongsi' | 'susi') {

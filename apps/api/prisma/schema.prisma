@@ -129,6 +129,7 @@ model score_report {
   updated_at     DateTime        @default(now()) @db.Timestamptz(6)
   student        student_profile @relation(fields: [student_id], references: [account_id], onDelete: Cascade, onUpdate: NoAction)
   items          score_item[]
+  janus_report   janus_report[]
 
   @@unique([student_id, period])
   @@index([period])
@@ -998,6 +999,7 @@ model student_profile {
   qna_post               qna_post[]
   review                 review[]
   score_report           score_report[]
+  janus_report           janus_report[]
   account                account                 @relation(fields: [account_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   center                 center?                 @relation(fields: [center_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   teacher_profile        teacher_profile?        @relation(fields: [homeroom_teacher_id], references: [account_id], onDelete: NoAction, onUpdate: NoAction)
@@ -1801,6 +1803,24 @@ model academic_event {
 
   @@index([start_date])
   @@index([center_id, start_date])
+}
+
+/// janus_report — 산출물(격차·진단·주간) append-only 이력. janus_score(입력)와 대칭인 출력 규약.
+/// payload = **트렁크 JanusReport 봉투**(scores/domain/gap-report.ts 정본: 누백/등급·target·band·evidence relTier).
+/// '무엇을 언제 산출해 보여줬나'의 재현용 — 조회 접근 감사는 별도 audit_log 담당. 수정·삭제하지 않는다.
+model janus_report {
+  id              String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  student_id      String          @db.Uuid
+  score_report_id String?         @db.Uuid
+  kind            String          @default("gap")
+  status          String          @default("final")
+  payload         Json
+  created_at      DateTime        @default(now()) @db.Timestamptz(6)
+  student         student_profile @relation(fields: [student_id], references: [account_id], onDelete: Cascade, onUpdate: NoAction)
+  score_report    score_report?   @relation(fields: [score_report_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([student_id, created_at])
+  @@index([student_id, kind, created_at])
 }
 
 /// 목표 후보 — 기준 목표(student_profile.goal_*) 외 비교용 후보 N개. 학생이 직접 등록·본인만 조회.
