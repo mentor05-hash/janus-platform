@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { api, Child, hasSession, loadTokens, Me, Teacher } from './src/api';
@@ -19,6 +19,7 @@ import { MyScreen } from './src/screens/MyScreen';
 import { ClassroomScreen } from './src/screens/ClassroomScreen';
 import { AcademyFinderScreen } from './src/screens/AcademyFinderScreen';
 import { GuardianHome, GuardianConsult, GuardianPay, GuardianCharge, GuardianMembership } from './src/screens/GuardianScreens';
+import { GuardianLinkScreen } from './src/screens/GuardianLinkScreen';
 import { TeacherInbox, TeacherToday, TeacherSessions, TeacherRecords, TeacherMy } from './src/screens/TeacherScreens';
 import { ThemeProvider, useTheme, type Palette, SP } from './src/theme';
 import { APP_NAME } from './src/branding.generated';
@@ -82,14 +83,15 @@ function AppInner() {
     if (me?.role === 'student') setTab('h');
   }, [me?.id, me?.role]);
 
-  useEffect(() => {
-    if (me?.role === 'guardian') {
-      api.get<Child[]>('/guardian/children').then((cs) => {
-        setChildren(cs);
-        setActiveChild((prev) => prev ?? cs[0]?.studentId ?? null);
-      }).catch(() => {});
-    }
-  }, [me]);
+  // 연결 신청 후에도 다시 부른다(승인 전이면 여전히 0명이 정상 — 그때는 신청 화면이 계속 열려 있다).
+  const loadChildren = useCallback(() => {
+    if (me?.role !== 'guardian') return;
+    api.get<Child[]>('/guardian/children').then((cs) => {
+      setChildren(cs);
+      setActiveChild((prev) => prev ?? cs[0]?.studentId ?? null);
+    }).catch(() => {});
+  }, [me?.role]);
+  useEffect(() => { loadChildren(); }, [me, loadChildren]);
 
   // 푸시 토큰 등록 — 네이티브는 expo-notifications 실 토큰, 웹은 데모 토큰.
   useEffect(() => {
@@ -234,10 +236,12 @@ function AppInner() {
           ))}
 
         {isGuardian && (
+          // 자녀가 0명이면 5탭 전부가 안내 한 줄이었고 **신청 화면이 없어** 학생에게 승인할 것도 생기지 않았다(교착).
+          // 유일한 탈출구이므로 안내 대신 신청 화면 자체를 띄운다.
           children.length === 0 ? (
-            <View style={{ padding: SP.xl }}><Text style={styles.notice}>연결된 자녀가 없어요. 학생 계정에서 보호자 연결을 승인하면 표시됩니다.</Text></View>
+            <GuardianLinkScreen onLinked={loadChildren} />
           ) : tab === 'a' ? (
-            <GuardianHome children={children} activeId={activeChild} setActiveId={setActiveChild} goTab={goTab} />
+            <GuardianHome children={children} activeId={activeChild} setActiveId={setActiveChild} goTab={goTab} onLinked={loadChildren} />
           ) : tab === 'b' ? (
             <GuardianConsult children={children} activeId={activeChild} setActiveId={setActiveChild} />
           ) : tab === 'c' ? (

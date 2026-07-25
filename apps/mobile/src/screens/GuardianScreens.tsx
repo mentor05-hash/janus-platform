@@ -5,13 +5,14 @@ import { R, SP, useTheme, useUI, type Palette } from '../theme';
 import { ScoreTrendView, type Trend } from './ScoreTrendView';
 import { AcademicUpcoming } from './AcademicUpcoming';
 import { GuardianPlanScreen } from './GuardianPlanScreen';
+import { GuardianLinkScreen } from './GuardianLinkScreen';
 
 const won = (n: number) => `${n.toLocaleString()}원`;
 const fmt = (n: number) => n.toLocaleString();
 const KST = (iso?: string | null) => (iso ? new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '');
 const DKST = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit' }) : '');
 
-type Props = { children: Child[]; activeId: string | null; setActiveId: (id: string) => void; goTab?: (t: string) => void };
+type Props = { children: Child[]; activeId: string | null; setActiveId: (id: string) => void; goTab?: (t: string) => void; onLinked?: () => void };
 
 /** 학부모 주간 통합 리포트(GET /guardian/report) — 성적·출석·상담·Q&A 요약. */
 type WeeklyReport = {
@@ -256,7 +257,7 @@ type GapHist = {
 };
 const HIST_BAND: Record<string, string> = { 안정: '#2a8a5f', 적정: '#57a86a', 소신: '#cf9f2f', 상향: '#d06b52' };
 
-export function GuardianHome({ children, activeId, setActiveId, goTab }: Props) {
+export function GuardianHome({ children, activeId, setActiveId, goTab, onLinked }: Props) {
   const { C } = useTheme();
   const ui = useUI();
   const s = useMemo(() => makeStyles(C), [C]);
@@ -274,6 +275,8 @@ export function GuardianHome({ children, activeId, setActiveId, goTab }: Props) 
   const [report, setReport] = useState<WeeklyReport | null>(null);
   // 자녀 계획(O106) 하위 화면 + 자녀 산출물 이력(O104·O105 게이트).
   const [planOpen, setPlanOpen] = useState(false);
+  // 자녀 연결 하위 화면 — 자녀가 1명 이상이어도 둘째를 잇거나 신청 상태를 확인할 경로가 필요하다.
+  const [linkOpen, setLinkOpen] = useState(false);
   const [gapHist, setGapHist] = useState<GapHist[] | null>(null);
   const [gapGate, setGapGate] = useState('');
   useEffect(() => {
@@ -322,6 +325,9 @@ export function GuardianHome({ children, activeId, setActiveId, goTab }: Props) 
   if (planOpen && child0) {
     return <GuardianPlanScreen studentId={child0} studentName={activeName ?? '자녀'} onBack={() => setPlanOpen(false)} />;
   }
+  if (linkOpen) {
+    return <GuardianLinkScreen onBack={() => setLinkOpen(false)} onLinked={onLinked} />;
+  }
 
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
@@ -346,6 +352,16 @@ export function GuardianHome({ children, activeId, setActiveId, goTab }: Props) 
           <Text style={{ color: C.teal, fontWeight: '700' }}>›</Text>
         </TouchableOpacity>
       )}
+
+      {/* 자녀 연결 — 둘째 자녀 신청·대기 중 신청 상태 확인. 자녀 0명일 때는 App 이 이 화면을 통째로 띄운다. */}
+      <TouchableOpacity onPress={() => setLinkOpen(true)} style={[ui.card, { marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 10 }]}>
+        <Text style={{ fontSize: 18 }}>👪</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={[s.sec, { marginBottom: 2 }]}>자녀 연결</Text>
+          <Text style={ui.sub}>자녀 아이디로 연결을 신청하고 승인 상태를 확인해요</Text>
+        </View>
+        <Text style={{ color: C.teal, fontWeight: '700' }}>›</Text>
+      </TouchableOpacity>
 
       {/* 자녀 격차 리포트 이력(O104·O105) — 게이트 미충족이면 사유·해결법을 안내 */}
       {child0 && (

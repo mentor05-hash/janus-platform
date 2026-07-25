@@ -19,6 +19,18 @@ type ShareConsents = {
   guardians: Array<{ guardianId: string; guardianName: string | null; relation: string | null; granted: boolean; grantedAt: string | null }>;
 };
 
+/**
+ * 보호자 연결 — **공유 동의의 선결조건**이라 그 카드보다 위에 둔다(순서가 곧 절차).
+ * 승인 UI 가 없으면 공유 동의 카드는 아예 렌더되지 않는다(guardians 목록이 승인된 연결에서 나온다).
+ * 모바일에는 이 화면이 없어서, 신청 알림(`guardian_link_requested`)은 오는데 **누를 곳이 없었다**.
+ */
+type GuardianLink = { id: string; status: string; relation: string | null; counterpartName: string; canRespond: boolean };
+
+/** 학생 관점 라벨 — 보호자 화면(GuardianLinkScreen)과 문자열이 다른 것은 의도다(같은 행을 각자 관점으로 본다). */
+const LINK_STATUS: Record<string, string> = {
+  pending: '승인 대기 중', approved: '연결됨', rejected: '거절함', revoked: '연결 해제됨',
+};
+
 export function LegalScreen({ onBack, onWithdrawn }: { onBack: () => void; onWithdrawn: () => void }) {
   const { C } = useTheme();
   const ui = useUI();
@@ -35,6 +47,12 @@ export function LegalScreen({ onBack, onWithdrawn }: { onBack: () => void; onWit
   const [share, setShare] = useState<ShareConsents | null>(null);
   const [shareBusy, setShareBusy] = useState(false);
   const loadShare = () => api.get<ShareConsents>('/me/share-consents').then(setShare).catch(() => setShare(null));
+  // 보호자 연결 — 조회 실패는 조용히 빈 배열(연결이 없는 것이 정상 상태다).
+  const [links, setLinks] = useState<GuardianLink[] | null>(null);
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [linkErr, setLinkErr] = useState('');
+  const loadLinks = () =>
+    api.get<GuardianLink[]>('/me/guardian-links').then((r) => setLinks(Array.isArray(r) ? r : [])).catch(() => setLinks([]));
   const [termsAgreed, setTermsAgreed] = useState(false);
   const [privacyAgreed, setPrivacyAgreed] = useState(false);
   const [marketingAgreed, setMarketingAgreed] = useState(false);
@@ -107,7 +125,25 @@ export function LegalScreen({ onBack, onWithdrawn }: { onBack: () => void; onWit
     </View>
   );
 
-  useEffect(() => { loadShare(); }, []);
+  useEffect(() => { loadShare(); loadLinks(); }, []);
+
+  async function respondLink(id: string, action: 'approve' | 'reject' | 'revoke') {
+    setLinkBusy(true); setLinkErr('');
+    try {
+      await api.patch(`/guardian/links/${id}/respond`, { action });
+      await loadLinks();
+      await loadShare(); // 승인하면 공유 동의 대상(보호자)이 생긴다 — 같은 화면에서 이어서 설정하게 한다
+    } catch (e) {
+      setLinkErr(e instanceof ApiError ? e.message : '응답 실패');
+    } finally { setLinkBusy(false); }
+  }
+
+  /**
+   * 연결 해제는 성립한 관계를 끊으므로 한 번 되묻는다 — 다만 `Alert.alert` 는 쓸 수 없다.
+   * react-native-web 의 Alert 는 **빈 함수**(`static alert() {}`)라 웹 빌드(:8090)에서 아무 일도 일어나지 않는다.
+   * 같은 화면의 회원 탈퇴가 쓰는 인라인 2단계 확인을 따른다 — 웹·네이티브 양쪽에서 동작한다.
+   */
+  const [revokeId, setRevokeId] = useState<string | null>(null);
 
   async function toggleShare(guardianId: string, next: boolean) {
     setShareBusy(true);
@@ -123,6 +159,56 @@ export function LegalScreen({ onBack, onWithdrawn }: { onBack: () => void; onWit
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
       <TouchableOpacity onPress={onBack}><Text style={styles.back}>‹ 뒤로</Text></TouchableOpacity>
       <Text style={ui.h}>약관·개인정보</Text>
+
+      {/* 보호자 연결 — 공유 동의의 **선결조건**이라 위에 둔다(연결 승인 → 그 다음 공유 동의). */}
+      {links && links.length > 0 && (
+        <View style={[ui.card, { marginTop: SP.md }]}>
+          <Text style={styles.sec}>보호자 연결</Text>
+          <Text style={ui.sub}>
+            보호자가 연결을 신청하면 여기에서 승인하거나 거절할 수 있어요. 승인해야 보호자 화면이 열리고,
+            무엇을 보여줄지는 아래 공유 동의에서 따로 정합니다(연결 = 열람 허용이 아니에요).
+          </Text>
+          {linkErr ? <Text style={ui.error}>{linkErr}</Text> : null}
+          {links.map((l) => (
+            <View key={l.id} style={styles.linkRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.linkName}>
+                  {l.counterpartName}
+                  {l.relation ? <Text style={styles.linkRel}> · {l.relation}</Text> : null}
+                </Text>
+                <Text style={styles.linkStatus}>
+                  {revokeId === l.id ? '해제하면 보호자 화면이 닫혀요. 정말 해제할까요?' : (LINK_STATUS[l.status] ?? l.status)}
+                </Text>
+              </View>
+              {l.canRespond ? (
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  <TouchableOpacity disabled={linkBusy} onPress={() => respondLink(l.id, 'approve')} style={[styles.linkBtn, styles.linkBtnOn, linkBusy && { opacity: 0.6 }]}>
+                    <Text style={styles.linkBtnOnT}>승인</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity disabled={linkBusy} onPress={() => respondLink(l.id, 'reject')} style={[styles.linkBtn, linkBusy && { opacity: 0.6 }]}>
+                    <Text style={styles.linkBtnT}>거절</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : l.status === 'approved' ? (
+                revokeId === l.id ? (
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <TouchableOpacity disabled={linkBusy} onPress={() => setRevokeId(null)} style={[styles.linkBtn, linkBusy && { opacity: 0.6 }]}>
+                      <Text style={styles.linkBtnT}>취소</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity disabled={linkBusy} onPress={() => { setRevokeId(null); void respondLink(l.id, 'revoke'); }} style={[styles.linkBtn, styles.linkBtnDanger, linkBusy && { opacity: 0.6 }]}>
+                      <Text style={styles.linkBtnDangerT}>해제 확정</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity disabled={linkBusy} onPress={() => setRevokeId(l.id)} style={[styles.linkBtn, linkBusy && { opacity: 0.6 }]}>
+                    <Text style={styles.linkBtnT}>연결 해제</Text>
+                  </TouchableOpacity>
+                )
+              ) : null}
+            </View>
+          ))}
+        </View>
+      )}
 
       {/* 보호자 공유 동의(O105) — 동의한 보호자만 내 산출물 이력을 볼 수 있다. */}
       {share && share.guardians.length > 0 && (
@@ -263,6 +349,16 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   form: { marginTop: 12, borderTopWidth: 1, borderTopColor: C.lineSoft, paddingTop: 12 },
   formNote: { fontSize: 12, color: C.confirmed, fontWeight: '600', marginBottom: 8 },
   switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 },
+  linkRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: 10, marginTop: 10, borderTopWidth: 1, borderTopColor: C.lineSoft },
+  linkName: { fontSize: 14, fontWeight: '700', color: C.ink },
+  linkRel: { fontWeight: '400', color: C.muted },
+  linkStatus: { fontSize: 12.5, color: C.muted, marginTop: 2 },
+  linkBtn: { borderWidth: 1, borderColor: C.inputBorder, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: C.white },
+  linkBtnT: { fontSize: 13, color: C.body, fontWeight: '700' },
+  linkBtnOn: { backgroundColor: C.teal, borderColor: C.teal },
+  linkBtnOnT: { fontSize: 13, color: C.white, fontWeight: '700' },
+  linkBtnDanger: { backgroundColor: C.danger, borderColor: C.danger },
+  linkBtnDangerT: { fontSize: 13, color: '#FFFFFF', fontWeight: '700' },
   switchLabel: { fontSize: 13, color: C.body, fontWeight: '500', flex: 1, paddingRight: SP.md },
   warn: { fontSize: 12, color: C.danger, lineHeight: 18 },
   dangerBtn: { backgroundColor: C.danger, borderRadius: 11, paddingVertical: 14, alignItems: 'center' },
