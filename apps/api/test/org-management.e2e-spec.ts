@@ -5,6 +5,7 @@ import { AppModule } from '../src/app.module';
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
 import { TransformInterceptor } from '../src/common/interceptors/transform.interceptor';
 import { PrismaService } from '../src/common/prisma/prisma.service';
+import { ACCOUNTS, auth, login as doLogin } from './fixtures/demo-accounts';
 
 /**
  * 미구현 구현(SC-01): 조직·관리자 계정 생성 API + 권한 위계.
@@ -17,13 +18,7 @@ describe('조직·관리자 생성(§iam)', () => {
   let centerId = '';
   const CREATED = ['orgtest_hq', 'orgtest_ca'];
 
-  const login = async (id: string, password = 'dev-password!') =>
-    (
-      await request(app.getHttpServer())
-        .post('/api/v1/auth/login')
-        .send({ loginId: id, password })
-    ).body.data.accessToken;
-  const auth = (t: string) => ({ Authorization: `Bearer ${t}` });
+  const login = (id: string, password?: string) => doLogin(app, id, password);
 
   beforeAll(async () => {
     const mod = await Test.createTestingModule({
@@ -43,7 +38,7 @@ describe('조직·관리자 생성(§iam)', () => {
     await app.init();
     prisma = mod.get(PrismaService);
     tok.master = await login('master01');
-    tok.hq = await login('hq1');
+    tok.hq = await login(ACCOUNTS.hq); // 구 'hq1' 은 시드에 없는 값이었다
     tok.center = await login('admin01');
     await prisma.account.deleteMany({ where: { login_id: { in: CREATED } } });
   });
