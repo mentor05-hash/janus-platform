@@ -183,12 +183,20 @@ export function GoalScreen({ onBack }: { onBack: () => void }) {
             ) : (
               <View style={{ marginTop: 12 }}>
                 <Text style={ui.sub}>
-                  내 {report.unit.label} {report.myValue}{report.unit.suffix} 기준 · 안전한 순서
-                  {report.spread ? ` · 최근 ${report.spread.count}회 ${report.spread.best}~${report.spread.worst}(폭 ${report.spread.spread})` : ''}
+                  내 {report.unit.label} {report.myValue}{report.unit.suffix} 기준 · 최신 회차 격차가 작은 순
+                  {report.spread ? ` · 최근 ${report.spread.count}회 ${report.spread.best}~${report.spread.worst}${report.unit.suffix}(폭 ${report.spread.spread})` : ''}
                 </Text>
+                {/* 경고는 '흔들렸는가'가 아니라 '판정이 갈리는 후보가 있는가'로 분기한다(O108) —
+                    폭이 있어도 어느 후보도 안 갈리면 불필요한 불안만 남는다. */}
                 {report.spread && report.spread.spread > 0 && (
-                  <Text style={[ui.sub, { marginTop: 4 }]}>시험은 회차마다 흔들려요(컨디션·난이도). 한 회차 결과만으로 단정하지 마세요.</Text>
+                  <Text style={[ui.sub, { marginTop: 4 }]}>
+                    {report.flipCount > 0
+                      ? `시험은 회차마다 흔들려요(컨디션·난이도). ${report.flipCount}곳은 어느 회차로 보느냐에 따라 판정이 갈려요.`
+                      : '회차마다 흔들렸지만, 어느 회차로 봐도 후보들의 판정은 그대로예요.'}
+                    {report.smallSample ? ` 아직 ${report.spread.count}회뿐이라 추세로 보기엔 일러요.` : ''}
+                  </Text>
                 )}
+                {report.volatilityNote ? <Text style={[ui.sub, { marginTop: 4 }]}>{report.volatilityNote}</Text> : null}
                 {report.candidates.map((c) => (
                   <View key={c.id} style={s.candRow}>
                     <View style={[s.bandChip, { backgroundColor: C.fill }]}>
@@ -197,6 +205,24 @@ export function GoalScreen({ onBack }: { onBack: () => void }) {
                     <View style={{ flex: 1 }}>
                       <Text style={s.candName} numberOfLines={1}>{c.univ} {c.dept}</Text>
                       <Text style={s.candMeta}>목표 컷 {c.cut}{report.unit.suffix} · {c.shortfall > 0 ? `${c.shortfall} 부족` : '도달'}</Text>
+                      {/* 뒤집히는 후보만 세로 1줄 — 칩을 가로로 더 붙이면 375px 행(칩+이름+'목표로'+'✕')에서 학과명이 눌린다.
+                          숫자는 후보 불변값이라 목록 레벨 spread 에서 온다(후보 행에 3중복으로 싣지 않는 이유). */}
+                      {c.volatility && !c.volatility.consistent && report.spread ? (
+                        <Text
+                          style={s.candVol}
+                          numberOfLines={2}
+                          accessibilityLabel={`회차에 따라 ${report.spread.best}${report.unit.suffix}면 ${c.volatility.bestBand}, ${report.spread.worst}${report.unit.suffix}면 ${c.volatility.worstBand}`}
+                        >
+                          회차에 따라{' '}
+                          <Text style={{ color: BAND_COLOR[c.volatility.bestBand] ?? C.ink, fontWeight: '800' }}>
+                            {report.spread.best}{report.unit.suffix}면 {c.volatility.bestBand}
+                          </Text>
+                          {' · '}
+                          <Text style={{ color: BAND_COLOR[c.volatility.worstBand] ?? C.ink, fontWeight: '800' }}>
+                            {report.spread.worst}{report.unit.suffix}면 {c.volatility.worstBand}
+                          </Text>
+                        </Text>
+                      ) : null}
                     </View>
                     <TouchableOpacity onPress={() => promote(c.univ, c.dept)} disabled={busy}><Text style={s.candGo}>목표로</Text></TouchableOpacity>
                     <TouchableOpacity onPress={() => delCand(c.id)} accessibilityLabel="후보 삭제"><Text style={s.candDel}>✕</Text></TouchableOpacity>
@@ -234,6 +260,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   bandT: { fontSize: 11.5, fontWeight: '800' },
   candName: { fontSize: 13.5, color: C.ink, fontWeight: '600' },
   candMeta: { fontSize: 11.5, color: C.muted, marginTop: 2 },
+  candVol: { fontSize: 11, color: C.muted, marginTop: 2, lineHeight: 15 },
   candGo: { fontSize: 12, fontWeight: '700', color: C.teal },
   candDel: { fontSize: 15, color: C.muted, paddingHorizontal: 2 },
   evi: { fontSize: 11.5, color: C.muted, lineHeight: 17 },

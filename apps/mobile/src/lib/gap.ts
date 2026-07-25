@@ -44,13 +44,27 @@ export function bandOf(gap: number, target: number): Band {
 
 /** 목표 후보 — GET /me/goal/candidates */
 export type GoalCandidate = { id: string; mode: 'jeongsi' | 'susi'; univ: string; dept: string; track: string | null; cut: number; note: string | null };
+/**
+ * 후보별 회차 변동성(O108) — **컷에 종속된 3키만** 온다.
+ * count·best·worst·spread·message 는 후보 불변값이라 후보 3개에 같은 문장이 3번 실리지 않도록
+ * 서버가 목록 레벨(spread·smallSample)로 올려 보낸다. 밴드 칩은 계속 **점 판정**(band)이고,
+ * 뒤집힘은 보조 줄로 덧붙일 뿐 칩을 대체하지 않는다(gap.band = 정본 계약).
+ */
+export type CandVolatility = { bestBand: Band; worstBand: Band; consistent: boolean };
+
 /** 후보 비교 리포트 — GET /me/goal/candidates/report. band 는 트렁크 정본 어휘. */
 export type GoalCandidateReport = {
   mode: 'jeongsi' | 'susi';
   myValue: number;
   unit: { label: string; suffix: string };
   spread: { count: number; best: number; worst: number; spread: number } | null;
-  candidates: { id: string; univ: string; dept: string; track: string | null; cut: number; band: Band; delta: number; shortfall: number; message: string }[];
+  /** 표본 과소(3회 미만) — 정본 buildVolatility 기준. 클라에서 count<3 을 재구현하지 않는다(임계값 드리프트 방지). */
+  smallSample: boolean | null;
+  /** 판정이 갈리는 후보 수 — 0이면 '흔들렸지만 순서는 그대로'로 안내한다. */
+  flipCount: number;
+  /** 수시에 변동 표시가 없는 사유(서버 고정 문구 — 웹·모바일 카피가 갈라지지 않게). */
+  volatilityNote: string | null;
+  candidates: { id: string; univ: string; dept: string; track: string | null; cut: number; band: Band; delta: number; shortfall: number; message: string; volatility: CandVolatility | null }[];
   admitHintNote: string | null;
   evidence: { claim: string; source: string; relTier: string }[];
   disclaimer: string;
