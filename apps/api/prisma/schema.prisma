@@ -798,6 +798,7 @@ model qna_post {
   escalated_booking_id String?          @db.Uuid // 상담 승격 시 생성된 예약
   ai_draft             String? // Q3 AI 1차 초안("AI 생성" 라벨)
   ai_draft_at          DateTime?        @db.Timestamptz(6)
+  q_type               String           @default("general") // 요금 티어 — general(board_general_fee) | item(board_item_fee, 고난도 문항). escalate 견적 기준(0104)
   community            Boolean          @default(false) // Q3 커뮤니티(무료·전원답변) 질문
   hidden               Boolean          @default(false) // 신고 누적·모더레이션 숨김
   report_count         Int              @default(0)

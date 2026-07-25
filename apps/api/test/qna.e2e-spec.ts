@@ -69,7 +69,7 @@ describe('3.1 온라인 Q&A 통합', () => {
     await prisma.credit_account.create({
       data: { student_id: STU_Q, purchased_balance: 0, granted_balance: 0 },
     });
-    await credit.charge(STU_Q, 20_000);
+    await credit.charge(STU_Q, 100_000); // 티어 검증(일반 4,000 + 문항 8,000)까지 여유 있게
   });
 
   afterAll(async () => {
@@ -131,6 +131,37 @@ describe('3.1 온라인 Q&A 통합', () => {
       centerId: CENTER,
     };
     await expect(qna.listPosts(guardian)).rejects.toThrow();
+  });
+
+  it('요금 티어: 문항형은 board_item_fee, 일반형은 board_general_fee 로 과금된다', async () => {
+    // 이전엔 `qna_post` 에 유형을 저장하지 않고 escalate 가 항상 'general' 로 견적해
+    // **학생이 문항형(8,000)을 보고 등록해도 4,000 만 과금**됐다(board_item_fee 도달 불가, O116).
+    const policy = await prisma.pricing_policy.findFirstOrThrow({
+      where: { mode: 'board' as never, center_id: null, enabled: true },
+      select: { board_general_fee: true, board_item_fee: true },
+    });
+    const genFee = Number(policy.board_general_fee);
+    const itemFee = Number(policy.board_item_fee);
+    // 티어가 실제로 갈리는 설정이어야 이 테스트가 의미를 갖는다.
+    expect(itemFee).toBeGreaterThan(genFee);
+
+    for (const [qType, expected] of [['general', genFee], ['item', itemFee]] as const) {
+      const p: any = await qna.createQuestion(studentUser, { scope: 'open', body: `요금 티어 ${qType}`, qType });
+      expect(p.qType).toBe(qType); // 등록 시점에 확정·저장된다
+      expect(p.escalateCredits).toBe(expected); // 학생에게 보여줄 예상 과금액
+      expect(p.chargedCredits).toBe(0); // 등록은 여전히 무료
+
+      const before = await credit.getAccount(STU_Q);
+      const esc: any = await qna.escalateToHuman(studentUser, p.id);
+      expect(esc.freeUsed).toBe(false); // 무료 질문권이 끼면 과금 0 이 되어 검증이 공허해진다
+      expect(esc.chargedCredits).toBe(expected); // **표시 = 과금**
+      expect((await credit.getAccount(STU_Q)).total).toBe(before.total - expected);
+    }
+  });
+
+  it('유형을 안 보내면 general 로 저장된다(구 행·구 클라이언트 하위호환)', async () => {
+    const p: any = await qna.createQuestion(studentUser, { scope: 'open', body: '유형 미지정' });
+    expect(p.qType).toBe('general');
   });
 
   it('§5-9: unfit 분류 교사는 공개 질문 답변 불가', async () => {

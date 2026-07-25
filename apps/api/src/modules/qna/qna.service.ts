@@ -51,6 +51,7 @@ const ESCALATE_SLOT_MIN = 10; // 슬롯 단위(분)
 
 interface QnaRow {
   id: string; subject: string | null; difficulty: string | null; scope: string | null;
+  q_type?: string | null; // 요금 티어(general|item) — 0104
   body: string | null; status: string | null; created_at: Date; assigned_teacher_id?: string | null;
   attachments?: unknown; rating?: number | null; continue_pref?: boolean | null;
   ai_draft?: string | null; ai_draft_at?: Date | null;
@@ -266,6 +267,9 @@ export class QnaService {
         assigned_teacher_id:
           dto.scope === 'assigned' ? dto.assignedTeacherId! : null,
         body: dto.body,
+        // 요금 티어는 **등록 시점에 확정해 저장**한다 — escalate 는 나중이고, 그때 다시 물으면
+        // 학생이 등록 화면에서 본 금액과 달라질 수 있다(표시=과금 원칙).
+        q_type: dto.qType ?? 'general',
         status: 'ai_pending',
         free_used: false,
         attachments: (dto.attachments ?? []) as unknown as Prisma.InputJsonValue,
@@ -280,6 +284,9 @@ export class QnaService {
       scope: post.scope,
       status: post.status,
       chargedCredits: 0,
+      /** 확정된 요금 티어와 그 티어의 예상 과금액 — 등록은 무료이고 escalate 에서 이 금액이 청구된다. */
+      qType: post.q_type,
+      escalateCredits: (await this.pricing.quoteBoard(post.q_type === 'item' ? 'item' : 'general', sp.center_id)).credits,
       freeUsed: false,
       freeRemaining: freeQ.remaining,
       moderationWarning,
@@ -293,7 +300,9 @@ export class QnaService {
     if (post.status !== 'ai_pending') throw new BadRequestException('이미 선생님 답변이 진행 중이거나 종료된 질문입니다.');
     const sp = await this.prisma.student_profile.findUnique({ where: { account_id: student.id } });
     if (!sp) throw new NotFoundException('학생 프로필이 없습니다.');
-    const quote = await this.pricing.quoteBoard('general', sp.center_id);
+    // 등록 시 저장된 유형으로 견적한다. 이전엔 'general' 이 하드코딩돼 있어, 학생이 문항형(8,000)을
+    // 보고 등록해도 4,000 만 과금됐다 — 표시와 과금이 어긋나고 board_item_fee 티어가 도달 불가였다.
+    const quote = await this.pricing.quoteBoard(post.q_type === 'item' ? 'item' : 'general', sp.center_id);
     // 소진 순서(B1): 주간 무료 질문권 → 묶음 질문권 → 크레딧 과금.
     const freeQ = await this.freeQuotaStatus(student.id);
     const useFree = freeQ.remaining > 0;
@@ -432,6 +441,8 @@ export class QnaService {
         subject: p.subject ?? null,
         difficulty: p.difficulty ?? null,
         scope: p.scope ?? 'open',
+        /** 요금 티어 — 클라이언트가 [선생님 답변 받기] 확인 문구에 **이 질문의** 금액을 쓰게 한다. */
+        qType: p.q_type ?? 'general',
         assignedTeacherId: p.assigned_teacher_id ?? null,
         body: p.body ?? '',
         status: p.status ?? 'open',
