@@ -12,10 +12,18 @@ type Goal = { tier: string | null; avg: number | null; university: string | null
 
 type Mode = 'jeongsi' | 'susi';
 type Candidate = { id: string; mode: Mode; univ: string; dept: string; track: string | null; cut: number; note: string | null };
-type CandRow = { id: string; univ: string; dept: string; track: string | null; cut: number; band: string; delta: number; shortfall: number; message: string };
+/**
+ * 후보 행의 volatility 는 **컷에 종속된 3키만** 온다(O108) — 범위·표본 수는 후보 불변값이라 목록 헤더가 1회 담당한다.
+ * 밴드 칩은 계속 **점 판정(band)** 이다. 뒤집힘은 보조 줄로 덧붙이고 칩을 대체하지 않는다.
+ */
+type CandVolatility = { bestBand: string; worstBand: string; consistent: boolean };
+type CandRow = { id: string; univ: string; dept: string; track: string | null; cut: number; band: string; delta: number; shortfall: number; message: string; volatility: CandVolatility | null };
 type CandReport = {
   mode: Mode; myValue: number; unit: { label: string; suffix: string };
   spread: { count: number; best: number; worst: number; spread: number } | null;
+  smallSample: boolean | null;
+  flipCount: number;
+  volatilityNote: string | null;
   candidates: CandRow[];
   admitHintNote: string | null;
   evidence: { claim: string; source: string; relTier: string }[];
@@ -207,17 +215,25 @@ export function StudentGoalPage() {
         ) : (
           <>
             <div style={{ fontSize: 13, color: 'var(--ink-body)', marginBottom: 8 }}>
-              내 {report.unit.label} <b>{report.myValue}{report.unit.suffix}</b> 기준 · 안전한 순서로 정렬
+              내 {report.unit.label} <b>{report.myValue}{report.unit.suffix}</b> 기준 · 최신 회차 격차가 작은 순
               {report.spread && (
                 <span style={{ color: 'var(--muted)' }}>
                   {' · '}최근 {report.spread.count}회 {report.spread.best}~{report.spread.worst}{report.unit.suffix}(변동 폭 {report.spread.spread})
                 </span>
               )}
             </div>
+            {/* 경고는 '흔들렸는가'가 아니라 '판정이 갈리는 후보가 있는가'로 분기한다(O108) —
+                폭이 있어도 어느 후보도 안 갈리는 흔한 경우에 근거 없는 불안을 만들지 않게. */}
             {report.spread && report.spread.spread > 0 && (
               <div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 10 }}>
-                시험은 회차마다 흔들려요(컨디션·난이도). 한 회차 결과만으로 후보를 단정하지 말고 변동 폭을 함께 보세요.
+                {report.flipCount > 0
+                  ? `시험은 회차마다 흔들려요(컨디션·난이도). ${report.flipCount}곳은 어느 회차로 보느냐에 따라 판정이 갈려요.`
+                  : '회차마다 흔들렸지만, 어느 회차로 봐도 후보들의 판정은 그대로예요.'}
+                {report.smallSample ? ` 아직 ${report.spread.count}회뿐이라 추세로 보기엔 일러요.` : ''}
               </div>
+            )}
+            {report.volatilityNote && (
+              <div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 10 }}>{report.volatilityNote}</div>
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {report.candidates.map((c) => (
@@ -230,6 +246,20 @@ export function StudentGoalPage() {
                     <div style={{ fontSize: 12.5, color: 'var(--muted)' }}>
                       목표 컷 {c.cut}{report.unit.suffix} · {c.shortfall > 0 ? `${c.shortfall} 부족` : '도달'}
                     </div>
+                    {/* 뒤집히는 후보만 — 어느 회차가 어느 판정인지 숫자로 보여주면 학생이 자기 회차를 대입할 수 있다.
+                        숫자(best/worst)는 후보 불변값이라 목록 레벨 spread 에서 온다(후보 행에 3중복으로 싣지 않는 이유). */}
+                    {c.volatility && !c.volatility.consistent && report.spread && (
+                      <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
+                        회차에 따라{' '}
+                        <b style={{ color: BAND_COLOR[c.volatility.bestBand] ?? 'var(--ink)' }}>
+                          {report.spread.best}{report.unit.suffix}면 {c.volatility.bestBand}
+                        </b>
+                        {' · '}
+                        <b style={{ color: BAND_COLOR[c.volatility.worstBand] ?? 'var(--ink)' }}>
+                          {report.spread.worst}{report.unit.suffix}면 {c.volatility.worstBand}
+                        </b>
+                      </div>
+                    )}
                   </div>
                   <button className="btn ghost sm" onClick={() => promote(c)} disabled={busy}>이 후보로 목표 설정</button>
                   <button onClick={() => delCand(c.id)} aria-label="후보 삭제" style={{ border: 'none', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', fontSize: 16 }}>✕</button>
