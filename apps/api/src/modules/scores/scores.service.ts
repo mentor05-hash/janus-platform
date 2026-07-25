@@ -441,12 +441,54 @@ export class ScoresService {
   }
 
   /** 선생님: 같은 센터 학생 성적·배치 추이(내부 열람, 배치 포함). studentId=account uuid. */
-  async teacherTrend(actor: AuthUser, studentId: string) {
+  /**
+   * **선생님↔학생 관계 게이트**(O107) — 지도 관계가 있는 선생님만 학생 데이터를 본다.
+   *   ①선생님 역할 ②같은 센터 ③**담임이거나 상담 이력(booking)이 있음**
+   * 학부모(O105)와 달리 연령이 권한을 주지 않는다 — 직업적 관계가 근거다.
+   * 관례 정합: consultation 은 이미 '본인 담당 + 타 교사 FINAL·마스킹'의 관계 기반 모델을 쓴다.
+   */
+  private async assertTeacherStudentAccess(actor: AuthUser, studentId: string) {
     if (actor.role !== AccountRole.TEACHER) throw new ForbiddenException('선생님만 조회할 수 있습니다.');
-    const sp = await this.prisma.student_profile.findUnique({ where: { account_id: studentId }, select: { account_id: true, center_id: true } });
+    const sp = await this.prisma.student_profile.findUnique({
+      where: { account_id: studentId },
+      select: { account_id: true, center_id: true, homeroom_teacher_id: true },
+    });
     if (!sp) throw new NotFoundException('학생 프로필이 없습니다.');
     if (sp.center_id !== actor.centerId) throw new ForbiddenException('다른 센터 학생입니다.');
-    return this.buildTrend(sp.account_id, true);
+    if (sp.homeroom_teacher_id === actor.id) return sp; // 담임
+    const booked = await this.prisma.booking.findFirst({
+      where: { student_id: studentId, teacher_id: actor.id },
+      select: { id: true },
+    });
+    if (!booked) {
+      throw new ForbiddenException({
+        code: 'NO_TEACHING_RELATION',
+        message: '담임이거나 상담을 진행한 학생만 조회할 수 있습니다.',
+      });
+    }
+    return sp;
+  }
+
+  /** 선생님 성적·배치 추이 — 관계 게이트(O107) + 배치 노출은 전사 정책을 따른다. */
+  async teacherTrend(actor: AuthUser, studentId: string) {
+    const sp = await this.assertTeacherStudentAccess(actor, studentId);
+    // 배치 라인은 학생·학부모와 동일하게 정책(p.placement)을 따른다 — 선생님만 우회하던 비대칭 제거(O107).
+    const p = await this.getScorePolicy();
+    return this.buildTrend(sp.account_id, !!p.placement);
+  }
+
+  /**
+   * 학생 산출물 이력(선생님) — 관계 게이트(O107) 통과 시에만. 지도 목적의 최소 열람.
+   * 학부모 경로(O105)와 게이트가 다르다: 여기서는 연령·동의가 아니라 **지도 관계**가 근거다.
+   */
+  async listStudentReportsForTeacher(actor: AuthUser, studentId: string, kind = 'gap', limit = 20) {
+    await this.assertTeacherStudentAccess(actor, studentId);
+    return this.prisma.janus_report.findMany({
+      where: { student_id: studentId, kind },
+      orderBy: { created_at: 'desc' },
+      take: Math.min(Math.max(limit, 1), 50),
+      select: { id: true, kind: true, status: true, created_at: true, payload: true },
+    });
   }
 
   // ── 노출 정책(본사 마스터) ──

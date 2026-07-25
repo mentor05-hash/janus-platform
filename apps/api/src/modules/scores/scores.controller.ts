@@ -336,7 +336,24 @@ export class ScoresMeController {
     return this.scores.guardianTrend(user, studentId);
   }
 
-  /** GET /teacher/scores/trend?studentId= — 선생님(같은 센터) 학생 추이. */
+  /**
+   * GET /teacher/reports?studentId=&kind=&limit= — 학생 산출물 이력(선생님).
+   * 관계 게이트(O107): 담임이거나 상담 이력이 있는 학생만. 미충족 403(NO_TEACHING_RELATION).
+   */
+  @Get('teacher/reports')
+  @Roles('teacher')
+  teacherReports(
+    @CurrentUser() user: AuthUser,
+    @Query('studentId') studentId?: string,
+    @Query('kind') kind?: string,
+    @Query('limit') limit?: string,
+  ) {
+    if (!studentId) throw new BadRequestException('studentId 가 필요합니다.');
+    const n = limit != null && limit !== '' ? Number(limit) : 20;
+    return this.scores.listStudentReportsForTeacher(user, studentId, kind === 'diagnosis' || kind === 'weekly' ? kind : 'gap', Number.isFinite(n) ? n : 20);
+  }
+
+  /** GET /teacher/scores/trend?studentId= — 선생님 학생 추이(관계 게이트 O107 + 배치는 전사 정책). */
   @Get('teacher/scores/trend')
   @Roles('teacher')
   teacherTrend(@CurrentUser() user: AuthUser, @Query('studentId') studentId: string) {
