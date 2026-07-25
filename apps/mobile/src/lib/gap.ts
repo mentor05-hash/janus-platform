@@ -14,6 +14,33 @@ export function bandOf(gap: number, target: number): Band {
   return 'high';
 }
 
+/**
+ * 트렁크 gap-report 정본 밴드 어휘(O102) — 서버가 이 한글 값을 그대로 준다.
+ * 위의 로컬 Band(stable/fit/reach/high)는 클라 계산 폴백용 포크이며 O102 가 '하드 비호환'으로 기록했다.
+ * **신규 화면은 이 어휘만 쓴다** — 포크를 새 코드로 확산시키지 않기 위해 여기 한 곳에 모아 둔다.
+ */
+export type TrunkBand = '안정' | '적정' | '소신' | '상향';
+/** 색은 위 SIGNAL(포크 어휘)과 동일 값 — 같은 신호등을 두 어휘가 공유한다. */
+export const TRUNK_BAND_COLOR: Record<string, string> = {
+  안정: '#2a8a5f', 적정: '#57a86a', 소신: '#cf9f2f', 상향: '#d06b52',
+};
+/** C5 근거 신뢰도(measured/multiyear/estimated) 표시 라벨 — P0-4 초안의 A/B/C 가 아니라 정본 어휘. */
+export const REL_TIER_LABEL: Record<string, string> = { measured: '실측', multiyear: '다년', estimated: '추정' };
+
+/** 목표 후보 — GET /me/goal/candidates */
+export type GoalCandidate = { id: string; mode: 'jeongsi' | 'susi'; univ: string; dept: string; track: string | null; cut: number; note: string | null };
+/** 후보 비교 리포트 — GET /me/goal/candidates/report. band 는 트렁크 정본 어휘. */
+export type GoalCandidateReport = {
+  mode: 'jeongsi' | 'susi';
+  myValue: number;
+  unit: { label: string; suffix: string };
+  spread: { count: number; best: number; worst: number; spread: number } | null;
+  candidates: { id: string; univ: string; dept: string; track: string | null; cut: number; band: TrunkBand; delta: number; shortfall: number; message: string }[];
+  admitHintNote: string | null;
+  evidence: { claim: string; source: string; relTier: string }[];
+  disclaimer: string;
+};
+
 export type GapModel = {
   last?: TrendPoint;
   goalAvg: number | null;
