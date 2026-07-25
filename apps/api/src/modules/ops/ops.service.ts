@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { CREDIT_WON_RATIO } from '../../config/constants';
 import { BookingStatus } from '../../config/enums';
 
 /**
@@ -150,18 +151,12 @@ export class OpsService {
     for (const r of doneRows)
       if (r.start_at) trend[WEEKS - 1 - bucket(r.start_at)].matched += 1;
 
-    // 등급별 급여표(센터 정책 → 없으면 전사 공통)
-    const policies = await this.prisma.payroll_policy.findMany({
-      where: centerId ? { center_id: centerId } : {},
-    });
-    const pol = policies[0] ?? null;
-    const gradeMap = (pol?.grade_allowance as Record<string, number> | null) ?? {};
-    const gradePayTable = ['S', 'A', 'B'].map((g) => ({
-      grade: g,
-      perCaseRate: pol?.per_case_rate ?? 30000,
-      hourlyRate: pol?.hourly_rate ?? 0,
-      gradeAllowance: gradeMap[g] ?? 0,
-    }));
+    // 급여 기준 요약 — **실제 지급 산식**을 보여준다(O113: 매출 배분 단일 모델).
+    // 이전에는 payroll_policy 의 건당 단가·시급·등급수당을 '등급별 급여표'로 렌더했다. 그 값들은 급여
+    // 산정에서 폐지됐는데도(payroll.service 는 배분율만 쓴다) 관리자 화면에 남아 있었고, 더 나쁘게는
+    // `?? 30000` 폴백이 **DB 에 없는 값을 창작**해 제시했다(실측: payroll_policy 0행인데 '건당 30,000원' 표시).
+    // 등급(S/A/B)은 평가·배정에는 쓰이지만 지급액에는 영향이 없어 등급별 행 자체가 오해였다.
+    const payBasis = await this.payrollBasis();
 
     const matchRate =
       totalBookings === 0
@@ -193,7 +188,7 @@ export class OpsService {
         gradeDistribution,
         teacherCount: teachers.length,
         trend,
-        gradePayTable,
+        payBasis,
       },
       meta: {
         generatedAt: now.toISOString(),
@@ -201,4 +196,27 @@ export class OpsService {
       },
     };
   }
+
+  /**
+   * 급여 기준 요약(표시용) — 실제 산식과 같은 소스를 읽는다.
+   * 화면이 폐지된 단가를 말하지 않게 하려면 **지급에 쓰이는 값만** 노출해야 한다.
+   * 정책 행이 없으면 코드 기본값이 적용되므로 그 사실도 함께 알린다(`source`).
+   */
+  private async payrollBasis() {
+    const rows = await this.prisma.system_setting.findMany({
+      where: { key: { in: ['payroll_share_policy', 'payroll_model_policy'] } },
+    });
+    const get = (k: string) => rows.find((r) => r.key === k)?.value as Record<string, unknown> | undefined;
+    const share = get('payroll_share_policy');
+    const model = get('payroll_model_policy');
+    return {
+      model: (model?.mode as string) ?? 'share',
+      sharePct: Number(share?.sharePct ?? 60),
+      base: Number(model?.base ?? 2_000_000),
+      incentivePct: Number(model?.incentivePct ?? 30),
+      creditWonRatio: CREDIT_WON_RATIO,
+      source: share || model ? 'db' : 'default', // 'default' = 정책 행 없음(코드 기본값)
+    };
+  }
+
 }

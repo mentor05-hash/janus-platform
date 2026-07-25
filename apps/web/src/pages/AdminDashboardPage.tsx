@@ -12,6 +12,16 @@ type FunnelSummary = {
   academy: FunnelStep & { searches: number; leadClicks: number; leadSessions: number };
 };
 
+/** 급여 모델 라벨·산식 — 화면이 모델과 무관하게 곱셈 공식을 단언하지 않게 한다(floor/base_incentive 도 도달 가능). */
+const PAY_MODEL_LABEL: Record<string, string> = {
+  share: '매출 배분(share)', floor: '기본급 보장 + 배분(floor)', base_incentive: '기본급 + 인센티브',
+};
+const PAY_MODEL_FORMULA: Record<string, string> = {
+  share: '세전 = 매출 × 배분율',
+  floor: '세전 = max(보장 기본급, 매출 × 배분율)',
+  base_incentive: '세전 = 기본급 + 매출 × 인센티브율',
+};
+
 export function AdminDashboardPage() {
   const [d, setD] = useState<Dashboard | null>(null);
   const [meta, setMeta] = useState<{ generatedAt: string; scope: string } | null>(null);
@@ -108,21 +118,30 @@ export function AdminDashboardPage() {
         </Card>
       )}
 
-      {d.gradePayTable && d.gradePayTable.length > 0 && (
-        <Card title="등급별 급여·수당표" style={{ marginTop: 16, maxWidth: 620 }}>
+      {/* 급여 기준 — **실제 지급 산식**만 보여준다. 이전 '등급별 급여·수당표'는 폐지된 건당 단가·시급·
+          등급수당을 보여줬고(급여는 매출 배분으로 산정된다), DB 에 정책 행이 없어도 `?? 30000` 폴백이
+          '건당 30,000원'을 창작해 제시했다. 등급은 평가·배정용이며 지급액에 영향이 없어 등급별 행도 지웠다. */}
+      {d.payBasis && (
+        <Card title="급여 기준" style={{ marginTop: 16, maxWidth: 620 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead><tr style={{ textAlign: 'left', color: 'var(--muted)' }}><th style={pth}>등급</th><th style={pth}>건당</th><th style={pth}>시급</th><th style={pth}>등급 수당</th></tr></thead>
             <tbody>
-              {d.gradePayTable!.map((g) => (
-                <tr key={g.grade} style={{ borderTop: '1px solid var(--line)' }}>
-                  <td style={ptd}><b>{g.grade}</b></td>
-                  <td style={ptd}>{g.perCaseRate.toLocaleString()}원</td>
-                  <td style={ptd}>{g.hourlyRate.toLocaleString()}원</td>
-                  <td style={ptd}>{g.gradeAllowance.toLocaleString()}원</td>
-                </tr>
-              ))}
+              <tr><td style={ptd}>급여 모델</td><td style={ptd}><b>{PAY_MODEL_LABEL[d.payBasis.model] ?? d.payBasis.model}</b></td></tr>
+              {d.payBasis.model !== 'base_incentive' && (
+                <tr style={{ borderTop: '1px solid var(--line)' }}><td style={ptd}>매출 배분율</td><td style={ptd}><b>{d.payBasis.sharePct}%</b></td></tr>
+              )}
+              {d.payBasis.model !== 'share' && (
+                <tr style={{ borderTop: '1px solid var(--line)' }}><td style={ptd}>{d.payBasis.model === 'floor' ? '보장 기본급' : '기본급'}</td><td style={ptd}><b>{d.payBasis.base.toLocaleString()}원</b></td></tr>
+              )}
+              {d.payBasis.model === 'base_incentive' && (
+                <tr style={{ borderTop: '1px solid var(--line)' }}><td style={ptd}>인센티브율</td><td style={ptd}><b>{d.payBasis.incentivePct}%</b></td></tr>
+              )}
+              <tr style={{ borderTop: '1px solid var(--line)' }}><td style={ptd}>크레딧 → 원 환산</td><td style={ptd}>1크레딧 = {d.payBasis.creditWonRatio}원</td></tr>
             </tbody>
           </table>
+          <div style={{ marginTop: 8, fontSize: 12, color: 'var(--muted)' }}>
+            {PAY_MODEL_FORMULA[d.payBasis.model] ?? ''}
+            {d.payBasis.source === 'default' && ' · 정책 미설정 — 코드 기본값이 적용 중이에요(배정·급여 설정에서 변경).'}
+          </div>
         </Card>
       )}
 
@@ -157,5 +176,4 @@ export function AdminDashboardPage() {
   );
 }
 
-const pth: React.CSSProperties = { padding: '8px 10px', fontSize: 11, fontWeight: 700 };
 const ptd: React.CSSProperties = { padding: '8px 10px', fontVariantNumeric: 'tabular-nums' };

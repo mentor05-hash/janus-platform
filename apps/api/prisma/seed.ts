@@ -138,20 +138,18 @@ async function main() {
       [ID.center, CLASSIFY_LIMITS.fit, CLASSIFY_LIMITS.unfit],
     );
 
-    // 4-1) 급여 정책 — 건당·Q&A·시급(T5b)·등급수당(T5d)·자동인센티브+48h 미답 보상(T5c)
-    const hasPayroll = await client.query(
-      `SELECT 1 FROM payroll_policy WHERE center_id = $1 LIMIT 1`,
-      [ID.center],
-    );
-    if (hasPayroll.rowCount === 0) {
+    // 4-1) 급여 기준 — **매출 배분 단일 모델**(O113). 실제 지급에 쓰이는 값은 system_setting 두 키뿐이다.
+    //   구 payroll_policy 단가(건당 30,000·Q&A 5,000·시급 12,000·등급수당·자동인센티브)는 급여 산정에서
+    //   폐지됐다. 그걸 계속 시드하면 데모 환경에서 폐지 체계가 '살아 있는 것처럼' 보인다 — 시드하지 않는다.
+    //   (payroll_policy 테이블 자체는 남는다 — 다른 표시 경로가 아직 참조한다.)
+    for (const [key, value] of [
+      ['payroll_share_policy', { sharePct: 60 }],
+      ['payroll_model_policy', { mode: 'share', base: 2_000_000, incentivePct: 30 }],
+    ] as const) {
       await client.query(
-        `INSERT INTO payroll_policy (center_id, cycle, per_case_rate, qna_rate, hourly_rate, grade_allowance, auto_incentive)
-         VALUES ($1, 'monthly', 30000, 5000, 12000, $2::jsonb, $3::jsonb)`,
-        [
-          ID.center,
-          JSON.stringify({ S: 200000, A: 100000, B: 50000, C: 0 }),
-          JSON.stringify({ on: true, minCases: 0, amount: 12000, staleBonus: 8000 }),
-        ],
+        `INSERT INTO system_setting (key, value) VALUES ($1, $2::jsonb)
+         ON CONFLICT (key) DO NOTHING`,
+        [key, JSON.stringify(value)],
       );
     }
 

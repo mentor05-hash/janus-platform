@@ -145,7 +145,8 @@ export interface Dashboard {
   gradeDistribution?: Record<string, number>;
   teacherCount?: number;
   trend?: { weeksAgo: number; applied: number; matched: number }[];
-  gradePayTable?: { grade: string; perCaseRate: number; hourlyRate: number; gradeAllowance: number }[];
+  /** 급여 기준 요약(O113 매출 배분 단일 모델) — 구 gradePayTable(건당·시급·등급수당)은 폐지 단가라 제거됐다. */
+  payBasis?: { model: string; sharePct: number; base: number; incentivePct: number; creditWonRatio: number; source: 'db' | 'default' };
 }
 
 export interface PricingPolicy {
