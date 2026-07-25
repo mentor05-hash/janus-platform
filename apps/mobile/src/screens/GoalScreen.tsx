@@ -160,18 +160,16 @@ export function GoalScreen({ onBack }: { onBack: () => void }) {
             {candErr ? <Text style={ui.error}>{candErr}</Text> : null}
 
             {/* 후보 담기 */}
+            {/* 375px 폭에서 입력을 세로로 쌓는다 — RN Web 의 TextInput 은 기본 너비를 가져
+                한 행에 둘을 flex:1 로 나란히 두면 카드를 넘쳤다(실측 305px 행에 193+193). */}
             <View style={{ gap: 6, marginTop: 10 }}>
-              <View style={{ flexDirection: 'row', gap: 6 }}>
-                <TextInput value={form.univ} onChangeText={(v) => setForm({ ...form, univ: v })} placeholder="대학" placeholderTextColor={C.caption} style={[ui.input, { flex: 1 }]} maxLength={60} />
-                <TextInput value={form.dept} onChangeText={(v) => setForm({ ...form, dept: v })} placeholder="학과" placeholderTextColor={C.caption} style={[ui.input, { flex: 1 }]} maxLength={60} />
-              </View>
-              <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                <TextInput value={form.cut} onChangeText={(v) => setForm({ ...form, cut: v })} placeholder={mode === 'susi' ? '목표 내신등급' : '목표 전국누백'} placeholderTextColor={C.caption}
-                  keyboardType="decimal-pad" style={[ui.input, { flex: 1 }]} />
-                <TouchableOpacity onPress={addCand} disabled={busy} style={[ui.btn, busy && ui.btnDisabled, { paddingHorizontal: 18 }]}>
-                  <Text style={ui.btnText}>담기</Text>
-                </TouchableOpacity>
-              </View>
+              <TextInput value={form.univ} onChangeText={(v) => setForm({ ...form, univ: v })} placeholder="후보 대학" placeholderTextColor={C.caption} style={ui.input} maxLength={60} />
+              <TextInput value={form.dept} onChangeText={(v) => setForm({ ...form, dept: v })} placeholder="후보 학과" placeholderTextColor={C.caption} style={ui.input} maxLength={60} />
+              <TextInput value={form.cut} onChangeText={(v) => setForm({ ...form, cut: v })} placeholder={mode === 'susi' ? '목표 내신등급 (예: 1.8)' : '목표 전국누백 (예: 2.0)'} placeholderTextColor={C.caption}
+                keyboardType="decimal-pad" style={ui.input} />
+              <TouchableOpacity onPress={addCand} disabled={busy} style={[ui.btn, busy && ui.btnDisabled]}>
+                <Text style={ui.btnText}>후보 담기</Text>
+              </TouchableOpacity>
             </View>
 
             {cands === null ? (
