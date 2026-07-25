@@ -57,6 +57,8 @@ export function SlotsScreen({ teacher, onBack, initialMode, consultType, initial
   const modeVals = modeList.map((m) => m.mode);
   const [date, setDate] = useState(today());
   const [slots, setSlots] = useState<Slot[]>([]);
+  /** 환경 인지 상담 모드(O120) — 슬롯이 비었을 때 **이유를 말해주기 위해** 함께 조회한다. */
+  const [modeInfo, setModeInfo] = useState<{ hasWindows: boolean; availableModes: string[]; consultModes: { mode: string; bookable: boolean }[] } | null>(null);
   // 선택 범위: selStart..selEnd(둘 다 포함, 10분 인덱스). null = 미선택
   const [selStart, setSelStart] = useState<number | null>(null);
   const [selEnd, setSelEnd] = useState<number | null>(null);
@@ -69,6 +71,12 @@ export function SlotsScreen({ teacher, onBack, initialMode, consultType, initial
   const [quote, setQuote] = useState<Quote | null>(null);
   const [error, setError] = useState('');
 
+  /**
+   * 고른 방식이 이 날짜에 불가능한가 — 빈 목록 문구와 안내 배너가 같은 판단을 써야 서로 어긋나지 않는다.
+   * 근무 자체가 없는 날은 제외한다: 그건 '방식' 문제가 아니라 '날짜' 문제라, 방식을 바꾸라고 하면 헛걸음이 된다.
+   */
+  const modeBlocked = !!modeInfo?.hasWindows && modeInfo.consultModes.some((m) => m.mode === mode && !m.bookable);
+
   function resetSel() {
     setSelStart(null);
     setSelEnd(null);
@@ -78,16 +86,22 @@ export function SlotsScreen({ teacher, onBack, initialMode, consultType, initial
 
   /** 슬롯 최신화(다른 학생 예약 반영). */
   function loadSlots() {
+    // mode 를 넘기면 그 방식이 불가능한 날은 빈 배열이 온다(예약 단계에서 거른다 — 입장 후 알면 늦다).
     api
-      .get<Slot[]>(`/teachers/${teacher.id}/slots?date=${date}`)
+      .get<Slot[]>(`/teachers/${teacher.id}/slots?date=${date}&mode=${encodeURIComponent(mode)}`)
       .then(setSlots)
       .catch((e) => setError(e instanceof ApiError ? e.message : '슬롯 조회 실패'));
+    api
+      .get<NonNullable<typeof modeInfo>>(`/teachers/${teacher.id}/consult-modes?date=${date}`)
+      .then(setModeInfo)
+      .catch(() => setModeInfo(null)); // 안내용 — 실패해도 예약 흐름을 막지 않는다
   }
   useEffect(() => {
     resetSel();
     loadSlots();
+    // mode 도 의존성이다 — 빠지면 방식을 바꿔도 이전 슬롯이 남아 예약을 시도하게 된다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [teacher.id, date]);
+  }, [teacher.id, date, mode]);
 
   // 범위·방식 선택 시 재견적
   useEffect(() => {
@@ -283,6 +297,16 @@ export function SlotsScreen({ teacher, onBack, initialMode, consultType, initial
           );
         })}
       </View>
+      {/* 환경 인지 모드 매칭(O120) — 슬롯이 왜 없는지 이유를 먼저 말한다. 환경은 죄가 아니므로 문구는 중립적으로. */}
+      {modeBlocked && modeInfo && (
+        <Text style={styles.modeNoteZoom}>
+          ⏱ 이 날짜에는 {MODES.find((m) => m.mode === mode)?.label ?? mode}으로 진행할 수 없어요 — 두 분의 그 시간대 환경으로는 어려워요.
+          {(() => {
+            const ok = modeInfo.consultModes.filter((m) => m.bookable).map((m) => MODES.find((x) => x.mode === m.mode)?.label ?? m.mode);
+            return ok.length ? ` 가능한 방식: ${ok.join(' · ')}. 위에서 바꿔 보세요.` : ' 다른 날짜를 골라 보세요.';
+          })()}
+        </Text>
+      )}
       {mode === 'offline' && <Text style={styles.modeNote}>🏫 오프라인은 가능한 선생님·센터·시간이 제한돼요. 센터 상담실 점유료가 가산됩니다.</Text>}
       {mode === 'zoom' && <Text style={styles.modeNoteZoom}>🎥 줌은 센터 상담실 동시 이용 한도가 있어, 예약 시점에 자리가 없으면 다른 방식을 선택해야 할 수 있어요.</Text>}
       <Text style={styles.modeNoteBoard}>📋 게시판(문항·일반) 질문은 Q&A 탭에서 건당 신청해요.</Text>
@@ -305,7 +329,13 @@ export function SlotsScreen({ teacher, onBack, initialMode, consultType, initial
       {/* 시간 — 시간대별 컴팩트 표(선생님 근무·체류 반영) */}
       <Text style={styles.sec}>시간 (가능 시간만 · {ctype} 기본 {defaultSlots * 10}분)</Text>
       {slots.length === 0 ? (
-        <Text style={ui.sub}>이 날짜에는 선생님 근무 시간이 없어요. 다른 날짜를 선택해 주세요.</Text>
+        // 빈 이유가 둘이다 — 근무가 없거나, 근무는 있는데 **고른 방식이 그 시간대에 불가능**하거나.
+        // 후자에 "근무 시간이 없어요"를 띄우면 거짓말이 된다(다른 날짜를 뒤지게 만든다).
+        <Text style={ui.sub}>
+          {modeBlocked
+            ? `이 날짜엔 ${MODES.find((m) => m.mode === mode)?.label ?? mode}으로 잡을 수 있는 시간이 없어요. 위에서 다른 방식을 골라 보세요.`
+            : '이 날짜에는 선생님 근무 시간이 없어요. 다른 날짜를 선택해 주세요.'}
+        </Text>
       ) : (
         <>
           <View style={{ gap: 4 }}>

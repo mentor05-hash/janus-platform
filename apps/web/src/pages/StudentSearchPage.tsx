@@ -17,6 +17,11 @@ const SLOT_UI: Record<Slot['status'], { label: string; bg: string; fg: string; b
   blocked: { label: '차단', bg: '#F9E8E4', fg: '#C25A43', bd: '#EFC7BD' },
 };
 const SUBJECTS = ['국어', '수학', '영어', '탐구'];
+/** 문장 안에 넣기 위한 짧은 라벨 — MODES 의 라벨은 셀렉트용이라 문장에 그대로 넣으면 어색하다. */
+const MODE_LABEL_SHORT: Record<string, string> = {
+  zoom: '줌 화상', chat: '실시간 채팅', hand: '필기 공유', offline: '오프라인(대면)',
+};
+
 const MODES: { value: string; label: string }[] = [
   { value: 'zoom', label: '줌 화상' }, { value: 'chat', label: '실시간 채팅' }, { value: 'hand', label: '필기 공유' }, { value: 'offline', label: '오프라인(센터 대면)' },
 ];
@@ -37,6 +42,11 @@ function BookingForm({ teacher, onDone, onBack, initialMode, consultType, initia
   }, [ctype]);
   const [date, setDate] = useState(todayStr());
   const [slots, setSlots] = useState<Slot[] | null>(null);
+  /**
+   * 환경 인지 상담 모드(O120) — 양측 가용시간에 적힌 환경으로 "이 시간엔 무엇이 가능한가"를 계산한 결과.
+   * 슬롯이 비었을 때 **이유를 말해주기 위해** 함께 조회한다(빈 목록만 보여주면 막다른 길이 된다).
+   */
+  const [modeInfo, setModeInfo] = useState<{ hasWindows: boolean; availableModes: string[]; consultModes: { mode: string; bookable: boolean }[] } | null>(null);
   const [selStart, setSelStart] = useState<number | null>(null);
   const [selEnd, setSelEnd] = useState<number | null>(null);
   const [notice, setNotice] = useState('');
@@ -51,17 +61,28 @@ function BookingForm({ teacher, onDone, onBack, initialMode, consultType, initia
   const [msg, setMsg] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
+  /**
+   * 고른 방식이 이 날짜에 불가능한가 — 빈 목록 문구와 안내 배너가 같은 판단을 써야 서로 어긋나지 않는다.
+   * 근무 자체가 없는 날은 제외한다: 그건 '방식' 문제가 아니라 '날짜' 문제라, 방식을 바꾸라고 하면 헛걸음이 된다.
+   */
+  const modeBlocked = !!modeInfo?.hasWindows && !!modeInfo.consultModes.some((m) => m.mode === mode && !m.bookable);
+
   function resetSel() { setSelStart(null); setSelEnd(null); setNotice(''); setQuote(null); }
   /** 슬롯 최신화(다른 학생 예약 반영). 선택은 유지하지 않고 호출측이 필요 시 resetSel. */
   function loadSlots() {
     setSlots(null);
-    api.get<Slot[]>(`/teachers/${teacher.id}/slots?date=${date}`).then(setSlots).catch((e) => setError(e instanceof ApiError ? e.message : '슬롯 조회 실패'));
+    // mode 를 넘기면 그 방식이 불가능한 날은 빈 배열이 온다(예약 단계에서 거른다 — 입장 후 알면 늦다).
+    api.get<Slot[]>(`/teachers/${teacher.id}/slots?date=${date}&mode=${encodeURIComponent(mode)}`)
+      .then(setSlots).catch((e) => setError(e instanceof ApiError ? e.message : '슬롯 조회 실패'));
+    api.get<typeof modeInfo>(`/teachers/${teacher.id}/consult-modes?date=${date}`)
+      .then(setModeInfo).catch(() => setModeInfo(null)); // 안내용 — 실패해도 예약 흐름을 막지 않는다
   }
 
   useEffect(() => {
     resetSel(); loadSlots();
+    // mode 도 의존성이다 — 빠지면 '줌 불가'로 바꿔도 이전 슬롯이 남아 예약을 시도하게 된다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [teacher.id, date]);
+  }, [teacher.id, date, mode]);
 
   useEffect(() => {
     if (selStart === null || selEnd === null) return;
@@ -163,7 +184,15 @@ function BookingForm({ teacher, onDone, onBack, initialMode, consultType, initia
           </div>
           {/* 시간 표 */}
           <label className="label" style={{ marginTop: 12 }}>시간 (가능 시간만 · {ctype} 기본 {defaultSlots * 10}분)</label>
-          {slots === null ? <Spinner /> : slots.length === 0 ? <EmptyState>이 날짜엔 선생님 근무 시간이 없어요.</EmptyState> : (
+          {slots === null ? <Spinner /> : slots.length === 0 ? (
+            // 빈 이유가 둘이다 — 근무가 없거나, 근무는 있는데 **고른 방식이 그 시간대에 불가능**하거나.
+            // 후자에 "근무 시간이 없어요"를 띄우면 거짓말이 된다(다른 날짜를 뒤지게 만든다).
+            <EmptyState>
+              {modeBlocked
+                ? `이 날짜엔 ${MODE_LABEL_SHORT[mode] ?? mode}으로 잡을 수 있는 시간이 없어요. 아래에서 다른 방식을 골라 보세요.`
+                : '이 날짜엔 선생님 근무 시간이 없어요.'}
+            </EmptyState>
+          ) : (
             <>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {byHour.map(([h, cells]) => (
@@ -222,6 +251,17 @@ function BookingForm({ teacher, onDone, onBack, initialMode, consultType, initia
           <SelectField label="과목" value={subject} onChange={(e) => setSubject(e.target.value)} options={SUBJECTS.map((s) => ({ value: s, label: s }))} />
           <SelectField label="진행 방식" value={mode} onChange={(e) => setMode(e.target.value)} options={supportedModes} />
           <p style={{ fontSize: 12, color: 'var(--muted)', margin: '-2px 0 8px' }}>이 선생님이 제공하는 방식: {supportedModes.map((m) => m.label).join(' · ')}</p>
+          {/* 환경 인지 모드 매칭(O120) — 슬롯이 왜 없는지 **이유를 먼저** 말한다.
+              양측 가용시간의 환경(집·독서실·이동 중…)에서 계산된 결과이고, 환경은 죄가 아니므로 문구도 중립적으로. */}
+          {modeBlocked && (() => {
+            const okLabels = modeInfo!.consultModes.filter((m) => m.bookable).map((m) => MODE_LABEL_SHORT[m.mode] ?? m.mode);
+            return (
+              <p style={{ fontSize: 12.5, color: '#A97D24', background: '#FAF1E2', borderRadius: 8, padding: 9, margin: '0 0 8px' }}>
+                ⏱ 이 날짜에는 <b>{MODE_LABEL_SHORT[mode] ?? mode}</b>으로 진행할 수 없어요 — 두 분의 그 시간대 환경으로는 어려워요.
+                {okLabels.length > 0 ? <> 가능한 방식: <b>{okLabels.join(' · ')}</b>. 위에서 바꿔 보세요.</> : ' 다른 날짜를 골라 보세요.'}
+              </p>
+            );
+          })()}
           {mode === 'offline' && <p style={{ fontSize: 12, color: 'var(--muted)', background: 'var(--fill,#f4f7fb)', borderRadius: 8, padding: 9, margin: '0 0 8px' }}>🏫 오프라인은 가능한 선생님·센터·시간이 제한되며 센터 상담실 점유료가 가산됩니다.</p>}
           {mode === 'zoom' && <p style={{ fontSize: 12, color: '#A97D24', background: '#FAF1E2', borderRadius: 8, padding: 9, margin: '0 0 8px' }}>🎥 줌은 센터 상담실 동시 이용 한도가 있어, 예약 시점에 자리가 없으면 다른 방식을 선택해야 할 수 있어요.</p>}
           <p style={{ fontSize: 12, color: 'var(--teal)', background: 'var(--teal-50,#EEF4FB)', borderRadius: 8, padding: 9, margin: '0 0 8px' }}>📋 게시판(문항·일반) 질문은 Q&A 게시판에서 건당 신청해요.</p>

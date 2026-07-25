@@ -173,12 +173,16 @@ export class AvailabilityService {
     const recurring = (ws?.recurring_template as unknown as WeeklyTemplate) ?? {};
     const template: WeeklyTemplate = plan ? { ...recurring, ...plan.template } : recurring;
 
+    // 근무 창 자체가 없는 날과 '모드만 막힌' 날은 다른 사실이다. 화면이 이 둘을 섞으면
+    // "다른 방식을 골라 보세요" → 골라도 0칸 → 그제서야 "근무 시간이 없어요" 로 두 번 헛걸음시킨다.
+    const hasWindows = (template[weekday]?.length ?? 0) > 0;
     const availableModes = await this.dayConsultModes(template[weekday], studentId, weekday);
     const consultModes = ['zoom', 'chat', 'hand', 'offline'].map((m) => ({
       mode: m,
-      bookable: !consultModeBlocked(m, availableModes),
+      // 근무가 없으면 어떤 방식으로도 잡을 수 없다 — offline(환경 무관)도 마찬가지다.
+      bookable: hasWindows && !consultModeBlocked(m, availableModes),
     }));
-    return { date: dateStr, availableModes, consultModes };
+    return { date: dateStr, hasWindows, availableModes, consultModes };
   }
 
   /** 예약 생성 직전 재검증용 — [start,end) 가 모두 avail 인지 (§5-1). */

@@ -94,6 +94,20 @@ describe('상담 모드 슬롯 필터', () => {
     expect(withoutMode).toEqual(await svc.getDaySlots(teacherId, monday, studentId, undefined));
   });
 
+  it('근무 창이 없는 날은 hasWindows=false 이고 어떤 모드도 예약 불가 — 화면이 "방식을 바꿔 보세요"로 헛걸음시키지 않게', async () => {
+    // 템플릿에 월요일('1')만 심었으므로 화요일에는 창이 없다.
+    const tue = new Date(`${monday}T00:00:00Z`);
+    tue.setUTCDate(tue.getUTCDate() + 1);
+    const r = await svc.getConsultModes(teacherId, tue.toISOString().slice(0, 10), studentId);
+    expect(r.hasWindows).toBe(false);
+    // offline 은 환경과 무관하지만, 근무가 없으면 그것도 잡을 수 없다.
+    expect(r.consultModes.every((m) => !m.bookable)).toBe(true);
+  });
+
+  it('근무가 있는 날은 hasWindows=true — 빈 슬롯의 원인이 모드임을 화면이 구분할 수 있다', async () => {
+    expect((await svc.getConsultModes(teacherId, monday, studentId)).hasWindows).toBe(true);
+  });
+
   it('모르는 모드는 막지 않는다 — 멀쩡한 예약을 사라지게 하면 안 된다', async () => {
     expect((await svc.getDaySlots(teacherId, monday, studentId, 'unknown_mode')).length).toBeGreaterThan(0);
   });
