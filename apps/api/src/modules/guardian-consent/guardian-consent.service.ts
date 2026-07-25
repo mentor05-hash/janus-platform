@@ -237,6 +237,31 @@ export class GuardianConsentService {
   }
 
   /**
+   * **행위 게이트**(O106) — 보호자가 자녀에게 '개입'(계획 제안 등)할 수 있는지. 열람 게이트와 구분한다.
+   *   · 미성년 → 승인된 연결만으로 허용(**보호자 전권**). 자녀 데이터를 읽는 행위가 아니므로
+   *     본인확인·전달동의(열람용 0085 게이트)를 요구하지 않는다.
+   *   · 성인   → **학생 본인의 공유 동의** 필요(학생이 보호자 개입을 승인한 경우만).
+   *
+   * 열람(assertChildDataAccess)과 왜 다른가: 열람은 학생의 PII·산출물을 보호자에게 내보내는 것이라
+   * 미성년도 본인확인+전달동의를 요구한다. 제안은 보호자가 만든 내용을 학생에게 보내는 것이라
+   * 학생 데이터가 흐르지 않는다 — 그래서 미성년은 연결만으로 충분하다.
+   */
+  async assertGuardianInvolvementAllowed(user: AuthUser, studentId: string, scope = 'report'): Promise<void> {
+    if (user.role !== AccountRole.GUARDIAN) throw new ForbiddenException('학부모만 사용할 수 있습니다.');
+    await this.assertApprovedLink(user.id, studentId);
+    if (await this.isMinor(studentId)) return; // 보호자 전권
+    const share = await this.prisma.student_share_consent.findUnique({
+      where: { student_id_guardian_id_scope: { student_id: studentId, guardian_id: user.id, scope } },
+    });
+    if (!share || share.revoked_at) {
+      throw new ForbiddenException({
+        code: 'NEED_STUDENT_CONSENT',
+        message: '성인 학생 본인의 동의가 필요합니다. 학생이 동의하면 계획을 제안할 수 있습니다.',
+      });
+    }
+  }
+
+  /**
    * push 게이트 조회(consult-report 등에서 사용) — 해당 학생의 "본인확인+전달동의 완료" 보호자 id 목록.
    * ⚠ 이 목록이 비어있지 않아도, 직접 push 는 시스템 플래그가 ON 일 때만 수행한다(INV-10 이중 방어).
    */

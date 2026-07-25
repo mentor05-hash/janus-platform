@@ -55,6 +55,7 @@ import { LectureModule } from './modules/lecture/lecture.module';
 import { AdminStatsModule } from './modules/admin-stats/admin-stats.module';
 import { AcademicModule } from './modules/academic/academic.module';
 import { TasksModule } from './modules/tasks/tasks.module';
+import { GuardianPlanModule } from './modules/guardian-plan/guardian-plan.module';
 import { SearchModule } from './modules/search/search.module';
 import { AcademyFinderModule } from './modules/academy-finder/academy-finder.module';
 
@@ -114,6 +115,7 @@ import { AcademyFinderModule } from './modules/academy-finder/academy-finder.mod
     AcademyFinderModule, // 학원찾기 v2 — 통학·성적대 기반 학원 탐색(세션1: 스키마·공공적재·provenance)
     AdminStatsModule, // 관리자 통계 대시보드 — 진단·강좌·커뮤니티 지표
     AcademicModule, // 학사일정 — 수능·모의고사·신청기간 캘린더 + D-7/D-1/당일 리마인더(9e2elr salvage ⑤-1)
+    GuardianPlanModule, // 학부모 계획 트랙 — 자기 공간 계획 + 학생 제안(수락/거절). 연령 게이트 O105 재사용(O106)
     TasksModule, // 맞춤 할 일 — 격차·학사일정 자동 제안 + 수동, D-1/당일 마감 리마인더(9e2elr salvage ⑤-2)
   ],
   providers: [

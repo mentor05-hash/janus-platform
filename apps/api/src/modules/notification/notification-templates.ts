@@ -58,6 +58,10 @@ const TEMPLATES: Record<string, Tmpl> = {
   score_uploaded: { title: '성적 업데이트', body: '성적이 업데이트되었어요. 성적·배치에서 확인하세요.' },
   academic_reminder: { title: '{ddayLabel} · {title}', body: '{dateLabel} 학사일정이 다가와요. 미리 준비하세요.' },
   task_reminder: { title: '할 일 마감 임박', body: "'{title}' 할 일이 {when} 마감이에요. 잊지 말고 챙겨요." },
+  // ── 학부모 계획 제안(O106) ──
+  guardian_plan_proposed: { title: '학부모 계획 제안', body: "'{title}' 계획을 학부모가 제안했어요. 수락하면 내 할 일에 추가돼요." },
+  guardian_plan_accepted: { title: '자녀가 계획을 수락했어요', body: "'{title}' 제안을 자녀가 수락했어요. 자녀 할 일에 추가됐습니다." },
+  guardian_plan_declined: { title: '자녀가 계획을 거절했어요', body: "'{title}' 제안을 자녀가 거절했어요. 다른 방식으로 이야기해 보세요." },
   entitlement_expiring: { title: '이용권 만료 임박', body: '{product} 이용권이 {days}일 뒤 만료돼요. 내 이용권에서 확인·연장하세요.' },
   qna_answered: { title: '질문 답변', body: '등록한 질문에 답변이 달렸어요.' },
   qna_claimed: { title: '선생님 확인 중', body: '선생님이 내 질문을 확인하고 있어요. 곧 답변이 도착합니다.' },
