@@ -44,8 +44,10 @@ export class PayrollController {
   estimate(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthUser,
+    @Query('period') period?: string,
   ) {
-    return this.payroll.estimate(id, user);
+    // period 미지정이면 이번 달(payslip 과 동일 규약) — 응답의 `period` 필드로 어느 달인지 밝힌다.
+    return this.payroll.estimate(id, user, period);
   }
 
   /** POST /teachers/{id}/payroll/settle — 확정 정산 기록(관리자/HR). */

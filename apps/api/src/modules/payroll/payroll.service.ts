@@ -27,13 +27,13 @@ export class PayrollService {
     private readonly audit: AuditService,
   ) {}
 
-  async estimate(teacherId: string, actor: AuthUser) {
+  async estimate(teacherId: string, actor: AuthUser, period?: string) {
     const isSelf = actor.role === AccountRole.TEACHER && actor.id === teacherId;
     const isAdmin =
       actor.role === AccountRole.ADMIN || actor.role === AccountRole.HR;
     if (!isSelf && !isAdmin)
       throw new ForbiddenException('급여 조회 권한이 없습니다.');
-    return this.compute(teacherId, actor);
+    return this.compute(teacherId, actor, period);
   }
 
   // ── 매출 배분(전임) 급여 — 크레딧 매출 × 배분율(본사) + 4대보험 ──
@@ -99,7 +99,7 @@ export class PayrollService {
     const isSelf = actor.role === AccountRole.TEACHER && actor.id === teacherId;
     const isAdmin = actor.role === AccountRole.ADMIN || actor.role === AccountRole.HR;
     if (!isSelf && !isAdmin) throw new ForbiddenException('명세 조회 권한이 없습니다.');
-    const { start, end, label } = this.periodBounds(period);
+    const { start, endExclusive, label } = this.periodBounds(period);
     const tp = await this.prisma.teacher_profile.findUnique({
       where: { account_id: teacherId },
       include: { account: { select: { name: true } }, center: { select: { name: true } } },
@@ -108,7 +108,7 @@ export class PayrollService {
     const { sharePct } = await this.getSharePolicy();
     const model = await this.getModelPolicy();
     const agg = await this.prisma.booking.aggregate({
-      where: { teacher_id: teacherId, status: { in: [BookingStatus.CONFIRMED, BookingStatus.DONE] }, start_at: { gte: start, lte: end } },
+      where: { teacher_id: teacherId, status: { in: [BookingStatus.CONFIRMED, BookingStatus.DONE] }, start_at: { gte: start, lt: endExclusive } },
       _sum: { charged_credits: true }, _count: { _all: true },
     });
     // 크레딧 매출 → 원 환산(1크=0.5원, O1). 배분·명세는 원 기준.
@@ -188,13 +188,9 @@ export class PayrollService {
     if (actor.role !== AccountRole.ADMIN && actor.role !== AccountRole.HR) {
       throw new ForbiddenException('관리자만 정산을 확정할 수 있습니다.');
     }
-    const est = await this.compute(teacherId, actor);
-    const periodStart = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
-    );
-    const periodEnd = new Date(
-      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0),
-    );
+    // 정산 대상 기간과 **산정 기간이 반드시 같아야 한다** — 이전에는 누적액을 그 달 금액으로 기록했다.
+    const { start: periodStart, end: periodEnd, label: periodLabel } = this.periodBounds(undefined, now);
+    const est = await this.compute(teacherId, actor, periodLabel);
     const deductions = computeDeductions(est.confirmedAmount);
     // tutor_source 스냅샷(계측 차원) — 정산 시점 고용유형 박제. ⚠ 금액·계산에 무관, 순수 라벨.
     const prof = await this.prisma.teacher_profile.findUnique({ where: { account_id: teacherId }, select: { employment_type: true } });
@@ -235,12 +231,20 @@ export class PayrollService {
     return { id: row.id, status: 'confirmed', deductions, netAmount: deductions.net, ...est };
   }
 
+  /**
+   * 급여 기간 경계 — 월 단위. **`endExclusive`(다음 달 1일 00:00)로 자른다.**
+   *
+   * ⚠ 이전 구현의 `end = Date.UTC(y, m+1, 0)` 은 **말일 00:00** 이었다. 그걸 `lte` 로 쓰면
+   *   말일에 시작한 예약이 통째로 빠져(최대 하루치 매출 누락) 명세·정산 금액이 실제보다 작아졌다.
+   * `end` 는 표시·호환용으로 남기되(같은 값), 조회 필터는 반드시 `lt: endExclusive` 를 쓴다.
+   */
   private periodBounds(period?: string, now = new Date()) {
     const y = period ? Number(period.slice(0, 4)) : now.getUTCFullYear();
     const m = period ? Number(period.slice(5, 7)) - 1 : now.getUTCMonth();
     return {
       start: new Date(Date.UTC(y, m, 1)),
       end: new Date(Date.UTC(y, m + 1, 0)),
+      endExclusive: new Date(Date.UTC(y, m + 1, 1)),
       label: `${y}-${String(m + 1).padStart(2, '0')}`,
     };
   }
@@ -337,7 +341,7 @@ export class PayrollService {
     };
   }
 
-  private async compute(teacherId: string, actor: AuthUser) {
+  private async compute(teacherId: string, actor: AuthUser, period?: string) {
     const teacher = await this.prisma.teacher_profile.findUnique({
       where: { account_id: teacherId },
     });
@@ -353,13 +357,21 @@ export class PayrollService {
 
     // 통합 급여 = 매출 배분(share) 단일 모델. 완료(확정)·예정(예상) 세션의 크레딧 매출을
     // 원(×0.5)으로 환산 후 배분율(모델: share/floor/base_incentive)로 산정 → 명세(payslip)와 동일 공식.
+    //
+    // ⚠ **기간 조건 필수**(O118). 이전에는 teacher_id+status 만 걸어 **전체 기간 누적**을 냈다.
+    //   그 값이 '이번 달 예상급여'로 라벨링돼 표시되고(웹·모바일 3화면), settle() 이 그 누적액을
+    //   그 달 confirmed_amount 로 기록해 월이 갈수록 금액이 계속 커졌다. 반대로 payslip·financeReport 는
+    //   월을 잘라서, **선생님 화면과 관리자 명세가 구조적으로 어긋났다.**
+    //   기준은 payslip 과 동일하게 `booking.start_at`(예약 시작 시각) — 두 경로가 같은 기간·같은 금액을 내야 한다.
+    const { start, endExclusive, label: periodLabel } = this.periodBounds(period);
+    const inPeriod = { start_at: { gte: start, lt: endExclusive } };
     const [doneAgg, upAgg] = await Promise.all([
       this.prisma.booking.aggregate({
-        where: { teacher_id: teacherId, status: BookingStatus.DONE },
+        where: { teacher_id: teacherId, status: BookingStatus.DONE, ...inPeriod },
         _sum: { charged_credits: true }, _count: { _all: true },
       }),
       this.prisma.booking.aggregate({
-        where: { teacher_id: teacherId, status: BookingStatus.CONFIRMED },
+        where: { teacher_id: teacherId, status: BookingStatus.CONFIRMED, ...inPeriod },
         _sum: { charged_credits: true }, _count: { _all: true },
       }),
     ]);
@@ -375,6 +387,8 @@ export class PayrollService {
     return {
       teacherId,
       grade: teacher.grade,
+      /** 산정 기간(YYYY-MM) — 화면이 '이번 달'이라고 말할 근거. 없으면 라벨을 붙이면 안 된다. */
+      period: periodLabel,
       confirmedAmount,
       expectedAmount,
       incentive: 0,          // 인센티브는 급여 모델(base_incentive)로 흡수 — 별도 항목 없음

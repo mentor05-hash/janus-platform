@@ -38,11 +38,27 @@ const adminUser: any = {
   centerId: CENTER,
 };
 
-/** 급여 계약 상수 — 매출 배분 모델. 예약 2건 × 20,000크레딧 → 원 매출 20,000 → 배분 60% = 12,000원. */
+/**
+ * 급여 계약 상수 — 매출 배분 모델.
+ * 이번 달 완료 예약: 20,000 × 2 + 말일 10,000 = 50,000크레딧 → 원 매출 25,000 → 배분 60% = 15,000원.
+ * (지난 달 예약 999,999크레딧은 기간 밖이라 섞이지 않아야 한다.)
+ */
 const DONE_CREDITS_EACH = 20_000;
+const LAST_DAY_CREDITS = 10_000;
 const SHARE_PCT = 60;
 const CREDIT_WON = 0.5; // config/constants.ts CREDIT_WON_RATIO
-const EXPECTED_CONFIRMED = Math.round(Math.round(2 * DONE_CREDITS_EACH * CREDIT_WON) * SHARE_PCT / 100); // 12,000
+const THIS_MONTH_CREDITS = 2 * DONE_CREDITS_EACH + LAST_DAY_CREDITS;
+const EXPECTED_CONFIRMED = Math.round(Math.round(THIS_MONTH_CREDITS * CREDIT_WON) * SHARE_PCT / 100); // 15,000
+
+/** 기간 픽스처 — periodBounds 와 같은 UTC 월 경계를 쓴다(서버 규약과 어긋나면 테스트가 거짓이 된다). */
+const now = new Date();
+const thisMonth = (day: number) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), day, 3, 0, 0));
+const lastMonth = (day: number) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, day, 3, 0, 0));
+/** 이번 달 말일 **낮 시간** — 옛 경계(말일 00:00 lte)에서 빠졌던 지점. */
+const endOfThisMonth = () => {
+  const lastDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), lastDate, 12, 0, 0));
+};
 const POLICY_KEYS = ['payroll_share_policy', 'payroll_model_policy'] as const;
 
 describe('2.6 운영·예상급여 통합', () => {
@@ -80,8 +96,10 @@ describe('2.6 운영·예상급여 통합', () => {
     await prisma.teacher_profile.create({
       data: { account_id: TEACHER_P, center_id: CENTER, grade: 'B' as any },
     });
-    // 완료 예약 2건 — **charged_credits 를 반드시 지정**한다. 급여가 매출 배분으로 바뀐 뒤로
-    // 이 값이 곧 매출이며, 생략하면 schema 의 @default(0) 때문에 매출 0 → 급여 0 이 된다(옛 스펙의 실패 원인).
+    // 완료 예약 2건 — **charged_credits 와 start_at 을 반드시 지정**한다.
+    //   · charged_credits: 매출 배분 모델에서 이 값이 곧 매출(생략하면 @default(0) → 급여 0).
+    //   · start_at: 급여는 **기간(start_at 기준)으로 잘린다**(O118). 생략하면 NULL 이라 어느 달에도
+    //     귀속되지 않아 급여에서 제외된다 — 옛 스펙은 기간 필터가 없어 이 누락이 드러나지 않았다.
     for (let i = 0; i < 2; i++) {
       const b = await prisma.booking.create({
         data: {
@@ -92,10 +110,29 @@ describe('2.6 운영·예상급여 통합', () => {
           mode: 'zoom' as any,
           status: 'done' as any,
           charged_credits: DONE_CREDITS_EACH,
+          start_at: thisMonth(10 + i), // 이번 달 10·11일
         },
       });
       bookingIds.push(b.id);
     }
+    // 지난 달 예약 1건 — **이번 달 급여에 섞이면 안 된다**(회귀 가드).
+    const prev = await prisma.booking.create({
+      data: {
+        student_id: STUDENT, teacher_id: TEACHER_P, center_id: CENTER,
+        consult_type: 'subject' as any, mode: 'zoom' as any, status: 'done' as any,
+        charged_credits: 999_999, start_at: lastMonth(15),
+      },
+    });
+    bookingIds.push(prev.id);
+    // 이번 달 **말일** 예약 1건 — 옛 경계(`lte 말일 00:00`)에서 통째로 누락됐던 케이스.
+    const lastDay = await prisma.booking.create({
+      data: {
+        student_id: STUDENT, teacher_id: TEACHER_P, center_id: CENTER,
+        consult_type: 'subject' as any, mode: 'zoom' as any, status: 'done' as any,
+        charged_credits: LAST_DAY_CREDITS, start_at: endOfThisMonth(),
+      },
+    });
+    bookingIds.push(lastDay.id);
 
     // 배분율·모델을 **고정**한다 — 전역 정책이라 DB 값에 따라 기대 금액이 흔들리면 안 된다.
     // 스냅샷 후 afterAll 에서 원복(원래 없던 키는 삭제)한다.
@@ -141,10 +178,39 @@ describe('2.6 운영·예상급여 통합', () => {
     expect(r.breakdown.model).toBe('share');
     expect(r.breakdown.sharePct).toBe(SHARE_PCT);
     expect(r.breakdown.creditWonRatio).toBe(CREDIT_WON);
-    expect(r.breakdown.doneSessions).toBe(2);
-    expect(r.breakdown.confirmedCredits).toBe(2 * DONE_CREDITS_EACH);
-    expect(r.breakdown.confirmedRevenue).toBe(Math.round(2 * DONE_CREDITS_EACH * CREDIT_WON));
+    expect(r.breakdown.doneSessions).toBe(3); // 이번 달 3건(10·11일 + 말일) — 지난 달 1건은 제외
+    expect(r.breakdown.confirmedCredits).toBe(THIS_MONTH_CREDITS);
+    expect(r.breakdown.confirmedRevenue).toBe(Math.round(THIS_MONTH_CREDITS * CREDIT_WON));
     expect(r.confirmedAmount).toBe(EXPECTED_CONFIRMED);
+    expect(r.period).toBe(`${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`);
+  });
+
+  it('기간 격리: 지난 달 예약은 이번 달 급여에 섞이지 않는다(O118)', async () => {
+    // 지난 달 예약이 999,999크레딧이므로 누적 산정이면 금액이 폭증한다 — 그게 옛 버그였다.
+    const r: any = await payroll.estimate(TEACHER_P, teacherUser);
+    expect(r.confirmedCredits ?? r.breakdown.confirmedCredits).toBe(THIS_MONTH_CREDITS);
+    expect(r.confirmedAmount).toBe(EXPECTED_CONFIRMED);
+    // 지난 달을 명시 조회하면 그 달 금액만 나온다.
+    const prevLabel = `${now.getUTCFullYear()}-${String(now.getUTCMonth() || 12).padStart(2, '0')}`;
+    const prev: any = await payroll.estimate(TEACHER_P, teacherUser, prevLabel);
+    expect(prev.period).toBe(prevLabel);
+    expect(prev.breakdown.confirmedCredits).toBe(999_999);
+  });
+
+  it('말일 예약이 포함된다 — 옛 경계(lte 말일 00:00)에서 통째로 누락됐다', async () => {
+    const r: any = await payroll.estimate(TEACHER_P, teacherUser);
+    // 말일 크레딧이 빠지면 confirmedCredits 가 2×20,000 으로 줄어든다.
+    expect(r.breakdown.confirmedCredits).toBe(THIS_MONTH_CREDITS);
+    expect(r.breakdown.confirmedCredits).toBeGreaterThan(2 * DONE_CREDITS_EACH);
+  });
+
+  it('예상급여와 명세(payslip)가 같은 기간에 같은 금액을 낸다 — 두 경로 정합(O118)', async () => {
+    const est: any = await payroll.estimate(TEACHER_P, teacherUser);
+    const slip: any = await payroll.revenueSharePayslip(TEACHER_P, adminUser);
+    expect(slip.period).toBe(est.period);
+    // payslip 은 완료+예정을 합쳐 매출을 낸다 — 예정이 없으면 확정과 같아야 한다.
+    expect(slip.creditRevenue).toBe(est.breakdown.confirmedCredits + est.breakdown.upcomingCredits);
+    expect(slip.gross).toBe(est.expectedAmount);
   });
 
   it('급여 권한 가드: 타인(학생)은 조회 불가', async () => {
