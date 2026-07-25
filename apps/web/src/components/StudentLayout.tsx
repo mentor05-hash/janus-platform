@@ -16,6 +16,7 @@ const NAV: NavItem[] = [
   { to: '/student/scores/input', label: '성적진단' },
   { to: '/student/curriculum', label: '학습 플랜' },
   { to: '/student/goal', label: '목표 설정' },
+  { to: '/student/gap', label: '과목별 격차' },
   { to: '/student/tasks', label: '할 일' },
   { to: '/student/academic', label: '학사일정' },
   { section: '배치·성적' },

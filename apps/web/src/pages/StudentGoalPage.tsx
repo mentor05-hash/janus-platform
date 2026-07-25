@@ -144,7 +144,7 @@ export function StudentGoalPage() {
               <TextField label="목표 대학" placeholder="예) 성균관대" maxLength={60} value={goal.university ?? ''} onChange={(e) => set({ university: e.target.value })} />
               <TextField label="목표 학과" placeholder="예) 전자공학" maxLength={60} value={goal.department ?? ''} onChange={(e) => set({ department: e.target.value })} />
               <SelectField label="목표 라인(선택)" options={TIER_OPTIONS} value={goal.tier ?? ''} onChange={(e) => set({ tier: e.target.value || null })} />
-              <TextField label="목표 평균 점수" type="number" min={0} max={100} step={1} placeholder="예) 90" hint="목표 평균에 못 미치는 과목이 '할 일'로 제안되는 기준이에요(정수)." value={goal.avg ?? ''} onChange={(e) => set({ avg: e.target.value === '' ? null : Math.round(Number(e.target.value)) })} />
+              <TextField label="목표 평균 점수" type="number" min={0} max={100} step={1} placeholder="예) 90" hint="과목별 격차 계산과 '할 일' 자동 제안의 기준이에요(정수)." value={goal.avg ?? ''} onChange={(e) => set({ avg: e.target.value === '' ? null : Math.round(Number(e.target.value)) })} />
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
                 <Button onClick={save} disabled={saving} data-janus-cta="goal_save">{saving ? '저장 중…' : '목표 저장·리포트 갱신'}</Button>
                 <button className="btn ghost" onClick={() => nav('/student/placement/gap')} data-janus-cta="goal-cancel">취소</button>
@@ -155,6 +155,7 @@ export function StudentGoalPage() {
 
           <Card title="목표는 이렇게 쓰여요">
             <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14, color: 'var(--ink-body)', lineHeight: 1.7 }}>
+              <li><b>과목별 격차</b> — 목표 평균까지 과목별로 얼마나 남았는지 바로 보여요(<Link to="/student/gap">과목별 격차 보기</Link>).</li>
               <li><b>맞춤 할 일</b> — 목표 평균에 못 미치는 과목이 '할 일'로 자동 제안돼요(<Link to="/student/tasks">할 일 보기</Link>).</li>
               <li><b>격차 리포트</b> — 목표 대학·학과가 리포트의 대학·학과 입력란에 자동으로 채워져요(목표 컷은 배치표에서 선택·입력).</li>
               <li><b>상담·컨설팅</b> — 선생님·컨설턴트가 같은 목표를 보고 전략을 잡아요.</li>
