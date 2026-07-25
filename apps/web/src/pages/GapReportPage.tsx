@@ -39,9 +39,27 @@ export function GapReportPage() {
   const [tq, setTq] = useState('');
   const [tResults, setTResults] = useState<Array<{ univ: string; dept: string; track?: string; cut: number }>>([]);
   const [picked, setPicked] = useState(false);
+  const [goalTarget, setGoalTarget] = useState<{ university: string | null; department: string | null } | null>(null);
   const cutSuffix = mode === 'susi' ? '등급' : '%';
 
   useEffect(() => { track('baechi', 'view', undefined, { view: 'gap' }); }, []);
+
+  // 자가목표(janus_goal) 조회 — 목표 설정(/student/goal)에서 정한 목표 대학·학과. 학생 전용 엔드포인트라 role 가드.
+  useEffect(() => {
+    if (user?.role !== 'student') return;
+    api.get<{ university: string | null; department: string | null }>('/me/goal')
+      .then((g) => { if (g.university || g.department) setGoalTarget({ university: g.university, department: g.department }); })
+      .catch(() => {}); // 목표 미설정·프로필 없음 → 프리필 없이 수동 입력
+  }, [user]);
+
+  // 목표 대학·학과 프리필 — 입력란이 빈 경우에만 채운다(사용자 입력 보존).
+  // 모드 전환이 입력을 초기화하므로(아래 토글) mode 도 의존해 재적용한다.
+  // 검색어(tq)는 건드리지 않는다 — 타이핑하지 않았는데 목표컷 드롭다운이 열리는 것을 막기 위해.
+  useEffect(() => {
+    if (!goalTarget) return;
+    setUniv((v) => v || goalTarget.university || '');
+    setDept((v) => v || goalTarget.department || '');
+  }, [goalTarget, mode]);
 
   // 목표컷 데이터 배치 여부 프로브(모드별 — 정시/수시 각각 targets 유무 다름)
   useEffect(() => {
