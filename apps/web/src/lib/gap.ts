@@ -71,12 +71,14 @@ export function computeSubjectGaps(trend: TrendLike | null): SubjectGapModel | n
   if (!last) return null;
   const goalAvg = trend.goal?.avg ?? null;
   const lastAvg = last.avg ?? null;
-  const overallGap = goalAvg != null && lastAvg != null ? r1(goalAvg - lastAvg) : null;
-  const overallBand = overallGap != null && goalAvg != null ? bandOf(overallGap, goalAvg) : null;
 
   const scored = (last.subjects ?? []).filter((s): s is { subject: string; score: number } => s.score != null);
   // 수능 자가입력(표점 모드) 회차는 과목 점수가 100 을 넘어 목표 평균과 척도가 다르다 → 과목별 계산 생략.
   const scaleMismatch = scored.some((s) => s.score > 100);
+  // **총평도 같이 막는다.** 표점 평균(예: 98.8)을 목표 평균(90)과 비교하면 격차가 음수로 나와
+  // '목표 도달'로 **판정이 뒤집힌다** — 과목별에만 가드를 두고 총평을 열어두면 화면에서 거짓 판정이 남는다.
+  const overallGap = !scaleMismatch && goalAvg != null && lastAvg != null ? r1(goalAvg - lastAvg) : null;
+  const overallBand = overallGap != null && goalAvg != null ? bandOf(overallGap, goalAvg) : null;
   const subjects: SubjectGap[] =
     scaleMismatch || goalAvg == null
       ? []

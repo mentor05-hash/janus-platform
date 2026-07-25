@@ -60,6 +60,28 @@ describe('computeSubjectGaps', () => {
   });
 });
 
+describe('표점 회차 총평 가드', () => {
+  it('표점 최신 회차면 총평 격차·밴드를 만들지 않는다 — 98.8 vs 목표 90 은 "목표 도달"로 뒤집힌다', () => {
+    const t: TrendLike = { goal: { avg: 90 }, points: [
+      { period: 'a', examType: null, avg: 98.8, subjects: [{ subject: '국어', score: 131 }, { subject: '수학', score: 135 }] },
+    ] };
+    const m = computeSubjectGaps(t)!;
+    expect(m.scaleMismatch).toBe(true);
+    expect(m.overallGap).toBeNull();
+    expect(m.overallBand).toBeNull();
+    expect(m.subjects).toEqual([]);
+  });
+  it('0~100 회차면 총평이 정상 산출된다', () => {
+    const t: TrendLike = { goal: { avg: 90 }, points: [
+      { period: 'a', examType: null, avg: 81.8, subjects: [{ subject: '국어', score: 88 }, { subject: '수학', score: 79 }] },
+    ] };
+    const m = computeSubjectGaps(t)!;
+    expect(m.scaleMismatch).toBe(false);
+    expect(m.overallGap).toBe(8.2);
+    expect(m.overallBand).toBe('소신');
+  });
+});
+
 describe('avgSpread (회차 변동 폭)', () => {
   it('평균은 높을수록 상위 — best=max, worst=min', () => {
     const t: TrendLike = { goal: { avg: 90 }, points: [

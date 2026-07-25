@@ -130,12 +130,14 @@ export function computeGapModel(trend: Trend | null): GapModel | null {
   const last = pts[pts.length - 1];
   const goalAvg = trend.goal?.avg ?? null;
   const lastAvg = last?.avg ?? null;
-  const overallGap = goalAvg != null && lastAvg != null ? r1(goalAvg - lastAvg) : null;
-  const overallBand = overallGap != null && goalAvg != null ? bandOf(overallGap, goalAvg) : null;
   const scored = (last?.subjects ?? []).filter((s) => s.score != null);
   // 수능 자가입력(O65 표점 모드) 회차는 과목 점수가 표준점수(100 초과)여서 목표 평균(0~100)과 척도가 다르다.
-  // 그대로 비교하면 격차가 음수로 나와 전 과목이 '목표 도달' 로 뒤집히므로, 과목별 격차는 계산하지 않는다(총평·추세만).
+  // 그대로 비교하면 격차가 음수로 나와 전 과목이 '목표 도달' 로 뒤집히므로, 과목별 격차는 계산하지 않는다.
   const scaleMismatch = scored.some((s) => (s.score as number) > 100);
+  // **총평도 같이 막는다** — 과목별에만 가드를 두면 표점 평균(예: 98.8) vs 목표 평균(90) 비교가 남아
+  // 화면에 '목표 도달' 이라는 거짓 판정이 뜬다(웹 lib 과 동일 수정 — 한쪽만 고치면 갈라진다).
+  const overallGap = !scaleMismatch && goalAvg != null && lastAvg != null ? r1(goalAvg - lastAvg) : null;
+  const overallBand = overallGap != null && goalAvg != null ? bandOf(overallGap, goalAvg) : null;
   const subjects = scaleMismatch
     ? []
     : scored
