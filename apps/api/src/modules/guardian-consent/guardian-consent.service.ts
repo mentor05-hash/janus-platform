@@ -141,6 +141,101 @@ export class GuardianConsentService {
     return { ok: true, consentDelivery: false };
   }
 
+  // ── 학생 본인의 보호자 공유 동의(O105) — 성인 학생 데이터 열람 게이트 ──
+
+  /** 내 보호자 목록 + 공유 동의 상태(학생). 미성년이면 보호자 권한이라 동의 토글이 무의미함을 함께 알린다. */
+  async myShareConsents(user: AuthUser, scope = 'report') {
+    if (user.role !== AccountRole.STUDENT) throw new ForbiddenException('학생만 사용할 수 있습니다.');
+    const links = await this.prisma.guardian_student_link.findMany({
+      where: { student_id: user.id, status: 'approved' },
+      select: { guardian_id: true, relation: true },
+    });
+    const rows = await this.prisma.student_share_consent.findMany({ where: { student_id: user.id, scope } });
+    const byGuardian = new Map(rows.map((r) => [r.guardian_id, r]));
+    const guardians = await this.prisma.account.findMany({
+      where: { id: { in: links.map((l) => l.guardian_id) } },
+      select: { id: true, name: true },
+    });
+    const nameOf = new Map(guardians.map((g) => [g.id, g.name]));
+    return {
+      scope,
+      isMinor: await this.isMinor(user.id),
+      policyVersion: GuardianConsentService.POLICY_VERSION,
+      guardians: links.map((l) => {
+        const r = byGuardian.get(l.guardian_id);
+        return {
+          guardianId: l.guardian_id,
+          guardianName: nameOf.get(l.guardian_id) ?? null,
+          relation: l.relation,
+          granted: !!r && !r.revoked_at,
+          grantedAt: r && !r.revoked_at ? r.granted_at : null,
+          revokedAt: r?.revoked_at ?? null,
+        };
+      }),
+    };
+  }
+
+  /** 공유 동의 부여(학생 본인만). 승인된 연결의 보호자에게만. */
+  async grantShare(user: AuthUser, guardianId: string, scope = 'report') {
+    if (user.role !== AccountRole.STUDENT) throw new ForbiddenException('학생만 동의할 수 있습니다.');
+    await this.assertApprovedLink(guardianId, user.id);
+    await this.prisma.student_share_consent.upsert({
+      where: { student_id_guardian_id_scope: { student_id: user.id, guardian_id: guardianId, scope } },
+      create: { student_id: user.id, guardian_id: guardianId, scope, policy_version: GuardianConsentService.POLICY_VERSION },
+      update: { granted_at: new Date(), revoked_at: null, policy_version: GuardianConsentService.POLICY_VERSION, updated_at: new Date() },
+    });
+    this.logger.log(`학생 공유 동의 student=${user.id} guardian=${guardianId} scope=${scope}`);
+    return { ok: true, granted: true };
+  }
+
+  /** 공유 동의 철회(즉시). 이력은 남긴다(행 삭제 안 함). */
+  async revokeShare(user: AuthUser, guardianId: string, scope = 'report') {
+    if (user.role !== AccountRole.STUDENT) throw new ForbiddenException('학생만 철회할 수 있습니다.');
+    const row = await this.prisma.student_share_consent.findUnique({
+      where: { student_id_guardian_id_scope: { student_id: user.id, guardian_id: guardianId, scope } },
+    });
+    if (!row) throw new NotFoundException('동의 기록이 없습니다.');
+    await this.prisma.student_share_consent.update({
+      where: { id: row.id },
+      data: { revoked_at: new Date(), updated_at: new Date() },
+    });
+    this.logger.log(`학생 공유 동의 철회 student=${user.id} guardian=${guardianId} scope=${scope}`);
+    return { ok: true, granted: false };
+  }
+
+  /**
+   * **자녀 데이터 열람 게이트**(O105) — 보호자가 자녀 산출물을 읽을 수 있는지 판정. 기본은 deny.
+   *   1) 보호자 역할 + 승인된 연결(pending/rejected 차단)
+   *   2) 미성년 → 보호자 본인확인(verified) + 전달동의(consent_delivery, 미철회)
+   *   3) 성인   → **학생 본인의 공유 동의**(student_share_consent, 미철회)
+   * is_minor 기록이 없으면 성인으로 간주해 학생 동의를 요구한다(보수적 기본값).
+   */
+  async assertChildDataAccess(user: AuthUser, studentId: string, scope = 'report'): Promise<void> {
+    if (user.role !== AccountRole.GUARDIAN) throw new ForbiddenException('학부모만 조회할 수 있습니다.');
+    await this.assertApprovedLink(user.id, studentId);
+    if (await this.isMinor(studentId)) {
+      const row = await this.prisma.guardian_data_consent.findUnique({
+        where: { guardian_id_student_id: { guardian_id: user.id, student_id: studentId } },
+      });
+      if (!row || row.verify_status !== 'verified') {
+        throw new ForbiddenException({ code: 'NEED_VERIFY', message: '본인확인을 먼저 완료해야 자녀 데이터를 열람할 수 있습니다.' });
+      }
+      if (!row.consent_delivery || row.revoked_at) {
+        throw new ForbiddenException({ code: 'NEED_GUARDIAN_CONSENT', message: '자녀 데이터 열람 동의가 필요합니다.' });
+      }
+      return;
+    }
+    const share = await this.prisma.student_share_consent.findUnique({
+      where: { student_id_guardian_id_scope: { student_id: studentId, guardian_id: user.id, scope } },
+    });
+    if (!share || share.revoked_at) {
+      throw new ForbiddenException({
+        code: 'NEED_STUDENT_CONSENT',
+        message: '성인 학생 본인의 공유 동의가 필요합니다. 학생이 마이페이지에서 동의하면 열람할 수 있습니다.',
+      });
+    }
+  }
+
   /**
    * push 게이트 조회(consult-report 등에서 사용) — 해당 학생의 "본인확인+전달동의 완료" 보호자 id 목록.
    * ⚠ 이 목록이 비어있지 않아도, 직접 push 는 시스템 플래그가 ON 일 때만 수행한다(INV-10 이중 방어).

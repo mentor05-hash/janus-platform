@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put, Query, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put, Query, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { Type } from 'class-transformer';
@@ -310,6 +310,23 @@ export class ScoresMeController {
       univ: dto.univ, dept: dto.dept, cut: dto.cutNb, track: dto.track,
       myGrade: dto.myGrade, studentId: dto.studentId,
     });
+  }
+
+  /**
+   * GET /guardian/reports?studentId=&kind=&limit= — 자녀 산출물 이력(보호자).
+   * 연령별 동의 게이트(O105): 미성년=보호자 본인확인+전달동의 / 성인=학생 본인의 공유 동의. 미충족 403.
+   */
+  @Get('guardian/reports')
+  @Roles('guardian')
+  childReports(
+    @CurrentUser() user: AuthUser,
+    @Query('studentId') studentId?: string,
+    @Query('kind') kind?: string,
+    @Query('limit') limit?: string,
+  ) {
+    if (!studentId) throw new BadRequestException('studentId 가 필요합니다.');
+    const n = limit != null && limit !== '' ? Number(limit) : 20;
+    return this.scores.listChildReports(user, studentId, kind === 'diagnosis' || kind === 'weekly' ? kind : 'gap', Number.isFinite(n) ? n : 20);
   }
 
   /** GET /guardian/scores/trend?studentId= — 학부모 자녀 성적·배치 추이. */

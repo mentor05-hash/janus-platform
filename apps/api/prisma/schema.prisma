@@ -1805,6 +1805,24 @@ model academic_event {
   @@index([center_id, start_date])
 }
 
+/// 학생 본인의 보호자 공유 동의(O105) — **성인 학생** 데이터를 보호자가 열람하려면 필요.
+/// 미성년은 보호자 권한이라 guardian_data_consent(본인확인+전달동의)를 게이트로 쓰고 이 표는 쓰지 않는다.
+/// is_minor 기록이 없으면 성인으로 간주(= 동의 필요, 보수적 기본값). 철회는 revoked_at 으로 즉시 반영·이력 보존.
+model student_share_consent {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  student_id     String    @db.Uuid
+  guardian_id    String    @db.Uuid
+  scope          String    @default("report")
+  policy_version String    @default("v1")
+  granted_at     DateTime  @default(now()) @db.Timestamptz(6)
+  revoked_at     DateTime? @db.Timestamptz(6)
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@unique([student_id, guardian_id, scope])
+  @@index([student_id, scope])
+}
+
 /// janus_report — 산출물(격차·진단·주간) append-only 이력. janus_score(입력)와 대칭인 출력 규약.
 /// payload = **트렁크 JanusReport 봉투**(scores/domain/gap-report.ts 정본: 누백/등급·target·band·evidence relTier).
 /// '무엇을 언제 산출해 보여줬나'의 재현용 — 조회 접근 감사는 별도 audit_log 담당. 수정·삭제하지 않는다.

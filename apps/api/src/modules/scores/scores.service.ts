@@ -8,6 +8,7 @@ import { AuditService } from '../audit/audit.service';
 import { LLM_PROVIDER } from '../llm/llm.types';
 import type { LlmProvider, ScoreOcrResult } from '../llm/llm.types';
 import { SchoolRecordGuardService } from '../guard/school-record-guard.service';
+import { GuardianConsentService } from '../guardian-consent/guardian-consent.service';
 import { toJanusScore } from './domain/janus-score';
 import { buildGapReport, type GapMode, type JanusReport } from './domain/gap-report';
 
@@ -28,6 +29,7 @@ export class ScoresService {
     @Inject(LLM_PROVIDER) private readonly llm: LlmProvider,
     private readonly audit: AuditService,
     private readonly guard: SchoolRecordGuardService,
+    private readonly guardianConsent: GuardianConsentService,
   ) {}
 
   private assertAdmin(actor: AuthUser) {
@@ -571,7 +573,21 @@ export class ScoresService {
     }
   }
 
-  /** 내 산출물 이력(최신순). 학생 본인만 — 학부모·선생님 열람은 별도 게이트 설계 후. */
+  /**
+   * 자녀 산출물 이력(보호자) — **연령별 동의 게이트 통과 시에만**(O105).
+   * 미성년: 보호자 본인확인+전달동의 / 성인: 학생 본인의 공유 동의. 미충족이면 403(코드로 사유 구분).
+   */
+  async listChildReports(guardian: AuthUser, studentId: string, kind = 'gap', limit = 20) {
+    await this.guardianConsent.assertChildDataAccess(guardian, studentId, 'report');
+    return this.prisma.janus_report.findMany({
+      where: { student_id: studentId, kind },
+      orderBy: { created_at: 'desc' },
+      take: Math.min(Math.max(limit, 1), 50),
+      select: { id: true, kind: true, status: true, created_at: true, payload: true },
+    });
+  }
+
+  /** 내 산출물 이력(최신순) — 학생 본인. */
   async listMyReports(user: AuthUser, kind = 'gap', limit = 20) {
     const rows = await this.prisma.janus_report.findMany({
       where: { student_id: user.id, kind },

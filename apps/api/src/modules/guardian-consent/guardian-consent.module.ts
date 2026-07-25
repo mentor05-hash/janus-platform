@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { GuardianConsentController } from './guardian-consent.controller';
+import { GuardianConsentController, StudentShareConsentController } from './guardian-consent.controller';
 import { GuardianConsentService } from './guardian-consent.service';
 import { IdentityVerifyProvider } from './identity-verify.provider';
 
@@ -8,7 +8,7 @@ import { IdentityVerifyProvider } from './identity-verify.provider';
  * consult-report 등 소비 모듈이 GuardianConsentService.consentedGuardianIds 를 게이트로 참조.
  */
 @Module({
-  controllers: [GuardianConsentController],
+  controllers: [GuardianConsentController, StudentShareConsentController],
   providers: [GuardianConsentService, IdentityVerifyProvider],
   exports: [GuardianConsentService],
 })
