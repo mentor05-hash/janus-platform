@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ScrollView, Text, TouchableOpacity } from 'react-native';
+import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { api, ApiError } from '../api';
 import { SP, useTheme, useUI } from '../theme';
 import { type Trend } from './ScoreTrendView';
@@ -60,7 +60,16 @@ export function GapReportScreen({ onBack, showPlacement, goTab }: { onBack: () =
       {error ? <Text style={ui.error}>{error}</Text> : null}
       {trend === undefined ? <Text style={ui.sub}>불러오는 중…</Text> : trend ? (
         <GapReportView trend={trend} showPlacement={showPlacement} prescriptions={prescriptions} model={model} />
-      ) : null}
+      ) : (
+        /* ⚠ 이전엔 여기서 **아무것도 렌더하지 않았다** — 성적이 없으면 화면이 통째로 비어 막다른 길이었다.
+           모바일에는 아직 성적 입력 화면이 없어(웹 전용) 이 상태에 갇히기 쉬우므로 다음 행동을 알려준다. */
+        <View style={ui.card}>
+          <Text style={ui.sub}>
+            아직 성적이 없어서 격차를 계산할 수 없어요. 성적 입력은 지금 웹에서만 지원돼요 —
+            웹(:8080)의 [성적진단]에서 한 번 입력하면 이 화면과 과목별 격차·할 일이 모두 채워져요.
+          </Text>
+        </View>
+      )}
     </ScrollView>
   );
 }

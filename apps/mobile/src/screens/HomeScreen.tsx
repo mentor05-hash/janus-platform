@@ -28,7 +28,9 @@ export function HomeScreen({ name, goTab }: { name?: string; goTab: (t: string) 
 
   const hasDiag = !!diag;
   const NEXT: { icon: string; title: string; desc: string; tab: string }[] = [
-    { icon: '◱', title: hasDiag ? '진단 다시 받기' : '진단 받기', desc: '문항 풀이 → 약점·처방', tab: 'g' },
+    // ⚠ 탭 키는 'dg'(진단)다. 'g' 는 **학부모 멤버십** 탭 키여서, 학생이 누르면 App.tsx 의 else 분기로
+    //   떨어져 '마이' 화면이 떴다(N30 5탭 재편의 핵심 진입점이 끊겨 있었다).
+    { icon: '◱', title: hasDiag ? '진단 다시 받기' : '진단 받기', desc: '문항 풀이 → 약점·처방', tab: 'dg' },
     { icon: '✎', title: '질문 올리기', desc: 'AI 초안 즉시 · 선생님 검토', tab: 'c' },
     { icon: '◇', title: '선생님 찾기', desc: '상담·과외 1:1 매칭', tab: 'a' },
   ];
@@ -48,7 +50,7 @@ export function HomeScreen({ name, goTab }: { name?: string; goTab: (t: string) 
       <Text style={styles.sub}>{name ? `${name}님, ` : ''}지금 위치 → 다음 할 일 → 바로가기</Text>
 
       {/* ① 지금 위치 — 진단 상태 */}
-      <TouchableOpacity style={[ui.card, { marginTop: SP.md }]} activeOpacity={0.75} onPress={() => goTab('g')}>
+      <TouchableOpacity style={[ui.card, { marginTop: SP.md }]} activeOpacity={0.75} onPress={() => goTab('dg')}>
         {diag === undefined ? (
           <Text style={styles.dim}>불러오는 중…</Text>
         ) : hasDiag ? (

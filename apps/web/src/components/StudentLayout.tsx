@@ -16,11 +16,16 @@ const NAV: NavItem[] = [
   { to: '/student/scores/input', label: '성적진단' },
   { to: '/student/curriculum', label: '학습 플랜' },
   { to: '/student/goal', label: '목표 설정' },
-  { to: '/student/gap', label: '과목별 격차' },
+  // 이름은 **고도**를 드러낸다(O102) — 전략층(목표 대학 컷 대비)과 실행층(과목 점수 대비)은 다른 화면이다.
+  //   두 이름이 '격차'만 공유하면 사용자가 무엇이 다른지 구분할 수 없다.
+  { to: '/student/gap', label: '과목별 점수 격차' },
   { to: '/student/tasks', label: '할 일' },
   { to: '/student/academic', label: '학사일정' },
   { section: '배치·성적' },
   { to: '/student/placement/hub', label: '배치표 허브' },
+  // ⚠ flag 없이 둔다. 제품 전면(랜딩·홈)이 가장 많이 쓰는 이름인데 nav 진입점이 **0개**였고,
+  //   '내 성적·배치'의 격차 탭은 flag:'scores' 라 성적 노출 정책이 OFF 면 유일한 경로마저 사라졌다.
+  { to: '/student/placement/gap', label: '목표 대학 격차(격차 리포트)' },
   { to: '/student/scores', label: '내 성적·배치', flag: 'scores', end: true },
   { section: '학습·상담' },
   { to: '/student/lectures', label: '강좌' },
