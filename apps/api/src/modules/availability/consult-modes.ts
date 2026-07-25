@@ -64,3 +64,35 @@ export function pairModesWithOpenStudent(dow: number, teacherWindows: DayWindow[
   }
   return pairModes(dow, teacherWindows, studentWindows);
 }
+
+/**
+ * 플랫폼 상담 모드(`consult_mode`) → 이 모드가 **성립하려면 반드시 필요한** 플래너 SlotMode.
+ *
+ * 두 축은 다른 것이다 — consult_mode 는 '무엇으로 상담하나'(상품·요금 축),
+ * SlotMode 는 '그 시간대에 무엇이 가능한가'(환경 축). 그래서 매핑은 **1:1 이 아니라 필요조건**이다.
+ *   · zoom(줌 화상) → video 없으면 불가
+ *   · chat(실시간 채팅) → chat 없으면 불가
+ *   · hand(필기 공유 = 공유 화이트보드로 풀이) → whiteboard 없으면 불가
+ *   · offline(센터 대면) → **온라인 모드와 무관**하므로 걸러내지 않는다(null)
+ *   · board(게시판 Q&A) → 상담 예약 모드가 아니다(null)
+ * ⚠ 플래너의 `voice` 는 대응하는 consult_mode 가 아직 없다 — 교집합에 나와도 오늘은 예약할 수 없고
+ *   '가능한 모드' 안내로만 쓴다. 상품·요금(pricing_policy)이 생기면 그때 매핑을 추가한다.
+ */
+export const REQUIRED_SLOT_MODE: Readonly<Record<string, SlotMode | null>> = Object.freeze({
+  zoom: 'video',
+  chat: 'chat',
+  hand: 'whiteboard',
+  offline: null,
+  board: null,
+});
+
+/**
+ * 요청한 상담 모드가 그 시간대에 **불가능한가**.
+ * 매핑이 없는 모드(offline·board·미지의 값)는 판단하지 않는다 — 모르는 것을 막으면 멀쩡한 예약이 사라진다.
+ */
+export function consultModeBlocked(consultMode: string | undefined, available: readonly SlotMode[]): boolean {
+  if (!consultMode) return false;
+  const required = REQUIRED_SLOT_MODE[consultMode];
+  if (!required) return false;
+  return !available.includes(required);
+}

@@ -30,10 +30,27 @@ export class AvailabilityController {
   slots(
     @Param('id', ParseUUIDPipe) id: string,
     @Query('date') date: string,
+    @Query('mode') mode: string | undefined,
     @CurrentUser() user: AuthUser,
   ) {
     const studentId = user.role === AccountRole.STUDENT ? user.id : undefined;
-    return this.availability.getDaySlots(id, date, studentId);
+    // mode 를 주면 그 상담 방식이 불가능한 날은 빈 배열이 온다(환경 인지 매칭 O120).
+    // 안 주면 기존과 동일하게 동작한다 — 소비처 6곳의 계약을 바꾸지 않기 위해서다.
+    return this.availability.getDaySlots(id, date, studentId, mode);
+  }
+
+  /**
+   * GET /teachers/{id}/consult-modes?date= — 그 날 가능한 상담 모드 + 상품별 예약 가능 여부.
+   * 슬롯이 왜 비었는지 화면이 설명할 수 있게 한다(빈 목록만 주면 막다른 길이 된다).
+   */
+  @Get(':id/consult-modes')
+  consultModes(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('date') date: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    const studentId = user.role === AccountRole.STUDENT ? user.id : undefined;
+    return this.availability.getConsultModes(id, date, studentId);
   }
 
   /** GET /teachers/{id}/work-schedule */

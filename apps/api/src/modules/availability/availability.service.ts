@@ -18,6 +18,7 @@ import {
 } from '../../config/constants';
 import { BookingStatus } from '../../config/enums';
 import { buildDaySlots, Interval, isRangeBookable, rangeBlockReason } from './domain/slots';
+import { consultModeBlocked, pairModesWithOpenStudent } from './consult-modes';
 
 export interface DayWindow {
   start: string; // "HH:MM"
@@ -82,7 +83,7 @@ export class AvailabilityService {
    * 선생님 가용 슬롯 (§5-1). 학생이 조회하면 본인 체류시간과 교집합.
    * 반환: 10분 슬롯 상태 배열 + 그날 예약 가능 인터벌 계산의 입력.
    */
-  async getDaySlots(teacherId: string, dateStr: string, studentId?: string) {
+  async getDaySlots(teacherId: string, dateStr: string, studentId?: string, consultMode?: string) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
       throw new BadRequestException('date 는 YYYY-MM-DD 형식이어야 합니다.');
     }
@@ -114,6 +115,15 @@ export class AvailabilityService {
       dateStr,
     );
 
+    // 환경 인지 모드 매칭(O119③·O120) — 요청한 상담 모드가 그 시간대에 불가능하면 **슬롯을 내주지 않는다**.
+    // 예약 단계에서 걸러야 한다: 입장한 뒤에 "화상이 안 되네"를 알면 이미 늦다.
+    // ⚠ 반환 형태(Slot[])는 그대로 둔다 — 소비처 6곳이 배열을 기대한다. 사유는 별도 엔드포인트가 알려준다
+    //   (빈 배열만 주고 이유를 안 알려주면 '막다른 길'이 된다).
+    if (consultMode) {
+      const modes = await this.dayConsultModes(template[weekday], studentId, weekday);
+      if (consultModeBlocked(consultMode, modes)) return [];
+    }
+
     const dayStart = work.length ? Math.min(...work.map((w) => w.start)) : 0;
     const dayEnd = work.length ? Math.max(...work.map((w) => w.end)) : 0;
     const slots = buildDaySlots({
@@ -127,6 +137,48 @@ export class AvailabilityService {
       dayEndMin: dayEnd,
     });
     return slots;
+  }
+
+  /**
+   * 그 요일에 양측 모두 가능한 상담 모드(교집합). 교집합 산식은 플래너 정본(intersectModes)을 쓴다.
+   * 학생 체류시간 미설정 = '제한 없음'이라는 기존 규약을 보존한다(그 경우 선생님 쪽 모드).
+   */
+  private async dayConsultModes(teacherWindows: DayWindow[] | undefined, studentId: string | undefined, weekday: string) {
+    const t = teacherWindows ?? [];
+    if (!studentId) return pairModesWithOpenStudent(Number(weekday), t, null);
+    const sp = await this.prisma.student_profile.findUnique({ where: { account_id: studentId } });
+    const stayTpl = (sp?.stay_time as unknown as WeeklyTemplate) ?? null;
+    // 체류 템플릿이 없으면 제한 없음. 있는데 그 요일이 비면 그날은 체류 없음 → 가능한 모드도 없다.
+    const studentWindows = stayTpl ? (stayTpl[weekday] ?? []) : null;
+    return pairModesWithOpenStudent(Number(weekday), t, studentWindows);
+  }
+
+  /**
+   * GET 용 — 그 날 가능한 상담 모드와, 각 상담 상품(consult_mode)이 예약 가능한지.
+   * 슬롯이 빈 이유를 화면이 설명할 수 있게 하는 것이 목적이다.
+   */
+  async getConsultModes(teacherId: string, dateStr: string, studentId?: string) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      throw new BadRequestException('date 는 YYYY-MM-DD 형식이어야 합니다.');
+    }
+    const teacher = await this.prisma.teacher_profile.findUnique({
+      where: { account_id: teacherId },
+      include: { work_schedule: true },
+    });
+    if (!teacher) throw new NotFoundException('선생님을 찾을 수 없습니다.');
+    const weekday = String(weekdayKst(dateStr));
+    const ws = teacher.work_schedule[0];
+    const plans = readWeekPlans((ws as { week_plans?: unknown } | undefined)?.week_plans);
+    const plan = plans.find((p) => p.weekStart === mondayOf(dateStr));
+    const recurring = (ws?.recurring_template as unknown as WeeklyTemplate) ?? {};
+    const template: WeeklyTemplate = plan ? { ...recurring, ...plan.template } : recurring;
+
+    const availableModes = await this.dayConsultModes(template[weekday], studentId, weekday);
+    const consultModes = ['zoom', 'chat', 'hand', 'offline'].map((m) => ({
+      mode: m,
+      bookable: !consultModeBlocked(m, availableModes),
+    }));
+    return { date: dateStr, availableModes, consultModes };
   }
 
   /** 예약 생성 직전 재검증용 — [start,end) 가 모두 avail 인지 (§5-1). */
