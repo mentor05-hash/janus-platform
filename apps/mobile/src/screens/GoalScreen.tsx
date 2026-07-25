@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api, ApiError } from '../api';
 import { SP, useTheme, useUI, type Palette } from '../theme';
-import { TRUNK_BAND_COLOR, REL_TIER_LABEL, type GoalCandidate, type GoalCandidateReport } from '../lib/gap';
+import { BAND_COLOR, REL_TIER_LABEL, type GoalCandidate, type GoalCandidateReport } from '../lib/gap';
 
 /**
  * 목표 설정 (WD-9) — 목표 대학·학과·라인·평균(janus_goal 규약).
@@ -192,7 +192,7 @@ export function GoalScreen({ onBack }: { onBack: () => void }) {
                 {report.candidates.map((c) => (
                   <View key={c.id} style={s.candRow}>
                     <View style={[s.bandChip, { backgroundColor: C.fill }]}>
-                      <Text style={[s.bandT, { color: TRUNK_BAND_COLOR[c.band] ?? C.ink }]}>{c.band}</Text>
+                      <Text style={[s.bandT, { color: BAND_COLOR[c.band] ?? C.ink }]}>{c.band}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={s.candName} numberOfLines={1}>{c.univ} {c.dept}</Text>
