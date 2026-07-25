@@ -14,6 +14,7 @@ import { ScoresScreen } from './ScoresScreen';
 import { TasksScreen } from './TasksScreen';
 import { GapReportScreen } from './GapReportScreen';
 import { GoalScreen } from './GoalScreen';
+import { ScoreInputScreen } from './ScoreInputScreen';
 
 type Plan = { id: string; name: string; price: number; membership_grade?: { name: string; weekly_credits: number } | null };
 type Pay = { id: string; amount: number; created_at: string };
@@ -30,8 +31,10 @@ const makeTxMeta = (C: Palette): Record<Tx['type'], { label: string; sign: 1 | -
   weekly_expire: { label: '주간 크레딧 소멸', sign: -1, color: C.confirmed },
 });
 
-type Sub = 'automatch' | 'autoassign' | 'records' | 'reports' | 'classify' | 'legal' | 'scores' | 'chats' | 'tasks' | 'gap' | 'goal';
+type Sub = 'automatch' | 'autoassign' | 'records' | 'reports' | 'classify' | 'legal' | 'scores' | 'scoreInput' | 'chats' | 'tasks' | 'gap' | 'goal';
 const MENU: { key: Sub; icon: string; title: string; desc: string }[] = [
+  // 성적 입력이 맨 앞이다 — 아래 격차·목표·할 일이 **전부 성적에 의존**해서, 입력 경로가 없으면 그 화면들이 빈다.
+  { key: 'scoreInput', icon: '📝', title: '성적진단', desc: '성적 한 번 입력 → 배치·격차·할 일 자동 반영' },
   { key: 'gap', icon: '🎯', title: '격차 리포트', desc: '지금 위치 → 목표까지 과목별 격차와 처방' },
   { key: 'goal', icon: '🏁', title: '목표 설정', desc: '목표 대학·학과·평균 — 격차·할 일 기준' },
   { key: 'tasks', icon: '✅', title: '할 일', desc: '약점·학사일정 자동 제안 + 직접 추가' },
@@ -90,6 +93,7 @@ export function MyScreen({ goTab }: { goTab?: (t: string) => void } = {}) {
   if (sub === 'tasks') return <TasksScreen onBack={() => setSub(null)} goTab={goTab} />;
   if (sub === 'gap') return <GapReportScreen onBack={() => setSub(null)} showPlacement={access?.showPlacement ?? false} goTab={goTab} />;
   if (sub === 'goal') return <GoalScreen onBack={() => { setSub(null); load(); }} />;
+  if (sub === 'scoreInput') return <ScoreInputScreen onBack={() => { setSub(null); load(); }} />;
 
   async function charge(amount: number) {
     setBusy(true); setError(''); setMsg('');
