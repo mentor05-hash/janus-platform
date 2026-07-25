@@ -82,6 +82,21 @@ export class TasksService {
       suggestions.push({ source_key: `aca:${e.id}`, title: `${e.title} 대비`, category: 'academic', due_date: e.start_date, cta_href: '/student/academic' });
     }
 
+    // 낡은 격차 제안 재조정 — 목표(goal_avg)나 성적이 바뀌면 기존 gap 항목의 제목("목표까지 N점")이 낡는다.
+    // source_key 가 유니크라 createMany 로는 갱신되지 않으므로(ON CONFLICT DO NOTHING) 여기서 직접 맞춘다.
+    // 미완료(todo) 자동 항목만 대상: 격차가 사라졌으면 삭제, 수치가 변했으면 제목 갱신.
+    // dismissed(숨김 의사)·done(이력)은 보존 — 사용자 의사를 되살리지 않는다.
+    const desiredGap = new Map(suggestions.filter((s) => s.category === 'gap').map((s) => [s.source_key, s.title]));
+    const staleGap = await this.prisma.student_task.findMany({
+      where: { student_id: studentId, created_by: 'auto', category: 'gap', status: 'todo' },
+      select: { id: true, source_key: true, title: true },
+    });
+    for (const t of staleGap) {
+      const want = t.source_key ? desiredGap.get(t.source_key) : undefined;
+      if (want === undefined) await this.prisma.student_task.delete({ where: { id: t.id } });
+      else if (want !== t.title) await this.prisma.student_task.update({ where: { id: t.id }, data: { title: want } });
+    }
+
     if (!suggestions.length) return;
     // 멱등: 이미 있는 source_key(todo/done/dismissed 모두) 는 ON CONFLICT DO NOTHING 으로 skip
     await this.prisma.student_task.createMany({

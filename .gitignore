@@ -1,5 +1,8 @@
 # ── dependencies ──
 node_modules/
+
+# Claude Code 세션 워크트리(중첩 git 저장소 — 실수 커밋 방지)
+.claude/worktrees/
 .pnp
 .pnp.js
 

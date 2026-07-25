@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, Post, Put, Query, Res, UploadedFile, UseI
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsNumber, IsOptional, IsString, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -57,8 +57,10 @@ class GoalDto {
 }
 /** 자가목표(janus_goal) — PUT 전체 교체: 미지정 필드는 null 로 초기화된다. */
 class MyGoalDto {
-  @IsOptional() @IsString() @MaxLength(20) tier?: string | null;
-  @IsOptional() @IsNumber() @Min(0) @Max(100) avg?: number | null;
+  // 목표 라인 어휘는 웹 TIER_OPTIONS·모바일 TIERS 와 동일 6종(정본 밖 문자열이 저장되면 목표 매칭이 무력화된다).
+  @IsOptional() @IsIn(['최상위', '상위', '중상위', '중위', '중하위', '기초']) tier?: string | null;
+  // goal_avg 는 Int 컬럼 — 소수를 조용히 절삭하지 않고 400 으로 거부한다.
+  @IsOptional() @IsInt() @Min(0) @Max(100) avg?: number | null;
   @IsOptional() @IsString() @MaxLength(60) university?: string | null;
   @IsOptional() @IsString() @MaxLength(60) department?: string | null;
 }
