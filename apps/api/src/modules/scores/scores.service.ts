@@ -9,7 +9,7 @@ import { LLM_PROVIDER } from '../llm/llm.types';
 import type { LlmProvider, ScoreOcrResult } from '../llm/llm.types';
 import { SchoolRecordGuardService } from '../guard/school-record-guard.service';
 import { GuardianConsentService } from '../guardian-consent/guardian-consent.service';
-import { toJanusScore } from './domain/janus-score';
+import { parseNb, toJanusScore } from './domain/janus-score';
 import { buildGapReport, type GapMode, type JanusReport } from './domain/gap-report';
 
 type ItemInput = { subject: string; score?: number | null; maxScore?: number | null; grade?: string | null; subSubject?: string | null };
@@ -308,33 +308,45 @@ export class ScoresService {
     return { id, deleted: true };
   }
 
+  /** 이력 통계의 창 — 누백이 기록된 최근 회차 수. 두 소비 경로(변동성 판정·후보 비교)가 같은 값을 봐야 한다. */
+  private static readonly NB_WINDOW = 12;
+
   /**
-   * 회차 변동 폭 — 시험은 1회성이라 컨디션·운으로 점수가 흔들린다. 단일 최신 회차만 보고 밴드를 읽지 않도록
-   * 누백 이력의 분포를 함께 돌려준다(저장된 값의 기술통계일 뿐 — 환산·예측은 배치표 엔진 몫, O65).
-   * 장기적으로 여기에 가중평균·신뢰구간을 넣어 밴드 판정 자체를 분포 기반으로 확장한다.
+   * 누백 이력 — **누백이 기록된 최근 12회, 오래된 순**(마지막이 최신 = janusScore 가 고른 값).
+   * 변동성 판정(O108)과 후보 비교 헤더가 **같은 창**을 쓰도록 단일화한 유일한 조달 지점이다.
+   * 저장값만 읽는다 — 예측·환산은 하지 않는다(O65).
+   *
+   * ⚠ 이전 구현은 `orderBy asc + take 12` 라 '최근 12회'가 아니라 **가장 오래된 12회**를 읽었다.
+   *   회차가 13개 이상이면 점 판정(gap.band)의 근거인 최신 회차가 창에서 **확정적으로** 빠져
+   *   'best~worst' 밖의 밴드가 그 옆에 표시되는 모순이 생긴다(janusScore 도 같은 period 정렬을 쓴다).
+   * ⚠ `period` 문자열 정렬이 실제 시간순이 아닌 문제(periodSortKey 참조)는 여기서 고치지 않는다 —
+   *   janusScore·myScore·archiveReport 가 모두 같은 키를 쓰므로 **창과 '최신' 선정이 같은 정렬을 공유**하는 것이
+   *   지금은 정합에 더 중요하다(정렬 키 통일은 별건).
    */
-  /** 최근 누백 값들(오래된 순) — 변동성 판정(O108) 입력. 저장값만 읽고 예측·환산은 하지 않는다(O65). */
   private async recentNbValues(studentId: string): Promise<number[]> {
-    const reports = await this.prisma.score_report.findMany({
-      where: { student_id: studentId }, orderBy: { period: 'asc' }, select: { placement: true }, take: 12,
+    // 누백이 없는 회차(표점 모드 등)가 섞이므로 넉넉히 읽고 nb 보유분만 12개까지 채운다 — 창 크기가 '누백 회차' 기준이 되게.
+    const rows = await this.prisma.score_report.findMany({
+      where: { student_id: studentId }, orderBy: { period: 'desc' }, select: { placement: true }, take: ScoresService.NB_WINDOW * 4,
     });
-    return reports
-      .map((r) => (r.placement as Record<string, unknown> | null)?.nb)
-      .filter((v): v is number => typeof v === 'number');
+    const vals: number[] = [];
+    for (const r of rows) {
+      const nb = parseNb((r.placement as Record<string, unknown> | null)?.nb);
+      if (nb != null) vals.push(nb);
+      if (vals.length >= ScoresService.NB_WINDOW) break;
+    }
+    return vals.reverse(); // 최신→오래된 순으로 읽었으니 계약(오래된 순)으로 되돌린다
   }
 
-  private async nbSpread(studentId: string) {
-    const reports = await this.prisma.score_report.findMany({
-      where: { student_id: studentId }, orderBy: { period: 'asc' }, select: { period: true, placement: true },
-    });
-    const points = reports
-      .map((r) => ({ period: r.period, nb: (r.placement as Record<string, unknown> | null)?.nb }))
-      .filter((p): p is { period: string; nb: number } => typeof p.nb === 'number');
-    if (points.length < 2) return null;
-    const vals = points.map((p) => p.nb);
-    const best = Math.min(...vals); // 누백은 낮을수록 상위
-    const worst = Math.max(...vals);
-    return { count: points.length, points, best, worst, spread: Math.round((worst - best) * 100) / 100 };
+  /**
+   * 후보 목록 헤더용 회차 분포 — 후보(컷)와 **무관한** '내가 얼마나 흔들리나' 요약.
+   * 후보별 '이 컷에서 판정이 뒤집히나'는 volatility 가 담당한다(역할이 다르므로 둘 다 있다).
+   * 같은 recent 배열에서 파생시켜 헤더의 '최근 N회 a~b' 와 후보 판정이 어긋나지 않게 한다.
+   */
+  private static nbSpread(recent: number[]) {
+    if (recent.length < 2) return null;
+    const best = Math.min(...recent); // 누백은 낮을수록 상위
+    const worst = Math.max(...recent);
+    return { count: recent.length, best, worst, spread: Math.round((worst - best) * 100) / 100 };
   }
 
   /**
@@ -356,27 +368,48 @@ export class ScoresService {
       myValue = js.nb;
       gye = js.gye;
     }
+    // 회차 이력은 후보와 무관한 학생 단위 값 → **루프 밖에서 1회** 조회해 모든 후보에 같은 배열을 넘긴다(쿼리 순증 0).
+    // 수시는 등급이 매 요청 입력이라 비교할 이력이 없다.
+    const recent = mode === 'jeongsi' ? await this.recentNbValues(user.id) : [];
     let anyAdmitHint = false;
     const reports = candidates.map((c) => {
-      const r = buildGapReport({ mode, gye, myValue, target: { univ: c.univ, dept: c.dept, cut: c.cut, track: c.track ?? undefined } });
+      const r = buildGapReport({
+        mode, gye, myValue, target: { univ: c.univ, dept: c.dept, cut: c.cut, track: c.track ?? undefined },
+        recent: recent.length ? recent : undefined,
+      });
       // admitProbHint(정시 컷근접 37%)는 **후보별로 싣지 않는다** — 컷이 촘촘하면 인접 후보 전부에 같은 37% 가 붙어
       // "세 대학 합격률이 같다"로 오독된다. 집단 백테스트 상수이므로 목록 수준에서 1회만 안내한다.
       const { admitProbHint, ...gap } = r.gap;
       if (admitProbHint != null) anyAdmitHint = true;
-      return { id: c.id, univ: c.univ, dept: c.dept, track: c.track, cut: c.cut, cutSource: c.cut_source, note: c.note, ...gap };
+      // volatility 는 **컷에 종속된 3키만** 투영한다 — count·best·worst·spread·smallSample·message 는 후보 불변값이라
+      // 후보 3개에 똑같은 문장이 3번 실린다(admitProbHint 를 목록 1회로 올린 것과 같은 판단). 범위·표본은 목록 레벨이 담당.
+      const v = r.volatility;
+      const volatility = v ? { bestBand: v.bestBand, worstBand: v.worstBand, consistent: v.consistent } : null;
+      return { id: c.id, univ: c.univ, dept: c.dept, track: c.track, cutSource: c.cut_source, note: c.note, cut: c.cut, ...gap, volatility };
     });
     // 격차 작은 순(안정 → 상향)으로 정렬해 포트폴리오 균형이 한눈에 보이도록.
+    // 기준은 **최신 회차 점 판정(delta)** 이다 — 범위를 함께 보여주면 '최선/최악 중 무엇 기준인가'가 열리므로
+    // 정렬을 바꾸지 않고 sortKey·라벨로 답한다.
     reports.sort((a, b) => a.delta - b.delta);
     const sample = candidates.length
       ? buildGapReport({ mode, gye, myValue, target: { univ: candidates[0].univ, dept: candidates[0].dept, cut: candidates[0].cut } })
       : null;
+    const spread = mode === 'jeongsi' ? ScoresService.nbSpread(recent) : null;
     return {
       mode,
       myValue,
       gye,
       unit: sample?.unit ?? (mode === 'susi' ? { label: '내신 등급', suffix: '등급' } : { label: '전국누백', suffix: '%' }),
       // 정시만 이력 분포 제공(수시 등급은 사용자 입력이라 이력이 없다).
-      spread: mode === 'jeongsi' ? await this.nbSpread(user.id) : null,
+      spread,
+      /** 표본 과소 판정은 정본(buildVolatility)에서 들어올린다 — 클라마다 `count < 3` 을 재구현하면 임계값이 드리프트한다. */
+      smallSample: spread ? spread.count < 3 : null,
+      /** 판정이 뒤집히는 후보 수 — 0이면 '흔들렸지만 순서는 그대로'로 안내해 불필요한 불안을 만들지 않는다. */
+      flipCount: reports.filter((r) => r.volatility && !r.volatility.consistent).length,
+      /** 정렬 기준 — 화면 라벨('안전한 순서')이 최선/최악 기준으로 오독되지 않게 이름으로 못박는다. */
+      sortKey: 'delta' as const,
+      /** 수시에 변동 표시가 없는 **사유**(침묵하면 '수시는 더 확실하다'로 오독된다). 사실 진술만 — 지원 약속 금지. */
+      volatilityNote: mode === 'susi' ? '내신 평균등급은 매번 직접 입력하는 값이라 회차 이력이 없어 변동 판정을 제공하지 않아요.' : null,
       candidates: reports,
       // 컷 근접 후보가 하나라도 있을 때만, 목록 전체에 1회 표기(후보별 확률로 오독되지 않도록 문구를 고정).
       admitHintNote: anyAdmitHint
@@ -566,32 +599,55 @@ export class ScoresService {
     return js;
   }
 
+  /**
+   * 격차 리포트 대상 학생 확정 — **이후 모든 경로가 이 반환값만 쓴다**(opts.studentId 재사용 금지).
+   *
+   * 왜 별도 단계인가(IDOR 이력): janusScore 는 **학생 액터에게 studentId 를 조용히 무시**한다(예외 없음).
+   * 그래서 '게이트를 통과했다'고 착각한 채 이력 조회·적재가 opts.studentId 를 그대로 써서
+   * 타인의 누백 이력 통계를 읽고(volatility) 타인 이력에 행을 쓸 수 있었다.
+   * 보호자도 승인 연결만으로는 부족하다 — 자녀 데이터 열람은 O105 연령별 동의 게이트를 통과해야 한다
+   * (listChildReports 와 같은 게이트). 여기만 빠져 있으면 '이력 조회'는 막히는데 '새로 생성'으로 우회된다.
+   */
+  private async resolveGapTarget(actor: AuthUser, studentId?: string): Promise<string> {
+    if (actor.role === AccountRole.GUARDIAN) {
+      if (!studentId) throw new BadRequestException('studentId 가 필요합니다.');
+      await this.guardianConsent.assertChildDataAccess(actor, studentId, 'report');
+      return studentId;
+    }
+    if (actor.role !== AccountRole.STUDENT) throw new ForbiddenException('학생·학부모만 사용할 수 있습니다.');
+    // 조용히 무시하지 않고 **거절**한다 — 무시하면 호출자가 성공으로 오해하고, 같은 실수가 재발한다.
+    if (studentId && studentId !== actor.id) throw new ForbiddenException('본인 리포트만 조회할 수 있습니다.');
+    return actor.id;
+  }
+
   /** 격차 리포트(janus_report v1·C5) — 정시(누백)/수시(내신등급) + 목표 컷 → 격차·근거·처방. */
   async gapReport(
     actor: AuthUser,
     opts: { mode: GapMode; univ: string; dept: string; cut: number; track?: string; myGrade?: number; studentId?: string },
   ): Promise<JanusReport> {
     const target = { univ: opts.univ, dept: opts.dept, cut: opts.cut, track: opts.track };
+    const targetId = await this.resolveGapTarget(actor, opts.studentId);
     if (opts.mode === 'susi') {
       if (opts.myGrade == null) {
         throw new BadRequestException({ code: 'NO_GRADE', message: '내신 평균등급이 필요합니다(1~9).' });
       }
       // 수시는 내신 등급 입력으로 진행 — 계열(gye)만 성적에서 가져오되 없으면 null.
       let gye: '이과' | '문과' | null = null;
-      try { gye = (await this.janusScore(actor, opts.studentId)).gye; } catch { /* 성적 없어도 진행 */ }
+      // catch 는 **성적 부재(NO_SCORE)만** 삼킨다 — 인가 실패를 함께 뭉개면 게이트가 조용히 사라진다.
+      try { gye = (await this.janusScore(actor, targetId)).gye; } catch (e) { if (!(e instanceof NotFoundException)) throw e; }
       const susi = buildGapReport({ mode: 'susi', gye, myValue: opts.myGrade, target });
-      await this.archiveReport(opts.studentId ?? actor.id, susi);
+      await this.archiveReport(targetId, susi);
       return susi;
     }
     // 정시: janus_score.nb 필요
-    const js = await this.janusScore(actor, opts.studentId); // 성적 없으면 NO_SCORE throw
+    const js = await this.janusScore(actor, targetId); // 성적 없으면 NO_SCORE throw
     if (js.nb == null) {
       throw new BadRequestException({ code: 'NO_NB', message: '전국누백이 필요합니다 — 배치표에서 점수를 적용하면 자동 계산됩니다.' });
     }
     // 회차 변동성(O108) — 정시만. 수시 등급은 매 요청 입력값이라 비교할 이력이 없다.
-    const recent = await this.recentNbValues(opts.studentId ?? actor.id);
+    const recent = await this.recentNbValues(targetId);
     const jeongsi = buildGapReport({ mode: 'jeongsi', gye: js.gye, myValue: js.nb, target, recent });
-    await this.archiveReport(opts.studentId ?? actor.id, jeongsi);
+    await this.archiveReport(targetId, jeongsi);
     return jeongsi;
   }
 

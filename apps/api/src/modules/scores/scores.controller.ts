@@ -277,7 +277,12 @@ export class ScoresMeController {
   goalCandidateReport(@CurrentUser() user: AuthUser, @Query('mode') mode?: string, @Query('myGrade') myGrade?: string) {
     const m = mode === 'susi' ? 'susi' : 'jeongsi';
     const g = myGrade != null && myGrade !== '' ? Number(myGrade) : undefined;
-    return this.scores.goalCandidateReport(user, m, Number.isFinite(g) ? g : undefined);
+    // 쿼리 파라미터는 DTO 검증을 타지 않는다 — GapReportDto(@Min(1) @Max(9))와 같은 범위를 여기서 직접 막는다.
+    // 범위를 안 막으면 등급 0·50 이 그대로 밴드 판정에 들어가 격차·뒤집힘이 무의미한 값으로 나온다.
+    if (g !== undefined && (!Number.isFinite(g) || g < 1 || g > 9)) {
+      throw new BadRequestException({ code: 'BAD_GRADE', message: '내신 평균등급은 1~9 사이여야 합니다.' });
+    }
+    return this.scores.goalCandidateReport(user, m, g);
   }
 
   /** POST /me/goal/candidates — 목표 후보 추가(학생 직접 등록). */
