@@ -22,6 +22,14 @@ import { buildDaySlots, Interval, isRangeBookable, rangeBlockReason } from './do
 export interface DayWindow {
   start: string; // "HH:MM"
   end: string;
+  /**
+   * 이 시간대의 환경·가능 상담 모드(O119③) — **JSON 컬럼이라 마이그레이션 없이 덧붙는다.**
+   * 미지정 창은 기존 데이터이며 `consult-modes.ts` 가 보수적 기본값으로 해석한다
+   * (없다고 '전부 가능'으로 넓히지 않는다 — 예약 기대 불일치 방지).
+   * 스키마 정본은 `@mentoring/janus-planner` 의 Env·SlotMode 이며 여기서 새로 정의하지 않는다.
+   */
+  env?: string;
+  modes?: string[];
 }
 export type WeeklyTemplate = Record<string, DayWindow[]>; // key '0'..'6' (일~토)
 export interface LeaveEntry { date: string; type: string } // 사유 제외(연차/반차/병가)
