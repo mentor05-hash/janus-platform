@@ -21,6 +21,8 @@ export type GapModel = {
   overallGap: number | null;
   overallBand: Band | null;
   subjects: { subject: string; score: number; gap: number | null; band: Band | null; pct: number }[];
+  /** 과목 점수가 표준점수(100 초과)라 목표 평균(0~100)과 척도가 달라 과목별 격차를 계산하지 않은 경우. */
+  scaleMismatch: boolean;
   weakest: { subject: string; gap: number | null } | null;
   tier: string | null;
   university?: string | null;
@@ -43,7 +45,10 @@ const widthPct = (score: number, goalAvg: number | null) =>
 /** 서버 payload → 격차 모델(클라 계산과 동일 형태). last(추세 최신점)는 차트/배치표시용으로 trend 에서 보완. */
 export function modelFromPayload(p: GapPayload, last?: TrendPoint): GapModel {
   const goalAvg = p.goal.avg;
-  const subjects = p.gap.bySubject.map((s) => ({ subject: s.subject, score: s.score, gap: s.value, band: s.band, pct: widthPct(s.score, goalAvg) }));
+  // 정렬은 computeGapModel 과 동일(격차 큰 순) — weakest 가 '응답 순서상 첫 항목' 이 아니라 '격차 최대' 를 가리키게.
+  const subjects = p.gap.bySubject
+    .map((s) => ({ subject: s.subject, score: s.score, gap: s.value, band: s.band, pct: widthPct(s.score, goalAvg) }))
+    .sort((a, b) => (b.gap ?? -Infinity) - (a.gap ?? -Infinity));
   return {
     last,
     goalAvg,
@@ -51,6 +56,7 @@ export function modelFromPayload(p: GapPayload, last?: TrendPoint): GapModel {
     overallGap: p.gap.value,
     overallBand: p.gap.band,
     subjects,
+    scaleMismatch: false, // 서버 payload 는 avg 기준으로 산출되므로 척도 불일치 없음
     weakest: subjects.find((s) => (s.gap ?? 0) > 0) ?? null,
     tier: p.goal.tier,
     university: p.goal.university,
@@ -67,16 +73,21 @@ export function computeGapModel(trend: Trend | null): GapModel | null {
   const lastAvg = last?.avg ?? null;
   const overallGap = goalAvg != null && lastAvg != null ? r1(goalAvg - lastAvg) : null;
   const overallBand = overallGap != null && goalAvg != null ? bandOf(overallGap, goalAvg) : null;
-  const subjects = (last?.subjects ?? [])
-    .filter((s) => s.score != null)
-    .map((s) => {
-      const score = s.score as number;
-      const gap = goalAvg != null ? r1(goalAvg - score) : null;
-      const band = gap != null && goalAvg != null ? bandOf(gap, goalAvg) : null;
-      const pct = goalAvg != null && goalAvg > 0 ? Math.max(6, Math.min(100, (score / goalAvg) * 100)) : 100;
-      return { subject: s.subject, score, gap, band, pct };
-    })
-    .sort((a, b) => (b.gap ?? -Infinity) - (a.gap ?? -Infinity));
+  const scored = (last?.subjects ?? []).filter((s) => s.score != null);
+  // 수능 자가입력(O65 표점 모드) 회차는 과목 점수가 표준점수(100 초과)여서 목표 평균(0~100)과 척도가 다르다.
+  // 그대로 비교하면 격차가 음수로 나와 전 과목이 '목표 도달' 로 뒤집히므로, 과목별 격차는 계산하지 않는다(총평·추세만).
+  const scaleMismatch = scored.some((s) => (s.score as number) > 100);
+  const subjects = scaleMismatch
+    ? []
+    : scored
+        .map((s) => {
+          const score = s.score as number;
+          const gap = goalAvg != null ? r1(goalAvg - score) : null;
+          const band = gap != null && goalAvg != null ? bandOf(gap, goalAvg) : null;
+          const pct = goalAvg != null && goalAvg > 0 ? Math.max(6, Math.min(100, (score / goalAvg) * 100)) : 100;
+          return { subject: s.subject, score, gap, band, pct };
+        })
+        .sort((a, b) => (b.gap ?? -Infinity) - (a.gap ?? -Infinity));
   const weakest = subjects.find((s) => (s.gap ?? 0) > 0) ?? null;
-  return { last, goalAvg, lastAvg, overallGap, overallBand, subjects, weakest, tier: trend.goal?.tier ?? null, university: trend.goal?.university ?? null, department: trend.goal?.department ?? null };
+  return { last, goalAvg, lastAvg, overallGap, overallBand, subjects, scaleMismatch, weakest, tier: trend.goal?.tier ?? null, university: trend.goal?.university ?? null, department: trend.goal?.department ?? null };
 }

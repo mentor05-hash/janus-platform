@@ -130,7 +130,8 @@ export function MyScreen({ goTab }: { goTab?: (t: string) => void } = {}) {
 
       {/* 메뉴 */}
       <Text style={styles.sec}>메뉴</Text>
-      {MENU.filter((m) => m.key !== 'scores' || access?.showTrend).map((m) => (
+      {/* 격차 리포트도 성적 데이터(/me/scores/trend) 소비 → 성적 노출 정책 OFF 면 숨긴다(403 막다른 길 방지). */}
+      {MENU.filter((m) => (m.key !== 'scores' && m.key !== 'gap') || access?.showTrend).map((m) => (
         <TouchableOpacity key={m.key} style={[ui.card, styles.menuRow]} onPress={() => setSub(m.key)} activeOpacity={0.7}>
           <Text style={styles.menuIc}>{m.icon}</Text>
           <View style={{ flex: 1 }}>

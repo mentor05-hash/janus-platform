@@ -16,12 +16,12 @@ import { computeGapModel, modelFromPayload, type GapModel, type GapPayload } fro
 export function GapReportScreen({ onBack, showPlacement, goTab }: { onBack: () => void; showPlacement: boolean; goTab?: (t: string) => void }) {
   const { C } = useTheme();
   const ui = useUI();
-  const [trend, setTrend] = useState<Trend | null>(null);
+  const [trend, setTrend] = useState<Trend | null | undefined>(undefined); // undefined=로딩, null=실패(정책 OFF·오류)
   const [report, setReport] = useState<GapPayload | null | undefined>(undefined); // undefined=로딩, null=폴백
   const [error, setError] = useState('');
 
   useEffect(() => {
-    api.get<Trend>('/me/scores/trend').then(setTrend).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
+    api.get<Trend>('/me/scores/trend').then(setTrend).catch((e) => { setError(e instanceof ApiError ? e.message : '조회 실패'); setTrend(null); });
     api.get<{ report: GapPayload }>('/me/reports/gap').then((r) => setReport(r.report)).catch(() => setReport(null));
   }, []);
 
@@ -39,7 +39,7 @@ export function GapReportScreen({ onBack, showPlacement, goTab }: { onBack: () =
       return report.prescriptions.map((p) => ({ title: p.title, desc: p.description, cta: p.ctaLabel, gold: !!p.primary, onPress: toTab(p.service) }));
     }
     // 폴백: 규칙 기반
-    const m = model ?? computeGapModel(trend);
+    const m = model ?? computeGapModel(trend ?? null);
     const cards: Rx[] = [];
     if (m?.weakest) {
       cards.push({ title: '이 격차, 이렇게 좁혀요', desc: `${m.weakest.subject} 격차 ${m.weakest.gap}점 — 이 과목 전문 선생님과 1:1로 좁혀요.`, cta: '선생님 매칭 보기', gold: true, onPress: () => goTab?.('a') });
@@ -58,9 +58,9 @@ export function GapReportScreen({ onBack, showPlacement, goTab }: { onBack: () =
       <Text style={ui.h}>격차 리포트</Text>
       <Text style={[ui.sub, { marginBottom: SP.md }]}>지금 위치에서 목표까지, 얼마나 남았고 무엇부터 좁힐지 한눈에 봐요.</Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}
-      {trend === null ? <Text style={ui.sub}>불러오는 중…</Text> : (
+      {trend === undefined ? <Text style={ui.sub}>불러오는 중…</Text> : trend ? (
         <GapReportView trend={trend} showPlacement={showPlacement} prescriptions={prescriptions} model={model} />
-      )}
+      ) : null}
     </ScrollView>
   );
 }

@@ -63,7 +63,7 @@ export function GoalScreen({ onBack }: { onBack: () => void }) {
               ))}
             </View>
             <Text style={ui.label}>목표 평균 점수</Text>
-            <TextInput value={goal.avg != null ? String(goal.avg) : ''} onChangeText={(v) => set({ avg: v === '' ? null : Number(v.replace(/[^0-9]/g, '')) })} placeholder="예) 90" placeholderTextColor={C.caption} keyboardType="number-pad" style={ui.input} />
+            <TextInput value={goal.avg != null ? String(goal.avg) : ''} onChangeText={(v) => { const n = v.replace(/[^0-9]/g, ''); set({ avg: n === '' ? null : Number(n) }); }} placeholder="예) 90" placeholderTextColor={C.caption} keyboardType="number-pad" style={ui.input} />
             <Text style={[ui.sub, { marginTop: 4 }]}>격차 리포트의 과목별 격차 계산 기준이에요.</Text>
 
             <TouchableOpacity onPress={save} disabled={saving} style={[ui.btn, saving && ui.btnDisabled, { marginTop: 16 }]}>

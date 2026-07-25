@@ -76,6 +76,8 @@ export function GapReportView({ trend, showPlacement, prescriptions, whoLabel, m
         <Text style={s.cardT}>과목별 격차</Text>
         {m.goalAvg == null ? (
           <Text style={ui.sub}>목표 평균을 설정하면 과목별 격차 바가 표시돼요.</Text>
+        ) : m.scaleMismatch ? (
+          <Text style={ui.sub}>이번 회차는 표준점수(수능)라 목표 평균과 척도가 달라 과목별 격차를 계산하지 않아요. 위의 총평과 추세를 확인하세요.</Text>
         ) : m.subjects.length === 0 ? (
           <Text style={ui.sub}>최신 회차 과목 점수가 없어요.</Text>
         ) : (
