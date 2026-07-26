@@ -98,3 +98,68 @@
 .sidebar-foot .logout { margin-left: auto; }
 .shell-main { flex: 1; overflow: auto; padding: 24px 26px; min-width: 0; }
 .shell-main .inner { max-width: 1180px; margin: 0 auto; }
+
+/* ── 사이드바 섹션 헤더(선생님·관리자 콘솔 그룹 수납) ── */
+.nav-sec { padding: 14px 12px 4px; font-size: 11px; font-weight: 800; color: var(--caption); letter-spacing: 0.5px; }
+.sidebar.navy .nav-sec { color: #6d8493; }
+
+/* ── 학생 셸 v2 (O44~O46): 5그룹 내비 + 상단 벨 + 서브탭 + 모바일 하단 탭 ── */
+.nav-item .ic { width: 20px; text-align: center; flex-shrink: 0; }
+
+.topbar { display: flex; align-items: center; justify-content: flex-end; gap: 10px; max-width: 1180px; margin: 0 auto 6px; }
+.topbar .m-logo { display: none; align-items: center; gap: 8px; font-weight: 800; font-size: 15px; color: var(--ink); text-decoration: none; }
+.topbar .m-logo .mark { width: 30px; height: 30px; border-radius: 8px; background: var(--teal); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; }
+.topbar-right { display: flex; align-items: center; gap: 8px; }
+.topbar .m-only { display: none; }
+
+.bell { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); font-size: 16px; text-decoration: none; }
+.bell:hover { background: var(--fill-50); }
+.bell-badge { position: absolute; top: -4px; right: -5px; min-width: 17px; height: 17px; border-radius: 9px; background: var(--chip-danger); color: #fff; font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center; padding: 0 4px; line-height: 1; }
+
+.subnav { display: flex; gap: 6px; flex-wrap: wrap; max-width: 1180px; margin: 0 auto 16px; }
+.subnav a { padding: 7px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--muted); background: var(--surface); border: 1px solid var(--line); text-decoration: none; }
+.subnav a:hover { background: var(--fill-50); }
+.subnav a.active { color: #fff; background: var(--teal); border-color: var(--teal); }
+
+/* 홈 "나의 관문" — 섹션·할 일 카드·바로가기 타일 */
+.home-sec { margin: 22px 0 10px; font-size: 14px; font-weight: 800; color: var(--ink); }
+.todo-list { display: flex; flex-direction: column; gap: 10px; }
+.todo-card { display: flex; align-items: center; gap: 14px; text-decoration: none; color: inherit; }
+.todo-card:hover { border-color: var(--teal); }
+.todo-card.accent { border-color: var(--teal); background: var(--teal-50); }
+.todo-ic { font-size: 22px; flex-shrink: 0; }
+.todo-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.todo-body b { font-size: 14px; color: var(--ink); }
+.todo-sub { font-size: 12px; color: var(--muted); }
+.todo-go { margin-left: auto; font-size: 20px; color: var(--caption); flex-shrink: 0; }
+.tile-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.tile { display: flex; flex-direction: column; gap: 4px; text-decoration: none; color: inherit; }
+.tile:hover { border-color: var(--teal); }
+.tile-ic { font-size: 22px; margin-bottom: 2px; }
+.tile b { font-size: 14px; color: var(--ink); }
+.tile-sub { font-size: 12px; color: var(--muted); }
+
+.m-tabbar { display: none; }
+
+/* 모바일(≤768px) — 학생 셸만: 사이드바 대신 상단 바 + 하단 5탭(RN 앱과 동일 문법) */
+@media (max-width: 768px) {
+  .shell.with-tabs .sidebar { display: none; }
+  .shell.with-tabs .shell-main { padding: 12px 14px calc(78px + env(safe-area-inset-bottom)); }
+  .shell.with-tabs .topbar { justify-content: space-between; margin-bottom: 12px; }
+  .shell.with-tabs .topbar .m-logo { display: inline-flex; }
+  .shell.with-tabs .topbar .m-only { display: inline-flex; }
+  .shell.with-tabs .m-tabbar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    display: flex; background: var(--surface); border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .m-tabbar a {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 8px 0 9px; min-height: 44px; font-size: 11px; font-weight: 700;
+    color: var(--muted); text-decoration: none;
+  }
+  .m-tabbar a.active { color: var(--teal); }
+  .m-tabbar a .ic { font-size: 19px; }
+  .tile-grid { grid-template-columns: repeat(2, 1fr); }
+  .page-header h2 { font-size: 20px; }
+}

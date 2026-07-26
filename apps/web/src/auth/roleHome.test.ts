@@ -10,6 +10,10 @@ describe('roleHome (역할별 시작 경로)', () => {
   it('teacher → 예약 화면', () => {
     expect(roleHome('teacher')).toBe('/app/bookings');
   });
+
+  it('student → 나의 관문 홈 (O44)', () => {
+    expect(roleHome('student')).toBe('/student/home');
+  });
 });
 
 describe('isHq (본사 슈퍼관리자 = admin + 센터 미소속)', () => {

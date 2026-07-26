@@ -45,6 +45,7 @@ import { AdminScoresPage } from './pages/AdminScoresPage';
 import { AdminReversePage } from './pages/AdminReversePage';
 import { TeacherDashboardPage } from './pages/TeacherDashboardPage';
 import { StudentLayout } from './components/StudentLayout';
+import { StudentHomePage } from './pages/StudentHomePage';
 import { StudentBookingsPage } from './pages/StudentBookingsPage';
 import { StudentSearchPage } from './pages/StudentSearchPage';
 import { StudentCreditsPage } from './pages/StudentCreditsPage';
@@ -162,7 +163,8 @@ export function App() {
           </Protected>
         }
       >
-        <Route index element={<Navigate to="bookings" replace />} />
+        <Route index element={<Navigate to="home" replace />} />
+        <Route path="home" element={<StudentHomePage />} />
         <Route path="search" element={<StudentSearchPage />} />
         <Route path="bookings" element={<StudentBookingsPage />} />
         <Route path="materials" element={<StudentMaterialsPage />} />
