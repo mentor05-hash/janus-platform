@@ -239,7 +239,10 @@ export function App() {
         <Route path="stats" element={<AdminStatsPage />} />
         <Route path="diagnostics" element={<AdminDiagnosticPage />} />
         <Route path="audit" element={<AdminAuditPage />} />
-        <Route path="payroll" element={<AdminPayrollPage />} />
+        {/* 급여는 admin 전용(N35→O127). /admin 부모 가드는 ['admin','hr'] 이라 이 자식 가드가 없으면
+            HR 이 URL 직접 입력으로 화면을 렌더한 뒤 모든 API 에서 403 만 받는다 — nav 만 숨기는
+            상태(= N35 가 지적한 바로 그 결함)를 반복하지 않으려면 라우트에서도 막아야 한다. */}
+        <Route path="payroll" element={<Protected roles={['admin']}><AdminPayrollPage /></Protected>} />
         <Route path="academic" element={<AdminAcademicPage />} />
         <Route path="scores" element={<AdminScoresPage />} />
         <Route path="sr-guard" element={<AdminSchoolRecordGuardPage />} />
