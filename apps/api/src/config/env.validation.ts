@@ -76,6 +76,43 @@ export class EnvironmentVariables {
   @IsString()
   ANTHROPIC_MODEL?: string; // 기본 claude-sonnet-4-6
 
+  // 유료 AI·SFU 일 사용량 상한(실행계획서 §비용 — 상한/알람 설정 후 공개). 미설정 시 코드 기본값.
+  @IsOptional()
+  @IsString()
+  LLM_DAILY_CALL_LIMIT?: string; // 전 용도 합산
+
+  @IsOptional()
+  @IsString()
+  LLM_DAILY_LIMIT_REPORT?: string;
+
+  @IsOptional()
+  @IsString()
+  LLM_DAILY_LIMIT_SIMILARITY?: string;
+
+  @IsOptional()
+  @IsString()
+  LLM_DAILY_LIMIT_OCR?: string;
+
+  @IsOptional()
+  @IsString()
+  LLM_DAILY_LIMIT_CONSULTING?: string;
+
+  @IsOptional()
+  @IsString()
+  LLM_QUOTA_FAIL_OPEN?: string; // 'true' 면 카운터 장애 시 통과(기본은 차단 — 비용 보호)
+
+  @IsOptional()
+  @IsString()
+  MEDIA_DAILY_TOKEN_LIMIT?: string;
+
+  @IsOptional()
+  @IsString()
+  MEDIA_DAILY_RECORDING_LIMIT?: string;
+
+  @IsOptional()
+  @IsString()
+  MEDIA_QUOTA_FAIL_OPEN?: string; // 'false' 면 카운터 장애 시 차단(기본은 통과 — 수업 중단 방지)
+
   @IsOptional()
   @IsString()
   ZOOM_PROVIDER?: string;

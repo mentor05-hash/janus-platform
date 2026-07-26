@@ -4,6 +4,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { validateEnv } from './config/env.validation';
 import { CacheModule } from './common/cache/cache.module';
+import { QuotaModule } from './common/quota/quota.module';
 import { PrismaModule } from './common/prisma/prisma.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -52,6 +53,7 @@ import { AssignmentModule } from './modules/assignment/assignment.module';
     }),
     ScheduleModule.forRoot(), // §5-3 주간 크레딧 부여/소멸 스케줄러 기반
     CacheModule, // §10 캐시 외부화(memory|redis)
+    QuotaModule, // 유료 AI·SFU 일 사용량 조회(상한은 각 어댑터가 강제)
     PrismaModule,
     HealthModule,
     // 도메인 컨텍스트

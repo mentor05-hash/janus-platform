@@ -1,0 +1,13 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="야누스">
+ <defs>
+  <!-- 어두운 배경용: 네이비 면을 한 단계 밝혀 대비 확보(정본 대칭·형태는 불변). 골드·흰 점은 어두운 배경에서 그대로 읽힘. -->
+  <linearGradient id="nv" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5680ab"/><stop offset="1" stop-color="#35577c"/></linearGradient>
+  <linearGradient id="gd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e8c274"/><stop offset="1" stop-color="#d3a047"/></linearGradient>
+ </defs>
+ <path d="M56 178 L56 102 A44 44 0 0 1 100 58 L100 178 Z" fill="url(#nv)"/>
+ <path d="M144 178 L144 102 A44 44 0 0 0 100 58 L100 178 Z" fill="url(#gd)"/>
+ <circle cx="84" cy="96" r="5.4" fill="#fff"/>
+ <circle cx="116" cy="96" r="5.4" fill="#fff"/>
+ <path d="M56 102 A44 44 0 0 1 144 102" fill="none" stroke="#dfe4ea" stroke-width="1.3"/>
+ <rect x="54" y="178" width="92" height="6" rx="1.5" fill="#dfe4ea"/>
+</svg>
