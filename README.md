@@ -28,6 +28,18 @@ itall-mentoring/
 └─ openapi.yaml             # API 계약
 ```
 
+## 보안 훅 (최초 1회)
+
+```bash
+npm run hooks:install     # git config core.hooksPath .githooks
+brew install gitleaks     # 미설치면 훅이 스캔을 건너뛴다(커밋은 막지 않음)
+npm run secret:scan       # 전체 이력 수동 스캔
+```
+
+커밋 시 스테이징된 변경에서 시크릿(API 키·JWT/HMAC 시크릿·DB 접속문자열·PEM 키)을 찾으면 **커밋을 차단**한다.
+룰·예외는 `.gitleaks.toml`. 훅은 로컬이라 우회 가능하므로 CI 의 `secret-scan` job 이 최종 방어선이다.
+정당한 더미값을 예외로 넣을 때는 **파일 전체가 아니라 그 값**을 allowlist 에 추가한다 — 파일 단위 예외는 다음 실키를 놓친다.
+
 ## 로컬 실행
 
 ```bash

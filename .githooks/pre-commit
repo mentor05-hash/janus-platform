@@ -1,0 +1,24 @@
+#!/bin/sh
+# 커밋 전 시크릿 스캔 (CLAUDE.md §4 — .env·API 키·JWT/HMAC 시크릿·PII·DB 덤프 커밋 금지).
+# 활성화: git config core.hooksPath .githooks   (npm run hooks:install)
+#
+# gitleaks 미설치 환경에서는 커밋을 막지 않는다 — 개발이 멈추면 훅을 지워버리게 되므로.
+# 대신 설치 방법을 안내하고, CI 의 시크릿 스캔 job 이 최종 방어선이 된다.
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "⚠ gitleaks 미설치 — 스테이징 시크릿 스캔을 건너뜁니다."
+  echo "  설치: brew install gitleaks  (또는 https://github.com/gitleaks/gitleaks/releases)"
+  echo "  설치 전까지는 CI 의 secret-scan job 이 최종 방어선입니다."
+  exit 0
+fi
+
+# protect --staged = 스테이징된 변경만 검사(커밋 전 검사에 맞는 모드)
+if ! gitleaks protect --staged --config .gitleaks.toml --redact --no-banner; then
+  echo ""
+  echo "✖ 커밋 차단 — 스테이징된 변경에서 시크릿으로 보이는 값이 발견됐습니다."
+  echo "  ① 값을 ENV 참조로 바꾸고 다시 스테이징하세요(CLAUDE.md §4)."
+  echo "  ② 정당한 더미·자리표시자라면 .gitleaks.toml 의 allowlist 에 그 값을 정확히 추가하세요."
+  echo "     (파일 전체를 예외로 만들지 말 것 — 다음 실키를 놓칩니다)"
+  echo "  ③ 실키가 이미 커밋됐다면 키를 먼저 폐기·재발급하세요. 이력 정리는 그 다음입니다(백로그 B0xx BFG)."
+  exit 1
+fi

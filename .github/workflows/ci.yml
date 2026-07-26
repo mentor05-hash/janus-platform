@@ -11,6 +11,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # 시크릿 유출 최종 방어선 — pre-commit 훅(.githooks)은 로컬이라 우회 가능하므로 CI 에서 강제 차단.
+  secret-scan:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 전체 이력 스캔 — 과거 커밋에 묻힌 키까지
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_CONFIG: .gitleaks.toml
+
   lint-build-unit:
     name: Lint · Build · Unit
     runs-on: ubuntu-latest
@@ -28,8 +41,15 @@ jobs:
         working-directory: .
       - name: Prisma generate
         run: npm run prisma:generate
+      # 비차단 유지 — 2026-07-26 실측 1509건(prettier 포맷 1339 + 실코드 이슈 170).
+      # 지금 차단으로 올리면 전 PR 이 즉시 실패한다. 위반 수를 로그에 드러내 추이를 보고,
+      # 정리 후 차단으로 승격(백로그: lint 차단 승격).
       - name: Lint (비차단 — 빌드/tsc 가 게이트)
-        run: npx eslint "src/**/*.ts"
+        run: |
+          npx eslint "src/**/*.ts" || true
+          echo "── 위반 수 ──"
+          npx eslint "src/**/*.ts" -f json 2>/dev/null \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);const n=j.reduce((a,f)=>a+f.messages.length,0);const p=j.reduce((a,f)=>a+f.messages.filter(m=>String(m.ruleId).startsWith("prettier")).length,0);console.log(`총 ${n}건 (prettier ${p} / 그 외 ${n-p})`)})'
         continue-on-error: true
       - name: Build
         run: npm run build
@@ -97,3 +117,41 @@ jobs:
         run: npm run typecheck
       - name: Unit tests
         run: npm test
+
+  mobile:
+    name: Mobile (typecheck)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install
+        run: npm ci
+        working-directory: .
+      # expo export(웹 번들)는 시간·용량이 커 CI 에서 돌리지 않는다 — 타입만 게이트.
+      - name: Typecheck
+        run: npm run typecheck
+
+  rooms:
+    name: Realtime rooms (build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/realtime-rooms
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install
+        run: npm ci
+        working-directory: .
+      # 이 앱에는 typecheck 스크립트가 없다 — nest build 가 tsc 를 태우므로 그것을 게이트로 쓴다.
+      - name: Build
+        run: npm run build

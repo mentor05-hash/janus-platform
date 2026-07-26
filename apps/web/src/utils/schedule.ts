@@ -8,9 +8,17 @@ export function slotToTime(index: number): string {
   return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 }
 
-/** ISO 시각이 기준일(ref)과 같은 캘린더 날짜인가. */
+/**
+ * KST 캘린더 날짜(YYYY-MM-DD). 화면 표시가 전부 KST 이므로 날짜 경계 판정도 KST 로 고정한다
+ * (UTC 저장 / KST 표시 규약). 로컬 타임존에 의존하면 UTC 머신·해외 접속에서 하루가 밀린다.
+ */
+function kstDate(d: Date): string {
+  return d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' }); // sv-SE = YYYY-MM-DD
+}
+
+/** ISO 시각이 기준일(ref)과 같은 캘린더 날짜인가(KST 기준). */
 export function isSameDay(iso: string | null, ref: Date): boolean {
-  return !!iso && new Date(iso).toDateString() === ref.toDateString();
+  return !!iso && kstDate(new Date(iso)) === kstDate(ref);
 }
 
 /** ISO 시각이 now 가 속한 주(월~일)에 포함되는가. */
