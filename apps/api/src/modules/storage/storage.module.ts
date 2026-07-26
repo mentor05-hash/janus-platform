@@ -1,7 +1,6 @@
 import * as path from 'path';
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../common/prisma/prisma.service';
 import { FilesController } from './files.controller';
 import { FilesService } from './files.service';
 import { LocalDiskStorageProvider } from './providers/local-disk-storage.provider';

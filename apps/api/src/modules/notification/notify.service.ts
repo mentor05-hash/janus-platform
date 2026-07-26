@@ -37,7 +37,12 @@ export class NotifyService {
           .then((ok) => {
             if (ok) {
               const { title, body } = renderNotification(type, payload);
-              this.realtime!.emitToUser(recipientId, 'notif:new', { type, payload, title, body });
+              this.realtime!.emitToUser(recipientId, 'notif:new', {
+                type,
+                payload,
+                title,
+                body,
+              });
             }
           })
           .catch(() => {});

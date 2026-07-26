@@ -5,24 +5,46 @@ import { LlmPurpose } from './llm.types';
 import { MockLlmProvider } from './mock-llm.provider';
 import { QuotaLlmProvider } from './quota-llm.provider';
 
-const limits = (over: Partial<Record<LlmPurpose, number>> = {}): Record<LlmPurpose, number> => ({
-  report: 100, similarity: 100, ocr: 100, consulting: 100, ...over,
+const limits = (
+  over: Partial<Record<LlmPurpose, number>> = {},
+): Record<LlmPurpose, number> => ({
+  report: 100,
+  similarity: 100,
+  ocr: 100,
+  consulting: 100,
+  ...over,
 });
 const make = (l: Partial<Record<LlmPurpose, number>>, total = 1000) =>
-  new QuotaLlmProvider(new MockLlmProvider(), new UsageQuota(new MemoryCacheProvider(), 'llm'), limits(l), total);
+  new QuotaLlmProvider(
+    new MockLlmProvider(),
+    new UsageQuota(new MemoryCacheProvider(), 'llm'),
+    limits(l),
+    total,
+  );
 
 const ocrInput = { imageBase64: 'AAAA', mimeType: 'image/png' };
-const consultInput = { grade: '고3', interest: 'susi', package: 'basic', documents: [] };
+const consultInput = {
+  grade: '고3',
+  interest: 'susi',
+  package: 'basic',
+  documents: [],
+};
 
 describe('QuotaLlmProvider (어댑터 경계 상한)', () => {
   it('용도별 상한 초과 시 503 + AI_QUOTA_EXCEEDED 로 실패', async () => {
     const p = make({ ocr: 1 });
-    await expect(p.extractScoreReport(ocrInput)).resolves.toMatchObject({ demo: true });
-    await expect(p.extractScoreReport(ocrInput)).rejects.toBeInstanceOf(HttpException);
+    await expect(p.extractScoreReport(ocrInput)).resolves.toMatchObject({
+      demo: true,
+    });
+    await expect(p.extractScoreReport(ocrInput)).rejects.toBeInstanceOf(
+      HttpException,
+    );
     try {
       await p.extractScoreReport(ocrInput);
     } catch (e) {
-      const res = (e as HttpException).getResponse() as { error: { code: string; message: string } };
+      const res = (e as HttpException).getResponse() as {
+        error: { code: string; message: string };
+      };
       expect((e as HttpException).getStatus()).toBe(503);
       expect(res.error.code).toBe('AI_QUOTA_EXCEEDED');
       // 운영 수치(상한·잔여)를 사용자에게 노출하지 않는다
@@ -33,24 +55,37 @@ describe('QuotaLlmProvider (어댑터 경계 상한)', () => {
   it('한 용도가 막혀도 다른 용도는 계속 동작한다', async () => {
     const p = make({ ocr: 1 });
     await p.extractScoreReport(ocrInput);
-    await expect(p.extractScoreReport(ocrInput)).rejects.toBeInstanceOf(HttpException);
-    await expect(p.analyzeConsulting(consultInput)).resolves.toMatchObject({ model: 'mock' });
+    await expect(p.extractScoreReport(ocrInput)).rejects.toBeInstanceOf(
+      HttpException,
+    );
+    await expect(p.analyzeConsulting(consultInput)).resolves.toMatchObject({
+      model: 'mock',
+    });
   });
 
   it('합산 상한이 개별 상한보다 먼저 막는다', async () => {
     const p = make({}, 2); // 개별 100, 합산 2
     await p.reviewReport({ targetType: 'booking', reason: '불친절' });
     await p.analyzeConsulting(consultInput);
-    await expect(p.extractScoreReport(ocrInput)).rejects.toBeInstanceOf(HttpException);
+    await expect(p.extractScoreReport(ocrInput)).rejects.toBeInstanceOf(
+      HttpException,
+    );
   });
 
   it('상한에 걸리면 내부 provider 를 호출하지 않는다(비용 발생 없음)', async () => {
     const inner = new MockLlmProvider();
     const spy = jest.spyOn(inner, 'extractScoreReport');
-    const p = new QuotaLlmProvider(inner, new UsageQuota(new MemoryCacheProvider(), 'llm'), limits({ ocr: 1 }), 1000);
+    const p = new QuotaLlmProvider(
+      inner,
+      new UsageQuota(new MemoryCacheProvider(), 'llm'),
+      limits({ ocr: 1 }),
+      1000,
+    );
     await p.extractScoreReport(ocrInput);
     expect(spy).toHaveBeenCalledTimes(1);
-    await expect(p.extractScoreReport(ocrInput)).rejects.toBeInstanceOf(HttpException);
+    await expect(p.extractScoreReport(ocrInput)).rejects.toBeInstanceOf(
+      HttpException,
+    );
     expect(spy).toHaveBeenCalledTimes(1); // 두 번째는 도달하지 않음
   });
 

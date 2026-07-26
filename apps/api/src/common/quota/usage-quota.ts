@@ -26,7 +26,11 @@ function kstDay(now = new Date()): string {
 /** KST 자정까지 남은 초 + 여유 60초 — 카운터가 일자 경계를 넘겨 살아있지 않게. */
 function secondsToKstMidnight(now = new Date()): number {
   const kst = new Date(now.getTime() + 9 * 3600_000);
-  const endOfDay = Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate() + 1);
+  const endOfDay = Date.UTC(
+    kst.getUTCFullYear(),
+    kst.getUTCMonth(),
+    kst.getUTCDate() + 1,
+  );
   return Math.max(60, Math.ceil((endOfDay - kst.getTime()) / 1000) + 60);
 }
 
@@ -57,10 +61,14 @@ export class UsageQuota {
     // incr 은 최초 호출에 1 을 반환한다 — 0 은 캐시 장애(RedisCacheProvider 가 degrade 로 0 반환).
     if (used === 0) {
       if (this.failOpen) {
-        this.logger.warn(`[quota] 카운터 불가(캐시 장애) — failOpen 설정으로 통과: scope=${scope}`);
+        this.logger.warn(
+          `[quota] 카운터 불가(캐시 장애) — failOpen 설정으로 통과: scope=${scope}`,
+        );
         return;
       }
-      this.logger.error(`[quota] 카운터 불가(캐시 장애) — 비용 보호를 위해 차단: scope=${scope}`);
+      this.logger.error(
+        `[quota] 카운터 불가(캐시 장애) — 비용 보호를 위해 차단: scope=${scope}`,
+      );
       throw new QuotaExceededError(scope, limit, true);
     }
 
@@ -75,17 +83,28 @@ export class UsageQuota {
 
   /** 관리자 조회용 — 카운터를 증가시키지 않고 오늘 사용량만 본다. */
   async peek(scope: string): Promise<number> {
-    const n = await this.cache.get<number>(`${this.label}:quota:${scope}:${kstDay()}`);
+    const n = await this.cache.get<number>(
+      `${this.label}:quota:${scope}:${kstDay()}`,
+    );
     return typeof n === 'number' ? n : 0;
   }
 
   /** 경고가 그 자체로 비용을 만들지 않도록 일·스코프·종류별 1회로 억제. */
-  private async alarm(scope: string, used: number, limit: number, kind: 'warn' | 'exceeded'): Promise<void> {
+  private async alarm(
+    scope: string,
+    used: number,
+    limit: number,
+    kind: 'warn' | 'exceeded',
+  ): Promise<void> {
     const seen = `${this.label}:quota:alarm:${kind}:${scope}:${kstDay()}`;
     if (!(await this.cache.acquireLock(seen, secondsToKstMidnight()))) return;
     const msg = `[quota:${kind}] ${this.label}/${scope} 오늘 ${used}/${limit} 회`;
-    if (kind === 'exceeded') this.logger.error(`${msg} — 상한 도달로 호출을 차단합니다.`);
-    else this.logger.warn(`${msg} — 상한의 ${Math.round(this.warnRatio * 100)}% 를 넘었습니다.`);
+    if (kind === 'exceeded')
+      this.logger.error(`${msg} — 상한 도달로 호출을 차단합니다.`);
+    else
+      this.logger.warn(
+        `${msg} — 상한의 ${Math.round(this.warnRatio * 100)}% 를 넘었습니다.`,
+      );
   }
 }
 

@@ -98,12 +98,20 @@ export class DashboardService {
   }
 
   // ── 월별 시수 / 원장 지정 ──────────────────────────────────────
-  async setMonthlyHours(actor: AuthUser, teacherId: string, dto: MonthlyHoursDto) {
+  async setMonthlyHours(
+    actor: AuthUser,
+    teacherId: string,
+    dto: MonthlyHoursDto,
+  ) {
     await this.assertTeacherInScope(actor, teacherId);
     const existing = await this.prisma.teacher_monthly_hours.findFirst({
       where: { teacher_id: teacherId, year_month: dto.yearMonth },
     });
-    const data = { hours: dto.hours, updated_by: actor.id, updated_at: new Date() };
+    const data = {
+      hours: dto.hours,
+      updated_by: actor.id,
+      updated_at: new Date(),
+    };
     const saved = existing
       ? await this.prisma.teacher_monthly_hours.update({
           where: { id: existing.id },
@@ -123,44 +131,84 @@ export class DashboardService {
     let rows: Record<string, unknown>[];
     try {
       const wb = XLSX.read(buffer, { type: 'buffer' });
-      rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: null });
+      rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {
+        defval: null,
+      });
     } catch {
       throw new BadRequestException('엑셀을 읽을 수 없습니다(.xlsx).');
     }
     if (!rows.length) throw new BadRequestException('데이터가 없습니다.');
 
     const scope = this.scope(actor); // null=전체(본사급), 그 외 자기 센터 강제
-    const result = { created: 0, updated: 0, skipped: 0, errors: [] as string[] };
+    const result = {
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      errors: [] as string[],
+    };
     for (let i = 0; i < rows.length; i++) {
       const norm: Record<string, unknown> = {};
       for (const k of Object.keys(rows[i])) norm[k.trim()] = rows[i][k];
-      const loginId = String(norm['아이디'] ?? norm['로그인아이디'] ?? norm['id'] ?? '').trim();
+      const loginId = String(
+        norm['아이디'] ?? norm['로그인아이디'] ?? norm['id'] ?? '',
+      ).trim();
       const name = String(norm['이름'] ?? norm['성명'] ?? '').trim();
-      const ym = this.normYearMonth(String(norm['기간'] ?? norm['월'] ?? norm['년월'] ?? '').trim());
-      const hoursRaw = norm['시수'] ?? norm['근무시수'] ?? norm['시간'] ?? norm['hours'];
-      const empType = String(norm['고용형태'] ?? norm['근무형태'] ?? '').trim() || null;
+      const ym = this.normYearMonth(
+        String(norm['기간'] ?? norm['월'] ?? norm['년월'] ?? '').trim(),
+      );
+      const hoursRaw =
+        norm['시수'] ?? norm['근무시수'] ?? norm['시간'] ?? norm['hours'];
+      const empType =
+        String(norm['고용형태'] ?? norm['근무형태'] ?? '').trim() || null;
       // 근무자별 단가(선택): 건당단가·시급·기본급 — 있으면 정책보다 우선 적용.
       const perCase = this.parseWon(norm['건당단가'] ?? norm['건당']);
       const hourly = this.parseWon(norm['시급']);
       const basePay = this.parseWon(norm['기본급'] ?? norm['기본급여']);
       const hours = Number(hoursRaw);
-      if ((!loginId && !name) || !ym) { result.skipped++; result.errors.push(`${i + 2}행: 아이디(또는 이름)/기간 누락`); continue; }
-      if (hoursRaw == null || Number.isNaN(hours) || hours < 0 || hours > 744) { result.skipped++; result.errors.push(`${i + 2}행: 시수 값 오류(0~744)`); continue; }
+      if ((!loginId && !name) || !ym) {
+        result.skipped++;
+        result.errors.push(`${i + 2}행: 아이디(또는 이름)/기간 누락`);
+        continue;
+      }
+      if (hoursRaw == null || Number.isNaN(hours) || hours < 0 || hours > 744) {
+        result.skipped++;
+        result.errors.push(`${i + 2}행: 시수 값 오류(0~744)`);
+        continue;
+      }
       try {
         const teacher = await this.resolveTeacher(scope, loginId, name);
-        const existing = await this.prisma.teacher_monthly_hours.findFirst({ where: { teacher_id: teacher.account_id, year_month: ym } });
+        const existing = await this.prisma.teacher_monthly_hours.findFirst({
+          where: { teacher_id: teacher.account_id, year_month: ym },
+        });
         const data = { hours, updated_by: actor.id, updated_at: new Date() };
-        if (existing) await this.prisma.teacher_monthly_hours.update({ where: { id: existing.id }, data });
-        else await this.prisma.teacher_monthly_hours.create({ data: { teacher_id: teacher.account_id, year_month: ym, ...data } });
+        if (existing)
+          await this.prisma.teacher_monthly_hours.update({
+            where: { id: existing.id },
+            data,
+          });
+        else
+          await this.prisma.teacher_monthly_hours.create({
+            data: { teacher_id: teacher.account_id, year_month: ym, ...data },
+          });
         // 고용형태·단가는 값이 있는 컬럼만 갱신(빈 칸은 기존 유지).
         const prof: Record<string, unknown> = {};
         if (empType) prof.employment_type = empType;
         if (perCase != null) prof.per_case_rate = perCase;
         if (hourly != null) prof.hourly_rate = hourly;
         if (basePay != null) prof.pay_base = basePay;
-        if (Object.keys(prof).length) await this.prisma.teacher_profile.update({ where: { account_id: teacher.account_id }, data: prof });
-        existing ? result.updated++ : result.created++;
-      } catch (e) { result.skipped++; result.errors.push(`${i + 2}행(${loginId || name}): ${(e as Error).message}`); }
+        if (Object.keys(prof).length)
+          await this.prisma.teacher_profile.update({
+            where: { account_id: teacher.account_id },
+            data: prof,
+          });
+        if (existing) result.updated++;
+        else result.created++;
+      } catch (e) {
+        result.skipped++;
+        result.errors.push(
+          `${i + 2}행(${loginId || name}): ${(e as Error).message}`,
+        );
+      }
     }
     return result;
   }
@@ -177,30 +225,79 @@ export class DashboardService {
     if (!raw) return null;
     const m = raw.match(/(\d{4})\D*(\d{1,2})/);
     if (!m) return null;
-    const y = m[1]; const mo = String(Math.min(12, Math.max(1, Number(m[2])))).padStart(2, '0');
+    const y = m[1];
+    const mo = String(Math.min(12, Math.max(1, Number(m[2])))).padStart(2, '0');
     return `${y}-${mo}`;
   }
 
   /** 로그인아이디 우선, 없으면 이름으로 선생님 조회(센터 스코프 강제·동명이인 방지). */
-  private async resolveTeacher(scope: string | null, loginId: string, name: string) {
-    const where: Prisma.teacher_profileWhereInput = { ...(scope ? { center_id: scope } : {}) };
+  private async resolveTeacher(
+    scope: string | null,
+    loginId: string,
+    name: string,
+  ) {
+    const where: Prisma.teacher_profileWhereInput = {
+      ...(scope ? { center_id: scope } : {}),
+    };
     if (loginId) where.account = { login_id: loginId };
     else where.account = { name };
-    const matches = await this.prisma.teacher_profile.findMany({ where, select: { account_id: true, account: { select: { name: true } } }, take: 2 });
-    if (matches.length === 0) throw new NotFoundException('선생님을 찾을 수 없습니다.');
-    if (matches.length > 1) throw new BadRequestException('동명이인 — 아이디로 지정하세요.');
+    const matches = await this.prisma.teacher_profile.findMany({
+      where,
+      select: { account_id: true, account: { select: { name: true } } },
+      take: 2,
+    });
+    if (matches.length === 0)
+      throw new NotFoundException('선생님을 찾을 수 없습니다.');
+    if (matches.length > 1)
+      throw new BadRequestException('동명이인 — 아이디로 지정하세요.');
     return matches[0];
   }
 
   /** 월간 시수 업로드용 엑셀 템플릿(근무자 유형별 단가 예시). 단가 칸은 선택(비우면 정책 단가 사용). */
   monthlyHoursTemplate(): Buffer {
     const sample = [
-      { 아이디: 'teacher01', 이름: '', 기간: '2026-07', 시수: 96, 고용형태: '기본급', 기본급: 2500000, 시급: '', 건당단가: '' },
-      { 아이디: 'teacher02', 이름: '', 기간: '2026-07', 시수: 40, 고용형태: '시급', 기본급: '', 시급: 25000, 건당단가: '' },
-      { 아이디: 'teacher03', 이름: '', 기간: '2026-07', 시수: 0, 고용형태: '건당', 기본급: '', 시급: '', 건당단가: 35000 },
+      {
+        아이디: 'teacher01',
+        이름: '',
+        기간: '2026-07',
+        시수: 96,
+        고용형태: '기본급',
+        기본급: 2500000,
+        시급: '',
+        건당단가: '',
+      },
+      {
+        아이디: 'teacher02',
+        이름: '',
+        기간: '2026-07',
+        시수: 40,
+        고용형태: '시급',
+        기본급: '',
+        시급: 25000,
+        건당단가: '',
+      },
+      {
+        아이디: 'teacher03',
+        이름: '',
+        기간: '2026-07',
+        시수: 0,
+        고용형태: '건당',
+        기본급: '',
+        시급: '',
+        건당단가: 35000,
+      },
     ];
     const ws = XLSX.utils.json_to_sheet(sample);
-    ws['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 10 }];
+    ws['!cols'] = [
+      { wch: 12 },
+      { wch: 10 },
+      { wch: 10 },
+      { wch: 8 },
+      { wch: 10 },
+      { wch: 12 },
+      { wch: 10 },
+      { wch: 10 },
+    ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '월간시수');
     return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
@@ -234,7 +331,13 @@ export class DashboardService {
   // ── 가중 평가·순위 ─────────────────────────────────────────────
   async ranking(
     actor: AuthUser,
-    q: { period?: string; from?: string; to?: string; centerId?: string; director?: string },
+    q: {
+      period?: string;
+      from?: string;
+      to?: string;
+      centerId?: string;
+      director?: string;
+    },
     now = new Date(),
   ) {
     const scope = this.scope(actor);
@@ -275,16 +378,28 @@ export class DashboardService {
       this.prisma.review.groupBy({
         by: ['teacher_id'],
         where: { teacher_id: { in: ids } },
-        _avg: { rating_attitude: true, rating_content: true, rating_skill: true },
+        _avg: {
+          rating_attitude: true,
+          rating_content: true,
+          rating_skill: true,
+        },
       }),
       this.prisma.teacher_monthly_hours.findMany({
         where: { teacher_id: { in: ids }, year_month: yearMonth },
         select: { teacher_id: true, hours: true },
       }),
     ]);
-    const bkt = new Map<string, { total: number; done: number; rejected: number; noshow: number }>();
+    const bkt = new Map<
+      string,
+      { total: number; done: number; rejected: number; noshow: number }
+    >();
     for (const g of bookingGroups) {
-      const e = bkt.get(g.teacher_id) ?? { total: 0, done: 0, rejected: 0, noshow: 0 };
+      const e = bkt.get(g.teacher_id) ?? {
+        total: 0,
+        done: 0,
+        rejected: 0,
+        noshow: 0,
+      };
       const c = g._count._all;
       e.total += c;
       if (g.status === BookingStatus.DONE) e.done += c;
@@ -296,10 +411,19 @@ export class DashboardService {
     const hrs = new Map(hoursRows.map((h) => [h.teacher_id, Number(h.hours)]));
 
     const rows = teachers.map((t) => {
-      const b = bkt.get(t.account_id) ?? { total: 0, done: 0, rejected: 0, noshow: 0 };
+      const b = bkt.get(t.account_id) ?? {
+        total: 0,
+        done: 0,
+        rejected: 0,
+        noshow: 0,
+      };
       const a = rev.get(t.account_id);
       const sat =
-        ((Number(a?.rating_attitude ?? 0) + Number(a?.rating_content ?? 0) + Number(a?.rating_skill ?? 0)) / 3) * 20;
+        ((Number(a?.rating_attitude ?? 0) +
+          Number(a?.rating_content ?? 0) +
+          Number(a?.rating_skill ?? 0)) /
+          3) *
+        20;
       return {
         teacherId: t.account_id,
         name: t.account?.name ?? null,
@@ -410,11 +534,19 @@ export class DashboardService {
         const where = { center_id: c.id, ...startAt };
         const [total, done, noshow, reviewAgg] = await Promise.all([
           this.prisma.booking.count({ where }),
-          this.prisma.booking.count({ where: { ...where, status: BookingStatus.DONE } }),
-          this.prisma.booking.count({ where: { ...where, status: BookingStatus.NOSHOW } }),
+          this.prisma.booking.count({
+            where: { ...where, status: BookingStatus.DONE },
+          }),
+          this.prisma.booking.count({
+            where: { ...where, status: BookingStatus.NOSHOW },
+          }),
           this.prisma.review.aggregate({
             where: { booking: { center_id: c.id } },
-            _avg: { rating_attitude: true, rating_content: true, rating_skill: true },
+            _avg: {
+              rating_attitude: true,
+              rating_content: true,
+              rating_skill: true,
+            },
           }),
         ]);
         const sat =
@@ -438,13 +570,23 @@ export class DashboardService {
 
     const zTotal = zScoreTo0100(raw.map((r) => r.raw.total));
     const zCompletion = zScoreTo0100(raw.map((r) => r.raw.completion));
-    const zNoshow = zScoreTo0100(raw.map((r) => r.raw.noshow), true);
+    const zNoshow = zScoreTo0100(
+      raw.map((r) => r.raw.noshow),
+      true,
+    );
     const zSat = zScoreTo0100(raw.map((r) => r.raw.satisfaction));
     const scored = raw.map((r, i) => ({
       ...r,
-      z: { total: zTotal[i], completion: zCompletion[i], noshow: zNoshow[i], satisfaction: zSat[i] },
+      z: {
+        total: zTotal[i],
+        completion: zCompletion[i],
+        noshow: zNoshow[i],
+        satisfaction: zSat[i],
+      },
       score0to100:
-        Math.round(((zTotal[i] + zCompletion[i] + zNoshow[i] + zSat[i]) / 4) * 10) / 10,
+        Math.round(
+          ((zTotal[i] + zCompletion[i] + zNoshow[i] + zSat[i]) / 4) * 10,
+        ) / 10,
       rank: 0,
     }));
     scored.sort((a, b) => b.score0to100 - a.score0to100);
@@ -457,7 +599,9 @@ export class DashboardService {
         ? {
             anonAvgScore:
               Math.round(
-                (scored.reduce((a, s) => a + s.score0to100, 0) / scored.length) * 10,
+                (scored.reduce((a, s) => a + s.score0to100, 0) /
+                  scored.length) *
+                  10,
               ) / 10,
             centerCount: scored.length,
           }
@@ -479,7 +623,13 @@ export class DashboardService {
   async pivots(
     actor: AuthUser,
     view: PivotView,
-    q: { period?: string; from?: string; to?: string; centerId?: string; teacherId?: string },
+    q: {
+      period?: string;
+      from?: string;
+      to?: string;
+      centerId?: string;
+      teacherId?: string;
+    },
     now = new Date(),
   ) {
     const scope = this.scope(actor); // null=전체, 그 외=자기센터 강제
@@ -505,9 +655,15 @@ export class DashboardService {
 
     // ── 정적 식(내부 ENUM/컬럼만 — 안전) ──
     const dayExpr = Prisma.raw(`(start_at AT TIME ZONE 'UTC')::date`);
-    const monthExpr = Prisma.raw(`to_char(start_at AT TIME ZONE 'UTC', 'YYYY-MM')`);
-    const statusCase = Prisma.raw(buildPriorityCase('status::text', STATUS_DEDUP_ORDER));
-    const catCase = Prisma.raw(buildPriorityCase('consult_type::text', CATEGORY_DEDUP_ORDER));
+    const monthExpr = Prisma.raw(
+      `to_char(start_at AT TIME ZONE 'UTC', 'YYYY-MM')`,
+    );
+    const statusCase = Prisma.raw(
+      buildPriorityCase('status::text', STATUS_DEDUP_ORDER),
+    );
+    const catCase = Prisma.raw(
+      buildPriorityCase('consult_type::text', CATEGORY_DEDUP_ORDER),
+    );
     const keyExpr = centerKeyed
       ? Prisma.raw(`center_id::text`)
       : view === 'teacher-x-center'
@@ -522,7 +678,9 @@ export class DashboardService {
       WHERE ${whereSql}
       ORDER BY teacher_id, student_id, ${dayExpr}, ${statusCase}, ${catCase}, start_at`;
 
-    const selectMonth = monthly ? Prisma.sql`${monthExpr} AS month,` : Prisma.empty;
+    const selectMonth = monthly
+      ? Prisma.sql`${monthExpr} AS month,`
+      : Prisma.empty;
     const groupMonth = monthly ? Prisma.sql`, ${monthExpr}` : Prisma.empty;
     const orderMonth = monthly ? Prisma.sql`, month` : Prisma.empty;
 
@@ -548,13 +706,17 @@ export class DashboardService {
       ORDER BY ${keyExpr}${orderMonth}`);
 
     // 제거전(raw) 건수 — 중복제거 전 원 상담건수(프로토타입 '제거전' 지표).
-    const rawAgg = await this.prisma.$queryRaw<Array<{ key: string; month?: string; raw: number }>>(Prisma.sql`
+    const rawAgg = await this.prisma.$queryRaw<
+      Array<{ key: string; month?: string; raw: number }>
+    >(Prisma.sql`
       SELECT ${keyExpr} AS key, ${selectMonth}
         count(*)::int AS raw
       FROM booking
       WHERE ${whereSql}
       GROUP BY ${keyExpr}${groupMonth}`);
-    const rawMap = new Map(rawAgg.map((r) => [`${r.key}|${r.month ?? ''}`, r.raw]));
+    const rawMap = new Map(
+      rawAgg.map((r) => [`${r.key}|${r.month ?? ''}`, r.raw]),
+    );
 
     const rows = agg.map((r) => {
       const rawTotal = rawMap.get(`${r.key}|${r.month ?? ''}`) ?? r.total;
@@ -599,13 +761,21 @@ export class DashboardService {
     const range = resolvePeriod(q.period, q.from, q.to, now);
 
     const conds: Prisma.Sql[] = [Prisma.sql`b.status = 'done'`];
-    if (centerFilter) conds.push(Prisma.sql`b.center_id = ${centerFilter}::uuid`);
+    if (centerFilter)
+      conds.push(Prisma.sql`b.center_id = ${centerFilter}::uuid`);
     if (range?.gte) conds.push(Prisma.sql`b.start_at >= ${range.gte}`);
     if (range?.lte) conds.push(Prisma.sql`b.start_at <= ${range.lte}`);
     const whereSql = Prisma.join(conds, ' AND ');
 
     const agg = await this.prisma.$queryRaw<
-      Array<{ type: string; done: number; notes: number; final: number; draft: number; guardian_visible: number }>
+      Array<{
+        type: string;
+        done: number;
+        notes: number;
+        final: number;
+        draft: number;
+        guardian_visible: number;
+      }>
     >(Prisma.sql`
       SELECT b.consult_type::text AS type,
         count(*)::int AS done,
@@ -620,7 +790,14 @@ export class DashboardService {
       ORDER BY b.consult_type`);
 
     // 학생유형(재원/외부) 분리 집계 — type_code 미지정은 center_id 유무로 추정(resolveStudentType 동일 규칙)
-    const byTypeRows = await this.prisma.$queryRaw<Array<{ student_type: string; done: number; notes: number; final: number }>>(Prisma.sql`
+    const byTypeRows = await this.prisma.$queryRaw<
+      Array<{
+        student_type: string;
+        done: number;
+        notes: number;
+        final: number;
+      }>
+    >(Prisma.sql`
       SELECT CASE
           WHEN lower(coalesce(sp.type_code,'')) IN ('external','외부','외부학생') THEN 'external'
           WHEN lower(coalesce(sp.type_code,'')) IN ('enrolled','재원','학원생') THEN 'enrolled'
@@ -687,8 +864,13 @@ export class DashboardService {
   };
 
   async getVisibility(): Promise<DashboardVisibility> {
-    const row = await this.prisma.system_setting.findUnique({ where: { key: DashboardService.VIS_KEY } });
-    return { ...DashboardService.VIS_DEFAULT, ...((row?.value as object) ?? {}) };
+    const row = await this.prisma.system_setting.findUnique({
+      where: { key: DashboardService.VIS_KEY },
+    });
+    return {
+      ...DashboardService.VIS_DEFAULT,
+      ...((row?.value as object) ?? {}),
+    };
   }
 
   async setVisibility(actor: AuthUser, dto: Partial<DashboardVisibility>) {
@@ -696,8 +878,16 @@ export class DashboardService {
     const next = { ...(await this.getVisibility()), ...dto };
     await this.prisma.system_setting.upsert({
       where: { key: DashboardService.VIS_KEY },
-      create: { key: DashboardService.VIS_KEY, value: next as object, updated_by: actor.id },
-      update: { value: next as object, updated_by: actor.id, updated_at: new Date() },
+      create: {
+        key: DashboardService.VIS_KEY,
+        value: next,
+        updated_by: actor.id,
+      },
+      update: {
+        value: next,
+        updated_by: actor.id,
+        updated_at: new Date(),
+      },
     });
     return next;
   }
@@ -706,49 +896,89 @@ export class DashboardService {
   async access(actor: AuthUser) {
     const p = await this.getVisibility();
     if (this.isHq(actor)) {
-      const centers = await this.prisma.center.findMany({ select: { id: true, name: true }, orderBy: { name: 'asc' } });
-      return { role: 'hq', scope: 'global', canSelectCenter: true, tabs: ['centers', 'summary', 'teachers', 'trend'], centers, policy: p };
+      const centers = await this.prisma.center.findMany({
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+      });
+      return {
+        role: 'hq',
+        scope: 'global',
+        canSelectCenter: true,
+        tabs: ['centers', 'summary', 'teachers', 'trend'],
+        centers,
+        policy: p,
+      };
     }
     if (actor.role === 'teacher') {
-      const disabled = !p.teacherEnabled || p.disabledCenters.includes(actor.centerId ?? '');
-      return { role: 'teacher', scope: 'self', enabled: !disabled, tabs: disabled ? [] : p.teacherTabs, canSelectCenter: false };
+      const disabled =
+        !p.teacherEnabled || p.disabledCenters.includes(actor.centerId ?? '');
+      return {
+        role: 'teacher',
+        scope: 'self',
+        enabled: !disabled,
+        tabs: disabled ? [] : p.teacherTabs,
+        canSelectCenter: false,
+      };
     }
     // 센터 관리자/HR
     const disabled = p.disabledCenters.includes(actor.centerId ?? '');
-    return { role: 'centerAdmin', scope: 'center', centerId: actor.centerId, enabled: !disabled, tabs: disabled ? [] : p.centerAdminTabs, canSelectCenter: false };
+    return {
+      role: 'centerAdmin',
+      scope: 'center',
+      centerId: actor.centerId,
+      enabled: !disabled,
+      tabs: disabled ? [] : p.centerAdminTabs,
+      canSelectCenter: false,
+    };
   }
 
   /** 선생님 본인 성과 대시보드 — 센터 내 순위/지표/월별 추이(정책 게이팅). */
   async myDashboard(actor: AuthUser, now = new Date()) {
-    if (actor.role !== 'teacher') throw new ForbiddenException('선생님만 조회할 수 있습니다.');
+    if (actor.role !== 'teacher')
+      throw new ForbiddenException('선생님만 조회할 수 있습니다.');
     const p = await this.getVisibility();
     if (!p.teacherEnabled || p.disabledCenters.includes(actor.centerId ?? '')) {
       return { enabled: false, tabs: [] as string[] };
     }
     // 센터 랭킹 재사용 → 본인 행/순위 추출
     const rank = await this.ranking(actor, {}, now);
-    const rows = rank.data as Array<Record<string, unknown> & { teacherId: string; score: number }>;
+    const rows = rank.data as Array<
+      Record<string, unknown> & { teacherId: string; score: number }
+    >;
     const me = rows.find((r) => r.teacherId === actor.id) ?? null;
-    const avgScore = rows.length ? Math.round((rows.reduce((a, r) => a + (r.score ?? 0), 0) / rows.length) * 10) / 10 : 0;
+    const avgScore = rows.length
+      ? Math.round(
+          (rows.reduce((a, r) => a + (r.score ?? 0), 0) / rows.length) * 10,
+        ) / 10
+      : 0;
     // 월별 추이(최근 6개월 상담·완료)
-    const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1));
+    const from = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1),
+    );
     const bookings = await this.prisma.booking.findMany({
       where: { teacher_id: actor.id, start_at: { gte: from } },
       select: { start_at: true, status: true },
     });
     const trendMap = new Map<string, { total: number; done: number }>();
     for (let i = 0; i < 6; i++) {
-      const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (5 - i), 1));
+      const d = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - (5 - i), 1),
+      );
       trendMap.set(d.toISOString().slice(0, 7), { total: 0, done: 0 });
     }
     for (const b of bookings) {
-      const ym = b.start_at ? new Date(b.start_at).toISOString().slice(0, 7) : null;
+      const ym = b.start_at
+        ? new Date(b.start_at).toISOString().slice(0, 7)
+        : null;
       if (!ym || !trendMap.has(ym)) continue;
       const e = trendMap.get(ym)!;
       e.total += 1;
       if (b.status === BookingStatus.DONE) e.done += 1;
     }
-    const trend = [...trendMap.entries()].map(([month, v]) => ({ month, ...v }));
+    const trend = [...trendMap.entries()].map(([month, v]) => ({
+      month,
+      ...v,
+    }));
     return {
       enabled: true,
       tabs: p.teacherTabs,

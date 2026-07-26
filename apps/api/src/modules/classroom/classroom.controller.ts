@@ -1,4 +1,12 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Post,
+} from '@nestjs/common';
 // (media-token·recording 엔드포인트 추가)
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
@@ -23,19 +31,29 @@ export class ClassroomController {
   }
 
   @Get(':id')
-  getOne(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  getOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.classroom.getOne(id, user);
   }
 
   @Get(':id/roster')
   @Roles('teacher', 'admin', 'hr')
-  roster(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  roster(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.classroom.roster(id, user);
   }
 
   @Post(':id/enroll')
   @Roles('teacher', 'admin', 'hr')
-  enroll(@Param('id', ParseUUIDPipe) id: string, @Body() dto: EnrollDto, @CurrentUser() user: AuthUser) {
+  enroll(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: EnrollDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.classroom.enroll(id, dto, user);
   }
 
@@ -62,26 +80,39 @@ export class ClassroomController {
 
   // 음성(SFU) 접속 토큰 — 선생님 송출 / 학생 수신.
   @Get(':id/media-token')
-  mediaToken(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  mediaToken(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.classroom.mediaToken(id, user);
   }
 
   // 녹화(필수) — 시작/종료/목록.
   @Post(':id/recording/start')
   @Roles('teacher', 'admin', 'hr')
-  startRecording(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  startRecording(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.classroom.startRecording(id, user);
   }
 
   @Post(':id/recording/:recId/stop')
   @Roles('teacher', 'admin', 'hr')
   @HttpCode(200)
-  stopRecording(@Param('id', ParseUUIDPipe) id: string, @Param('recId', ParseUUIDPipe) recId: string, @CurrentUser() user: AuthUser) {
+  stopRecording(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('recId', ParseUUIDPipe) recId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.classroom.stopRecording(id, recId, user);
   }
 
   @Get(':id/recordings')
-  recordings(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  recordings(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.classroom.listRecordings(id, user);
   }
 }

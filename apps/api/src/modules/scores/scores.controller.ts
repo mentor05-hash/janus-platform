@@ -1,8 +1,27 @@
-import { Body, Controller, Get, Param, Post, Put, Query, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  Res,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsBoolean, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsBoolean,
+  IsNumber,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -22,9 +41,15 @@ class ManualScoreDto {
   @IsOptional() @IsString() examType?: string;
   @IsOptional() @IsString() note?: string;
   @IsOptional() @IsString() reportFileId?: string;
-  @IsArray() @ArrayMaxSize(30) @ValidateNested({ each: true }) @Type(() => ScoreItemDto) items!: ScoreItemDto[];
+  @IsArray()
+  @ArrayMaxSize(30)
+  @ValidateNested({ each: true })
+  @Type(() => ScoreItemDto)
+  items!: ScoreItemDto[];
 }
-class OcrDto { @IsString() fileId!: string; }
+class OcrDto {
+  @IsString() fileId!: string;
+}
 class GoalDto {
   @IsString() studentLoginId!: string;
   @IsOptional() @IsString() tier?: string | null;
@@ -51,7 +76,11 @@ export class ScoresController {
 
   /** GET /admin/scores?period=&studentId= — 성적표 목록. */
   @Get()
-  list(@CurrentUser() user: AuthUser, @Query('period') period?: string, @Query('studentId') studentId?: string) {
+  list(
+    @CurrentUser() user: AuthUser,
+    @Query('period') period?: string,
+    @Query('studentId') studentId?: string,
+  ) {
     return this.scores.list(user, period, studentId);
   }
 
@@ -75,7 +104,10 @@ export class ScoresController {
 
   /** GET /admin/scores/trend?studentLoginId= — 성적 추이 + 배치 라인 변화. */
   @Get('trend')
-  trend(@CurrentUser() user: AuthUser, @Query('studentLoginId') studentLoginId: string) {
+  trend(
+    @CurrentUser() user: AuthUser,
+    @Query('studentLoginId') studentLoginId: string,
+  ) {
     return this.scores.trend(user, studentLoginId);
   }
 
@@ -87,24 +119,40 @@ export class ScoresController {
 
   /** POST /admin/scores/:id/placement — 배치 라인 저장(외부 배치표 서비스/관리자). */
   @Post(':id/placement')
-  placement(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: PlacementDto) {
+  placement(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: PlacementDto,
+  ) {
     return this.scores.setPlacement(user, id, { ...dto });
   }
 
   /** POST /admin/scores/goal — 학생 목표(대학 라인/평균) 설정. */
   @Post('goal')
   goal(@CurrentUser() user: AuthUser, @Body() dto: GoalDto) {
-    return this.scores.setGoal(user, dto.studentLoginId, dto.tier ?? null, dto.avg ?? null);
+    return this.scores.setGoal(
+      user,
+      dto.studentLoginId,
+      dto.tier ?? null,
+      dto.avg ?? null,
+    );
   }
 
   /** GET /admin/scores/export?period= — 성적 CSV 내보내기. */
   @Get('export')
-  async exportCsv(@CurrentUser() user: AuthUser, @Res() res: Response, @Query('period') period?: string) {
+  async exportCsv(
+    @CurrentUser() user: AuthUser,
+    @Res() res: Response,
+    @Query('period') period?: string,
+  ) {
     const csv = await this.scores.exportCsv(user, period);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     // 파일명은 ASCII(헤더 제약), 한글 기간은 RFC5987 filename* 로 전달
     const fn = encodeURIComponent(`scores-${period ?? 'all'}.csv`);
-    res.setHeader('Content-Disposition', `attachment; filename="scores.csv"; filename*=UTF-8''${fn}`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="scores.csv"; filename*=UTF-8''${fn}`,
+    );
     res.send(csv);
   }
 
@@ -112,8 +160,14 @@ export class ScoresController {
   @Get('template')
   template(@Res() res: Response) {
     const buf = this.scores.template();
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename="score-template.xlsx"');
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="score-template.xlsx"',
+    );
     res.send(buf);
   }
 
@@ -171,14 +225,20 @@ export class ScoresMeController {
   /** GET /guardian/scores/trend?studentId= — 학부모 자녀 성적·배치 추이. */
   @Get('guardian/scores/trend')
   @Roles('guardian')
-  guardianTrend(@CurrentUser() user: AuthUser, @Query('studentId') studentId: string) {
+  guardianTrend(
+    @CurrentUser() user: AuthUser,
+    @Query('studentId') studentId: string,
+  ) {
     return this.scores.guardianTrend(user, studentId);
   }
 
   /** GET /teacher/scores/trend?studentId= — 선생님(같은 센터) 학생 추이. */
   @Get('teacher/scores/trend')
   @Roles('teacher')
-  teacherTrend(@CurrentUser() user: AuthUser, @Query('studentId') studentId: string) {
+  teacherTrend(
+    @CurrentUser() user: AuthUser,
+    @Query('studentId') studentId: string,
+  ) {
     return this.scores.teacherTrend(user, studentId);
   }
 }

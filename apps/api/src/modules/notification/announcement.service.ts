@@ -177,12 +177,19 @@ export class AnnouncementService {
   /** 매분: 발송 전날 사전알림 + 도래분 발송. 선점(updateMany)으로 중복 방지. */
   @Cron('* * * * *')
   async scheduledTick() {
-    await withCronLock(this.cache, 'announcement-tick', 55, async () => {
-      const rem = await this.runReminders();
-      if (rem.reminded) this.logger.log(`예약 공지 사전알림: ${rem.reminded}건`);
-      const r = await this.runDue();
-      if (r.processed) this.logger.log(`예약 공지 발송: ${r.processed}건`);
-    }, this.logger);
+    await withCronLock(
+      this.cache,
+      'announcement-tick',
+      55,
+      async () => {
+        const rem = await this.runReminders();
+        if (rem.reminded)
+          this.logger.log(`예약 공지 사전알림: ${rem.reminded}건`);
+        const r = await this.runDue();
+        if (r.processed) this.logger.log(`예약 공지 발송: ${r.processed}건`);
+      },
+      this.logger,
+    );
   }
 
   /**

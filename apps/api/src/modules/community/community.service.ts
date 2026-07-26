@@ -17,8 +17,18 @@ export class CommunityService {
     return t.length > n ? `${t.slice(0, n)}…` : t;
   }
 
-  private reviewAvg(r: { rating_attitude: number | null; rating_content: number | null; rating_skill: number | null; rating_again: number | null }): number {
-    const xs = [r.rating_attitude, r.rating_content, r.rating_skill, r.rating_again].filter((v): v is number => typeof v === 'number');
+  private reviewAvg(r: {
+    rating_attitude: number | null;
+    rating_content: number | null;
+    rating_skill: number | null;
+    rating_again: number | null;
+  }): number {
+    const xs = [
+      r.rating_attitude,
+      r.rating_content,
+      r.rating_skill,
+      r.rating_again,
+    ].filter((v): v is number => typeof v === 'number');
     if (!xs.length) return 0;
     return xs.reduce((a, b) => a + b, 0) / xs.length;
   }
@@ -26,7 +36,7 @@ export class CommunityService {
   /** 센터 필터: HQ 관리자(admin+센터 미소속)는 전사, 그 외는 소속 센터. */
   private centerScope(user: AuthUser): string | undefined {
     const isHq = user.role === AccountRole.ADMIN && !user.centerId;
-    return isHq ? undefined : user.centerId ?? undefined;
+    return isHq ? undefined : (user.centerId ?? undefined);
   }
 
   async feed(user: AuthUser) {
@@ -42,7 +52,12 @@ export class CommunityService {
       },
       orderBy: { created_at: 'desc' },
       take: 40,
-      include: { qna_answer: { where: { accepted: true }, include: { teacher_profile: teacherName } } },
+      include: {
+        qna_answer: {
+          where: { accepted: true },
+          include: { teacher_profile: teacherName },
+        },
+      },
     });
     const questions = posts
       .map((p) => {
@@ -64,7 +79,9 @@ export class CommunityService {
     const mats = await this.prisma.material.findMany({
       where: {
         visibility: { in: ['public', 'center'] },
-        ...(centerId ? { OR: [{ center_id: centerId }, { visibility: 'public' }] } : {}),
+        ...(centerId
+          ? { OR: [{ center_id: centerId }, { visibility: 'public' }] }
+          : {}),
       },
       orderBy: [{ view_count: 'desc' }, { created_at: 'desc' }],
       take: 8,

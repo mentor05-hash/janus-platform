@@ -36,7 +36,10 @@ export class AdminPolicyController {
   }
 
   @Put('free-exposure')
-  updateFreeExposure(@Body() dto: UpdateFreeExposureDto, @CurrentUser() user: AuthUser) {
+  updateFreeExposure(
+    @Body() dto: UpdateFreeExposureDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.policy.updateFreeExposure(dto, user);
   }
 

@@ -40,11 +40,16 @@ export class MatchingService {
     // 외부학생(온라인 한정): 온라인 방식 강제 + 온라인 선생님만 매칭(정책 onlineOnly)
     let externalOnline = false;
     if (resolveStudentType(student) === 'external') {
-      const row = await this.prisma.system_setting.findUnique({ where: { key: 'external_student_policy' } });
-      externalOnline = ((row?.value as { onlineOnly?: boolean } | null)?.onlineOnly) ?? true;
+      const row = await this.prisma.system_setting.findUnique({
+        where: { key: 'external_student_policy' },
+      });
+      externalOnline =
+        (row?.value as { onlineOnly?: boolean } | null)?.onlineOnly ?? true;
     }
     const mode: ConsultMode =
-      !externalOnline && dto.mode === 'offline' ? ConsultMode.OFFLINE : ConsultMode.ZOOM;
+      !externalOnline && dto.mode === 'offline'
+        ? ConsultMode.OFFLINE
+        : ConsultMode.ZOOM;
     const blocked = await this.blocks.blockedTeacherIds(user.id); // 차단 교사 제외(§ 신고·차단)
     const teachers = await this.prisma.teacher_profile.findMany({
       where: {
@@ -56,10 +61,18 @@ export class MatchingService {
     });
 
     // 상담 종류별 기본 상담시간(본사 정책) → 필요한 연속 슬롯 수
-    const durRow = await this.prisma.system_setting.findUnique({ where: { key: 'consult_duration_policy' } });
-    const durMap = { ...DEFAULT_CONSULT_DURATION, ...((durRow?.value as Record<string, number>) ?? {}) };
+    const durRow = await this.prisma.system_setting.findUnique({
+      where: { key: 'consult_duration_policy' },
+    });
+    const durMap = {
+      ...DEFAULT_CONSULT_DURATION,
+      ...((durRow?.value as Record<string, number>) ?? {}),
+    };
     const minutes = durMap[dto.consultType] ?? MATCH_MINUTES;
-    const slotsNeeded = Math.max(1, Math.round(minutes / SLOT_GRANULARITY_MINUTES));
+    const slotsNeeded = Math.max(
+      1,
+      Math.round(minutes / SLOT_GRANULARITY_MINUTES),
+    );
 
     for (let d = 0; d < HORIZON_DAYS; d++) {
       const dateStr = kstDateString(new Date(now.getTime() + d * 86_400_000));

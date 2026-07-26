@@ -12,7 +12,10 @@ import { ManualPaymentProvider } from './payment/manual-payment.provider';
 @Module({
   imports: [StorageModule, LlmModule, NotificationModule],
   controllers: [ConsultingController],
-  providers: [ConsultingService, { provide: PAYMENT_PROVIDER, useClass: ManualPaymentProvider }],
+  providers: [
+    ConsultingService,
+    { provide: PAYMENT_PROVIDER, useClass: ManualPaymentProvider },
+  ],
   exports: [ConsultingService],
 })
 export class ConsultingModule {}

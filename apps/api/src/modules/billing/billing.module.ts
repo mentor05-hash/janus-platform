@@ -20,7 +20,11 @@ import { PgWebhookService } from './pg/pg-webhook.service';
  */
 @Module({
   imports: [NotificationModule],
-  controllers: [BillingController, PaymentRequestController, PgWebhookController],
+  controllers: [
+    BillingController,
+    PaymentRequestController,
+    PgWebhookController,
+  ],
   providers: [
     CreditService,
     WeeklyGrantService,

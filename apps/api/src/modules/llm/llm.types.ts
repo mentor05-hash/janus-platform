@@ -8,7 +8,12 @@ export const LLM_PROVIDER = Symbol('LLM_PROVIDER');
  * 호출 용도 — 일 호출 상한을 용도별로 나눠 하나가 폭주해도 나머지가 살아남게 한다.
  * (실행계획서 §비용: "무료 관문 홈·Q&A AI 초안이 비용 폭주 지점")
  */
-export const LLM_PURPOSES = ['report', 'similarity', 'ocr', 'consulting'] as const;
+export const LLM_PURPOSES = [
+  'report',
+  'similarity',
+  'ocr',
+  'consulting',
+] as const;
 export type LlmPurpose = (typeof LLM_PURPOSES)[number];
 
 // ── 신고 자동검토 ──
@@ -65,14 +70,26 @@ export interface ConsultingAnalysisInput {
 }
 export interface ConsultingAnalysisResult {
   summary: { strengths: string[]; concerns: string[]; highlights: string[] };
-  diagnostic: { fit_directions: string[]; activity_suggestions: string[]; target_gap: string };
-  document_check: { missing: string[]; inconsistencies: string[]; requests: string[] };
+  diagnostic: {
+    fit_directions: string[];
+    activity_suggestions: string[];
+    target_gap: string;
+  };
+  document_check: {
+    missing: string[];
+    inconsistencies: string[];
+    requests: string[];
+  };
   model: string; // 'mock' | claude 모델 태그
 }
 
 export interface LlmProvider {
   reviewReport(input: ReportReviewInput): Promise<ReportReviewResult>;
-  checkAnswerSimilarity(input: AnswerSimilarityInput): Promise<AnswerSimilarityResult>;
+  checkAnswerSimilarity(
+    input: AnswerSimilarityInput,
+  ): Promise<AnswerSimilarityResult>;
   extractScoreReport(input: ScoreOcrInput): Promise<ScoreOcrResult>;
-  analyzeConsulting(input: ConsultingAnalysisInput): Promise<ConsultingAnalysisResult>;
+  analyzeConsulting(
+    input: ConsultingAnalysisInput,
+  ): Promise<ConsultingAnalysisResult>;
 }

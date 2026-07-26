@@ -32,7 +32,7 @@ export class OutboxNotificationProvider implements NotificationProvider {
         type: msg.type,
         channels: msg.channels,
         payload: msg.payload as Prisma.InputJsonValue,
-        delivery: delivery as Prisma.InputJsonValue,
+        delivery: delivery,
         attempts: 1,
         last_attempt_at: new Date(),
       },

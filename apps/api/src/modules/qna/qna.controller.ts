@@ -40,10 +40,7 @@ export class QnaController {
   /** POST /qna/posts/{id}/claim — 공개질문 가져오기(교사, 선착순 배정). */
   @Post('posts/:id/claim')
   @Roles('teacher')
-  claim(
-    @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser() user: AuthUser,
-  ) {
+  claim(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
     return this.qna.claim(id, user);
   }
 

@@ -25,20 +25,32 @@ export class WeeklyGrantService {
     timeZone: 'Asia/Seoul',
   })
   async scheduledGrant() {
-    await withCronLock(this.cache, 'weekly-grant', 600, async () => {
-      const n = await this.runGrant();
-      this.logger.log(`주간 부여 완료: ${n}건`);
-    }, this.logger);
+    await withCronLock(
+      this.cache,
+      'weekly-grant',
+      600,
+      async () => {
+        const n = await this.runGrant();
+        this.logger.log(`주간 부여 완료: ${n}건`);
+      },
+      this.logger,
+    );
   }
 
   @Cron(process.env.GRANT_EXPIRE_CRON ?? '59 23 * * 0', {
     timeZone: 'Asia/Seoul',
   })
   async scheduledExpire() {
-    await withCronLock(this.cache, 'weekly-expire', 600, async () => {
-      const n = await this.runExpire();
-      this.logger.log(`주간 소멸 완료: ${n}건`);
-    }, this.logger);
+    await withCronLock(
+      this.cache,
+      'weekly-expire',
+      600,
+      async () => {
+        const n = await this.runExpire();
+        this.logger.log(`주간 소멸 완료: ${n}건`);
+      },
+      this.logger,
+    );
   }
 
   /**
@@ -48,8 +60,11 @@ export class WeeklyGrantService {
   async runGrant(now = new Date(), onlyStudentId?: string): Promise<number> {
     // 만료(=소멸) 시각은 등급별 expire_policy 로 결정(주말/월말). 아래 루프에서 등급마다 계산.
     // 외부학생 주간 크레딧 부여 정책(마스터 설정) — 기본 제외
-    const extRow = await this.prisma.system_setting.findUnique({ where: { key: 'external_student_policy' } });
-    const extWeeklyGrant = ((extRow?.value as { weeklyGrant?: boolean } | null)?.weeklyGrant) ?? false;
+    const extRow = await this.prisma.system_setting.findUnique({
+      where: { key: 'external_student_policy' },
+    });
+    const extWeeklyGrant =
+      (extRow?.value as { weeklyGrant?: boolean } | null)?.weeklyGrant ?? false;
     const students = await this.prisma.student_profile.findMany({
       where: {
         membership_grade_id: { not: null },
@@ -65,7 +80,10 @@ export class WeeklyGrantService {
       if (weekly <= 0) continue;
       // 등급별 만료: 월간 풀(월말 소멸) vs 주간(주말 소멸). 월간이면 dup 검사(같은 expire_at)로
       // 자동 월 1회만 부여됨(주간 cron 이 재실행돼도 이미 있는 월말 lot 발견 → 스킵).
-      const expireAt = s.membership_grade?.expire_policy === 'end_of_month' ? endOfMonthKst(now) : endOfWeekKst(now);
+      const expireAt =
+        s.membership_grade?.expire_policy === 'end_of_month'
+          ? endOfMonthKst(now)
+          : endOfWeekKst(now);
       const acct = await this.prisma.credit_account.findUnique({
         where: { student_id: s.account_id },
       });
@@ -182,7 +200,11 @@ export function endOfWeekKst(now: Date): Date {
 export function endOfMonthKst(now: Date): Date {
   const KST = 9 * 60 * 60 * 1000;
   const k = new Date(now.getTime() + KST);
-  const firstNextMonthKstAsUtc = Date.UTC(k.getUTCFullYear(), k.getUTCMonth() + 1, 1); // 다음 달 1일 00:00 KST
+  const firstNextMonthKstAsUtc = Date.UTC(
+    k.getUTCFullYear(),
+    k.getUTCMonth() + 1,
+    1,
+  ); // 다음 달 1일 00:00 KST
   const expireKst = firstNextMonthKstAsUtc - 60 * 1000; // 말일 23:59:00 KST
   return new Date(expireKst - KST);
 }

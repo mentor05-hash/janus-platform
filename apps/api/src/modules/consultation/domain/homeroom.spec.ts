@@ -29,20 +29,28 @@ describe('homeroomGap (순수)', () => {
   });
 
   it('warn 미설정 시 cycleDays 로 대체', () => {
-    const g = homeroomGap(new Date('2026-05-25T00:00:00Z'), {
-      cycleDays: 30,
-      warnDays: null,
-      dangerDays: null,
-    }, now); // 36일 ≥ 30
+    const g = homeroomGap(
+      new Date('2026-05-25T00:00:00Z'),
+      {
+        cycleDays: 30,
+        warnDays: null,
+        dangerDays: null,
+      },
+      now,
+    ); // 36일 ≥ 30
     expect(g.level).toBe('warn');
   });
 
   it('임계 전무(all null) → 항상 ok', () => {
-    const g = homeroomGap(new Date('2020-01-01T00:00:00Z'), {
-      cycleDays: null,
-      warnDays: null,
-      dangerDays: null,
-    }, now);
+    const g = homeroomGap(
+      new Date('2020-01-01T00:00:00Z'),
+      {
+        cycleDays: null,
+        warnDays: null,
+        dangerDays: null,
+      },
+      now,
+    );
     expect(g.level).toBe('ok');
   });
 });

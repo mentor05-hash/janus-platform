@@ -21,10 +21,22 @@ import { LLM_PROVIDER } from '../llm/llm.types';
 import type { LlmProvider } from '../llm/llm.types';
 
 interface QnaRow {
-  id: string; subject: string | null; difficulty: string | null; scope: string | null;
-  body: string | null; status: string | null; created_at: Date; assigned_teacher_id?: string | null;
+  id: string;
+  subject: string | null;
+  difficulty: string | null;
+  scope: string | null;
+  body: string | null;
+  status: string | null;
+  created_at: Date;
+  assigned_teacher_id?: string | null;
   attachments?: unknown;
-  qna_answer?: { id: string; body: string | null; accepted: boolean | null; created_at: Date; teacher_profile?: { account?: { name?: string } } }[];
+  qna_answer?: {
+    id: string;
+    body: string | null;
+    accepted: boolean | null;
+    created_at: Date;
+    teacher_profile?: { account?: { name?: string } };
+  }[];
 }
 
 /**
@@ -87,7 +99,8 @@ export class QnaService {
               dto.scope === 'assigned' ? dto.assignedTeacherId! : null,
             body: dto.body,
             status: 'open',
-            attachments: (dto.attachments ?? []) as unknown as Prisma.InputJsonValue,
+            attachments: (dto.attachments ??
+              []) as unknown as Prisma.InputJsonValue,
           },
         });
         if (credits > 0) {
@@ -130,10 +143,14 @@ export class QnaService {
     const answersInclude = {
       qna_answer: {
         orderBy: { created_at: 'asc' as const },
-        include: { teacher_profile: { include: { account: { select: { name: true } } } } },
+        include: {
+          teacher_profile: { include: { account: { select: { name: true } } } },
+        },
       },
     };
-    const shape = (rows: Awaited<ReturnType<typeof this.prisma.qna_post.findMany>>) =>
+    const shape = (
+      rows: Awaited<ReturnType<typeof this.prisma.qna_post.findMany>>,
+    ) =>
       (rows as unknown as QnaRow[]).map((p) => ({
         id: p.id,
         subject: p.subject ?? null,
@@ -156,16 +173,36 @@ export class QnaService {
       }));
 
     if (user.role === AccountRole.STUDENT) {
-      return shape(await this.prisma.qna_post.findMany({ where: { student_id: user.id }, orderBy: { created_at: 'desc' }, include: answersInclude }));
+      return shape(
+        await this.prisma.qna_post.findMany({
+          where: { student_id: user.id },
+          orderBy: { created_at: 'desc' },
+          include: answersInclude,
+        }),
+      );
     }
     if (user.role === AccountRole.TEACHER) {
-      return shape(await this.prisma.qna_post.findMany({
-        where: { OR: [{ scope: 'open', status: 'open' }, { assigned_teacher_id: user.id }] },
-        orderBy: { created_at: 'desc' }, include: answersInclude,
-      }));
+      return shape(
+        await this.prisma.qna_post.findMany({
+          where: {
+            OR: [
+              { scope: 'open', status: 'open' },
+              { assigned_teacher_id: user.id },
+            ],
+          },
+          orderBy: { created_at: 'desc' },
+          include: answersInclude,
+        }),
+      );
     }
     if (user.role === AccountRole.ADMIN || user.role === AccountRole.HR) {
-      return shape(await this.prisma.qna_post.findMany({ orderBy: { created_at: 'desc' }, take: 200, include: answersInclude }));
+      return shape(
+        await this.prisma.qna_post.findMany({
+          orderBy: { created_at: 'desc' },
+          take: 200,
+          include: answersInclude,
+        }),
+      );
     }
     throw new ForbiddenException('Q&A 목록 조회 권한이 없습니다.');
   }
@@ -251,7 +288,9 @@ export class QnaService {
     });
     const sim = await this.llm.checkAnswerSimilarity({
       body: dto.body ?? '',
-      priors: priorRows.filter((r) => r.body).map((r) => ({ id: r.id, body: r.body! })),
+      priors: priorRows
+        .filter((r) => r.body)
+        .map((r) => ({ id: r.id, body: r.body! })),
     });
     const ans = await this.prisma.qna_answer.create({
       data: {
@@ -265,7 +304,14 @@ export class QnaService {
         sim_flagged: sim.flagged,
       },
     });
-    return { id: ans.id, postId, accepted: false, simFlagged: sim.flagged, similarity: sim.maxSimilarity, simSummary: sim.summary };
+    return {
+      id: ans.id,
+      postId,
+      accepted: false,
+      simFlagged: sim.flagged,
+      similarity: sim.maxSimilarity,
+      simSummary: sim.summary,
+    };
   }
 
   /** 답변 채택(질문 학생) — 채택 답변 급여 적격(pay_eligible), 질문 마감. */

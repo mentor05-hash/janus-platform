@@ -160,7 +160,9 @@ export class ConsultationService {
             }
           : {}),
       },
-      include: { teacher_profile: { include: { account: { select: { name: true } } } } },
+      include: {
+        teacher_profile: { include: { account: { select: { name: true } } } },
+      },
       orderBy: { created_at: 'desc' },
     });
     return notes.map((n) => this.maskForViewer(n as NoteRow, user, studentId));

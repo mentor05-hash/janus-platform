@@ -29,7 +29,10 @@ export class QuotaLlmProvider implements LlmProvider {
     private readonly totalLimit: number,
   ) {}
 
-  private async guard<T>(purpose: LlmPurpose, run: () => Promise<T>): Promise<T> {
+  private async guard<T>(
+    purpose: LlmPurpose,
+    run: () => Promise<T>,
+  ): Promise<T> {
     try {
       await this.quota.consume('total', this.totalLimit);
       await this.quota.consume(purpose, this.limits[purpose]);
@@ -44,25 +47,39 @@ export class QuotaLlmProvider implements LlmProvider {
     return this.guard('report', () => this.inner.reviewReport(input));
   }
 
-  checkAnswerSimilarity(input: AnswerSimilarityInput): Promise<AnswerSimilarityResult> {
-    return this.guard('similarity', () => this.inner.checkAnswerSimilarity(input));
+  checkAnswerSimilarity(
+    input: AnswerSimilarityInput,
+  ): Promise<AnswerSimilarityResult> {
+    return this.guard('similarity', () =>
+      this.inner.checkAnswerSimilarity(input),
+    );
   }
 
   extractScoreReport(input: ScoreOcrInput): Promise<ScoreOcrResult> {
     return this.guard('ocr', () => this.inner.extractScoreReport(input));
   }
 
-  analyzeConsulting(input: ConsultingAnalysisInput): Promise<ConsultingAnalysisResult> {
+  analyzeConsulting(
+    input: ConsultingAnalysisInput,
+  ): Promise<ConsultingAnalysisResult> {
     return this.guard('consulting', () => this.inner.analyzeConsulting(input));
   }
 
   /** 관리자 사용량 조회 — 증가 없이 오늘 값만. */
-  async usage(): Promise<{ total: number; totalLimit: number; byPurpose: Record<string, { used: number; limit: number }> }> {
+  async usage(): Promise<{
+    total: number;
+    totalLimit: number;
+    byPurpose: Record<string, { used: number; limit: number }>;
+  }> {
     const byPurpose: Record<string, { used: number; limit: number }> = {};
     for (const p of LLM_PURPOSES) {
       byPurpose[p] = { used: await this.quota.peek(p), limit: this.limits[p] };
     }
-    return { total: await this.quota.peek('total'), totalLimit: this.totalLimit, byPurpose };
+    return {
+      total: await this.quota.peek('total'),
+      totalLimit: this.totalLimit,
+      byPurpose,
+    };
   }
 }
 

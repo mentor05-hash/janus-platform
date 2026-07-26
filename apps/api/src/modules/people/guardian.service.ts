@@ -30,7 +30,11 @@ export class GuardianService {
   /** 승인된 연결 자녀인지 확인(무단 열람·충전 방지). */
   private async assertLinked(guardianId: string, studentId: string) {
     const link = await this.prisma.guardian_student_link.findFirst({
-      where: { guardian_id: guardianId, student_id: studentId, status: 'approved' },
+      where: {
+        guardian_id: guardianId,
+        student_id: studentId,
+        status: 'approved',
+      },
     });
     if (!link) throw new ForbiddenException('연결된 자녀가 아닙니다.');
   }
@@ -84,7 +88,7 @@ export class GuardianService {
     });
     const children = await Promise.all(
       links.map(async (l) => {
-        const [acc, sp, ca, weeklyGrant, nextBooking] = await Promise.all([
+        const [acc, sp, ca, nextBooking] = await Promise.all([
           this.prisma.account.findUnique({
             where: { id: l.student_id },
             select: { name: true },
@@ -95,14 +99,15 @@ export class GuardianService {
               homeroom_teacher_id: true,
               school_grade: true,
               center: { select: { name: true } },
-              membership_grade: { select: { name: true, weekly_credits: true } },
+              membership_grade: {
+                select: { name: true, weekly_credits: true },
+              },
             },
           }),
           this.prisma.credit_account.findUnique({
             where: { student_id: l.student_id },
             select: { purchased_balance: true, granted_balance: true },
           }),
-          undefined,
           this.prisma.booking.findFirst({
             where: {
               student_id: l.student_id,

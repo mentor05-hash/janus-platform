@@ -30,16 +30,25 @@ export class EvaluationService {
         where: { account_id: teacherId },
         select: { rating: true, grade: true },
       }),
-      this.prisma.teacher_grade.findUnique({ where: { teacher_id: teacherId } }).catch(() => null),
+      this.prisma.teacher_grade
+        .findUnique({ where: { teacher_id: teacherId } })
+        .catch(() => null),
       this.prisma.review.findMany({
         where: { teacher_id: teacherId, reported: { not: true } },
         orderBy: { created_at: 'desc' },
         take: 300,
       }),
     ]);
-    const avg = (key: 'rating_attitude' | 'rating_content' | 'rating_skill' | 'rating_again') => {
-      const vals = reviews.map((r) => r[key]).filter((v): v is number => v != null);
-      return vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10 : 0;
+    const avg = (
+      key:
+        'rating_attitude' | 'rating_content' | 'rating_skill' | 'rating_again',
+    ) => {
+      const vals = reviews
+        .map((r) => r[key])
+        .filter((v): v is number => v != null);
+      return vals.length
+        ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10
+        : 0;
     };
     const itemScores = {
       attitude: avg('rating_attitude'),
@@ -47,23 +56,45 @@ export class EvaluationService {
       skill: avg('rating_skill'),
       again: avg('rating_again'),
     };
-    const r4 = (r: { rating_attitude: number | null; rating_content: number | null; rating_skill: number | null; rating_again: number | null }) =>
-      averageRating([r.rating_attitude, r.rating_content, r.rating_skill, r.rating_again]);
+    const r4 = (r: {
+      rating_attitude: number | null;
+      rating_content: number | null;
+      rating_skill: number | null;
+      rating_again: number | null;
+    }) =>
+      averageRating([
+        r.rating_attitude,
+        r.rating_content,
+        r.rating_skill,
+        r.rating_again,
+      ]);
     const overall = reviews.length
-      ? Math.round((reviews.reduce((a, r) => a + r4(r), 0) / reviews.length) * 10) / 10
+      ? Math.round(
+          (reviews.reduce((a, r) => a + r4(r), 0) / reviews.length) * 10,
+        ) / 10
       : Number(profile?.rating ?? 0);
     // 최근 6개월 월별 평균
     const now = new Date();
-    const ym = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    const months = Array.from({ length: 6 }, (_, i) => ym(new Date(now.getFullYear(), now.getMonth() - 5 + i, 1)));
+    const ym = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const months = Array.from({ length: 6 }, (_, i) =>
+      ym(new Date(now.getFullYear(), now.getMonth() - 5 + i, 1)),
+    );
     const monthlyTrend = months.map((m) => {
       const rs = reviews.filter((r) => r.created_at && ym(r.created_at) === m);
-      return { month: Number(m.slice(5)), avg: rs.length ? Math.round((rs.reduce((a, r) => a + r4(r), 0) / rs.length) * 10) / 10 : null };
+      return {
+        month: Number(m.slice(5)),
+        avg: rs.length
+          ? Math.round((rs.reduce((a, r) => a + r4(r), 0) / rs.length) * 10) /
+            10
+          : null,
+      };
     });
     return {
       data: {
         grade: gradeRow?.grade ?? profile?.grade ?? 'B',
-        topPercent: gradeRow?.top_percent != null ? Number(gradeRow.top_percent) : null,
+        topPercent:
+          gradeRow?.top_percent != null ? Number(gradeRow.top_percent) : null,
         nextReviewAt: gradeRow?.next_review_at ?? null,
         overall,
         count: reviews.length,

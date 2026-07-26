@@ -14,7 +14,9 @@ describe('무료 노출 정책(N24)', () => {
 
   it('구간별 노출 수 기본값은 W2 D2 범위(3~5)의 하한', () => {
     expect(FREE_EXPOSURE_DEFAULT.perBandItems).toBe(3);
-    expect(FREE_EXPOSURE_DEFAULT.perBandItems).toBeLessThanOrEqual(FREE_EXPOSURE_GUARD.maxPerBandItems);
+    expect(FREE_EXPOSURE_DEFAULT.perBandItems).toBeLessThanOrEqual(
+      FREE_EXPOSURE_GUARD.maxPerBandItems,
+    );
   });
 
   it('저장값이 없으면 기본값', () => {
@@ -38,7 +40,7 @@ describe('무료 노출 정책(N24)', () => {
   // 배치표 생성기는 tier-policy.config.json 을 빌드 시 읽고 플랫폼은 위 기본값을 쓴다.
   // 둘이 갈라지면 무료판 산출물과 플랫폼이 서로 다른 노출 정책으로 동작한다 — 정합을 테스트로 고정한다.
   it('tier-policy.config.json 의 freeExposure 와 코드 기본값이 같다', () => {
-    /* eslint-disable @typescript-eslint/no-var-requires */
+    // eslint-disable-next-line @typescript-eslint/no-require-imports -- JSON 정합 검증: 런타임에 실파일을 읽어야 의미가 있다
     const cfg = require('../../../../../../tier-policy.config.json') as {
       freeExposure: Record<string, unknown>;
     };

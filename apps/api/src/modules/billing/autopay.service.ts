@@ -4,7 +4,6 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { CACHE_PROVIDER } from '../../common/cache/cache.types';
 import type { CacheProvider } from '../../common/cache/cache.types';
 import { withCronLock } from '../../common/cache/cron-lock';
-import { BillingCycle } from '../../config/enums';
 import { computeNextBilling } from '../membership/domain/billing-cycle';
 import { PG_PROVIDER } from './pg/pg.types';
 import type { PgProvider } from './pg/pg.types';
@@ -28,10 +27,16 @@ export class AutopayService {
     timeZone: 'Asia/Seoul',
   })
   async scheduledBilling() {
-    await withCronLock(this.cache, 'subscription-billing', 600, async () => {
-      const r = await this.runDue();
-      this.logger.log(`정기결제 처리: 성공 ${r.charged} / 실패 ${r.failed}`);
-    }, this.logger);
+    await withCronLock(
+      this.cache,
+      'subscription-billing',
+      600,
+      async () => {
+        const r = await this.runDue();
+        this.logger.log(`정기결제 처리: 성공 ${r.charged} / 실패 ${r.failed}`);
+      },
+      this.logger,
+    );
   }
 
   /** 도래한 구독을 청구. 반환: {charged, failed}. now 주입 가능(테스트). */

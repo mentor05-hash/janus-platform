@@ -38,7 +38,13 @@ describe('예상급여 산정(§payroll)', () => {
 
   it('근무시간×시급 + 48h 미답 보상이 확정분에 합산', () => {
     const r = computePayroll(
-      { doneCount: 0, upcomingCount: 0, qnaAcceptedCount: 0, workMinutes: 120, staleAnswerCount: 2 },
+      {
+        doneCount: 0,
+        upcomingCount: 0,
+        qnaAcceptedCount: 0,
+        workMinutes: 120,
+        staleAnswerCount: 2,
+      },
       { ...RATES, hourlyRate: 12_000, staleAnswerBonus: 8_000 },
     );
     expect(r.confirmedAmount).toBe(100_000 + 24_000 + 16_000); // 등급수당 + 2h×12000 + 2×8000

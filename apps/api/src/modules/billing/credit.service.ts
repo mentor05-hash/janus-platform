@@ -46,22 +46,37 @@ export class CreditService {
       where: { account_id: studentId },
       select: { membership_grade: { select: { weekly_credits: true } } },
     });
-    const grant = sp?.membership_grade?.weekly_credits ?? CreditService.DEFAULT_INITIAL_GRANT;
+    const grant =
+      sp?.membership_grade?.weekly_credits ??
+      CreditService.DEFAULT_INITIAL_GRANT;
     try {
       return await this.prisma.$transaction(async (tx) => {
         const acct = await tx.credit_account.create({
-          data: { student_id: studentId, purchased_balance: 0, granted_balance: grant, reserved_credits: 0 },
+          data: {
+            student_id: studentId,
+            purchased_balance: 0,
+            granted_balance: grant,
+            reserved_credits: 0,
+          },
         });
         if (grant > 0) {
           await tx.credit_transaction.create({
-            data: { account_id: acct.id, type: CreditTxnType.WEEKLY_GRANT, amount: grant, balance: grant, description: '초기 크레딧 부여' },
+            data: {
+              account_id: acct.id,
+              type: CreditTxnType.WEEKLY_GRANT,
+              amount: grant,
+              balance: grant,
+              description: '초기 크레딧 부여',
+            },
           });
         }
         return acct;
       });
     } catch {
       // 동시 생성 경합 등 — 재조회로 복구.
-      return this.prisma.credit_account.findUnique({ where: { student_id: studentId } });
+      return this.prisma.credit_account.findUnique({
+        where: { student_id: studentId },
+      });
     }
   }
 
@@ -106,7 +121,8 @@ export class CreditService {
     method?: string,
   ) {
     this.assertChargeable();
-    const label = method === 'voucher' ? '상품권' : method === 'card' ? '카드' : null;
+    const label =
+      method === 'voucher' ? '상품권' : method === 'card' ? '카드' : null;
     const acct = await this.lockAccount(tx, studentId);
     const balance = acct.purchased_balance + acct.granted_balance + amount;
     const updated = await tx.credit_account.update({
@@ -119,7 +135,9 @@ export class CreditService {
         type: CreditTxnType.CHARGE,
         amount,
         balance,
-        description: label ? `크레딧 충전(${label}·모의 PG)` : '크레딧 충전(모의 PG)',
+        description: label
+          ? `크레딧 충전(${label}·모의 PG)`
+          : '크레딧 충전(모의 PG)',
         method: method ?? 'mock',
       },
     });
@@ -145,18 +163,45 @@ export class CreditService {
    */
   async applyPgCharge(
     tx: Prisma.TransactionClient,
-    input: { studentId: string; amount: number; provider: string; pgTxnId?: string; idempotencyKey: string },
+    input: {
+      studentId: string;
+      amount: number;
+      provider: string;
+      pgTxnId?: string;
+      idempotencyKey: string;
+    },
   ): Promise<{ applied: boolean }> {
-    const existing = await tx.payment.findUnique({ where: { idempotency_key: input.idempotencyKey } });
+    const existing = await tx.payment.findUnique({
+      where: { idempotency_key: input.idempotencyKey },
+    });
     if (existing) return { applied: false }; // 이미 반영됨(멱등)
     const acct = await this.lockAccount(tx, input.studentId);
-    const balance = acct.purchased_balance + acct.granted_balance + input.amount;
-    await tx.credit_account.update({ where: { id: acct.id }, data: { purchased_balance: { increment: input.amount } } });
+    const balance =
+      acct.purchased_balance + acct.granted_balance + input.amount;
+    await tx.credit_account.update({
+      where: { id: acct.id },
+      data: { purchased_balance: { increment: input.amount } },
+    });
     await tx.credit_transaction.create({
-      data: { account_id: acct.id, type: CreditTxnType.CHARGE, amount: input.amount, balance, description: `크레딧 충전(${input.provider} PG)`, method: input.provider },
+      data: {
+        account_id: acct.id,
+        type: CreditTxnType.CHARGE,
+        amount: input.amount,
+        balance,
+        description: `크레딧 충전(${input.provider} PG)`,
+        method: input.provider,
+      },
     });
     await tx.payment.create({
-      data: { payer_account_id: input.studentId, amount: input.amount, pg_provider: input.provider, pg_txn_id: input.pgTxnId ?? null, target: '충전', status: 'done', idempotency_key: input.idempotencyKey },
+      data: {
+        payer_account_id: input.studentId,
+        amount: input.amount,
+        pg_provider: input.provider,
+        pg_txn_id: input.pgTxnId ?? null,
+        target: '충전',
+        status: 'done',
+        idempotency_key: input.idempotencyKey,
+      },
     });
     return { applied: true };
   }
@@ -169,16 +214,32 @@ export class CreditService {
     tx: Prisma.TransactionClient,
     input: { idempotencyKey: string; provider: string; amount?: number },
   ): Promise<{ applied: boolean }> {
-    const payment = await tx.payment.findUnique({ where: { idempotency_key: input.idempotencyKey } });
+    const payment = await tx.payment.findUnique({
+      where: { idempotency_key: input.idempotencyKey },
+    });
     if (!payment || payment.refunded_at) return { applied: false }; // 원결제 없음/이미 환불(멱등)
     const amount = input.amount ?? payment.amount;
     const acct = await this.lockAccount(tx, payment.payer_account_id);
     const dec = Math.min(amount, acct.purchased_balance); // 이미 사용된 분은 차감 불가 — 잔액까지만
-    const updated = await tx.credit_account.update({ where: { id: acct.id }, data: { purchased_balance: { decrement: dec } } });
-    await tx.credit_transaction.create({
-      data: { account_id: acct.id, type: CreditTxnType.REFUND, amount: dec, balance: updated.purchased_balance + updated.granted_balance, description: `충전 환불(${input.provider} PG)`, ref_type: 'pg_refund', ref_id: payment.id },
+    const updated = await tx.credit_account.update({
+      where: { id: acct.id },
+      data: { purchased_balance: { decrement: dec } },
     });
-    await tx.payment.update({ where: { id: payment.id }, data: { status: 'refunded', refunded_at: new Date() } });
+    await tx.credit_transaction.create({
+      data: {
+        account_id: acct.id,
+        type: CreditTxnType.REFUND,
+        amount: dec,
+        balance: updated.purchased_balance + updated.granted_balance,
+        description: `충전 환불(${input.provider} PG)`,
+        ref_type: 'pg_refund',
+        ref_id: payment.id,
+      },
+    });
+    await tx.payment.update({
+      where: { id: payment.id },
+      data: { status: 'refunded', refunded_at: new Date() },
+    });
     return { applied: true };
   }
 

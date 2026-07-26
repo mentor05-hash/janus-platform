@@ -28,7 +28,9 @@ async function bootstrap() {
     helmet({
       contentSecurityPolicy: false, // API(JSON) — 문서 CSP 불필요, 프론트에서 관리
       crossOriginResourcePolicy: { policy: 'cross-origin' }, // 웹/모바일 크로스 오리진 첨부 허용
-      hsts: isProd ? { maxAge: 15552000, includeSubDomains: true, preload: true } : false,
+      hsts: isProd
+        ? { maxAge: 15552000, includeSubDomains: true, preload: true }
+        : false,
     }),
   );
 
@@ -43,7 +45,10 @@ async function bootstrap() {
   // 소켓 수평확장(§10): WS_REDIS_ADAPTER=true 면 Redis pub/sub 어댑터로 다중 인스턴스 방 공유.
   // 미설정 시 기본 in-memory 어댑터(단일 인스턴스) — 동작 불변.
   if (process.env.WS_REDIS_ADAPTER === 'true') {
-    const adapter = new RedisIoAdapter(app, process.env.REDIS_URL ?? 'redis://localhost:6379');
+    const adapter = new RedisIoAdapter(
+      app,
+      process.env.REDIS_URL ?? 'redis://localhost:6379',
+    );
     await adapter.connect();
     app.useWebSocketAdapter(adapter);
     Logger.log('WebSocket Redis 어댑터 사용(다중 인스턴스)', 'Bootstrap');
@@ -82,4 +87,4 @@ async function bootstrap() {
   await app.listen(port);
   Logger.log(`API up on http://localhost:${port}${prefix}`, 'Bootstrap');
 }
-bootstrap();
+void bootstrap();

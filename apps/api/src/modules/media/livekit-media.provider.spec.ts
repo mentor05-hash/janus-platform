@@ -1,10 +1,15 @@
 import * as crypto from 'crypto';
 import { LiveKitMediaProvider } from './livekit-media.provider';
 
-const decode = (jwt: string) => JSON.parse(Buffer.from(jwt.split('.')[1], 'base64url').toString());
+const decode = (jwt: string) =>
+  JSON.parse(Buffer.from(jwt.split('.')[1], 'base64url').toString());
 
 describe('LiveKitMediaProvider 토큰(grant)', () => {
-  const p = new LiveKitMediaProvider('wss://x.livekit.cloud', 'APIkey123', 'secret456');
+  const p = new LiveKitMediaProvider(
+    'wss://x.livekit.cloud',
+    'APIkey123',
+    'secret456',
+  );
 
   it('선생님(publisher): canPublish=true, canSubscribe=true', async () => {
     const r = await p.issueToken('room-1', 'teacher-1', 'publisher', '김선생');
@@ -33,7 +38,10 @@ describe('LiveKitMediaProvider 토큰(grant)', () => {
   it('서명은 HS256 secret 기반(변조 검증 가능)', async () => {
     const r = await p.issueToken('room-1', 'teacher-1', 'publisher');
     const [h, pl, sig] = r.token!.split('.');
-    const expected = crypto.createHmac('sha256', 'secret456').update(`${h}.${pl}`).digest('base64url');
+    const expected = crypto
+      .createHmac('sha256', 'secret456')
+      .update(`${h}.${pl}`)
+      .digest('base64url');
     expect(sig).toBe(expected);
   });
 });

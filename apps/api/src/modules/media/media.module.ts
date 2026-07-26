@@ -28,17 +28,31 @@ const DEFAULT_RECORDING_LIMIT = 40; // 일 녹화 시작 — egress 단가가 �
           const key = config.get<string>('LIVEKIT_API_KEY');
           const secret = config.get<string>('LIVEKIT_API_SECRET');
           if (url && key && secret) {
-            const inner = new LiveKitMediaProvider(url, key, secret, config.get<string>('LIVEKIT_EGRESS_S3'));
+            const inner = new LiveKitMediaProvider(
+              url,
+              key,
+              secret,
+              config.get<string>('LIVEKIT_EGRESS_S3'),
+            );
             // 강의·상담 접속을 캐시 장애로 끊으면 수업 자체가 멈춘다 — LLM 과 달리 기본 통과(fail open).
-            const failOpen = config.get<string>('MEDIA_QUOTA_FAIL_OPEN') !== 'false';
+            const failOpen =
+              config.get<string>('MEDIA_QUOTA_FAIL_OPEN') !== 'false';
             return new QuotaMediaProvider(
               inner,
               new UsageQuota(cache, 'media', failOpen),
-              envInt(config.get<string>('MEDIA_DAILY_TOKEN_LIMIT'), DEFAULT_TOKEN_LIMIT),
-              envInt(config.get<string>('MEDIA_DAILY_RECORDING_LIMIT'), DEFAULT_RECORDING_LIMIT),
+              envInt(
+                config.get<string>('MEDIA_DAILY_TOKEN_LIMIT'),
+                DEFAULT_TOKEN_LIMIT,
+              ),
+              envInt(
+                config.get<string>('MEDIA_DAILY_RECORDING_LIMIT'),
+                DEFAULT_RECORDING_LIMIT,
+              ),
             );
           }
-          new Logger('MediaModule').warn('MEDIA_PROVIDER=livekit 이나 자격증명 미설정 → mock 로 폴백');
+          new Logger('MediaModule').warn(
+            'MEDIA_PROVIDER=livekit 이나 자격증명 미설정 → mock 로 폴백',
+          );
         }
         return new MockMediaProvider();
       },

@@ -70,13 +70,17 @@ export class OpsService {
     ]);
     // 미래 start_at(데모/예약 완료 선반영)은 음수 경과 → 인덱스 음수 방지 위해 [0, WEEKS-1] 클램프
     const bucket = (d: Date) =>
-      Math.max(0, Math.min(WEEKS - 1, Math.floor((now.getTime() - d.getTime()) / weekMs)));
+      Math.max(
+        0,
+        Math.min(WEEKS - 1, Math.floor((now.getTime() - d.getTime()) / weekMs)),
+      );
     const trend = Array.from({ length: WEEKS }, (_, i) => ({
       weeksAgo: WEEKS - 1 - i,
       applied: 0,
       matched: 0,
     }));
-    for (const r of createdRows) trend[WEEKS - 1 - bucket(r.created_at)].applied += 1;
+    for (const r of createdRows)
+      trend[WEEKS - 1 - bucket(r.created_at)].applied += 1;
     for (const r of doneRows)
       if (r.start_at) trend[WEEKS - 1 - bucket(r.start_at)].matched += 1;
 
@@ -85,7 +89,8 @@ export class OpsService {
       where: centerId ? { center_id: centerId } : {},
     });
     const pol = policies[0] ?? null;
-    const gradeMap = (pol?.grade_allowance as Record<string, number> | null) ?? {};
+    const gradeMap =
+      (pol?.grade_allowance as Record<string, number> | null) ?? {};
     const gradePayTable = ['S', 'A', 'B'].map((g) => ({
       grade: g,
       perCaseRate: pol?.per_case_rate ?? 30000,
@@ -107,7 +112,8 @@ export class OpsService {
       .map((t) => (t.rating == null ? null : Number(t.rating)))
       .filter((r): r is number => r != null && r > 0);
     const avgSatisfaction = ratings.length
-      ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10) / 10
+      ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10) /
+        10
       : null;
 
     return {

@@ -133,13 +133,20 @@ export class CancellationService {
     // 크레딧 부족·슬롯 경합 시 자동배정을 건너뛰고 후보 알림만(=substitute 폴백, §5-6).
     let reassignedBookingId: string | null = null;
     if (dto.route === 'priority' && substitutes.length > 0) {
-      reassignedBookingId = await this.tryPriorityReassign(booking, substitutes[0]);
+      reassignedBookingId = await this.tryPriorityReassign(
+        booking,
+        substitutes[0],
+      );
       if (reassignedBookingId) {
         await this.notifier.send({
           recipientId: booking.student_id,
           type: 'auto_reassigned',
           channels: ALL_CHANNELS,
-          payload: { bookingId: reassignedBookingId, teacherId: substitutes[0], from: bookingId },
+          payload: {
+            bookingId: reassignedBookingId,
+            teacherId: substitutes[0],
+            from: bookingId,
+          },
         });
       }
     }
@@ -182,17 +189,21 @@ export class CancellationService {
     const endMin = kstMinutesOfDay(booking.end_at);
     const minutes = endMin - startMin;
     if (minutes <= 0) return null;
-    const consultType = consultTypeFromPrisma(booking.consult_type) ?? undefined;
+    const consultType =
+      consultTypeFromPrisma(booking.consult_type) ?? undefined;
     const q = await this.pricing.quoteSession(
       booking.mode as never,
       minutes,
-      teacher.grade as never,
+      teacher.grade,
       teacher.center_id,
-      consultType as never,
+      consultType,
     );
     const slotStart = startMin / SLOT_GRANULARITY_MINUTES;
     const slotEnd = endMin / SLOT_GRANULARITY_MINUTES;
-    const indices = Array.from({ length: slotEnd - slotStart }, (_, k) => slotStart + k);
+    const indices = Array.from(
+      { length: slotEnd - slotStart },
+      (_, k) => slotStart + k,
+    );
     try {
       return await this.prisma.$transaction(async (tx) => {
         const bookable = await this.availability.assertBookable(
@@ -220,11 +231,16 @@ export class CancellationService {
             origin: '우선배정',
           },
         });
-        const outcome = await this.credit.consumeWithin(tx, booking.student_id, q.credits, {
-          refType: 'booking',
-          refId: b.id,
-          description: '우선권 자동배정 크레딧 차감',
-        });
+        const outcome = await this.credit.consumeWithin(
+          tx,
+          booking.student_id,
+          q.credits,
+          {
+            refType: 'booking',
+            refId: b.id,
+            description: '우선권 자동배정 크레딧 차감',
+          },
+        );
         if (!outcome.ok) throw new Error('shortfall'); // 롤백 → 폴백
         await tx.time_slot.createMany({
           data: indices.map((i) => ({

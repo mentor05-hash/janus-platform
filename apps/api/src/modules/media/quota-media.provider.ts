@@ -19,18 +19,28 @@ export class QuotaMediaProvider implements MediaProvider {
     private readonly recordingLimit: number,
   ) {}
 
-  async issueToken(roomRef: string, identity: string, role: MediaRole, displayName?: string): Promise<MediaTokenResult> {
+  async issueToken(
+    roomRef: string,
+    identity: string,
+    role: MediaRole,
+    displayName?: string,
+  ): Promise<MediaTokenResult> {
     await this.guard('token', this.tokenLimit);
     return this.inner.issueToken(roomRef, identity, role, displayName);
   }
 
-  async startRecording(roomRef: string): Promise<{ provider: string; recordingRef: string }> {
+  async startRecording(
+    roomRef: string,
+  ): Promise<{ provider: string; recordingRef: string }> {
     await this.guard('recording', this.recordingLimit);
     return this.inner.startRecording(roomRef);
   }
 
   // 종료·정리는 막지 않는다 — 상한 때문에 자원이 열린 채 남으면 비용이 오히려 늘어난다.
-  stopRecording(roomRef: string, recordingRef: string): Promise<{ url: string | null; durationSec?: number }> {
+  stopRecording(
+    roomRef: string,
+    recordingRef: string,
+  ): Promise<{ url: string | null; durationSec?: number }> {
     return this.inner.stopRecording(roomRef, recordingRef);
   }
 
@@ -38,14 +48,23 @@ export class QuotaMediaProvider implements MediaProvider {
     return this.inner.closeRoom(roomRef);
   }
 
-  async usage(): Promise<{ token: { used: number; limit: number }; recording: { used: number; limit: number } }> {
+  async usage(): Promise<{
+    token: { used: number; limit: number };
+    recording: { used: number; limit: number };
+  }> {
     return {
       token: { used: await this.quota.peek('token'), limit: this.tokenLimit },
-      recording: { used: await this.quota.peek('recording'), limit: this.recordingLimit },
+      recording: {
+        used: await this.quota.peek('recording'),
+        limit: this.recordingLimit,
+      },
     };
   }
 
-  private async guard(scope: 'token' | 'recording', limit: number): Promise<void> {
+  private async guard(
+    scope: 'token' | 'recording',
+    limit: number,
+  ): Promise<void> {
     try {
       await this.quota.consume(scope, limit);
     } catch (e) {

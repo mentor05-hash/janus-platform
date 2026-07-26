@@ -24,23 +24,41 @@ export class ClaudeLlmProvider implements LlmProvider {
     private readonly apiKey?: string,
     private readonly model: string = 'claude-sonnet-4-6',
   ) {
-    if (!apiKey) this.logger.warn('ClaudeLlmProvider 자격증명 미구성(ANTHROPIC_API_KEY). OCR 은 키 설정 시 동작합니다.');
+    if (!apiKey)
+      this.logger.warn(
+        'ClaudeLlmProvider 자격증명 미구성(ANTHROPIC_API_KEY). OCR 은 키 설정 시 동작합니다.',
+      );
   }
 
   /** Claude 텍스트 호출 → JSON 파싱(마크다운 펜스 제거). 키 없으면 예외. */
   private async completeJson<T>(prompt: string, maxTokens = 800): Promise<T> {
-    if (!this.apiKey) throw new Error('실모델 AI 가 아직 구성되지 않았습니다(ANTHROPIC_API_KEY 필요).');
+    if (!this.apiKey)
+      throw new Error(
+        '실모델 AI 가 아직 구성되지 않았습니다(ANTHROPIC_API_KEY 필요).',
+      );
     const res = await fetch(this.endpoint, {
       method: 'POST',
-      headers: { 'x-api-key': this.apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-      body: JSON.stringify({ model: this.model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] }),
+      headers: {
+        'x-api-key': this.apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: this.model,
+        max_tokens: maxTokens,
+        messages: [{ role: 'user', content: prompt }],
+      }),
     });
     if (!res.ok) {
       const body = await res.text().catch(() => '');
       throw new Error(`Claude API 오류 ${res.status}: ${body.slice(0, 200)}`);
     }
     const j = (await res.json()) as { content?: { text?: string }[] };
-    const raw = (j.content?.[0]?.text ?? '').trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+    const raw = (j.content?.[0]?.text ?? '')
+      .trim()
+      .replace(/^```(?:json)?/i, '')
+      .replace(/```$/, '')
+      .trim();
     return JSON.parse(raw) as T;
   }
 
@@ -54,27 +72,45 @@ export class ClaudeLlmProvider implements LlmProvider {
       const r = await this.completeJson<ReportReviewResult>(prompt);
       return {
         flagged: !!r.flagged,
-        severity: (['none', 'low', 'high'] as const).includes(r.severity) ? r.severity : 'low',
+        severity: (['none', 'low', 'high'] as const).includes(r.severity)
+          ? r.severity
+          : 'low',
         category: r.category,
         summary: r.summary ?? '검토 요약 없음',
         suggestedAction: r.suggestedAction ?? 'none',
       };
     } catch (e) {
       this.logger.warn(`신고 검토 실패, 보류 처리: ${(e as Error).message}`);
-      return { flagged: false, severity: 'none', summary: '자동 검토 실패 — 관리자 수동 확인 필요', suggestedAction: 'none' };
+      return {
+        flagged: false,
+        severity: 'none',
+        summary: '자동 검토 실패 — 관리자 수동 확인 필요',
+        suggestedAction: 'none',
+      };
     }
   }
 
   /** 새 답변이 기존 답변들과 얼마나 유사한지 실모델로 판정(표절·중복 탐지). */
-  async checkAnswerSimilarity(input: AnswerSimilarityInput): Promise<AnswerSimilarityResult> {
-    if (!input.priors?.length) return { flagged: false, maxSimilarity: 0, summary: '비교 대상 없음' };
-    const priorList = input.priors.slice(0, 20).map((p, i) => `[${i}] id=${p.id}: ${p.body.slice(0, 500)}`).join('\n');
+  async checkAnswerSimilarity(
+    input: AnswerSimilarityInput,
+  ): Promise<AnswerSimilarityResult> {
+    if (!input.priors?.length)
+      return { flagged: false, maxSimilarity: 0, summary: '비교 대상 없음' };
+    const priorList = input.priors
+      .slice(0, 20)
+      .map((p, i) => `[${i}] id=${p.id}: ${p.body.slice(0, 500)}`)
+      .join('\n');
     const prompt =
       '아래 새 답변이 기존 답변들과 얼마나 유사한지 0~1 로 평가하고 **JSON만** 출력.\n' +
       '형식: {"maxSimilarity":0~1,"similarIndex":정수 또는 -1,"flagged":true|false(0.8이상이면 true),"summary":"한줄"}\n' +
       `새 답변: ${input.body.slice(0, 1000)}\n\n기존 답변들:\n${priorList}`;
     try {
-      const r = await this.completeJson<{ maxSimilarity: number; similarIndex: number; flagged: boolean; summary: string }>(prompt);
+      const r = await this.completeJson<{
+        maxSimilarity: number;
+        similarIndex: number;
+        flagged: boolean;
+        summary: string;
+      }>(prompt);
       const sim = Math.max(0, Math.min(1, Number(r.maxSimilarity) || 0));
       const idx = Number(r.similarIndex);
       return {
@@ -85,16 +121,24 @@ export class ClaudeLlmProvider implements LlmProvider {
       };
     } catch (e) {
       this.logger.warn(`유사도 검사 실패: ${(e as Error).message}`);
-      return { flagged: false, maxSimilarity: 0, summary: '자동 유사도 검사 실패' };
+      return {
+        flagged: false,
+        maxSimilarity: 0,
+        summary: '자동 유사도 검사 실패',
+      };
     }
   }
 
   /** 성적표 이미지 → Claude 비전으로 과목·점수를 구조화 추출. */
   async extractScoreReport(input: ScoreOcrInput): Promise<ScoreOcrResult> {
     if (!this.apiKey) {
-      throw new Error('실 비전 OCR 이 아직 구성되지 않았습니다(ANTHROPIC_API_KEY 필요).');
+      throw new Error(
+        '실 비전 OCR 이 아직 구성되지 않았습니다(ANTHROPIC_API_KEY 필요).',
+      );
     }
-    const media = /png|jpe?g|webp|gif/.test(input.mimeType) ? input.mimeType : 'image/png';
+    const media = /png|jpe?g|webp|gif/.test(input.mimeType)
+      ? input.mimeType
+      : 'image/png';
     const prompt =
       '이 이미지는 학생 성적표입니다. 표에서 과목명과 점수를 추출해 **JSON만** 출력하세요(설명·마크다운 금지).\n' +
       '형식: {"period":"기간(있으면)","examType":"시험유형(있으면)","items":[{"subject":"국어","score":90,"maxScore":100,"grade":"등급(있으면)"}]}\n' +
@@ -102,7 +146,11 @@ export class ClaudeLlmProvider implements LlmProvider {
 
     const res = await fetch(this.endpoint, {
       method: 'POST',
-      headers: { 'x-api-key': this.apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      headers: {
+        'x-api-key': this.apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
       body: JSON.stringify({
         model: this.model,
         max_tokens: 1500,
@@ -110,7 +158,14 @@ export class ClaudeLlmProvider implements LlmProvider {
           {
             role: 'user',
             content: [
-              { type: 'image', source: { type: 'base64', media_type: media, data: input.imageBase64 } },
+              {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: media,
+                  data: input.imageBase64,
+                },
+              },
               { type: 'text', text: prompt },
             ],
           },
@@ -119,30 +174,56 @@ export class ClaudeLlmProvider implements LlmProvider {
     });
     if (!res.ok) {
       const body = await res.text().catch(() => '');
-      throw new Error(`Claude 비전 API 오류 ${res.status}: ${body.slice(0, 200)}`);
+      throw new Error(
+        `Claude 비전 API 오류 ${res.status}: ${body.slice(0, 200)}`,
+      );
     }
     const j = (await res.json()) as { content?: { text?: string }[] };
-    const raw = (j.content?.[0]?.text ?? '').trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+    const raw = (j.content?.[0]?.text ?? '')
+      .trim()
+      .replace(/^```(?:json)?/i, '')
+      .replace(/```$/, '')
+      .trim();
     let parsed: { period?: string; examType?: string; items?: ScoreOcrItem[] };
     try {
       parsed = JSON.parse(raw);
     } catch {
-      throw new Error('OCR 응답을 해석하지 못했습니다. 수동 입력을 이용하세요.');
+      throw new Error(
+        'OCR 응답을 해석하지 못했습니다. 수동 입력을 이용하세요.',
+      );
     }
-    const items = (parsed.items ?? []).map((i) => ({
-      subject: String(i.subject ?? '').trim(),
-      score: i.score == null ? null : Number(i.score),
-      maxScore: i.maxScore == null ? 100 : Number(i.maxScore),
-      grade: i.grade ?? null,
-    })).filter((i) => i.subject);
-    return { demo: false, period: parsed.period, examType: parsed.examType, items, note: '실 비전 모델(Claude)로 추출했습니다. 값을 확인하세요.' };
+    const items = (parsed.items ?? [])
+      .map((i) => ({
+        subject: String(i.subject ?? '').trim(),
+        score: i.score == null ? null : Number(i.score),
+        maxScore: i.maxScore == null ? 100 : Number(i.maxScore),
+        grade: i.grade ?? null,
+      }))
+      .filter((i) => i.subject);
+    return {
+      demo: false,
+      period: parsed.period,
+      examType: parsed.examType,
+      items,
+      note: '실 비전 모델(Claude)로 추출했습니다. 값을 확인하세요.',
+    };
   }
 
   // 컨설팅 분석 초안 — 식별정보 없는 메타·서류 목록만 투입. 미설정/오류 시 안전 기본값.
-  async analyzeConsulting(input: ConsultingAnalysisInput): Promise<ConsultingAnalysisResult> {
+  async analyzeConsulting(
+    input: ConsultingAnalysisInput,
+  ): Promise<ConsultingAnalysisResult> {
     const fallback = (model: string): ConsultingAnalysisResult => ({
-      summary: { strengths: [], concerns: [], highlights: [`제출 자료 ${input.documents.length}건`] },
-      diagnostic: { fit_directions: [], activity_suggestions: [], target_gap: '' },
+      summary: {
+        strengths: [],
+        concerns: [],
+        highlights: [`제출 자료 ${input.documents.length}건`],
+      },
+      diagnostic: {
+        fit_directions: [],
+        activity_suggestions: [],
+        target_gap: '',
+      },
       document_check: { missing: [], inconsistencies: [], requests: [] },
       model,
     });
@@ -156,7 +237,9 @@ export class ClaudeLlmProvider implements LlmProvider {
       '"diagnostic":{"fit_directions":[],"activity_suggestions":[],"target_gap":""},' +
       '"document_check":{"missing":[],"inconsistencies":[],"requests":[]}}';
     try {
-      const r = await this.completeJson<Omit<ConsultingAnalysisResult, 'model'>>(prompt, 900);
+      const r = await this.completeJson<
+        Omit<ConsultingAnalysisResult, 'model'>
+      >(prompt, 900);
       return { ...r, model: this.model };
     } catch (e) {
       this.logger.warn(`analyzeConsulting 실패: ${(e as Error).message}`);

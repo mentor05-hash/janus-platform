@@ -50,7 +50,15 @@ export class MembershipController {
   /** PATCH /subscription/promo — 홍보 문구 변경(본사 관리자). */
   @Patch('subscription/promo')
   @Roles('admin')
-  setPromo(@CurrentUser() user: AuthUser, @Body() dto: { headline?: string; subcopy?: string; highlightPlanId?: string | null }) {
+  setPromo(
+    @CurrentUser() user: AuthUser,
+    @Body()
+    dto: {
+      headline?: string;
+      subcopy?: string;
+      highlightPlanId?: string | null;
+    },
+  ) {
     return this.membership.setPromo(user, dto);
   }
 
@@ -71,7 +79,10 @@ export class MembershipController {
   /** POST /subscription/subscribe-for-child — 학부모가 자녀 대신 구독(승인 연결 자녀만). */
   @Post('subscription/subscribe-for-child')
   @Roles('guardian')
-  subscribeForChild(@CurrentUser() user: AuthUser, @Body() dto: SubscribeForChildDto) {
+  subscribeForChild(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: SubscribeForChildDto,
+  ) {
     return this.membership.subscribeForChild(user, dto.studentId, dto.planId);
   }
 }

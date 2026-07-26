@@ -109,14 +109,21 @@ export class AdminPolicyService {
       targetType: 'pricing_policy',
       targetId: saved.id,
       summary: `요금 정책 변경(${this.isHq(actor) ? '전사' : '센터'} · ${dto.mode})`,
-      meta: { mode: dto.mode, perHour: data.per_hour, surchargePct: data.surcharge_pct, enabled: data.enabled },
+      meta: {
+        mode: dto.mode,
+        perHour: data.per_hour,
+        surchargePct: data.surcharge_pct,
+        enabled: data.enabled,
+      },
     });
     return saved;
   }
 
   // ── 무료 티어 노출 범위(전사, N24) ── 법률 회신에 따라 조정되는 값이라 배포 없이 바꿀 수 있게 둔다.
   async getFreeExposure(): Promise<FreeExposurePolicy> {
-    const row = await this.prisma.system_setting.findUnique({ where: { key: FREE_EXPOSURE_KEY } });
+    const row = await this.prisma.system_setting.findUnique({
+      where: { key: FREE_EXPOSURE_KEY },
+    });
     return resolveFreeExposure(row?.value);
   }
 
@@ -124,11 +131,19 @@ export class AdminPolicyService {
    * 무료 노출 범위 변경 — 전사 정책이라 본사(HQ) 관리자만.
    * 노출을 **늘리는** 방향은 데이터 권리 근거가 필요하므로 안전선을 넘으면 거부한다(B007 회신 전 실수 방지).
    */
-  async updateFreeExposure(dto: UpdateFreeExposureDto, actor: AuthUser): Promise<FreeExposurePolicy> {
+  async updateFreeExposure(
+    dto: UpdateFreeExposureDto,
+    actor: AuthUser,
+  ): Promise<FreeExposurePolicy> {
     if (!this.isHq(actor)) {
-      throw new ForbiddenException('무료 노출 범위는 본사 관리자만 변경할 수 있습니다.');
+      throw new ForbiddenException(
+        '무료 노출 범위는 본사 관리자만 변경할 수 있습니다.',
+      );
     }
-    if (dto.perBandItems !== undefined && dto.perBandItems > FREE_EXPOSURE_GUARD.maxPerBandItems) {
+    if (
+      dto.perBandItems !== undefined &&
+      dto.perBandItems > FREE_EXPOSURE_GUARD.maxPerBandItems
+    ) {
       throw new BadRequestException(
         `무료 노출은 구간별 최대 ${FREE_EXPOSURE_GUARD.maxPerBandItems}개까지입니다. 더 늘리려면 데이터 권리 검토 결과가 선행되어야 합니다.`,
       );
@@ -137,8 +152,16 @@ export class AdminPolicyService {
     const next: FreeExposurePolicy = { ...current, ...dto };
     await this.prisma.system_setting.upsert({
       where: { key: FREE_EXPOSURE_KEY },
-      create: { key: FREE_EXPOSURE_KEY, value: { ...next }, updated_by: actor.id },
-      update: { value: { ...next }, updated_by: actor.id, updated_at: new Date() },
+      create: {
+        key: FREE_EXPOSURE_KEY,
+        value: { ...next },
+        updated_by: actor.id,
+      },
+      update: {
+        value: { ...next },
+        updated_by: actor.id,
+        updated_at: new Date(),
+      },
     });
     // 무료 공개 범위는 사업 리스크 항목이라 변경 이력을 반드시 남긴다(누가·무엇을 얼마로).
     await this.audit.record(actor, {
@@ -193,8 +216,11 @@ export class AdminPolicyService {
       create: { center_id: centerId, ...data },
     });
     await this.audit.record(actor, {
-      action: 'limits.update', targetType: 'limit_policy', targetId: centerId,
-      summary: '한도 정책 변경(센터)', meta: data,
+      action: 'limits.update',
+      targetType: 'limit_policy',
+      targetId: centerId,
+      summary: '한도 정책 변경(센터)',
+      meta: data,
     });
     return saved;
   }
@@ -249,8 +275,11 @@ export class AdminPolicyService {
       create: { center_id: centerId, ...data },
     });
     await this.audit.record(actor, {
-      action: 'penalty.update', targetType: 'penalty_policy', targetId: centerId,
-      summary: '가중 제한 임계 변경(센터)', meta: data,
+      action: 'penalty.update',
+      targetType: 'penalty_policy',
+      targetId: centerId,
+      summary: '가중 제한 임계 변경(센터)',
+      meta: data,
     });
     return saved;
   }
@@ -291,9 +320,16 @@ export class AdminPolicyService {
           },
         });
     await this.audit.record(actor, {
-      action: 'feature.toggle', targetType: 'feature_availability', targetId: saved.id,
+      action: 'feature.toggle',
+      targetType: 'feature_availability',
+      targetId: saved.id,
       summary: `기능 토글 ${dto.enabled ? '열림' : '닫힘'}(${dto.scope} · ${dto.targetType}:${dto.targetValue})`,
-      meta: { scope: dto.scope, targetType: dto.targetType, targetValue: dto.targetValue, enabled: dto.enabled },
+      meta: {
+        scope: dto.scope,
+        targetType: dto.targetType,
+        targetValue: dto.targetValue,
+        enabled: dto.enabled,
+      },
     });
     return saved;
   }

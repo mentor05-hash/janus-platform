@@ -51,7 +51,10 @@ export class BookingController {
 
   /** GET /bookings/{id} — 단건(관계자만): 상담 요청 내용·첨부 포함. */
   @Get(':id')
-  getOne(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  getOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.booking.getOne(id, user);
   }
 
@@ -72,7 +75,10 @@ export class BookingController {
   /** PATCH /bookings/reverse/policy — 정책 변경(offlineOnly=본사, free=마스터). */
   @Patch('reverse/policy')
   @Roles('admin')
-  setReversePolicy(@CurrentUser() user: AuthUser, @Body() dto: { offlineOnly?: boolean; free?: boolean }) {
+  setReversePolicy(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: { offlineOnly?: boolean; free?: boolean },
+  ) {
     return this.booking.setReversePolicy(user, dto);
   }
 
@@ -86,7 +92,10 @@ export class BookingController {
   /** PATCH /bookings/duration/policy — 종류별 기본시간 변경(본사 관리자). */
   @Patch('duration/policy')
   @Roles('admin')
-  setDurationPolicy(@CurrentUser() user: AuthUser, @Body() dto: Record<string, number>) {
+  setDurationPolicy(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: Record<string, number>,
+  ) {
     return this.booking.setDurationPolicy(user, dto);
   }
 
@@ -100,7 +109,10 @@ export class BookingController {
   /** PATCH /bookings/question-duration/policy — 난이도별 길이 변경(본사 관리자). */
   @Patch('question-duration/policy')
   @Roles('admin')
-  setQuestionDurationPolicy(@CurrentUser() user: AuthUser, @Body() dto: Record<string, number>) {
+  setQuestionDurationPolicy(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: Record<string, number>,
+  ) {
     return this.booking.setQuestionDurationPolicy(user, dto);
   }
 
@@ -116,7 +128,14 @@ export class BookingController {
   @Roles('admin')
   setExternalPolicy(
     @CurrentUser() user: AuthUser,
-    @Body() dto: { offlineDiscovery?: boolean; onlineOnly?: boolean; surchargePct?: number; weeklyGrant?: boolean; boardOnly?: boolean },
+    @Body()
+    dto: {
+      offlineDiscovery?: boolean;
+      onlineOnly?: boolean;
+      surchargePct?: number;
+      weeklyGrant?: boolean;
+      boardOnly?: boolean;
+    },
   ) {
     return this.booking.setExternalPolicy(user, dto);
   }

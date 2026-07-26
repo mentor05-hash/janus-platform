@@ -1,5 +1,10 @@
 import { Logger } from '@nestjs/common';
-import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { PutInput, StorageProvider } from '../storage.types';
 
 type S3Opts = { bucket?: string; region?: string };
@@ -15,30 +20,45 @@ export class S3StorageProvider implements StorageProvider {
 
   constructor(private readonly opts: S3Opts) {
     if (!opts.bucket) {
-      this.logger.warn('S3 버킷 미구성(STORAGE_S3_BUCKET) — 호출 시 실패합니다(STORAGE_PROVIDER=local 권장).');
+      this.logger.warn(
+        'S3 버킷 미구성(STORAGE_S3_BUCKET) — 호출 시 실패합니다(STORAGE_PROVIDER=local 권장).',
+      );
       this.client = null;
     } else {
-      this.client = new S3Client({ region: opts.region ?? process.env.AWS_REGION ?? 'ap-northeast-2' });
+      this.client = new S3Client({
+        region: opts.region ?? process.env.AWS_REGION ?? 'ap-northeast-2',
+      });
     }
   }
 
   private ready(): { client: S3Client; bucket: string } {
     if (!this.client || !this.opts.bucket) {
-      throw new Error('S3 스토리지가 아직 구성되지 않았습니다(STORAGE_S3_BUCKET·자격증명 필요).');
+      throw new Error(
+        'S3 스토리지가 아직 구성되지 않았습니다(STORAGE_S3_BUCKET·자격증명 필요).',
+      );
     }
     return { client: this.client, bucket: this.opts.bucket };
   }
 
   async put(input: PutInput): Promise<{ key: string }> {
     const { client, bucket } = this.ready();
-    await client.send(new PutObjectCommand({ Bucket: bucket, Key: input.key, Body: input.data, ContentType: input.contentType }));
+    await client.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: input.key,
+        Body: input.data,
+        ContentType: input.contentType,
+      }),
+    );
     this.logger.log(`put s3://${bucket}/${input.key} (${input.data.length}B)`);
     return { key: input.key };
   }
 
   async get(key: string): Promise<Buffer> {
     const { client, bucket } = this.ready();
-    const res = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    const res = await client.send(
+      new GetObjectCommand({ Bucket: bucket, Key: key }),
+    );
     const bytes = await res.Body!.transformToByteArray();
     return Buffer.from(bytes);
   }

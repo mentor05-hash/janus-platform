@@ -41,16 +41,11 @@ jobs:
         working-directory: .
       - name: Prisma generate
         run: npm run prisma:generate
-      # 비차단 유지 — 2026-07-26 실측 1509건(prettier 포맷 1339 + 실코드 이슈 170).
-      # 지금 차단으로 올리면 전 PR 이 즉시 실패한다. 위반 수를 로그에 드러내 추이를 보고,
-      # 정리 후 차단으로 승격(백로그: lint 차단 승격).
-      - name: Lint (비차단 — 빌드/tsc 가 게이트)
-        run: |
-          npx eslint "src/**/*.ts" || true
-          echo "── 위반 수 ──"
-          npx eslint "src/**/*.ts" -f json 2>/dev/null \
-            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);const n=j.reduce((a,f)=>a+f.messages.length,0);const p=j.reduce((a,f)=>a+f.messages.filter(m=>String(m.ruleId).startsWith("prettier")).length,0);console.log(`총 ${n}건 (prettier ${p} / 그 외 ${n-p})`)})'
-        continue-on-error: true
+      # 차단 게이트(2026-07-26 승격). 1509건 → error 0 / warn 133 으로 정리 후 올렸다.
+      # --max-warnings 는 남은 부채의 **상한**이다: 새 위반이 생기면 CI 가 실패하고,
+      # 부채는 줄어드는 방향으로만 움직인다. 정리해서 숫자가 내려가면 이 값도 함께 낮춘다.
+      - name: Lint (차단 — error 0 + 경고 상한 133)
+        run: npx eslint "src/**/*.ts" --max-warnings=133
       - name: Build
         run: npm run build
       - name: Unit tests

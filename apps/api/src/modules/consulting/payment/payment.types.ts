@@ -10,7 +10,12 @@ export interface ChargeInput {
 }
 
 export interface PaymentProvider {
-  createCharge(input: ChargeInput): Promise<{ providerRef: string; checkoutUrl?: string }>;
+  createCharge(
+    input: ChargeInput,
+  ): Promise<{ providerRef: string; checkoutUrl?: string }>;
   confirm(providerRef: string): Promise<PaymentProviderStatus>;
-  refund(providerRef: string, amountWon: number): Promise<PaymentProviderStatus>;
+  refund(
+    providerRef: string,
+    amountWon: number,
+  ): Promise<PaymentProviderStatus>;
 }

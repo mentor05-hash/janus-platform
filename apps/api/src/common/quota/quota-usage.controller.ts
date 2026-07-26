@@ -25,8 +25,12 @@ export class QuotaUsageController {
   @Get()
   async today() {
     return {
-      llm: hasUsage(this.llm) ? { capped: true, ...(await this.llm.usage() as object) } : { capped: false, note: 'mock 어댑터 — 비용 없음' },
-      media: hasUsage(this.media) ? { capped: true, ...(await this.media.usage() as object) } : { capped: false, note: 'mock 어댑터 — 비용 없음' },
+      llm: hasUsage(this.llm)
+        ? { capped: true, ...((await this.llm.usage()) as object) }
+        : { capped: false, note: 'mock 어댑터 — 비용 없음' },
+      media: hasUsage(this.media)
+        ? { capped: true, ...((await this.media.usage()) as object) }
+        : { capped: false, note: 'mock 어댑터 — 비용 없음' },
     };
   }
 }

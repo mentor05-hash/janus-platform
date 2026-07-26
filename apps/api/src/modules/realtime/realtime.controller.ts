@@ -18,7 +18,10 @@ export class RealtimeController {
 
   /** GET /chat/:bookingId/messages — 채팅 이력(참여자). */
   @Get('chat/:bookingId/messages')
-  history(@CurrentUser() user: AuthUser, @Param('bookingId') bookingId: string) {
+  history(
+    @CurrentUser() user: AuthUser,
+    @Param('bookingId') bookingId: string,
+  ) {
     return this.svc.history(user, bookingId);
   }
 
@@ -30,7 +33,10 @@ export class RealtimeController {
 
   /** GET /realtime/features?studentId= — 내게 열린 실시간 기능(탭/버튼 표시용). */
   @Get('realtime/features')
-  features(@CurrentUser() user: AuthUser, @Query('studentId') studentId?: string) {
+  features(
+    @CurrentUser() user: AuthUser,
+    @Query('studentId') studentId?: string,
+  ) {
     return this.svc.featureAccess(user, studentId);
   }
 

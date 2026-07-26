@@ -14,13 +14,19 @@ export type Deductions = {
 };
 
 // 2024 기준 근로자 부담 요율(데모)
-const RATE = { pension: 0.045, health: 0.03545, care: 0.1295, employment: 0.009 };
+const RATE = {
+  pension: 0.045,
+  health: 0.03545,
+  care: 0.1295,
+  employment: 0.009,
+};
 
 /** 근로소득 간이세액 근사(월). 실제 간이세액표 대체용 데모. */
 function incomeTaxApprox(gross: number): number {
   if (gross <= 1_060_000) return 0;
   if (gross <= 3_000_000) return Math.round((gross - 1_060_000) * 0.04);
-  if (gross <= 5_000_000) return Math.round(77_600 + (gross - 3_000_000) * 0.09);
+  if (gross <= 5_000_000)
+    return Math.round(77_600 + (gross - 3_000_000) * 0.09);
   return Math.round(257_600 + (gross - 5_000_000) * 0.15);
 }
 
@@ -35,9 +41,17 @@ export type EmployerContribution = {
 };
 
 // 사업주 부담 요율(2025 근사). 고용보험=실업 0.9% + 고용안정·직능 0.25%(150인 미만). 산재=교육서비스 근사 0.7%.
-const EMP_RATE = { pension: 0.045, health: 0.03545, care: 0.1295, employment: 0.009 + 0.0025, accident: 0.007 };
+const EMP_RATE = {
+  pension: 0.045,
+  health: 0.03545,
+  care: 0.1295,
+  employment: 0.009 + 0.0025,
+  accident: 0.007,
+};
 
-export function computeEmployerContribution(gross: number): EmployerContribution {
+export function computeEmployerContribution(
+  gross: number,
+): EmployerContribution {
   const g = Math.max(0, Math.round(gross));
   const 국민연금 = Math.round((g * EMP_RATE.pension) / 10) * 10;
   const 건강보험 = Math.round((g * EMP_RATE.health) / 10) * 10;
@@ -50,7 +64,8 @@ export function computeEmployerContribution(gross: number): EmployerContribution
 
 /** 퇴직금 적립(근로자, 1년 이상) — 연 1개월분 ≈ 월 급여의 1/12(8.33%). 프리랜서는 없음. */
 export const SEVERANCE_RATE = 1 / 12;
-export const severanceAccrual = (gross: number) => Math.round((Math.max(0, gross) * SEVERANCE_RATE) / 10) * 10;
+export const severanceAccrual = (gross: number) =>
+  Math.round((Math.max(0, gross) * SEVERANCE_RATE) / 10) * 10;
 
 /** 프리랜서(사업소득) — 3.3% 원천징수(3% 소득세 + 0.3% 지방). 4대보험·퇴직금 없음. */
 export function computeFreelancer(payment: number) {
@@ -68,5 +83,14 @@ export function computeDeductions(gross: number): Deductions {
   const 소득세 = Math.round(incomeTaxApprox(g) / 10) * 10;
   const 지방소득세 = Math.round((소득세 * 0.1) / 10) * 10;
   const total = 국민연금 + 건강보험 + 장기요양 + 고용보험 + 소득세 + 지방소득세;
-  return { 국민연금, 건강보험, 장기요양, 고용보험, 소득세, 지방소득세, total, net: g - total };
+  return {
+    국민연금,
+    건강보험,
+    장기요양,
+    고용보험,
+    소득세,
+    지방소득세,
+    total,
+    net: g - total,
+  };
 }

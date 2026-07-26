@@ -40,9 +40,15 @@ const DEFAULT_TOTAL_LIMIT = 400;
         );
         const limits = { ...DEFAULT_LIMITS };
         for (const p of Object.keys(limits) as LlmPurpose[]) {
-          limits[p] = envInt(config.get<string>(`LLM_DAILY_LIMIT_${p.toUpperCase()}`), limits[p]);
+          limits[p] = envInt(
+            config.get<string>(`LLM_DAILY_LIMIT_${p.toUpperCase()}`),
+            limits[p],
+          );
         }
-        const total = envInt(config.get<string>('LLM_DAILY_CALL_LIMIT'), DEFAULT_TOTAL_LIMIT);
+        const total = envInt(
+          config.get<string>('LLM_DAILY_CALL_LIMIT'),
+          DEFAULT_TOTAL_LIMIT,
+        );
         // 카운터 장애 시 기본은 차단(fail closed) — 비용 폭주가 AI 일시 중단보다 큰 리스크.
         const failOpen = config.get<string>('LLM_QUOTA_FAIL_OPEN') === 'true';
         if (config.get<string>('CACHE_PROVIDER') !== 'redis') {
@@ -50,7 +56,12 @@ const DEFAULT_TOTAL_LIMIT = 400;
             'LLM 상한 카운터가 in-process 메모리입니다 — 다중 인스턴스에서는 상한이 인스턴스별로 따로 셉니다(CACHE_PROVIDER=redis 권장).',
           );
         }
-        return new QuotaLlmProvider(inner, new UsageQuota(cache, 'llm', failOpen), limits, total);
+        return new QuotaLlmProvider(
+          inner,
+          new UsageQuota(cache, 'llm', failOpen),
+          limits,
+          total,
+        );
       },
     },
   ],
