@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { api, Booking } from '../api';
-import { SP, useTheme, useUI, type Palette } from '../theme';
+import { KR_TEXT, SP, useTheme, useUI, type Palette } from '../theme';
 
 // "나의 관문" 홈(O44) — 지금 위치 → 다음 할 일 → 바로가기 3단. 기존 API 재조합만(신규 백엔드 없음).
 // 어떤 상태에서도 다음 행동 카드 1개 이상 보장(막다른 화면 금지).
@@ -42,8 +42,8 @@ export function HomeScreen({ name, onQna, onSearch, onDiag, onSched }: {
     <TouchableOpacity style={[ui.card, styles.todo, accent && styles.todoAccent]} onPress={onPress} activeOpacity={0.7}>
       <Text style={styles.todoIc}>{icon}</Text>
       <View style={{ flex: 1 }}>
-        <Text style={styles.todoT}>{title}</Text>
-        <Text style={styles.sub}>{desc}</Text>
+        <Text {...KR_TEXT} style={styles.todoT}>{title}</Text>
+        <Text {...KR_TEXT} style={styles.sub}>{desc}</Text>
       </View>
       <Text style={styles.chev}>›</Text>
     </TouchableOpacity>
@@ -52,7 +52,7 @@ export function HomeScreen({ name, onQna, onSearch, onDiag, onSched }: {
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
       <Text style={ui.h}>{name ? `${name}님의 관문` : '나의 관문'}</Text>
-      <Text style={[ui.sub, { marginTop: -6, marginBottom: SP.md }]}>치열한 현재에서 안정된 미래로 — 오늘 열 문을 고르세요.</Text>
+      <Text {...KR_TEXT} style={[ui.sub, { marginTop: -6, marginBottom: SP.md }]}>치열한 현재에서 안정된 미래로 — 오늘 열 문을 고르세요.</Text>
 
       <Text style={styles.sec}>지금 위치</Text>
       {access === null ? <Text style={ui.sub}>불러오는 중…</Text> : access.showTrend ? (
@@ -88,8 +88,8 @@ export function HomeScreen({ name, onQna, onSearch, onDiag, onSched }: {
         ] as const).map(([ic, t, d, fn]) => (
           <TouchableOpacity key={t} style={[ui.card, styles.tile]} onPress={fn} activeOpacity={0.7}>
             <Text style={styles.tileIc}>{ic}</Text>
-            <Text style={styles.tileT}>{t}</Text>
-            <Text style={styles.sub}>{d}</Text>
+            <Text {...KR_TEXT} style={styles.tileT}>{t}</Text>
+            <Text {...KR_TEXT} style={styles.sub}>{d}</Text>
           </TouchableOpacity>
         ))}
       </View>

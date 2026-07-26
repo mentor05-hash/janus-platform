@@ -84,7 +84,12 @@ export function StudentLayout() {
         </div>
         <nav className="sidebar-nav">
           {GROUPS.map((g) => (
-            <Link key={g.key} to={g.to} className={active?.key === g.key ? 'nav-item active' : 'nav-item'}>
+            <Link
+              key={g.key}
+              to={g.to}
+              className={active?.key === g.key ? 'nav-item active' : 'nav-item'}
+              aria-current={active?.key === g.key ? 'page' : undefined}
+            >
               <span className="ic" aria-hidden>{g.icon}</span>
               {g.label}
             </Link>
@@ -129,7 +134,12 @@ export function StudentLayout() {
 
       <nav className="m-tabbar" aria-label="주요 메뉴">
         {GROUPS.map((g) => (
-          <Link key={g.key} to={g.to} className={active?.key === g.key ? 'active' : ''}>
+          <Link
+            key={g.key}
+            to={g.to}
+            className={active?.key === g.key ? 'active' : ''}
+            aria-current={active?.key === g.key ? 'page' : undefined}
+          >
             <span className="ic" aria-hidden>{g.icon}</span>
             {g.label}
           </Link>

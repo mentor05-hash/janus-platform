@@ -3,7 +3,7 @@
  * 웹 tokens.css 와 동일한 팔레트를 RN 값으로 정리. 라이트/다크 런타임 전환 지원.
  */
 import { createContext, createElement, useContext, useMemo, useState, type ReactNode } from 'react';
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet, type TextProps } from 'react-native';
 import { COLORS as BRAND } from './branding.generated'; // 화이트라벨 브랜드 컬러(설정 주입)
 
 export type Palette = {
@@ -57,6 +57,25 @@ export const shadowCard = {
   shadowOffset: { width: 0, height: 1 },
   elevation: 1,
 };
+
+/**
+ * 한글 줄바꿈 — 어절 중간이 끊기지 않게(“…이어가/세요” 방지) 하는 네이티브 <Text> props.
+ * 웹은 아래 전역 스타일이 모든 화면을 한 번에 처리하므로 여기서는 빈 객체.
+ * ⚠ 스프레드 뒤에 style prop 을 두면 덮어쓰이므로, 이 상수에는 style 을 담지 않는다.
+ */
+export const KR_TEXT: TextProps = Platform.select({
+  ios: { lineBreakStrategyIOS: 'hangul-word' },
+  android: { textBreakStrategy: 'balanced' },
+  default: {},
+}) as TextProps;
+
+// 웹(expo-web): RN 의 Text 는 div 로 렌더되므로 CSS 로 일괄 적용 — 화면별 수정 없이 전 화면 커버.
+if (Platform.OS === 'web' && typeof document !== 'undefined' && !document.getElementById('kr-typo')) {
+  const el = document.createElement('style');
+  el.id = 'kr-typo';
+  el.textContent = '*{word-break:keep-all;overflow-wrap:anywhere;text-wrap:pretty}';
+  document.head.appendChild(el);
+}
 
 /** 팔레트 기반 공통 스타일 생성기. */
 export function makeUI(C: Palette) {

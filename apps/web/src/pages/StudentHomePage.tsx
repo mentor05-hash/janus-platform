@@ -62,7 +62,10 @@ export function StudentHomePage() {
         <Link to="/student/scores" className="card todo-card">
           <span className="todo-ic" aria-hidden>📈</span>
           <span className="todo-body">
-            <b>성적 {points}회차 기록됨{trend!.points[points - 1]?.period ? ` — 최근 ${trend!.points[points - 1].period}` : ''}</b>
+            <b>
+              성적 {points}회차 기록됨
+              {trend!.points[points - 1]?.period && <> — <span className="nowrap">최근 {trend!.points[points - 1].period}</span></>}
+            </b>
             <span className="todo-sub">최근 추이와 예상 배치 라인을 확인하세요</span>
           </span>
           <span className="todo-go" aria-hidden>›</span>

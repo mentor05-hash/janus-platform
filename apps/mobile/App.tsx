@@ -17,7 +17,7 @@ import { ScoresScreen } from './src/screens/ScoresScreen';
 import { ClassroomScreen } from './src/screens/ClassroomScreen';
 import { GuardianHome, GuardianConsult, GuardianPay, GuardianCharge, GuardianMembership } from './src/screens/GuardianScreens';
 import { TeacherInbox, TeacherToday, TeacherSessions, TeacherRecords, TeacherMy } from './src/screens/TeacherScreens';
-import { ThemeProvider, useTheme, useUI, type Palette, SP } from './src/theme';
+import { ThemeProvider, useTheme, useUI, KR_TEXT, type Palette, SP } from './src/theme';
 import { APP_NAME } from './src/branding.generated';
 
 export default function App() {
@@ -296,7 +296,7 @@ function DiagTab({ onHome }: { onHome: () => void }) {
         <Text style={ui.h}>진단</Text>
         <View style={ui.card}>
           <Text style={{ fontSize: 15, fontWeight: '700', color: C.ink }}>🚪 성적으로 진단받기</Text>
-          <Text style={[ui.sub, { marginTop: 6 }]}>
+          <Text {...KR_TEXT} style={[ui.sub, { marginTop: 6 }]}>
             성적을 등록하면 회차별 추이와 예상 배치 라인을 확인할 수 있어요. 성적 조회가 아직 열리지 않았다면 센터에 문의해 주세요.
           </Text>
         </View>
