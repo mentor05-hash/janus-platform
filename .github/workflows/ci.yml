@@ -75,6 +75,10 @@ jobs:
       REDIS_URL: redis://localhost:6379
       JWT_SECRET: ci_test_secret
       JWT_REFRESH_SECRET: ci_test_refresh_secret
+      # 사용자별 AI 한도(B221 1층)는 **제품 정책값**이다. 테스트가 그 숫자에 의존하면
+      # 정책을 조정할 때 무관한 e2e 가 깨진다 — 테스트에서는 충분히 크게 열어 분리한다.
+      LLM_REPORT_REVIEW_PER_USER_DAY: '10000'
+      LLM_SIMILARITY_PER_USER_DAY: '10000'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

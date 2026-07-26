@@ -61,8 +61,16 @@ export function TeacherQnaPage() {
     if (!body) return;
     setBusy(id); setError(''); setMsg('');
     try {
-      const r = await api.post<{ simFlagged?: boolean; simSummary?: string }>(`/qna/posts/${id}/answers`, { body });
-      setMsg(r?.simFlagged ? `답변 등록됨 — ⚠️ ${r.simSummary}` : '답변이 등록되었습니다.');
+      const r = await api.post<{ simChecked?: boolean; simFlagged?: boolean | null; simSummary?: string | null }>(`/qna/posts/${id}/answers`, { body });
+      // 유사도 검사는 best-effort(B221) — 실패해도 답변은 등록된다. 미검사를 "이상 없음"으로
+      // 보여 주면 표절 검사가 돌지 않은 것을 눈치챌 수 없으므로 상태를 구분해 알린다.
+      setMsg(
+        r?.simFlagged
+          ? `답변 등록됨 — ⚠️ ${r.simSummary ?? '유사 답변 의심'}`
+          : r?.simChecked === false
+            ? '답변이 등록되었습니다 — 유사도 검사는 건너뛰었습니다.'
+            : '답변이 등록되었습니다.',
+      );
       setDraft((d) => ({ ...d, [id]: '' })); load();
     } catch (e) { setError(e instanceof ApiError ? e.message : '답변 실패'); } finally { setBusy(null); }
   }

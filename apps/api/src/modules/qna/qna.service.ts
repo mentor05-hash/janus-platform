@@ -5,6 +5,7 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -14,6 +15,14 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccountRole } from '../../config/enums';
 import { CreditService } from '../billing/credit.service';
 import { PricingService } from '../pricing-policy/pricing.service';
+import { ConfigService } from '@nestjs/config';
+import { CACHE_PROVIDER } from '../../common/cache/cache.types';
+import type { CacheProvider } from '../../common/cache/cache.types';
+import { envInt } from '../../common/quota/usage-quota';
+import {
+  SubjectQuota,
+  SubjectQuotaExceededError,
+} from '../../common/quota/subject-quota';
 import { AdminPolicyService } from '../pricing-policy/admin-policy.service';
 import {
   benefitOf,
@@ -23,7 +32,16 @@ import { canAnswerQuestion, QnaScope } from './domain/qna';
 import { CreateAnswerDto, CreateQuestionDto } from './dto/qna.dto';
 import { Inject } from '@nestjs/common';
 import { LLM_PROVIDER } from '../llm/llm.types';
-import type { LlmProvider } from '../llm/llm.types';
+import type { AnswerSimilarityResult, LlmProvider } from '../llm/llm.types';
+
+/**
+ * 유사도 비교에 넣을 이전 답변 수. 프롬프트 길이 = 호출당 단가라 상한이 필요하다.
+ * 기존 100건은 답변 본문 100개를 한 프롬프트에 실어 비용 추정을 크게 벗어났다.
+ */
+const SIMILARITY_PRIOR_LIMIT = 20;
+
+/** 교사 1인 일 유사도 검사 기본 상한. 하루에 이보다 많이 답변하면 검사 없이 등록된다. */
+const DEFAULT_SIMILARITY_PER_USER_DAY = 40;
 
 interface QnaRow {
   id: string;
@@ -50,13 +68,26 @@ interface QnaRow {
  */
 @Injectable()
 export class QnaService {
+  private readonly logger = new Logger(QnaService.name);
+  private readonly subject: SubjectQuota;
+  /** 교사 1인 일 유사도 검사 횟수. ENV 우선. */
+  private readonly simPerUserDay: number;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly pricing: PricingService,
     private readonly credit: CreditService,
     private readonly policy: AdminPolicyService,
     @Inject(LLM_PROVIDER) private readonly llm: LlmProvider,
-  ) {}
+    @Inject(CACHE_PROVIDER) cache: CacheProvider,
+    config: ConfigService,
+  ) {
+    this.subject = new SubjectQuota(cache, 'llm');
+    this.simPerUserDay = envInt(
+      config.get<string>('LLM_SIMILARITY_PER_USER_DAY'),
+      DEFAULT_SIMILARITY_PER_USER_DAY,
+    );
+  }
 
   /** 질문 요금 안내(학생) — 문항형/일반형 건당 크레딧. 센터별 정책 반영. */
   async pricingInfo(centerId: string | null) {
@@ -303,19 +334,12 @@ export class QnaService {
           : '지정된 선생님만 답변할 수 있습니다.',
       );
     }
-    // AI 1차 답변 유사도(표절·중복) — 같은 질문의 다른 답변 + 이 선생님의 최근 답변과 비교
-    const priorRows = await this.prisma.qna_answer.findMany({
-      where: { OR: [{ post_id: postId }, { teacher_id: teacher.id }] },
-      select: { id: true, body: true },
-      orderBy: { created_at: 'desc' },
-      take: 100,
-    });
-    const sim = await this.llm.checkAnswerSimilarity({
-      body: dto.body ?? '',
-      priors: priorRows
-        .filter((r) => r.body)
-        .map((r) => ({ id: r.id, body: r.body! })),
-    });
+    // AI 1차 답변 유사도(표절·중복) — best-effort. 실패해도 답변 등록은 막지 않는다(아래 주석).
+    const sim = await this.similarityBestEffort(
+      postId,
+      teacher,
+      dto.body ?? '',
+    );
     const ans = await this.prisma.qna_answer.create({
       data: {
         post_id: postId,
@@ -323,19 +347,79 @@ export class QnaService {
         body: dto.body,
         accepted: false,
         pay_eligible: false,
-        similarity: sim.maxSimilarity,
-        similar_to_id: sim.similarToId ?? null,
-        sim_flagged: sim.flagged,
+        // `similarity = NULL` 이 곧 **미검사** 표식이다(검사되면 0 이라도 값이 들어간다).
+        // sim_flagged 는 non-null 컬럼이라 미검사 시 false — 단독으로는 구분이 안 되므로
+        // 관리자·교사 화면은 similarity 의 null 여부로 "검사됨"을 판단해야 한다.
+        similarity: sim?.maxSimilarity ?? null,
+        similar_to_id: sim?.similarToId ?? null,
+        sim_flagged: sim?.flagged ?? false,
       },
     });
     return {
       id: ans.id,
       postId,
       accepted: false,
-      simFlagged: sim.flagged,
-      similarity: sim.maxSimilarity,
-      simSummary: sim.summary,
+      // 검사를 못 붙였으면 미검사 상태로 정직하게 내려보낸다(관리자·교사 화면이 구분해야 한다).
+      simChecked: sim !== null,
+      simFlagged: sim?.flagged ?? null,
+      similarity: sim?.maxSimilarity ?? null,
+      simSummary: sim?.summary ?? null,
     };
+  }
+
+  /**
+   * 답변 유사도 검사 — **검사 실패가 답변 등록을 막지 않는다**.
+   *
+   * 이전 구현은 `checkAnswerSimilarity()` 를 먼저 호출하고 그 결과로 row 를 만들었다.
+   * 그래서 LLM 장애나 비용 상한 도달이 곧 **답변 등록 전면 중단**이었다 —
+   * 학생은 답을 못 받고 선생님은 급여 적격 건을 못 만든다. 부수 기능(표절 검사)이
+   * 핵심 기능(답변)을 끄는 순서라 뒤집었다(신고 접수와 같은 원칙 — B221).
+   *
+   * 또 이 호출은 교사 1인이 답변마다 트리거하고 프롬프트에 이전 답변을 최대 20건 싣는다.
+   * 사용자별 일 한도를 걸어 한 명이 `similarity` 상한(300/일)을 태우지 못하게 한다.
+   */
+  private async similarityBestEffort(
+    postId: string,
+    teacher: AuthUser,
+    body: string,
+  ): Promise<AnswerSimilarityResult | null> {
+    try {
+      await this.subject.consume(
+        'abuse',
+        'answer_similarity',
+        teacher.id,
+        this.simPerUserDay,
+        'day',
+      );
+    } catch (e) {
+      if (e instanceof SubjectQuotaExceededError) {
+        this.logger.warn(
+          `[qna] 교사 일 유사도 검사 한도 초과 — 검사 없이 등록: teacher=${teacher.id}`,
+        );
+        return null;
+      }
+      throw e;
+    }
+    // 비교 대상이 많을수록 프롬프트가 길어져 호출당 단가가 오른다 — 20건으로 제한한다.
+    // (100건이면 답변 본문 100개가 한 프롬프트에 들어가 비용 추정이 크게 어긋난다.)
+    const priorRows = await this.prisma.qna_answer.findMany({
+      where: { OR: [{ post_id: postId }, { teacher_id: teacher.id }] },
+      select: { id: true, body: true },
+      orderBy: { created_at: 'desc' },
+      take: SIMILARITY_PRIOR_LIMIT,
+    });
+    try {
+      return await this.llm.checkAnswerSimilarity({
+        body,
+        priors: priorRows
+          .filter((r) => r.body)
+          .map((r) => ({ id: r.id, body: r.body! })),
+      });
+    } catch {
+      // 전역 상한(503)·모델 오류 모두 여기로 온다 — 등록은 계속한다.
+      this.logger.warn('[qna] 답변 유사도 검사 실패 — 검사 없이 등록');
+      return null;
+    }
   }
 
   /** 답변 채택(질문 학생) — 채택 답변 급여 적격(pay_eligible), 질문 마감. */

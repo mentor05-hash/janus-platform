@@ -80,6 +80,69 @@ describe('SubjectQuota — 사용자별 한도(B221 1층)', () => {
     ).rejects.toBeInstanceOf(SubjectQuotaExceededError);
   });
 
+  // 권리(entitlement)와 남용(abuse)은 **세는 대상이 다르다** — 이 구분이 유료 몫 소실을 막는다.
+  describe('check()/record() — 권리는 성공만 센다', () => {
+    it('check() 는 증가시키지 않는다', async () => {
+      const q = make();
+      await q.check('entitlement', 'ai_report', 'u', 2, 'month');
+      await q.check('entitlement', 'ai_report', 'u', 2, 'month');
+      expect((await q.usage('ai_report', 'u', 2, 'month')).used).toBe(0);
+    });
+
+    // 이전 구현(선차감)은 여기서 유료 1건이 사라졌다.
+    it('작업이 실패해 record() 를 안 부르면 잔여가 줄지 않는다', async () => {
+      const q = make();
+      await q.check('entitlement', 'ai_report', 'u', 2, 'month');
+      // …작업 실패 → record() 호출 없음
+      expect((await q.usage('ai_report', 'u', 2, 'month')).remaining).toBe(2);
+    });
+
+    it('record() 만큼만 차감되고, 소진되면 check() 가 거절한다', async () => {
+      const q = make();
+      await q.record('ai_report', 'u', 'month');
+      await q.record('ai_report', 'u', 'month');
+      expect((await q.usage('ai_report', 'u', 2, 'month')).used).toBe(2);
+      await expect(
+        q.check('entitlement', 'ai_report', 'u', 2, 'month'),
+      ).rejects.toBeInstanceOf(SubjectQuotaExceededError);
+    });
+
+    it('used == limit 경계에서 거절한다 — off-by-one 없음', async () => {
+      const q = make();
+      await q.record('f', 'u', 'day');
+      await expect(q.check('abuse', 'f', 'u', 1, 'day')).rejects.toBeInstanceOf(
+        SubjectQuotaExceededError,
+      );
+    });
+
+    it('limit 0(무제한)은 check() 를 통과', async () => {
+      await expect(
+        make().check('entitlement', 'f', 'u', 0, 'month'),
+      ).resolves.toBeUndefined();
+    });
+
+    it('record() 는 캐시 장애에도 던지지 않는다 — 이미 결과를 준 뒤다', async () => {
+      const broken = {
+        incr: () => Promise.resolve(0),
+        get: () => Promise.resolve(null),
+      } as never;
+      await expect(
+        new SubjectQuota(broken, 'llm').record('f', 'u', 'month'),
+      ).resolves.toBeUndefined();
+    });
+
+    // 반대로 남용 한도는 선증가여야 한다 — 실패를 안 세면 재시도로 우회된다.
+    it('consume() 은 초과 시도까지 센다(선증가) — 우회 불가', async () => {
+      const q = make();
+      await q.consume('abuse', 'f', 'u', 2);
+      await q.consume('abuse', 'f', 'u', 2);
+      await expect(q.consume('abuse', 'f', 'u', 2)).rejects.toBeInstanceOf(
+        SubjectQuotaExceededError,
+      );
+      expect((await q.usage('f', 'u', 2)).used).toBe(3);
+    });
+  });
+
   it('usage() 는 증가 없이 잔여를 보고한다', async () => {
     const q = make();
     await q.consume('entitlement', 'ai_report', 'u', 6, 'month');

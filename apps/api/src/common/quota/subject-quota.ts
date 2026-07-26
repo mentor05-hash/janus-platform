@@ -81,7 +81,15 @@ export class SubjectQuota {
   }
 
   /**
-   * 사용자 한 명의 이 기간 사용량을 1 증가시키고 limit 초과면 던진다.
+   * 사용자 한 명의 이 기간 **시도**를 1 증가시키고 limit 초과면 던진다.
+   *
+   * **선증가(pre-increment)** 라는 점이 중요하다 — 실패한 시도도 카운트된다.
+   * 그래서 `abuse`(속도 제한)에 맞다: 재시도 폭주 자체를 막는 것이 목적이므로
+   * "실패했으니 안 세는" 것은 오히려 우회로가 된다.
+   *
+   * 반면 `entitlement`(판 권리)에는 쓰지 말 것 — 서버 오류로 작업이 실패했는데
+   * 사용자가 돈 낸 몫을 잃는다. 권리는 `check()` → 작업 → `record()` 를 쓴다.
+   *
    * limit <= 0 은 **무제한**으로 본다(권리 미설정·한도 미적용 의도).
    */
   async consume(
@@ -109,6 +117,52 @@ export class SubjectQuota {
     }
     if (used > limit) {
       throw new SubjectQuotaExceededError(kind, feature, limit, period);
+    }
+  }
+
+  /**
+   * **증가시키지 않고** 한도 초과 여부만 본다(권리 경로의 사전 검사).
+   *
+   * 왜 선증가를 안 하나: 권리는 "성공한 작업"에 대해 세야 한다. 선증가하면
+   * LLM 오류·타임아웃으로 실패했을 때 사용자가 이미 지불한 몫을 잃는다.
+   * 대신 동시 요청이 모두 통과할 수 있는데(오버슈트), 그 손실은 유한하고
+   * 비용은 하류 전역 상한이 여전히 막는다 — 잃은 권리보다 이쪽이 낫다.
+   */
+  async check(
+    kind: SubjectQuotaKind,
+    feature: string,
+    subjectId: string,
+    limit: number,
+    period: QuotaPeriod = 'day',
+  ): Promise<void> {
+    if (limit <= 0) return;
+    const n = await this.cache.get<number>(
+      this.key(feature, subjectId, period),
+    );
+    const used = typeof n === 'number' ? n : 0;
+    if (used >= limit) {
+      throw new SubjectQuotaExceededError(kind, feature, limit, period);
+    }
+  }
+
+  /**
+   * 작업이 **성공한 뒤** 사용 1건을 기록한다. 던지지 않는다 —
+   * 이미 사용자에게 결과를 준 뒤이므로 여기서 실패시키면 앞뒤가 맞지 않는다.
+   * 기록 실패는 로그로만 남기고, 비용은 전역 상한이 막는다.
+   */
+  async record(
+    feature: string,
+    subjectId: string,
+    period: QuotaPeriod = 'day',
+  ): Promise<void> {
+    const used = await this.cache.incr(
+      this.key(feature, subjectId, period),
+      this.ttl(period),
+    );
+    if (used === 0) {
+      this.logger.warn(
+        `[subject-quota] 사용 기록 실패(캐시 장애): ${feature}/${subjectId}`,
+      );
     }
   }
 

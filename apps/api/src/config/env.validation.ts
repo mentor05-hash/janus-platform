@@ -111,6 +111,11 @@ export class EnvironmentVariables {
   @IsString()
   LLM_REPORT_REVIEW_PER_USER_DAY?: string;
 
+  // B221 1층 — 교사 1인 일 답변 유사도 검사 횟수. 기본 40
+  @IsOptional()
+  @IsString()
+  LLM_SIMILARITY_PER_USER_DAY?: string;
+
   @IsOptional()
   @IsString()
   MEDIA_DAILY_TOKEN_LIMIT?: string;

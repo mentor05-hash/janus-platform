@@ -64,10 +64,15 @@ export class AiEntitlementService {
   }
 
   /**
-   * 권리 1건 소비. 한도 초과면 **402 + 업그레이드 힌트**로 던진다(503 아님).
+   * 권리 사전 검사. 한도 초과면 **402 + 업그레이드 힌트**로 던진다(503 아님).
    * 권리가 0이면(무료 등급) 곧바로 402 — "이 기능은 유료 등급 기능"이라는 뜻이다.
+   *
+   * **증가시키지 않는다.** 실제 차감은 작업 성공 후 `record()` — 이유는 아래 `run()` 참조.
    */
-  async consume(user: AuthUser, feature: AiEntitlementFeature): Promise<void> {
+  async assertAllowed(
+    user: AuthUser,
+    feature: AiEntitlementFeature,
+  ): Promise<void> {
     const limit = await this.monthlyLimit(user.id);
     if (limit <= 0) {
       // limit<=0 을 SubjectQuota 는 '무제한'으로 보므로 여기서 직접 거절해야 한다.
@@ -77,17 +82,39 @@ export class AiEntitlementService {
       );
     }
     try {
-      await this.subject.consume(
-        'entitlement',
-        feature,
-        user.id,
-        limit,
-        'month',
-      );
+      await this.subject.check('entitlement', feature, user.id, limit, 'month');
     } catch (e) {
       if (e instanceof SubjectQuotaExceededError) throw subjectQuotaToHttp(e);
       throw e;
     }
+  }
+
+  /** 작업 성공 후 1건 기록. 던지지 않는다(이미 결과를 준 뒤다). */
+  async record(user: AuthUser, feature: AiEntitlementFeature): Promise<void> {
+    await this.subject.record(feature, user.id, 'month');
+  }
+
+  /**
+   * 권리 기능 실행의 **표준 경로**. 새 유료 AI 기능은 이걸 쓴다.
+   *
+   *   검사 → 작업 → (성공 시에만) 기록
+   *
+   * 왜 이 순서인가: 선차감하면 LLM 오류·타임아웃으로 실패했을 때
+   * **사용자가 돈 낸 몫을 잃는다**. 월 6건 중 1건이 서버 사정으로 날아가는 것은
+   * 환불 대상이지 정상 동작이 아니다. 그래서 성공한 작업만 센다.
+   *
+   * 대가는 동시 요청 오버슈트(검사만 통과한 요청이 여럿 진행될 수 있다)인데,
+   * 손실이 유한하고 비용은 하류 전역 상한이 여전히 막으므로 잃은 권리보다 낫다.
+   */
+  async run<T>(
+    user: AuthUser,
+    feature: AiEntitlementFeature,
+    work: () => Promise<T>,
+  ): Promise<T> {
+    await this.assertAllowed(user, feature);
+    const result = await work(); // 실패하면 여기서 던진다 — 기록하지 않는다
+    await this.record(user, feature);
+    return result;
   }
 
   /** 잔여 조회 — 화면에 "이번 달 3/6 사용"을 띄우는 용도. 증가시키지 않는다. */
