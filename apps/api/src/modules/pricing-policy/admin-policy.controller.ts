@@ -6,6 +6,7 @@ import { AdminPolicyService } from './admin-policy.service';
 import {
   SetFeatureDto,
   UpdateFreeExposureDto,
+  UpdateGradeBenefitsDto,
   UpdateLimitsDto,
   UpdatePenaltyDto,
   UpdatePricingDto,
@@ -41,6 +42,20 @@ export class AdminPolicyController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.policy.updateFreeExposure(dto, user);
+  }
+
+  // 등급별 비크레딧 혜택(B218) — 전환율 보며 조정하는 값. 안전선 초과는 서버가 거부.
+  @Get('grade-benefits')
+  getGradeBenefits() {
+    return this.policy.getGradeBenefits();
+  }
+
+  @Put('grade-benefits')
+  updateGradeBenefits(
+    @Body() dto: UpdateGradeBenefitsDto,
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.policy.updateGradeBenefits(dto, user);
   }
 
   @Get('limits')

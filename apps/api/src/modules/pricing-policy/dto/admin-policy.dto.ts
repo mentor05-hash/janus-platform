@@ -6,8 +6,10 @@ import {
   IsOptional,
   IsString,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import { ConsultMode } from '../../../config/enums';
+import type { PlacementTier } from '../domain/grade-benefits';
 
 /** PUT /admin/pricing — 방식별 요금 정책(전사 기본) 수정. */
 export class UpdatePricingDto {
@@ -79,4 +81,43 @@ export class UpdateFreeExposureDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) showTrendYears?: number;
   @IsOptional() @IsBoolean() showConfidenceBadge?: boolean;
   @IsOptional() @IsBoolean() showRelTierBadge?: boolean;
+}
+
+/** 등급 하나의 비크레딧 혜택(B218). 전부 optional — 부분 변경 시 나머지는 현재 값 유지. */
+export class UpdateGradeBenefitDto {
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) qnaQueueWeight?: number;
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  concurrentBookings?: number;
+  @IsOptional() @IsIn(['free', 'member', 'paid']) placementTier?: PlacementTier;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) aiReportsPerMonth?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) matchHorizonDays?: number;
+}
+
+/**
+ * PUT /admin/grade-benefits — 회원 등급별 비크레딧 혜택(B218) 수정.
+ * tier(1~4) 단위로 부분 변경한다. 예: `{ "4": { "aiReportsPerMonth": 8 } }`
+ */
+export class UpdateGradeBenefitsDto {
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UpdateGradeBenefitDto)
+  1?: UpdateGradeBenefitDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UpdateGradeBenefitDto)
+  2?: UpdateGradeBenefitDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UpdateGradeBenefitDto)
+  3?: UpdateGradeBenefitDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UpdateGradeBenefitDto)
+  4?: UpdateGradeBenefitDto;
 }

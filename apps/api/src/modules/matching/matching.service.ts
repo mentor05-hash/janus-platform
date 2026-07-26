@@ -9,6 +9,8 @@ import { kstDateString } from '../../common/time/kst';
 import { ConsultMode } from '../../config/enums';
 import { AvailabilityService } from '../availability/availability.service';
 import { BlockService } from '../report/block.service';
+import { AdminPolicyService } from '../pricing-policy/admin-policy.service';
+import { benefitOf } from '../pricing-policy/domain/grade-benefits';
 import { MatchAutoDto } from './dto/match.dto';
 import { resolveStudentType } from '../../common/student-type';
 import { DEFAULT_CONSULT_DURATION } from '../../common/consult-assignment';
@@ -17,6 +19,7 @@ import { SLOT_GRANULARITY_MINUTES } from '../../config/constants';
 const ONLINE_MODES = ['zoom', 'chat', 'hand'];
 
 const MATCH_MINUTES = 30; // 정책 미설정·미매핑 종류 폴백
+/** 탐색 지평 폴백(일). 등급 혜택(B218 matchHorizonDays)이 있으면 그 값이 이긴다. */
 const HORIZON_DAYS = 7;
 
 /**
@@ -29,13 +32,22 @@ export class MatchingService {
     private readonly prisma: PrismaService,
     private readonly availability: AvailabilityService,
     private readonly blocks: BlockService,
+    private readonly policy: AdminPolicyService,
   ) {}
 
   async autoMatch(dto: MatchAutoDto, user: AuthUser, now = new Date()) {
     const student = await this.prisma.student_profile.findUnique({
       where: { account_id: user.id },
+      include: { membership_grade: { select: { tier: true } } },
     });
     if (!student) throw new NotFoundException('학생 프로필이 없습니다.');
+
+    // 탐색 지평은 등급 혜택(B218) — 상위 등급이 더 멀리까지 자리를 찾는다.
+    // 총량을 늘리는 것이 아니라 조회 범위만 넓히므로 배분 원가는 그대로다.
+    const benefits = await this.policy.getGradeBenefits();
+    const horizonDays =
+      benefitOf(benefits, student.membership_grade?.tier ?? null)
+        .matchHorizonDays || HORIZON_DAYS;
 
     // 외부학생(온라인 한정): 온라인 방식 강제 + 온라인 선생님만 매칭(정책 onlineOnly)
     let externalOnline = false;
@@ -74,7 +86,7 @@ export class MatchingService {
       Math.round(minutes / SLOT_GRANULARITY_MINUTES),
     );
 
-    for (let d = 0; d < HORIZON_DAYS; d++) {
+    for (let d = 0; d < horizonDays; d++) {
       const dateStr = kstDateString(new Date(now.getTime() + d * 86_400_000));
       for (const t of teachers) {
         const slots = await this.availability.getDaySlots(
@@ -103,7 +115,7 @@ export class MatchingService {
         }
       }
     }
-    throw new ConflictException('7일 내 가용한 자리가 없습니다.');
+    throw new ConflictException(`${horizonDays}일 내 가용한 자리가 없습니다.`);
   }
 
   /** status 배열에서 연속 avail 이 length 개 이상인 첫 시작 인덱스. */

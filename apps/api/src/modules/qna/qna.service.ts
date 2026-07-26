@@ -14,6 +14,11 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccountRole } from '../../config/enums';
 import { CreditService } from '../billing/credit.service';
 import { PricingService } from '../pricing-policy/pricing.service';
+import { AdminPolicyService } from '../pricing-policy/admin-policy.service';
+import {
+  benefitOf,
+  compareQnaQueue,
+} from '../pricing-policy/domain/grade-benefits';
 import { canAnswerQuestion, QnaScope } from './domain/qna';
 import { CreateAnswerDto, CreateQuestionDto } from './dto/qna.dto';
 import { Inject } from '@nestjs/common';
@@ -49,6 +54,7 @@ export class QnaService {
     private readonly prisma: PrismaService,
     private readonly pricing: PricingService,
     private readonly credit: CreditService,
+    private readonly policy: AdminPolicyService,
     @Inject(LLM_PROVIDER) private readonly llm: LlmProvider,
   ) {}
 
@@ -182,17 +188,35 @@ export class QnaService {
       );
     }
     if (user.role === AccountRole.TEACHER) {
-      return shape(
-        await this.prisma.qna_post.findMany({
-          where: {
-            OR: [
-              { scope: 'open', status: 'open' },
-              { assigned_teacher_id: user.id },
-            ],
+      // 답변 큐는 **경합 지점**이다 — 선생님이 목록 위에서부터 claim 하므로 순서가 곧 응답 속도다.
+      // 상위 등급 질문에 가중치를 주되(B218), 48h 초과 미답은 등급을 무시하고 앞으로 끌어올린다
+      // (기아 방지 + 급여 T5c 48h 보상과 정합). 총 답변량을 늘리지 않으므로 원가는 0.
+      const benefits = await this.policy.getGradeBenefits();
+      const rows = await this.prisma.qna_post.findMany({
+        where: {
+          OR: [
+            { scope: 'open', status: 'open' },
+            { assigned_teacher_id: user.id },
+          ],
+        },
+        orderBy: { created_at: 'desc' },
+        include: {
+          ...answersInclude,
+          student_profile: {
+            select: { membership_grade: { select: { tier: true } } },
           },
-          orderBy: { created_at: 'desc' },
-          include: answersInclude,
-        }),
+        },
+      });
+      const now = new Date();
+      const key = (r: (typeof rows)[number]) => ({
+        createdAt: r.created_at,
+        weight: benefitOf(
+          benefits,
+          r.student_profile?.membership_grade?.tier ?? null,
+        ).qnaQueueWeight,
+      });
+      return shape(
+        [...rows].sort((a, b) => compareQnaQueue(key(a), key(b), now)),
       );
     }
     if (user.role === AccountRole.ADMIN || user.role === AccountRole.HR) {

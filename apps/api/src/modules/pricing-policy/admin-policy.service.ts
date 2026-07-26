@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { CACHE_PROVIDER } from '../../common/cache/cache.types';
 import type { CacheProvider } from '../../common/cache/cache.types';
@@ -21,8 +22,15 @@ import {
   resolveFreeExposure,
 } from './domain/free-exposure';
 import {
+  GRADE_BENEFITS_GUARD,
+  GRADE_BENEFITS_KEY,
+  GradeBenefit,
+  resolveGradeBenefits,
+} from './domain/grade-benefits';
+import {
   SetFeatureDto,
   UpdateFreeExposureDto,
+  UpdateGradeBenefitsDto,
   UpdateLimitsDto,
   UpdatePenaltyDto,
   UpdatePricingDto,
@@ -169,6 +177,96 @@ export class AdminPolicyService {
       targetType: 'system_setting',
       targetId: FREE_EXPOSURE_KEY,
       summary: `무료 노출 범위 변경(구간별 ${current.perBandItems} → ${next.perBandItems})`,
+      meta: { before: current, after: next },
+    });
+    return next;
+  }
+
+  // ── 등급별 비크레딧 혜택(전사, B218) ──
+  // O50 에서 "크레딧으로는 볼륨 할인을 줄 수 없다"가 드러나 만든 축이다(배분 원가가 크레딧에 선형).
+  // 전환율을 보며 조정하는 값이라 배포 없이 바꿀 수 있게 둔다.
+  async getGradeBenefits(): Promise<Record<number, GradeBenefit>> {
+    const row = await this.prisma.system_setting.findUnique({
+      where: { key: GRADE_BENEFITS_KEY },
+    });
+    return resolveGradeBenefits(row?.value);
+  }
+
+  /**
+   * 혜택 변경 — 전사 정책이라 본사(HQ) 관리자만.
+   * 안전선을 넘으면 거부한다: 큐 가중치가 커지면 하위 등급 질문이 기아 상태가 되고,
+   * AI 리포트는 유일하게 실원가가 붙는 축이라 상한이 곧 원가 상한이다.
+   */
+  async updateGradeBenefits(
+    dto: UpdateGradeBenefitsDto,
+    actor: AuthUser,
+  ): Promise<Record<number, GradeBenefit>> {
+    if (!this.isHq(actor)) {
+      throw new ForbiddenException(
+        '등급 혜택은 본사 관리자만 변경할 수 있습니다.',
+      );
+    }
+    // 등급은 화이트리스트로만 돈다 — Object.entries(dto) 는 인덱스 시그니처가 없어
+    // [string, any] 오버로드를 타므로(타입 안전성 상실) 명시 목록을 쓴다.
+    // 부수 효과로 "오타로 새 등급이 생기는 것"도 구조적으로 막힌다.
+    const EDITABLE_TIERS = [1, 2, 3, 4] as const;
+    const g = GRADE_BENEFITS_GUARD;
+    const CAPS = [
+      ['qnaQueueWeight', g.maxQnaQueueWeight],
+      ['aiReportsPerMonth', g.maxAiReportsPerMonth],
+      ['matchHorizonDays', g.maxMatchHorizonDays],
+      ['concurrentBookings', g.maxConcurrentBookings],
+    ] as const;
+
+    for (const tier of EDITABLE_TIERS) {
+      const patch = dto[tier];
+      if (!patch) continue;
+      const over = CAPS.find(([k, max]) => {
+        const v = patch[k];
+        return typeof v === 'number' && v > max;
+      });
+      if (over) {
+        throw new BadRequestException(
+          `등급 ${tier} 의 ${over[0]} 는 최대 ${over[1]} 까지입니다.`,
+        );
+      }
+    }
+
+    const current = await this.getGradeBenefits();
+    const next: Record<number, GradeBenefit> = { ...current };
+    const applied: number[] = [];
+    for (const tier of EDITABLE_TIERS) {
+      const patch = dto[tier];
+      if (!patch || !next[tier]) continue;
+      next[tier] = { ...next[tier], ...patch };
+      applied.push(tier);
+    }
+
+    // Prisma JSON 은 명명 인터페이스를 InputJsonValue 로 받지 않는다 —
+    // 각 항목을 전개해 순수 객체 리터럴로 만든 뒤 넘긴다(free-exposure 와 같은 처리).
+    // 값 타입을 Prisma.InputJsonValue 로 못박아야 JSON 컬럼에 대입된다
+    // (Record<string, unknown> 은 unknown 이 JSON 안전하지 않아 거부된다).
+    const asJson: Record<string, Prisma.InputJsonValue> = {};
+    for (const [tier, b] of Object.entries(next)) asJson[tier] = { ...b };
+    await this.prisma.system_setting.upsert({
+      where: { key: GRADE_BENEFITS_KEY },
+      create: {
+        key: GRADE_BENEFITS_KEY,
+        value: asJson,
+        updated_by: actor.id,
+      },
+      update: {
+        value: asJson,
+        updated_by: actor.id,
+        updated_at: new Date(),
+      },
+    });
+    // 혜택은 과금 상품의 구성이라 변경 이력을 남긴다(분쟁 시 "그때 무엇을 팔았나"의 근거).
+    await this.audit.record(actor, {
+      action: 'grade_benefits.update',
+      targetType: 'system_setting',
+      targetId: GRADE_BENEFITS_KEY,
+      summary: `등급 혜택 변경(${applied.join(',')} 등급)`,
       meta: { before: current, after: next },
     });
     return next;
