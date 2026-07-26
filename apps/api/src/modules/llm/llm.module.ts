@@ -7,6 +7,7 @@ import { MockLlmProvider } from './mock-llm.provider';
 import { QuotaLlmProvider } from './quota-llm.provider';
 import { LLM_PROVIDER, LlmPurpose } from './llm.types';
 import {
+  LEGACY_LIMIT_ENV_KEY,
   LLM_DEFAULT_LIMITS,
   LLM_DEFAULT_TOTAL_LIMIT,
   llmDailyLimitEnvKey,
@@ -40,10 +41,12 @@ import {
         );
         const limits = { ...LLM_DEFAULT_LIMITS };
         for (const p of Object.keys(limits) as LlmPurpose[]) {
-          limits[p] = envInt(
-            config.get<string>(llmDailyLimitEnvKey(p)),
-            limits[p],
-          );
+          // 신규 키 우선 → 없으면 구 키(운영 설정 존중) → 없으면 기본값
+          const legacyKey = LEGACY_LIMIT_ENV_KEY[p];
+          const legacy = legacyKey
+            ? envInt(config.get<string>(legacyKey), limits[p])
+            : limits[p];
+          limits[p] = envInt(config.get<string>(llmDailyLimitEnvKey(p)), legacy);
         }
         const total = envInt(
           config.get<string>('LLM_DAILY_CALL_LIMIT'),

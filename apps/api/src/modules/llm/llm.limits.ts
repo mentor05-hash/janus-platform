@@ -33,3 +33,12 @@ export const LLM_DEFAULT_TOTAL_LIMIT = 500;
 export function llmDailyLimitEnvKey(purpose: LlmPurpose): string {
   return `LLM_DAILY_LIMIT_${purpose.toUpperCase()}`;
 }
+
+/**
+ * 구 ENV 키 호환 — 용도별 상한이 생기기 전에 개별 기능이 쓰던 이름.
+ * 운영에 이미 설정돼 있을 수 있으므로 계속 존중한다(신규 키가 우선).
+ * 새 기능은 여기 추가하지 말 것 — `LLM_DAILY_LIMIT_<PURPOSE>` 하나로 간다.
+ */
+export const LEGACY_LIMIT_ENV_KEY: Partial<Record<LlmPurpose, string>> = {
+  gateway: 'GATEWAY_LLM_DAILY_LIMIT',
+};

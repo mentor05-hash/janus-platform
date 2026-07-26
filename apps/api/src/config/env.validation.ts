@@ -204,6 +204,10 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   MEDIA_QUOTA_FAIL_OPEN?: string; // 'false' 면 장애 시 차단(기본은 통과 — 수업 중단 방지)
+
+  @IsOptional()
+  @IsString()
+  STT_DAILY_LIMIT?: string; // 일 음성 전사 상한(유료 STT). 기본 60
 }
 
 /** 대시보드 권한 ENV 플래그 — 'true' 만 활성, 그 외/부재는 false(fail-closed). */
