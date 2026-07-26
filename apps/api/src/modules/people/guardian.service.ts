@@ -4,20 +4,44 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccountRole } from '../../config/enums';
 import { CreditService } from '../billing/credit.service';
 import { NotifyService } from '../notification/notify.service';
-import { canLinkTransition, GuardianLinkStatus } from './domain/guardian-link';
+import {
+  canLinkTransition,
+  evaluateRelink,
+  GuardianLinkStatus,
+  RELINK_COOLDOWN_DAYS,
+  RELINK_MAX_ATTEMPTS,
+  RELINKABLE_STATUSES,
+} from './domain/guardian-link';
 import {
   GuardianLinkRequestDto,
   GuardianLinkRespondDto,
 } from './dto/guardian.dto';
 
+/** 이력에 남길 전이 한 건(guardian_link_event). */
+type LinkEvent = {
+  linkId: string;
+  from: GuardianLinkStatus | null;
+  to: GuardianLinkStatus;
+  actor: AuthUser;
+  reason: string;
+};
+
+/** 날짜를 KST 로 표시(CLAUDE.md §7 — UTC 저장·KST 표시). */
+function kstDate(d: Date): string {
+  return d.toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' });
+}
+
 /**
  * 보호자-학생 연결 (CLAUDE.md §3 people, 통합스펙 §학부모).
  * 신청(pending) → 학생/관리자 승인(approved)·거절(rejected), 승인 후 해제(revoked).
+ * 거절·해제는 영구 잠금이 아니다 — 보호자 재신청(pending 부활, 학생 재승인 필수)과
+ * 관리자 강제 복구 두 경로가 있고, 모든 전이는 guardian_link_event 에 남는다(O124).
  */
 @Injectable()
 export class GuardianService {
@@ -35,7 +59,44 @@ export class GuardianService {
     if (!link) throw new ForbiddenException('연결된 자녀가 아닙니다.');
   }
 
-  /** 보호자가 자녀 연결 신청(학생 로그인ID 기준). */
+  /** 상태 전이 1건을 이력에 기록(append-only). tx 안에서 호출한다. */
+  private recordEvent(tx: Prisma.TransactionClient, e: LinkEvent) {
+    return tx.guardian_link_event.create({
+      data: {
+        link_id: e.linkId,
+        from_status: e.from,
+        to_status: e.to,
+        actor_id: e.actor.id,
+        actor_role: e.actor.role,
+        reason: e.reason,
+      },
+    });
+  }
+
+  /**
+   * 재신청 스팸 판정 근거를 이력에서 집계.
+   * 이력이 없는 기존 행(마이그레이션 0105 이전 생성)은 attempts=0·쿨다운 없음으로
+   * 취급된다 — 배포 직후 첫 재신청은 즉시 허용되고, 그 뒤부터 제한이 걸린다.
+   */
+  private async relinkHistory(linkId: string) {
+    const [lastEnded, attempts] = await Promise.all([
+      this.prisma.guardian_link_event.findFirst({
+        where: { link_id: linkId, to_status: { in: RELINKABLE_STATUSES } },
+        orderBy: { created_at: 'desc' },
+        select: { created_at: true },
+      }),
+      this.prisma.guardian_link_event.count({
+        where: {
+          link_id: linkId,
+          to_status: 'pending',
+          from_status: { in: RELINKABLE_STATUSES },
+        },
+      }),
+    ]);
+    return { lastEndedAt: lastEnded?.created_at ?? null, attempts };
+  }
+
+  /** 보호자가 자녀 연결 신청(학생 로그인ID 기준). 거절·해제된 연결은 재신청으로 부활. */
   async requestLink(guardian: AuthUser, dto: GuardianLinkRequestDto) {
     const studentAccount = await this.prisma.account.findUnique({
       where: { login_id: dto.studentLoginId },
@@ -53,20 +114,78 @@ export class GuardianService {
     const existing = await this.prisma.guardian_student_link.findFirst({
       where: { guardian_id: guardian.id, student_id: studentAccount.id },
     });
-    if (existing) {
+
+    // 진행 중(pending)이거나 이미 연결된(approved) 건은 재신청 대상이 아니다.
+    if (existing && !RELINKABLE_STATUSES.includes(existing.status as GuardianLinkStatus)) {
       throw new BadRequestException(
         `이미 연결 신청이 존재합니다(status=${existing.status}).`,
       );
     }
-    const link = await this.prisma.guardian_student_link.create({
-      data: {
-        guardian_id: guardian.id,
-        student_id: studentAccount.id,
-        relation: dto.relation ?? null,
-        status: 'pending',
-        link_method: '신청',
-      },
-      select: { id: true, student_id: true, status: true },
+
+    // 거절·해제된 연결 → 기존 행을 pending 으로 되살린다(@@unique 때문에 create 불가).
+    if (existing) {
+      const from = existing.status as GuardianLinkStatus;
+      const { lastEndedAt, attempts } = await this.relinkHistory(existing.id);
+      const decision = evaluateRelink(lastEndedAt, attempts, new Date());
+      if (!decision.allowed) {
+        throw new BadRequestException(
+          decision.code === 'cooldown'
+            ? `연결이 종료된 뒤 ${RELINK_COOLDOWN_DAYS}일 동안은 재신청할 수 없습니다. ${kstDate(decision.availableAt)} 이후에 다시 시도해 주세요.`
+            : `재신청 횟수(${RELINK_MAX_ATTEMPTS}회)를 모두 사용했습니다. 센터 관리자에게 문의해 주세요.`,
+        );
+      }
+      const revived = await this.prisma.$transaction(async (tx) => {
+        // 상태를 조건에 걸어 갱신 — 동시 재신청이 이력을 두 번 쌓지 않도록.
+        const { count } = await tx.guardian_student_link.updateMany({
+          where: { id: existing.id, status: { in: RELINKABLE_STATUSES } },
+          data: {
+            status: 'pending',
+            relation: dto.relation ?? existing.relation,
+            link_method: '재신청',
+          },
+        });
+        if (count !== 1) {
+          throw new BadRequestException('연결 상태가 변경되었습니다. 다시 시도해 주세요.');
+        }
+        await this.recordEvent(tx, {
+          linkId: existing.id,
+          from,
+          to: 'pending',
+          actor: guardian,
+          reason: 'relink',
+        });
+        return tx.guardian_student_link.findUniqueOrThrow({
+          where: { id: existing.id },
+          select: { id: true, student_id: true, status: true },
+        });
+      });
+      // 부활도 새 신청과 같이 학생 승인이 필요하다 → 승인 요청 알림 재발송.
+      await this.notify.notify(studentAccount.id, 'guardian_link_requested', {
+        linkId: revived.id,
+        guardianId: guardian.id,
+      });
+      return revived;
+    }
+
+    const link = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.guardian_student_link.create({
+        data: {
+          guardian_id: guardian.id,
+          student_id: studentAccount.id,
+          relation: dto.relation ?? null,
+          status: 'pending',
+          link_method: '신청',
+        },
+        select: { id: true, student_id: true, status: true },
+      });
+      await this.recordEvent(tx, {
+        linkId: created.id,
+        from: null,
+        to: 'pending',
+        actor: guardian,
+        reason: 'request',
+      });
+      return created;
     });
     // 보호자 연결 신청 → 학생에게 승인 요청 알림
     await this.notify.notify(studentAccount.id, 'guardian_link_requested', {
@@ -220,15 +339,23 @@ export class GuardianService {
         : dto.action === 'reject'
           ? 'rejected'
           : 'revoked';
-    if (!canLinkTransition(link.status as GuardianLinkStatus, to)) {
+    const from = link.status as GuardianLinkStatus;
+    if (!canLinkTransition(from, to, { isAdmin })) {
       throw new BadRequestException(
         `허용되지 않는 연결 상태 전이: ${link.status} → ${to}`,
       );
     }
-    const updated = await this.prisma.guardian_student_link.update({
-      where: { id: linkId },
-      data: { status: to },
-      select: { id: true, status: true },
+    // 종착 상태(rejected·revoked)를 되돌리는 건 관리자만 가능한 강제 복구 — 이력에 구분해 남긴다.
+    const reason =
+      isAdmin && RELINKABLE_STATUSES.includes(from) ? 'admin_override' : 'respond';
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const row = await tx.guardian_student_link.update({
+        where: { id: linkId },
+        data: { status: to },
+        select: { id: true, status: true },
+      });
+      await this.recordEvent(tx, { linkId, from, to, actor, reason });
+      return row;
     });
     // 연결 신청 응답 → 신청한 보호자에게 알림(승인/거절/해제)
     await this.notify.notify(link.guardian_id, 'guardian_link_responded', {
