@@ -101,6 +101,36 @@ describe('급여 권한 — HR 차단 + 센터 격리(O127)', () => {
       const r = await request(app.getHttpServer()).get('/api/v1/admin/payroll/report').set(hdr(tok.admin));
       expect(r.status).toBe(200);
     });
+
+    /**
+     * O128 — /admin/payroll 만 막는 것으로는 부족했다. **같은 금액이 다른 3경로로 샜다**(실측):
+     *  · 감사 로그: payroll.settle/pay 요약문이 개인별 실지급·공제 금액 원문(48건 조회됨)
+     *  · 대시보드: payBasis(배분율·기본급·인센티브율·크레딧 환산비)가 무조건 포함
+     *  · 지표: settleAmount = payroll_estimate.confirmed_amount 합계
+     * 결정(O127)이 실효를 내려면 이 셋도 막혀야 한다.
+     */
+    it('감사 로그로 급여 금액이 새지 않는다', async () => {
+      const r = await request(app.getHttpServer())
+        .get('/api/v1/admin/audit-log?prefix=payroll')
+        .set(hdr(tok.hr));
+      expect(r.status).toBe(403);
+    });
+
+    it('지표(stats)로 급여 집계가 새지 않는다', async () => {
+      const r = await request(app.getHttpServer()).get('/api/v1/admin/stats/overview').set(hdr(tok.hr));
+      expect(r.status).toBe(403);
+    });
+
+    it('대시보드는 HR 착지 화면이라 열되, 급여 기준(payBasis)은 응답에서 빠진다', async () => {
+      const hrRes = await request(app.getHttpServer()).get('/api/v1/admin/dashboard').set(hdr(tok.hr));
+      expect(hrRes.status).toBe(200); // 막으면 로그인 직후 리다이렉트가 순환한다
+      expect(hrRes.body.data.payBasis).toBeUndefined();
+
+      // 관리자에게는 그대로 있어야 한다 — 필드를 통째로 없앤 게 아니다.
+      const admRes = await request(app.getHttpServer()).get('/api/v1/admin/dashboard').set(hdr(tok.admin));
+      expect(admRes.body.data.payBasis).toBeDefined();
+      expect(admRes.body.data.payBasis.sharePct).toBeGreaterThan(0);
+    });
   });
 
   describe('센터 격리 — 지급 완료에도 걸린다', () => {
