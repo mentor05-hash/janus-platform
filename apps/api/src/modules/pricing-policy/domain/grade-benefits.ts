@@ -8,7 +8,7 @@
  * 그래서 상위 등급의 실질 차별화는 **원가가 등급에 비례하지 않는 축**에서 만든다.
  *
  * 설계 원칙 — 아래 축만 혜택으로 쓴다:
- *   ① 순서·한도처럼 **총량을 늘리지 않는** 것(경합에서의 우선권, 동시 보유 상한)
+ *   ① 순서처럼 **총량을 늘리지 않는** 것(경합에서의 우선권)
  *   ② 정적 산출물 접근권처럼 **한계원가 ≈ 0** 인 것(배치표 티어)
  *   ③ 원가가 있어도 **등급당 수백 원 수준**으로 상한이 명확한 것(AI 리포트 발급 횟수)
  *
@@ -26,7 +26,14 @@ export interface GradeBenefit {
    * **총 답변량을 늘리는 것이 아니라 순서만 바꾼다** → 원가 0.
    */
   qnaQueueWeight: number;
-  /** 동시 보유 가능한 미완료 예약 수. 0 = 무제한. 총 소비는 크레딧이 이미 제한한다 → 원가 0. */
+  /**
+   * 동시 보유 가능한 미완료(confirmed/new) 예약 수. **0 = 무제한.**
+   *
+   * B222 정리: 이 축의 본질은 등급 판매가 아니라 **슬롯 선점 방지**(운영 통제)다.
+   * 총 소비량은 크레딧이 이미 제한하므로 여기서 더 조여도 매출이 늘지 않는다.
+   * 그래서 소유자는 센터(`limit_policy.reservation_limit`)이고, 등급값은 **선택적 추가 제한**이다.
+   * 기본값을 전 등급 0(무제한)으로 두어, 켜는 것이 의도적 결정이 되게 한다(§ effectiveConcurrentBookings).
+   */
   concurrentBookings: number;
   /** 접근 가능한 배치표·입결 산출물 티어. 정적 산출물이라 한계원가 ≈ 0. */
   placementTier: PlacementTier;
@@ -41,33 +48,34 @@ export interface GradeBenefit {
  * tier 1=Basic · 2=Standard · 3=Premium · 4=VIP (seed.ts 와 동일 체계).
  *
  * VIP 가 Premium 대비 갖는 우위는 크레딧 쪽에서 +7.5% 에서 멈췄다(O50) — 나머지 우위를
- * 여기서 만든다: 큐 가중치 2배 · 예약 무제한 · 리포트 2배 · 탐색 지평 3주.
+ * 여기서 만든다: 큐 가중치 2배 · 리포트 2배 · 탐색 지평 3주.
+ * (`concurrentBookings` 는 혜택이 아니라 운영 통제로 재분류했다 — B222. 기본 무제한.)
  */
 export const GRADE_BENEFITS_DEFAULT: Record<number, GradeBenefit> = {
   1: {
     qnaQueueWeight: 0,
-    concurrentBookings: 1,
+    concurrentBookings: 0,
     placementTier: 'member', // 가입만 해도 회원 티어 — 무료 가입이 리드 확보 수단(기획서 v2)
     aiReportsPerMonth: 0,
     matchHorizonDays: 7,
   },
   2: {
     qnaQueueWeight: 0,
-    concurrentBookings: 2,
+    concurrentBookings: 0,
     placementTier: 'member',
     aiReportsPerMonth: 1,
     matchHorizonDays: 7,
   },
   3: {
     qnaQueueWeight: 1,
-    concurrentBookings: 4,
+    concurrentBookings: 0,
     placementTier: 'paid',
     aiReportsPerMonth: 3,
     matchHorizonDays: 14,
   },
   4: {
     qnaQueueWeight: 2,
-    concurrentBookings: 0, // 무제한
+    concurrentBookings: 0,
     placementTier: 'paid',
     aiReportsPerMonth: 6,
     matchHorizonDays: 21,
@@ -77,7 +85,7 @@ export const GRADE_BENEFITS_DEFAULT: Record<number, GradeBenefit> = {
 /** 등급이 없는 계정(미구독·외부생 등)의 혜택 — Basic 과 같게 두되 배치표는 무료 티어. */
 export const NO_GRADE_BENEFIT: GradeBenefit = {
   qnaQueueWeight: 0,
-  concurrentBookings: 1,
+  concurrentBookings: 0,
   placementTier: 'free',
   aiReportsPerMonth: 0,
   matchHorizonDays: 7,
@@ -149,4 +157,31 @@ export function compareQnaQueue(
   if (aStale && bStale) return a.createdAt.getTime() - b.createdAt.getTime(); // 오래된 것부터
   if (a.weight !== b.weight) return b.weight - a.weight; // 등급 가중치 높은 것부터
   return b.createdAt.getTime() - a.createdAt.getTime(); // 최신부터(기존 동작)
+}
+
+/**
+ * 동시 보유 예약 상한의 **유효값** (B222 — 두 정책이 같은 것을 제한하는 문제의 해소).
+ *
+ * 두 knob 이 있다:
+ *   - 센터 `limit_policy.reservation_limit` — 운영 통제(슬롯이 한쪽으로 쏠리는 것을 막는다)
+ *   - 등급 `concurrentBookings` — 선택적 추가 제한
+ *
+ * 규칙: **더 엄격한 쪽이 이긴다.** 센터가 운영상 조인 값을 등급 혜택이 뚫으면 안 되기 때문이다
+ * (등급은 회사가 파는 것이고 센터 한도는 현장이 감당할 수 있는 양이다 — 후자가 물리적 제약이다).
+ *
+ * 그래서 "VIP 무제한"은 **센터 한도 안에서의 무제한**이다. 이 함수가 유효값을 하나로 확정하고,
+ * 화면·API 는 이 값을 그대로 노출해 광고와 실제가 갈라지지 않게 한다.
+ *
+ * @returns 0 = 무제한
+ */
+export function effectiveConcurrentBookings(
+  gradeLimit: number,
+  centerLimit: number | null | undefined,
+): number {
+  const g = gradeLimit > 0 ? gradeLimit : null; // 0/음수 = 무제한
+  const c = centerLimit != null && centerLimit > 0 ? centerLimit : null;
+  if (g == null && c == null) return 0; // 양쪽 무제한
+  if (g == null) return c!;
+  if (c == null) return g;
+  return Math.min(g, c); // 더 엄격한 쪽
 }

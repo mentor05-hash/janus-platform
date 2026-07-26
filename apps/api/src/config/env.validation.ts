@@ -101,6 +101,16 @@ export class EnvironmentVariables {
   @IsString()
   LLM_QUOTA_FAIL_OPEN?: string; // 'true' 면 카운터 장애 시 통과(기본은 차단 — 비용 보호)
 
+  // B221 — 합산 상한 중 매출 연동 용도에 남겨 둘 비율(0~0.9). 기본 0.4
+  @IsOptional()
+  @IsString()
+  LLM_ENTITLED_RESERVE_PCT?: string;
+
+  // B221 1층 — 사용자 1인 일 신고 AI 검토 횟수. 기본 5
+  @IsOptional()
+  @IsString()
+  LLM_REPORT_REVIEW_PER_USER_DAY?: string;
+
   @IsOptional()
   @IsString()
   MEDIA_DAILY_TOKEN_LIMIT?: string;

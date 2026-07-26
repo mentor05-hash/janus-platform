@@ -4,11 +4,13 @@ import {
   Inject,
   Injectable,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { CACHE_PROVIDER } from '../../common/cache/cache.types';
 import type { CacheProvider } from '../../common/cache/cache.types';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { envInt } from '../../common/quota/usage-quota';
 import { AuditService } from '../audit/audit.service';
 import {
   FeatureRule,
@@ -28,8 +30,19 @@ import {
   resolveGradeBenefits,
 } from './domain/grade-benefits';
 import {
+  AI_REPORT_PURPOSE,
+  AI_USAGE_KEY,
+  AI_USAGE_GUARD,
+  AiUsagePolicy,
+  capacityMessage,
+  reconcileCapacity,
+  resolveAiUsage,
+} from './domain/ai-usage-policy';
+import { LLM_DEFAULT_LIMITS, llmDailyLimitEnvKey } from '../llm/llm.limits';
+import {
   SetFeatureDto,
   UpdateFreeExposureDto,
+  UpdateAiUsageDto,
   UpdateGradeBenefitsDto,
   UpdateLimitsDto,
   UpdatePenaltyDto,
@@ -46,6 +59,7 @@ export class AdminPolicyService {
     private readonly prisma: PrismaService,
     @Inject(CACHE_PROVIDER) private readonly cache: CacheProvider,
     private readonly audit: AuditService,
+    private readonly config: ConfigService,
   ) {}
 
   /** 본사(HQ) 슈퍼관리자 = admin + 센터 미소속(center_id NULL). 전사 정책을 편집·전역 권한. */
@@ -242,6 +256,29 @@ export class AdminPolicyService {
       applied.push(tier);
     }
 
+    // ── 3층 정합 불변식(B221) ──
+    // 감당할 수 없는 양의 권리를 파는 것을 **쓰기 시점에** 막는다. 이게 없으면
+    // "월 20건 × 100명"을 팔아 놓고 전역 상한이 거절하는 상태가 다시 만들어진다.
+    // 권리를 **줄이는** 방향은 언제나 허용한다(정합이 나빠질 수 없다).
+    const raisesEntitlement = EDITABLE_TIERS.some((t) => {
+      const v = dto[t]?.aiReportsPerMonth;
+      return typeof v === 'number' && v > current[t].aiReportsPerMonth;
+    });
+    if (raisesEntitlement) {
+      const policy = await this.getAiUsage();
+      const check = reconcileCapacity({
+        benefits: next,
+        usersByTier: await this.usersByTier(),
+        purposeDailyLimit: this.entitledPurposeDailyLimit(),
+        peakFactor: policy.peakFactor,
+      });
+      if (!check.ok) {
+        throw new BadRequestException(
+          capacityMessage(check, AI_REPORT_PURPOSE),
+        );
+      }
+    }
+
     // Prisma JSON 은 명명 인터페이스를 InputJsonValue 로 받지 않는다 —
     // 각 항목을 전개해 순수 객체 리터럴로 만든 뒤 넘긴다(free-exposure 와 같은 처리).
     // 값 타입을 Prisma.InputJsonValue 로 못박아야 JSON 컬럼에 대입된다
@@ -267,6 +304,126 @@ export class AdminPolicyService {
       targetType: 'system_setting',
       targetId: GRADE_BENEFITS_KEY,
       summary: `등급 혜택 변경(${applied.join(',')} 등급)`,
+      meta: { before: current, after: next },
+    });
+    return next;
+  }
+
+  // ── AI 사용량 정책(전사, B221) ──
+  async getAiUsage(): Promise<AiUsagePolicy> {
+    const row = await this.prisma.system_setting.findUnique({
+      where: { key: AI_USAGE_KEY },
+    });
+    return resolveAiUsage(row?.value);
+  }
+
+  /** 등급 권리가 소비하는 용도의 일 상한(ENV 우선, 없으면 B008 기본값). */
+  private entitledPurposeDailyLimit(): number {
+    return envInt(
+      this.config.get<string>(llmDailyLimitEnvKey(AI_REPORT_PURPOSE)),
+      LLM_DEFAULT_LIMITS[AI_REPORT_PURPOSE],
+    );
+  }
+
+  /** 등급별 유료 회원 수 — 3층 정합 계산의 입력. 구독 중(활성) 학생만 센다. */
+  private async usersByTier(): Promise<Record<number, number>> {
+    const rows = await this.prisma.student_profile.groupBy({
+      by: ['membership_grade_id'],
+      _count: { account_id: true },
+      where: { membership_grade_id: { not: null } },
+    });
+    const grades = await this.prisma.membership_grade.findMany({
+      select: { id: true, tier: true },
+    });
+    const tierOf = new Map(grades.map((g) => [g.id, g.tier]));
+    const out: Record<number, number> = {};
+    for (const r of rows) {
+      const tier = r.membership_grade_id
+        ? tierOf.get(r.membership_grade_id)
+        : undefined;
+      if (tier == null) continue;
+      out[tier] = (out[tier] ?? 0) + r._count.account_id;
+    }
+    return out;
+  }
+
+  /**
+   * 3층 정합 조회 — "지금 판 권리를 감당할 수 있나". 운영자가 혜택을 올리기 전에 본다.
+   * `GET /admin/ai-capacity`
+   */
+  async getAiCapacity() {
+    const [benefits, policy, usersByTier] = await Promise.all([
+      this.getGradeBenefits(),
+      this.getAiUsage(),
+      this.usersByTier(),
+    ]);
+    const purposeDailyLimit = this.entitledPurposeDailyLimit();
+    const check = reconcileCapacity({
+      benefits,
+      usersByTier,
+      purposeDailyLimit,
+      peakFactor: policy.peakFactor,
+    });
+    return {
+      purpose: AI_REPORT_PURPOSE,
+      purposeDailyLimit,
+      peakFactor: policy.peakFactor,
+      ...check,
+      // 감당 못 하면 무엇을 해야 하는지까지 알려 준다.
+      advice: check.ok ? null : capacityMessage(check, AI_REPORT_PURPOSE),
+    };
+  }
+
+  async updateAiUsage(
+    dto: UpdateAiUsageDto,
+    actor: AuthUser,
+  ): Promise<AiUsagePolicy> {
+    if (!this.isHq(actor)) {
+      throw new ForbiddenException(
+        'AI 사용량 정책은 본사 관리자만 변경할 수 있습니다.',
+      );
+    }
+    const g = AI_USAGE_GUARD;
+    if (
+      dto.reportReviewPerUserDay !== undefined &&
+      dto.reportReviewPerUserDay > g.maxReportReviewPerUserDay
+    ) {
+      throw new BadRequestException(
+        `사용자 일 신고 AI 검토는 최대 ${g.maxReportReviewPerUserDay} 회까지입니다.`,
+      );
+    }
+    if (
+      dto.reservePctForEntitled !== undefined &&
+      dto.reservePctForEntitled > g.maxReservePct
+    ) {
+      throw new BadRequestException(
+        `예약분 비율은 최대 ${g.maxReservePct} 까지입니다. 더 올리면 관리자 업무(재량 용도)가 상시 막힙니다.`,
+      );
+    }
+    if (
+      dto.peakFactor !== undefined &&
+      (dto.peakFactor < g.minPeakFactor || dto.peakFactor > g.maxPeakFactor)
+    ) {
+      throw new BadRequestException(
+        `피크 계수는 ${g.minPeakFactor}~${g.maxPeakFactor} 범위여야 합니다.`,
+      );
+    }
+    const current = await this.getAiUsage();
+    const next: AiUsagePolicy = { ...current, ...dto };
+    await this.prisma.system_setting.upsert({
+      where: { key: AI_USAGE_KEY },
+      create: { key: AI_USAGE_KEY, value: { ...next }, updated_by: actor.id },
+      update: {
+        value: { ...next },
+        updated_by: actor.id,
+        updated_at: new Date(),
+      },
+    });
+    await this.audit.record(actor, {
+      action: 'ai_usage.update',
+      targetType: 'system_setting',
+      targetId: AI_USAGE_KEY,
+      summary: `AI 사용량 정책 변경(예약분 ${current.reservePctForEntitled} → ${next.reservePctForEntitled})`,
       meta: { before: current, after: next },
     });
     return next;

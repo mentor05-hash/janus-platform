@@ -6,6 +6,7 @@ import { AdminPolicyService } from './admin-policy.service';
 import {
   SetFeatureDto,
   UpdateFreeExposureDto,
+  UpdateAiUsageDto,
   UpdateGradeBenefitsDto,
   UpdateLimitsDto,
   UpdatePenaltyDto,
@@ -56,6 +57,23 @@ export class AdminPolicyController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.policy.updateGradeBenefits(dto, user);
+  }
+
+  // AI 사용량 3층 정책(B221) + 정합 조회. 혜택을 올리기 전에 ai-capacity 로 여력을 본다.
+  @Get('ai-usage')
+  getAiUsage() {
+    return this.policy.getAiUsage();
+  }
+
+  @Put('ai-usage')
+  updateAiUsage(@Body() dto: UpdateAiUsageDto, @CurrentUser() user: AuthUser) {
+    return this.policy.updateAiUsage(dto, user);
+  }
+
+  /** GET /admin/ai-capacity — 판 권리 vs 감당 가능량. 초과 시 advice 에 해야 할 일이 담긴다. */
+  @Get('ai-capacity')
+  getAiCapacity() {
+    return this.policy.getAiCapacity();
   }
 
   @Get('limits')

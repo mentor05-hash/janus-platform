@@ -5,6 +5,7 @@ import {
   QUEUE_FAIRNESS,
   benefitOf,
   compareQnaQueue,
+  effectiveConcurrentBookings,
   resolveGradeBenefits,
 } from './grade-benefits';
 
@@ -26,14 +27,13 @@ describe('등급 비크레딧 혜택(B218)', () => {
       rising((t) => GRADE_BENEFITS_DEFAULT[t].matchHorizonDays);
     });
 
-    it('동시 예약 상한도 오른다 — VIP 는 무제한(0)', () => {
-      // 0 = 무제한이라 단순 비교가 안 된다. Infinity 로 치환해서 본다.
-      const v = TIERS.map((t) => {
-        const n = GRADE_BENEFITS_DEFAULT[t].concurrentBookings;
-        return n === 0 ? Infinity : n;
-      });
-      expect(v.every((x, i) => i === 0 || x >= v[i - 1])).toBe(true);
-      expect(GRADE_BENEFITS_DEFAULT[4].concurrentBookings).toBe(0);
+    // B222 로 재분류: concurrentBookings 는 등급 판매 축이 아니라 슬롯 선점 방지(운영 통제)다.
+    // 소유자는 센터이고, 기본값은 전 등급 무제한 — 켜는 것이 의도적 결정이어야 한다.
+    it('동시 예약 상한은 기본 무제한 — 혜택 축이 아니라 운영 통제다', () => {
+      for (const t of TIERS) {
+        expect(GRADE_BENEFITS_DEFAULT[t].concurrentBookings).toBe(0);
+      }
+      expect(NO_GRADE_BENEFIT.concurrentBookings).toBe(0);
     });
 
     it('기본값은 전부 안전선 이내', () => {
@@ -154,6 +154,31 @@ describe('등급 비크레딧 혜택(B218)', () => {
     });
   });
 
+  // B222 — 두 정책이 같은 것을 제한하던 문제의 해소. 유효값을 하나로 확정한다.
+  describe('effectiveConcurrentBookings — 더 엄격한 쪽이 이긴다', () => {
+    it('양쪽 무제한이면 무제한', () => {
+      expect(effectiveConcurrentBookings(0, null)).toBe(0);
+      expect(effectiveConcurrentBookings(0, undefined)).toBe(0);
+      expect(effectiveConcurrentBookings(0, 0)).toBe(0);
+    });
+
+    it('한쪽만 설정되면 그 값', () => {
+      expect(effectiveConcurrentBookings(0, 5)).toBe(5); // 센터만
+      expect(effectiveConcurrentBookings(4, null)).toBe(4); // 등급만
+    });
+
+    // 핵심: 센터가 운영상 조인 값을 등급 혜택이 뚫으면 안 된다.
+    it('둘 다 설정되면 작은 쪽 — 등급 혜택이 센터 한도를 뚫지 못한다', () => {
+      expect(effectiveConcurrentBookings(4, 2)).toBe(2);
+      expect(effectiveConcurrentBookings(2, 9)).toBe(2);
+    });
+
+    it('"VIP 무제한"은 센터 한도 안에서의 무제한이다', () => {
+      const vip = GRADE_BENEFITS_DEFAULT[4].concurrentBookings; // 0
+      expect(effectiveConcurrentBookings(vip, 3)).toBe(3);
+    });
+  });
+
   // 혜택 축 중 유일하게 실원가가 붙는 것 — 상한이 곧 원가 상한이어야 의미가 있다.
   describe('AI 리포트 원가 상한', () => {
     const AI_CALL_WON = 67; // consulting 1콜(Sonnet 4.6, ops/pricing-sim.mjs)
@@ -169,10 +194,12 @@ describe('등급 비크레딧 혜택(B218)', () => {
       expect(perDay).toBeLessThanOrEqual(60);
     });
 
-    it('안전선까지 열어도 상한 안에 있다 — 잘못 열어도 폭주하지 않는다', () => {
+    // 안전선까지 열면 B008 상한을 넘는다(20건/월 × 100명 = 66.7건/일 > 60).
+    // 이것이 B221 의 모순이었고, 지금은 3층 정합 게이트가 **쓰기 시점에** 막는다
+    // (ai-usage-policy.spec.ts 의 "안전선(월 20건) × 100명은 감당할 수 없다" 참조).
+    // 여기서는 그 경계가 여전히 존재한다는 사실만 고정한다 — 안전선을 낮추면 이 테스트가 알려 준다.
+    it('안전선은 B008 상한과 맞닿아 있다 — 3층 게이트가 필요한 이유', () => {
       const perDay = (100 * GRADE_BENEFITS_GUARD.maxAiReportsPerMonth) / 30;
-      // 20건/월 × 100명 = 66.7건/일 → consulting 상한 60 을 넘는다.
-      // 즉 안전선은 "B008 이 막아 주는 지점"과 맞닿아 있다: 여기서 더 열면 상한이 먼저 거절한다.
       expect(perDay).toBeGreaterThan(60);
     });
   });

@@ -3,6 +3,7 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   Min,
@@ -120,4 +121,29 @@ export class UpdateGradeBenefitsDto {
   @ValidateNested()
   @Type(() => UpdateGradeBenefitDto)
   4?: UpdateGradeBenefitDto;
+}
+
+/**
+ * PUT /admin/ai-usage — AI 사용량 3층 정책(B221) 수정.
+ * 전부 optional — 부분 변경 시 나머지는 현재 값 유지.
+ */
+export class UpdateAiUsageDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  reportReviewPerUserDay?: number;
+
+  /** 0~0.9. 소수라 IsInt 를 걸지 않는다. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  reservePctForEntitled?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  peakFactor?: number;
 }

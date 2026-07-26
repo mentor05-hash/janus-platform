@@ -27,14 +27,28 @@ export class QuotaLlmProvider implements LlmProvider {
     private readonly limits: Record<LlmPurpose, number>,
     /** 전 용도 합산 일 상한 — 개별 상한을 다 더한 값보다 낮게 잡아 총액을 통제 */
     private readonly totalLimit: number,
+    /**
+     * 매출 연동 용도 집합(B221 2층 예약분). 이 용도는 합산 상한을 **전액** 쓸 수 있고,
+     * 나머지(재량) 용도는 `discretionaryTotal` 까지만 쓴다.
+     * 목적: 관리자 OCR 일괄 처리 같은 재량 호출이 이미 돈을 받은 호출을 굶히지 못하게.
+     */
+    private readonly reservedPurposes: readonly LlmPurpose[] = [],
+    /** 재량 용도의 합산 상한. 미지정이면 예약 없음(= totalLimit, 기존 동작). */
+    private readonly discretionaryTotal?: number,
   ) {}
 
   private async guard<T>(
     purpose: LlmPurpose,
     run: () => Promise<T>,
   ): Promise<T> {
+    // 합산 카운터는 하나지만 **판정 기준선이 용도에 따라 다르다** — 예약 용도는 전액,
+    // 재량 용도는 예약분을 뺀 값. 카운터를 둘로 나누지 않아도 예약분이 실제로 남는다.
+    const reserved = this.reservedPurposes.includes(purpose);
+    const totalCeiling = reserved
+      ? this.totalLimit
+      : (this.discretionaryTotal ?? this.totalLimit);
     try {
-      await this.quota.consume('total', this.totalLimit);
+      await this.quota.consume('total', totalCeiling);
       await this.quota.consume(purpose, this.limits[purpose]);
     } catch (e) {
       if (e instanceof QuotaExceededError) throw toHttp(e);
@@ -69,6 +83,8 @@ export class QuotaLlmProvider implements LlmProvider {
   async usage(): Promise<{
     total: number;
     totalLimit: number;
+    discretionaryTotalLimit: number;
+    reservedPurposes: LlmPurpose[];
     byPurpose: Record<string, { used: number; limit: number }>;
   }> {
     const byPurpose: Record<string, { used: number; limit: number }> = {};
@@ -78,6 +94,9 @@ export class QuotaLlmProvider implements LlmProvider {
     return {
       total: await this.quota.peek('total'),
       totalLimit: this.totalLimit,
+      /** 재량 용도가 쓸 수 있는 합산 상한 — 이 위는 예약 용도 전용이다 */
+      discretionaryTotalLimit: this.discretionaryTotal ?? this.totalLimit,
+      reservedPurposes: [...this.reservedPurposes],
       byPurpose,
     };
   }

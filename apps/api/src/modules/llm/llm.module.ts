@@ -6,6 +6,16 @@ import { ClaudeLlmProvider } from './claude-llm.provider';
 import { MockLlmProvider } from './mock-llm.provider';
 import { QuotaLlmProvider } from './quota-llm.provider';
 import { LLM_PROVIDER, LlmPurpose } from './llm.types';
+import {
+  LLM_DEFAULT_LIMITS,
+  LLM_DEFAULT_TOTAL_LIMIT,
+  llmDailyLimitEnvKey,
+} from './llm.limits';
+import {
+  AI_USAGE_DEFAULT,
+  RESERVED_PURPOSES,
+  discretionaryTotalLimit,
+} from '../pricing-policy/domain/ai-usage-policy';
 
 /**
  * 공유 LlmProvider 어댑터 (CLAUDE.md §9·§10) — 신고 검토·답변 유사도.
@@ -13,17 +23,7 @@ import { LLM_PROVIDER, LlmPurpose } from './llm.types';
  * report·qna 등에서 LLM_PROVIDER 주입.
  */
 
-// 용도별 기본 일 상한 — 1인 운영 초기 규모 기준. 실사용 추이를 보고 ENV 로 올린다.
-//   similarity 는 답변마다 걸려 호출 수가 가장 많고, ocr·consulting 은 1인당 1~2회로 끝나지만
-//   이미지·긴 프롬프트라 호출당 단가가 높다.
-const DEFAULT_LIMITS: Record<LlmPurpose, number> = {
-  report: 100,
-  similarity: 300,
-  ocr: 100,
-  consulting: 60,
-};
-// 합산 상한은 개별 합(560)보다 낮게 — 한 용도가 몰아 써도 총액이 먼저 막힌다.
-const DEFAULT_TOTAL_LIMIT = 400;
+// 상한 기본값은 llm.limits.ts 가 단일 소스다(정합 검사와 공유 — B221 3층).
 
 @Module({
   providers: [
@@ -38,16 +38,16 @@ const DEFAULT_TOTAL_LIMIT = 400;
           config.get<string>('ANTHROPIC_API_KEY'),
           config.get<string>('ANTHROPIC_MODEL') ?? 'claude-sonnet-4-6',
         );
-        const limits = { ...DEFAULT_LIMITS };
+        const limits = { ...LLM_DEFAULT_LIMITS };
         for (const p of Object.keys(limits) as LlmPurpose[]) {
           limits[p] = envInt(
-            config.get<string>(`LLM_DAILY_LIMIT_${p.toUpperCase()}`),
+            config.get<string>(llmDailyLimitEnvKey(p)),
             limits[p],
           );
         }
         const total = envInt(
           config.get<string>('LLM_DAILY_CALL_LIMIT'),
-          DEFAULT_TOTAL_LIMIT,
+          LLM_DEFAULT_TOTAL_LIMIT,
         );
         // 카운터 장애 시 기본은 차단(fail closed) — 비용 폭주가 AI 일시 중단보다 큰 리스크.
         const failOpen = config.get<string>('LLM_QUOTA_FAIL_OPEN') === 'true';
@@ -56,11 +56,26 @@ const DEFAULT_TOTAL_LIMIT = 400;
             'LLM 상한 카운터가 in-process 메모리입니다 — 다중 인스턴스에서는 상한이 인스턴스별로 따로 셉니다(CACHE_PROVIDER=redis 권장).',
           );
         }
+        // 2층 예약분(B221) — 매출 연동 용도가 재량 호출에 굶지 않게 합산 상한을 쪼갠다.
+        // 비율은 DB 정책(ai_usage_policy)으로도 바꿀 수 있지만, 어댑터는 부팅 시점에
+        // 만들어지므로 여기서는 ENV/기본값을 쓴다(운영 중 조정은 ENV + 재시작).
+        const reservePct = Number(
+          config.get<string>('LLM_ENTITLED_RESERVE_PCT') ??
+            AI_USAGE_DEFAULT.reservePctForEntitled,
+        );
+        const discretionary = discretionaryTotalLimit(
+          total,
+          Number.isFinite(reservePct)
+            ? reservePct
+            : AI_USAGE_DEFAULT.reservePctForEntitled,
+        );
         return new QuotaLlmProvider(
           inner,
           new UsageQuota(cache, 'llm', failOpen),
           limits,
           total,
+          RESERVED_PURPOSES,
+          discretionary,
         );
       },
     },
