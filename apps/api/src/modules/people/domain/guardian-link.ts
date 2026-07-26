@@ -57,6 +57,20 @@ export const RELINKABLE_STATUSES: GuardianLinkStatus[] = ['rejected', 'revoked']
 export const RELINK_COOLDOWN_DAYS = 7;
 export const RELINK_MAX_ATTEMPTS = 3;
 
+/**
+ * 이력에 남는 전이 사유(guardian_link_event.reason). 화면 라벨과 집계가 이 문자열에 걸려 있다.
+ * `admin_unlock` 은 상태를 바꾸지 않는 **주석 이벤트**다 — from_status === to_status 로 남고,
+ * 재신청 집계의 **기준선**이 된다(O126). 이력이 append-only 라 '지우기'로는 잠금을 풀 수 없어,
+ * 지우는 대신 "여기서부터 다시 센다"를 기록한다.
+ */
+export const LINK_REASON = {
+  request: 'request',
+  relink: 'relink',
+  respond: 'respond',
+  adminOverride: 'admin_override',
+  adminUnlock: 'admin_unlock',
+} as const;
+
 export type RelinkDecision =
   | { allowed: true }
   | { allowed: false; code: 'cooldown'; availableAt: Date }

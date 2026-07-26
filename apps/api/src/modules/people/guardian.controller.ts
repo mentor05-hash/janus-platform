@@ -88,6 +88,17 @@ export class GuardianController {
     return this.guardian.adminListLinks(user, q, scope === 'all' ? 'all' : 'stuck');
   }
 
+  /**
+   * POST /admin/guardian-links/{id}/unlock — 재신청 잠금 해제(관리자/HR, O126).
+   * 강제 복구와 달리 **상태를 바꾸지 않는다** — 보호자가 다시 신청할 수 있게만 하고
+   * 연결 성립은 학생 승인에 남긴다(학생 동의권을 우회하지 않는 가벼운 경로).
+   */
+  @Post('admin/guardian-links/:id/unlock')
+  @Roles('admin', 'hr')
+  unlockLink(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.guardian.unlockRelink(user, id);
+  }
+
   /** POST /guardian/links — 자녀 연결 신청(보호자). */
   @Post('guardian/links')
   @Roles('guardian')

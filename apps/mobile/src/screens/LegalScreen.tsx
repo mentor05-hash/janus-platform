@@ -199,7 +199,7 @@ export function LegalScreen({ onBack, onWithdrawn }: { onBack: () => void; onWit
                   {pend === 'revoke'
                     ? '해제하면 보호자 화면이 바로 닫혀요. 이 보호자는 7일 뒤 다시 신청할 수 있고, 그때도 승인할지는 내가 정해요.'
                     : pend === 'reject'
-                    ? '거절하면 이 보호자는 7일 뒤 다시 신청할 수 있어요(최대 3회). 그때도 승인할지는 내가 정해요. 정말 거절할까요?'
+                    ? '거절하면 이 보호자는 7일 뒤 다시 신청할 수 있어요(최대 3회, 관리자가 제한을 풀어 줄 수도 있어요). 그때도 승인할지는 내가 정해요. 정말 거절할까요?'
                     : (LINK_STATUS[l.status] ?? l.status)}
                 </Text>
                 {(l.status === 'rejected' || l.status === 'revoked') && !pend ? (

@@ -70,13 +70,21 @@ describe('관리자 보호자 연결 복구(O125)', () => {
       update: { status: 'revoked' },
     });
     linkId = link.id;
+    // 상태뿐 아니라 **이력도** 비운다. 앞선 실행이 중단되면 admin_unlock 잔여가 남아
+    // 재신청 집계 기준선을 옮겨 놓는데, 그러면 이 스펙이 무엇을 검증하는지가 실행마다 달라진다.
+    await prisma.guardian_link_event.deleteMany({ where: { link_id: linkId } });
+    await prisma.audit_log.deleteMany({
+      where: { action: { in: ['guardian.link.override', 'guardian.link.unlock'] }, target_id: linkId },
+    });
   });
 
   afterAll(async () => {
     // 다른 스위트(O105/O106 학부모 열람·계획)가 전제하는 기본값 = approved 연결 1건.
     await prisma.guardian_student_link.update({ where: { id: linkId }, data: { status: 'approved' } });
     await prisma.guardian_link_event.deleteMany({ where: { link_id: linkId } });
-    await prisma.audit_log.deleteMany({ where: { action: 'guardian.link.override', target_id: linkId } });
+    await prisma.audit_log.deleteMany({
+      where: { action: { in: ['guardian.link.override', 'guardian.link.unlock'] }, target_id: linkId },
+    });
     await app.close();
   });
 
@@ -177,7 +185,122 @@ describe('관리자 보호자 연결 복구(O125)', () => {
     expect(rows.find((x) => x.id === linkId)).toBeDefined();
   });
 
+  /**
+   * O126 — 가벼운 복구. 강제 승인은 학생 동의를 우회하지만, 관리자가 받는 문의 대부분은
+   * '연결해 달라'가 아니라 '다시 신청이라도 하게 해 달라'다. 이 경로는 **상태를 바꾸지 않고**
+   * 재신청 집계의 기준선만 옮겨, 연결 성립을 학생 승인에 그대로 남긴다.
+   */
+  describe('재신청 잠금 해제(가벼운 복구)', () => {
+    /** 쿨다운에 걸린 상태를 만든다(방금 해제됨). */
+    async function makeCooldown() {
+      await prisma.guardian_student_link.update({ where: { id: linkId }, data: { status: 'revoked' } });
+      await prisma.guardian_link_event.deleteMany({ where: { link_id: linkId } });
+      await prisma.guardian_link_event.create({
+        data: { link_id: linkId, from_status: 'approved', to_status: 'revoked', actor_id: studentId, actor_role: 'student', reason: 'respond' },
+      });
+    }
+
+    it('해제해도 상태는 그대로다 — 연결이 되는 게 아니라 신청이 가능해질 뿐이다', async () => {
+      await makeCooldown();
+      const notifsBefore = await prisma.notification.count({
+        where: { recipient_id: guardianId, type: 'guardian_link_unlocked' },
+      });
+
+      await svc.unlockRelink(admin(centerId), linkId);
+
+      // 핵심 불변식: 강제 복구와 달리 status 는 손대지 않는다.
+      const row = await prisma.guardian_student_link.findUniqueOrThrow({ where: { id: linkId } });
+      expect(row.status).toBe('revoked');
+      // 학생에게는 알리지 않는다 — 아직 아무것도 열리지 않았다(동의 절차가 살아 있다).
+      const restored = await prisma.notification.count({
+        where: { recipient_id: studentId, type: 'guardian_link_restored', created_at: { gt: new Date(Date.now() - 5000) } },
+      });
+      expect(restored).toBe(0);
+      // 알림은 보호자에게 — 다시 신청할 수 있게 된 당사자가 모르면 해제가 아무 일도 하지 않는다.
+      expect(
+        await prisma.notification.count({ where: { recipient_id: guardianId, type: 'guardian_link_unlocked' } }),
+      ).toBe(notifsBefore + 1);
+      // 이력에는 '상태 변화 없음'이 드러나야 한다(from === to).
+      const ev = await prisma.guardian_link_event.findFirst({ where: { link_id: linkId }, orderBy: { created_at: 'desc' } });
+      expect(ev?.reason).toBe('admin_unlock');
+      expect(ev?.from_status).toBe(ev?.to_status);
+      const audit = await prisma.audit_log.findFirst({
+        where: { action: 'guardian.link.unlock', target_id: linkId }, orderBy: { created_at: 'desc' },
+      });
+      expect(audit?.summary).toMatch(/잠금 해제/);
+    });
+
+    it('해제 뒤에는 보호자가 곧바로 재신청할 수 있고, 승인은 여전히 학생 몫이다', async () => {
+      await makeCooldown();
+      const guardianUser = { id: guardianId, role: 'guardian', centerId, loginId: ACCOUNTS.guardian } as any;
+
+      // 해제 전에는 쿨다운에 막힌다.
+      await expect(
+        svc.requestLink(guardianUser, { studentLoginId: ACCOUNTS.student }),
+      ).rejects.toThrow(/재신청할 수 없습니다/);
+
+      await svc.unlockRelink(admin(centerId), linkId);
+
+      // 해제 직후 재신청이 통과한다. 해제 이벤트 자신이 쿨다운을 다시 걸면(gte 버그) 여기서 터진다.
+      const revived = await svc.requestLink(guardianUser, { studentLoginId: ACCOUNTS.student });
+      expect(revived.status).toBe('pending'); // approved 가 아니다 — 학생 승인이 남아 있다
+    });
+
+    it('횟수 소진도 풀린다 — 해제 이전 재신청은 집계에서 빠진다', async () => {
+      const old = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      await prisma.guardian_student_link.update({ where: { id: linkId }, data: { status: 'revoked' } });
+      await prisma.guardian_link_event.deleteMany({ where: { link_id: linkId } });
+      await prisma.guardian_link_event.create({
+        data: { link_id: linkId, from_status: 'approved', to_status: 'revoked', actor_id: studentId, actor_role: 'student', reason: 'respond', created_at: old },
+      });
+      for (let i = 0; i < 3; i++) {
+        await prisma.guardian_link_event.create({
+          data: { link_id: linkId, from_status: 'revoked', to_status: 'pending', actor_id: guardianId, actor_role: 'guardian', reason: 'relink', created_at: old },
+        });
+      }
+      const guardianUser = { id: guardianId, role: 'guardian', centerId, loginId: ACCOUNTS.guardian } as any;
+      await expect(
+        svc.requestLink(guardianUser, { studentLoginId: ACCOUNTS.student }),
+      ).rejects.toThrow(/센터 관리자에게 문의/);
+
+      await svc.unlockRelink(admin(centerId), linkId);
+
+      // 관리자 목록도 같은 기준선을 써야 한다 — 서버 판정과 화면이 갈리면 안 된다.
+      const { items } = await svc.adminListLinks(admin(centerId));
+      const row = items.find((x) => x.id === linkId);
+      expect(row?.relinkBlocked).toBeNull();
+      expect(row?.relinkAttempts).toBe(0);
+
+      const revived = await svc.requestLink(guardianUser, { studentLoginId: ACCOUNTS.student });
+      expect(revived.status).toBe('pending');
+    });
+
+    it('막히지 않은 연결에 해제를 쓰면 거부한다 — 무의미한 개입·이력을 막는다', async () => {
+      await prisma.guardian_student_link.update({ where: { id: linkId }, data: { status: 'revoked' } });
+      await prisma.guardian_link_event.deleteMany({ where: { link_id: linkId } }); // 이력 없음 = 제한 없음
+      await expect(svc.unlockRelink(admin(centerId), linkId)).rejects.toThrow(/이미 보호자가 다시 신청할 수 있는/);
+    });
+
+    it('연결된(approved) 건에는 쓸 수 없고, 타 센터 관리자도 거부된다', async () => {
+      await prisma.guardian_student_link.update({ where: { id: linkId }, data: { status: 'approved' } });
+      await expect(svc.unlockRelink(admin(centerId), linkId)).rejects.toThrow(/거절·해제된 연결에만/);
+
+      await makeCooldown();
+      await expect(svc.unlockRelink(admin(OTHER_CENTER), linkId)).rejects.toThrow(/다른 센터/);
+    });
+
+    it('해제는 admin/hr 전용 — 학생 토큰은 403', async () => {
+      const r = await request(app.getHttpServer())
+        .post(`/api/v1/admin/guardian-links/${linkId}/unlock`)
+        .set({ Authorization: `Bearer ${tok.student}` })
+        .send({});
+      expect(r.status).toBe(403);
+    });
+  });
+
   it('강제 복구 → approved + 감사 로그 + 학생에게 알림', async () => {
+    // 앞 describe 가 상태를 바꿔 놓으므로 이 테스트의 전제(revoked)를 다시 세운다.
+    await prisma.guardian_student_link.update({ where: { id: linkId }, data: { status: 'revoked' } });
     const notifsBefore = await prisma.notification.count({
       where: { recipient_id: studentId, type: 'guardian_link_restored' },
     });

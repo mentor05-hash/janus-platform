@@ -15,6 +15,7 @@ import {
   canLinkTransition,
   evaluateRelink,
   GuardianLinkStatus,
+  LINK_REASON,
   RELINK_COOLDOWN_DAYS,
   RELINK_MAX_ATTEMPTS,
   RELINKABLE_STATUSES,
@@ -102,9 +103,18 @@ export class GuardianService {
    * 취급된다 — 배포 직후 첫 재신청은 즉시 허용되고, 그 뒤부터 제한이 걸린다.
    */
   private async relinkHistory(linkId: string) {
+    // 관리자가 잠금을 풀었으면 그 시점이 기준선이다 — 이전 이력은 집계에서 뺀다(O126).
+    const unlock = await this.prisma.guardian_link_event.findFirst({
+      where: { link_id: linkId, reason: LINK_REASON.adminUnlock },
+      orderBy: { created_at: 'desc' },
+      select: { created_at: true },
+    });
+    // gt(gte 아님) — 해제 이벤트 자신은 to_status 가 현재 종착 상태라, 포함하면
+    // 방금 푼 쿨다운이 그 자리에서 다시 걸린다.
+    const since = unlock ? { created_at: { gt: unlock.created_at } } : {};
     const [lastEnded, attempts] = await Promise.all([
       this.prisma.guardian_link_event.findFirst({
-        where: { link_id: linkId, to_status: { in: RELINKABLE_STATUSES } },
+        where: { link_id: linkId, to_status: { in: RELINKABLE_STATUSES }, ...since },
         orderBy: { created_at: 'desc' },
         select: { created_at: true },
       }),
@@ -113,6 +123,7 @@ export class GuardianService {
           link_id: linkId,
           to_status: 'pending',
           from_status: { in: RELINKABLE_STATUSES },
+          ...since,
         },
       }),
     ]);
@@ -175,7 +186,7 @@ export class GuardianService {
           from,
           to: 'pending',
           actor: guardian,
-          reason: 'relink',
+          reason: LINK_REASON.relink,
         });
         return tx.guardian_student_link.findUniqueOrThrow({
           where: { id: existing.id },
@@ -206,7 +217,7 @@ export class GuardianService {
         from: null,
         to: 'pending',
         actor: guardian,
-        reason: 'request',
+        reason: LINK_REASON.request,
       });
       return created;
     });
@@ -294,10 +305,14 @@ export class GuardianService {
       const status = r.status as GuardianLinkStatus;
       const events = r.guardian_link_event;
       // 목록 쿼리로 이미 가져온 이력에서 계산한다 — relinkHistory 를 행마다 부르면 N+1 이다.
+      // **relinkHistory 와 같은 규칙이어야 한다** — 어긋나면 화면이 서버 판정과 다른 말을 한다.
+      // events 는 최신순이므로 해제 이벤트보다 '앞'(인덱스가 작은 쪽)이 그 이후에 일어난 일이다.
+      const unlockIdx = events.findIndex((e) => e.reason === LINK_REASON.adminUnlock);
+      const scoped = unlockIdx >= 0 ? events.slice(0, unlockIdx) : events;
       const lastEnded =
-        events.find((e) => RELINKABLE_STATUSES.includes(e.to_status as GuardianLinkStatus))
+        scoped.find((e) => RELINKABLE_STATUSES.includes(e.to_status as GuardianLinkStatus))
           ?.created_at ?? null;
-      const attempts = events.filter(
+      const attempts = scoped.filter(
         (e) =>
           e.to_status === 'pending' &&
           e.from_status != null &&
@@ -457,6 +472,70 @@ export class GuardianService {
     return { studentId, amount, ...result };
   }
 
+  /**
+   * 재신청 잠금 해제 — **가벼운 복구**(O126).
+   *
+   * 강제 복구(admin_override)는 학생 동의를 우회해 즉시 연결한다. 그런데 관리자가 받는 문의의
+   * 대부분은 '연결해 달라'가 아니라 '다시 신청이라도 하게 해 달라'다. 그 경우까지 강제 승인을
+   * 쓰면 학생이 거절·해제한 의사를 매번 짓밟게 된다.
+   *
+   * 그래서 이 경로는 **상태를 바꾸지 않는다**. 쿨다운·횟수 집계의 기준선만 지금으로 옮겨
+   * 보호자가 다시 신청할 수 있게 하고, 연결 성립 여부는 **여전히 학생 승인**에 달려 있다.
+   * 이력이 append-only 라 '지우기'가 불가능하므로 지우는 대신 해제 이벤트를 남긴다.
+   */
+  async unlockRelink(actor: AuthUser, linkId: string) {
+    const link = await this.prisma.guardian_student_link.findUnique({ where: { id: linkId } });
+    if (!link) throw new NotFoundException('연결을 찾을 수 없습니다.');
+    await this.assertLinkCenter(actor, link.student_id);
+
+    const status = link.status as GuardianLinkStatus;
+    if (!RELINKABLE_STATUSES.includes(status)) {
+      throw new BadRequestException(
+        `거절·해제된 연결에만 쓸 수 있습니다(현재 ${status}).`,
+      );
+    }
+    // 이미 스스로 신청할 수 있으면 해제는 의미가 없다 — 무의미한 이력·감사를 남기지 않고,
+    // 관리자에게 '지금 필요한 건 안내지 개입이 아니다'를 알려 준다.
+    const { lastEndedAt, attempts } = await this.relinkHistory(linkId);
+    const decision = evaluateRelink(lastEndedAt, attempts, new Date());
+    if (decision.allowed) {
+      throw new BadRequestException(
+        '이미 보호자가 다시 신청할 수 있는 상태입니다. 보호자에게 재신청을 안내해 주세요.',
+      );
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await this.recordEvent(tx, {
+        linkId,
+        // 상태 전이가 아니라 주석이다 — from === to 로 남겨 '바꾸지 않았음'을 이력에 못박는다.
+        from: status,
+        to: status,
+        actor,
+        reason: LINK_REASON.adminUnlock,
+      });
+    });
+
+    const [g, s] = await Promise.all([
+      this.prisma.account.findUnique({ where: { id: link.guardian_id }, select: { name: true } }),
+      this.prisma.account.findUnique({ where: { id: link.student_id }, select: { name: true } }),
+    ]);
+    await this.audit.record(actor, {
+      action: 'guardian.link.unlock',
+      targetType: 'guardian_student_link',
+      targetId: linkId,
+      summary: `보호자 재신청 잠금 해제(${decision.code}) — 보호자 ${g?.name ?? '?'} · 학생 ${s?.name ?? '?'} (연결 상태는 그대로)`,
+      meta: { status, blocked: decision.code, attempts },
+    });
+    // 알림은 **보호자에게** — 다시 신청할 수 있게 된 당사자가 모르면 해제가 아무 일도 하지 않는다.
+    // 학생에게는 보내지 않는다: 아직 아무것도 열리지 않았고, 보호자가 실제로 재신청하면
+    // 그때 guardian_link_requested 가 정상적으로 간다(동의 절차가 그대로 살아 있다).
+    await this.notify.notify(link.guardian_id, 'guardian_link_unlocked', {
+      linkId,
+      studentId: link.student_id,
+    });
+    return { id: linkId, status: link.status, unlocked: true };
+  }
+
   /** 학생 본인 또는 관리자/HR 이 연결 신청에 승인·거절·해제. */
   async respondLink(
     linkId: string,
@@ -493,7 +572,7 @@ export class GuardianService {
     }
     // 종착 상태(rejected·revoked)를 되돌리는 건 관리자만 가능한 강제 복구 — 이력에 구분해 남긴다.
     const reason =
-      isAdmin && RELINKABLE_STATUSES.includes(from) ? 'admin_override' : 'respond';
+      isAdmin && RELINKABLE_STATUSES.includes(from) ? LINK_REASON.adminOverride : LINK_REASON.respond;
     const updated = await this.prisma.$transaction(async (tx) => {
       const row = await tx.guardian_student_link.update({
         where: { id: linkId },
@@ -506,7 +585,7 @@ export class GuardianService {
     // 강제 복구는 학생 동의 없이 연결을 되살리는 민감 조작 — 감사 로그에도 남긴다(O125).
     // guardian_link_event 는 연결 이력이고, audit_log 는 운영자가 보는 곳이라 둘 다 필요하다.
     // meta 는 화면에 표시되지 않으므로 운영자가 봐야 할 것은 summary 한 줄에 담는다.
-    if (reason === 'admin_override') {
+    if (reason === LINK_REASON.adminOverride) {
       const [g, s] = await Promise.all([
         this.prisma.account.findUnique({ where: { id: link.guardian_id }, select: { name: true } }),
         this.prisma.account.findUnique({ where: { id: link.student_id }, select: { name: true } }),

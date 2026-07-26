@@ -47,7 +47,8 @@ const STATUS_KIND: Record<string, 'done' | 'new' | 'danger' | 'soft'> = {
   approved: 'done', pending: 'new', rejected: 'danger', revoked: 'danger',
 };
 const REASON_LABEL: Record<string, string> = {
-  request: '보호자 신청', relink: '보호자 재신청', respond: '응답', admin_override: '관리자 강제 복구',
+  request: '보호자 신청', relink: '보호자 재신청', respond: '응답',
+  admin_override: '관리자 강제 복구', admin_unlock: '관리자 재신청 잠금 해제',
 };
 const ROLE_LABEL: Record<string, string> = {
   guardian: '보호자', student: '학생', admin: '관리자', hr: 'HR',
@@ -104,6 +105,22 @@ export function AdminGuardianLinksPage() {
     }
   }
 
+  /** 가벼운 복구 — 상태를 바꾸지 않고 보호자가 다시 신청할 수 있게만 한다(승인은 학생 몫). */
+  async function unlock(l: AdminLink) {
+    setBusy(l.id); setMsg(''); setError('');
+    try {
+      await api.post(`/admin/guardian-links/${l.id}/unlock`, {});
+      await load(appliedQ, scope);
+      setMsg(`${l.guardianName} 보호자의 재신청 제한을 풀었어요. 보호자에게 알림이 갔고, 연결은 ${l.studentName} 학생이 승인해야 됩니다.`);
+    } catch (e) {
+      const m = e instanceof ApiError ? e.message : '해제 실패';
+      await load(appliedQ, scope);
+      setError(m);
+    } finally {
+      setBusy('');
+    }
+  }
+
   const rows = page?.items ?? null;
 
   return (
@@ -129,10 +146,16 @@ export function AdminGuardianLinksPage() {
           <Button size="sm" variant={scope === 'stuck' ? 'primary' : 'ghost'} onClick={() => setScope('stuck')}>막힌 연결만</Button>
           <Button size="sm" variant={scope === 'all' ? 'primary' : 'ghost'} onClick={() => setScope('all')}>전체</Button>
         </div>
-        <p style={{ fontSize: 12.5, color: 'var(--muted)', margin: '10px 0 0' }}>
-          복구는 <b>학생 동의 없이</b> 연결을 되살립니다. 법정대리인 확인 등 오프라인 근거가 있을 때만 사용하고,
-          가능하면 보호자가 재신청해 학생이 승인하도록 안내하세요. 복구는 감사 로그와 연결 이력에 남고 학생에게 알림이 갑니다.
-        </p>
+        <div style={{ fontSize: 12.5, color: 'var(--muted)', margin: '10px 0 0', display: 'grid', gap: 4 }}>
+          <p style={{ margin: 0 }}>
+            <b>재신청 잠금 해제</b>(권장) — 보호자가 다시 신청할 수 있게만 합니다.
+            연결 여부는 <b>학생이 승인</b>해야 정해지므로 학생의 결정권이 그대로 남습니다.
+          </p>
+          <p style={{ margin: 0 }}>
+            <b>강제 복구</b> — <b>학생 동의 없이</b> 즉시 연결합니다. 법정대리인 확인 등 오프라인 근거가 있을 때만 쓰세요.
+          </p>
+          <p style={{ margin: 0 }}>둘 다 감사 로그와 연결 이력에 남습니다.</p>
+        </div>
       </Card>
 
       <div style={{ height: 12 }} />
@@ -211,6 +234,13 @@ export function AdminGuardianLinksPage() {
                       <Button size="sm" variant="ghost" onClick={() => setOpenId(openId === l.id ? '' : l.id)}>
                         이력 {l.events.length > 0 ? `(${l.events.length})` : ''}
                       </Button>
+                      {/* 권장 경로를 primary 로 둔다 — 학생 동의를 지키면서 교착만 푸는 쪽이
+                          더 눈에 띄어야 관리자가 습관적으로 강제 승인을 쓰지 않는다. */}
+                      {l.relinkBlocked && (
+                        <Button size="sm" loading={busy === l.id} disabled={!!busy} onClick={() => void unlock(l)}>
+                          재신청 잠금 해제
+                        </Button>
+                      )}
                       {l.canRecover && (
                         <Button size="sm" variant="ghost" disabled={!!busy} onClick={() => setConfirming(l.id)}>강제 복구</Button>
                       )}
@@ -230,12 +260,17 @@ export function AdminGuardianLinksPage() {
                       {l.events.map((e, i) => (
                         <div key={i} style={{ fontSize: 12.5, color: 'var(--muted)', display: 'flex', gap: 8 }}>
                           <span style={{ whiteSpace: 'nowrap' }}>{KST(e.at)}</span>
-                          <span>
-                            {e.from ? `${STATUS_LABEL[e.from] ?? e.from} → ` : ''}
-                            <b>{STATUS_LABEL[e.to] ?? e.to}</b>
-                            {' · '}{ROLE_LABEL[e.actorRole ?? ''] ?? e.actorRole ?? '?'}
-                            {e.reason ? ` · ${REASON_LABEL[e.reason] ?? e.reason}` : ''}
-                          </span>
+                          {/* 잠금 해제는 전이가 아니라 주석(from === to)이라 화살표를 쓰면 거짓말이 된다. */}
+                          {e.reason === 'admin_unlock' ? (
+                            <span><b>{REASON_LABEL.admin_unlock}</b> · {ROLE_LABEL[e.actorRole ?? ''] ?? e.actorRole ?? '?'} · 상태 변화 없음</span>
+                          ) : (
+                            <span>
+                              {e.from ? `${STATUS_LABEL[e.from] ?? e.from} → ` : ''}
+                              <b>{STATUS_LABEL[e.to] ?? e.to}</b>
+                              {' · '}{ROLE_LABEL[e.actorRole ?? ''] ?? e.actorRole ?? '?'}
+                              {e.reason ? ` · ${REASON_LABEL[e.reason] ?? e.reason}` : ''}
+                            </span>
+                          )}
                         </div>
                       ))}
                     </div>
