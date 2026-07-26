@@ -15,7 +15,14 @@ import {
 } from '../availability/domain/feature';
 import { bumpPricingVersion } from './pricing-cache';
 import {
+  FREE_EXPOSURE_GUARD,
+  FREE_EXPOSURE_KEY,
+  FreeExposurePolicy,
+  resolveFreeExposure,
+} from './domain/free-exposure';
+import {
   SetFeatureDto,
+  UpdateFreeExposureDto,
   UpdateLimitsDto,
   UpdatePenaltyDto,
   UpdatePricingDto,
@@ -105,6 +112,43 @@ export class AdminPolicyService {
       meta: { mode: dto.mode, perHour: data.per_hour, surchargePct: data.surcharge_pct, enabled: data.enabled },
     });
     return saved;
+  }
+
+  // ── 무료 티어 노출 범위(전사, N24) ── 법률 회신에 따라 조정되는 값이라 배포 없이 바꿀 수 있게 둔다.
+  async getFreeExposure(): Promise<FreeExposurePolicy> {
+    const row = await this.prisma.system_setting.findUnique({ where: { key: FREE_EXPOSURE_KEY } });
+    return resolveFreeExposure(row?.value);
+  }
+
+  /**
+   * 무료 노출 범위 변경 — 전사 정책이라 본사(HQ) 관리자만.
+   * 노출을 **늘리는** 방향은 데이터 권리 근거가 필요하므로 안전선을 넘으면 거부한다(B007 회신 전 실수 방지).
+   */
+  async updateFreeExposure(dto: UpdateFreeExposureDto, actor: AuthUser): Promise<FreeExposurePolicy> {
+    if (!this.isHq(actor)) {
+      throw new ForbiddenException('무료 노출 범위는 본사 관리자만 변경할 수 있습니다.');
+    }
+    if (dto.perBandItems !== undefined && dto.perBandItems > FREE_EXPOSURE_GUARD.maxPerBandItems) {
+      throw new BadRequestException(
+        `무료 노출은 구간별 최대 ${FREE_EXPOSURE_GUARD.maxPerBandItems}개까지입니다. 더 늘리려면 데이터 권리 검토 결과가 선행되어야 합니다.`,
+      );
+    }
+    const current = await this.getFreeExposure();
+    const next: FreeExposurePolicy = { ...current, ...dto };
+    await this.prisma.system_setting.upsert({
+      where: { key: FREE_EXPOSURE_KEY },
+      create: { key: FREE_EXPOSURE_KEY, value: { ...next }, updated_by: actor.id },
+      update: { value: { ...next }, updated_by: actor.id, updated_at: new Date() },
+    });
+    // 무료 공개 범위는 사업 리스크 항목이라 변경 이력을 반드시 남긴다(누가·무엇을 얼마로).
+    await this.audit.record(actor, {
+      action: 'free_exposure.update',
+      targetType: 'system_setting',
+      targetId: FREE_EXPOSURE_KEY,
+      summary: `무료 노출 범위 변경(구간별 ${current.perBandItems} → ${next.perBandItems})`,
+      meta: { before: current, after: next },
+    });
+    return next;
   }
 
   // ── 한도(센터) ── HQ 는 센터 미소속이라 기본값만 반환(편집은 센터 관리자)

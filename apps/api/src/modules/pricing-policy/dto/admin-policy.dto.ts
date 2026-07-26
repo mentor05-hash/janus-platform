@@ -66,3 +66,17 @@ export class SetFeatureDto {
   @IsBoolean()
   enabled!: boolean;
 }
+
+/**
+ * PUT /admin/free-exposure — 무료 티어 노출 범위(N24) 수정.
+ * 전부 optional: 부분 변경을 허용하고 나머지는 현재 정책을 유지한다.
+ */
+export class UpdateFreeExposureDto {
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) perBandItems?: number;
+  @IsOptional() @IsBoolean() maskNumbers?: boolean;
+  @IsOptional() @IsBoolean() allowSearch?: boolean;
+  @IsOptional() @IsBoolean() allowDetail?: boolean;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) showTrendYears?: number;
+  @IsOptional() @IsBoolean() showConfidenceBadge?: boolean;
+  @IsOptional() @IsBoolean() showRelTierBadge?: boolean;
+}

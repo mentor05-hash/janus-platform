@@ -20,6 +20,27 @@ postgres 컨테이너를 `pg_dump` 하여 `~/itall-backups/`에 gzip 저장(최�
 # 0 3 * * *  "/절대경로/ops/backup-db.sh"
 ```
 
+## 무료판 공개 게이트 (`publish-gate.sh`)
+정적 산출물을 공개하기 **전에** 통과해야 하는 기계 검사. 통과 못하면 종료코드 1 로 배포를 멈춘다.
+```bash
+./ops/publish-gate.sh public-dist
+```
+검사 항목: ①구 브랜드('잇올') 잔재 ②회원 이상 데이터 키 물리 부재(`gbias`·`relTier`·실측컷 등) ③면책 고지 **전 화면** ④워터마크·재배포 금지 ⑤무료 노출 수 정책 안전선(≤5)·수치 마스킹 ⑥시크릿·환경파일·덤프 혼입.
+- **`display:none`·JS 분기로 숨기는 것은 통과하지 못한다** — 뷰소스로 열람되므로 문자열 자체가 없어야 한다.
+- 한계: 문자열 수준 검사다. 난독화·인코딩된 데이터는 잡지 못하고, 점검표의 사람 판정(워터마크 제거 난이도·네트워크 탭 확인 등)을 대체하지 않는다.
+
+## 무료판 공개 배포 (`publish-public.sh`)
+게이트를 통과한 산출물을 **공개 repo** 로 밀어 GitHub Pages 로 서빙한다. "맥이 꺼져도 무료판이 살아있다"를 Cloudflare 계정 없이 달성한다.
+```bash
+export PUBLIC_REPO=git@github.com:<계정>/janus-public.git   # 최초 1회
+./ops/publish-public.sh public-dist "무료 배치표 첫 공개"
+```
+최초 준비(약 3분): ①**공개(public)** repo 생성 — private repo 의 Pages 는 유료 플랜 필요 ②Settings → Pages → Source = Deploy from a branch, `main`/root ③`PUBLIC_REPO` export.
+- 이 repo(janus-platform)는 **private 유지** — 공개되는 것은 무료판 산출물뿐이다.
+- 게이트 실패 시 clone 조차 하지 않고 중단한다.
+- `CNAME` 은 동기화에서 보존한다(지우면 커스텀 도메인이 끊긴다). `.nojekyll` 을 자동 생성해 `_` 시작 파일이 무시되지 않게 한다.
+- 커스텀 도메인·R2·터널이 필요해지면 Cloudflare 로 옮긴다(B014) — 산출물은 그대로 재사용된다.
+
 ## 오프사이트 백업 (`backup-offsite.sh`)
 `backup-db.sh` 결과를 **AES256 암호화 후** S3 호환 스토리지(Cloudflare R2 등)로 올린다.
 결제·PII 가 들어가는 DB 이므로 업로드 전 암호화는 선택이 아니다 — `BACKUP_PASSPHRASE` 가 없으면 업로드를 **하지 않는다**(로컬 백업은 유지).

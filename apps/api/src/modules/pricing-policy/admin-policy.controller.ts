@@ -5,6 +5,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { AdminPolicyService } from './admin-policy.service';
 import {
   SetFeatureDto,
+  UpdateFreeExposureDto,
   UpdateLimitsDto,
   UpdatePenaltyDto,
   UpdatePricingDto,
@@ -26,6 +27,17 @@ export class AdminPolicyController {
   @Put('pricing')
   updatePricing(@Body() dto: UpdatePricingDto, @CurrentUser() user: AuthUser) {
     return this.policy.updatePricing(dto, user);
+  }
+
+  // 무료 노출 범위(N24) — 법률 회신에 따라 조정하는 값. 변경 이력은 감사 로그에 남는다.
+  @Get('free-exposure')
+  getFreeExposure() {
+    return this.policy.getFreeExposure();
+  }
+
+  @Put('free-exposure')
+  updateFreeExposure(@Body() dto: UpdateFreeExposureDto, @CurrentUser() user: AuthUser) {
+    return this.policy.updateFreeExposure(dto, user);
   }
 
   @Get('limits')
