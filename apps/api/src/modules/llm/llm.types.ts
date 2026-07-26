@@ -135,6 +135,38 @@ export interface ConsultReportViewsResult {
   demo?: boolean;
 }
 
+/**
+ * 호출 용도 — 일 호출 상한을 **용도별로** 나눠 하나가 폭주해도 나머지가 살아남게 한다.
+ * (실행계획서 §비용: "무료 관문 홈·Q&A AI 초안이 비용 폭주 지점")
+ *
+ * LlmProvider 의 **모든 메서드가 어느 용도에 속하는지 반드시 매핑돼야 한다**(PURPOSE_OF_METHOD).
+ * 매핑이 없으면 그 경로는 상한 없이 열린다 — 새 메서드를 추가할 때 함께 넣을 것.
+ */
+export const LLM_PURPOSES = [
+  'report', // 신고 1차 검토
+  'similarity', // 답변 유사도(표절·중복)
+  'draft', // Q&A AI 초안 — 질문마다 걸려 호출 수가 많다
+  'ocr', // 성적표 이미지 추출
+  'vision', // 생기부 서식 분류(이미지)
+  'consulting', // 입시 컨설팅 분석(별도 결제 / 등급 권리)
+  'gateway', // 관문 자유서술 해석 — 무료 진입점이라 폭주 위험이 가장 크다
+  'consultReport', // 상담 요약·2뷰 생성
+] as const;
+export type LlmPurpose = (typeof LLM_PURPOSES)[number];
+
+/** LlmProvider 메서드 → 용도. 상한 래퍼가 이 표로 판정한다. */
+export const PURPOSE_OF_METHOD = {
+  reviewReport: 'report',
+  checkAnswerSimilarity: 'similarity',
+  draftAnswer: 'draft',
+  extractScoreReport: 'ocr',
+  classifySchoolRecord: 'vision',
+  analyzeConsulting: 'consulting',
+  interpretGateway: 'gateway',
+  consultSummary: 'consultReport',
+  consultReportViews: 'consultReport',
+} as const satisfies Record<string, LlmPurpose>;
+
 export interface LlmProvider {
   reviewReport(input: ReportReviewInput): Promise<ReportReviewResult>;
   checkAnswerSimilarity(input: AnswerSimilarityInput): Promise<AnswerSimilarityResult>;
