@@ -62,6 +62,7 @@ const GuardianReportPage = lazy(() => import('./pages/GuardianReportPage').then(
 const GuardianConsultReportsPage = lazy(() => import('./pages/GuardianConsultReportsPage').then((m) => ({ default: m.GuardianConsultReportsPage })));
 const GuardianConsentPage = lazy(() => import('./pages/GuardianConsentPage').then((m) => ({ default: m.GuardianConsentPage })));
 const AdminAuditPage = lazy(() => import('./pages/AdminAuditPage').then((m) => ({ default: m.AdminAuditPage })));
+const AdminGuardianLinksPage = lazy(() => import('./pages/AdminGuardianLinksPage').then((m) => ({ default: m.AdminGuardianLinksPage })));
 const AdminPayrollPage = lazy(() => import('./pages/AdminPayrollPage').then((m) => ({ default: m.AdminPayrollPage })));
 const AdminScoresPage = lazy(() => import('./pages/AdminScoresPage').then((m) => ({ default: m.AdminScoresPage })));
 const AdminSchoolRecordGuardPage = lazy(() => import('./pages/AdminSchoolRecordGuardPage').then((m) => ({ default: m.AdminSchoolRecordGuardPage })));
@@ -216,6 +217,7 @@ export function App() {
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<AdminDashboardPage />} />
         <Route path="students" element={<HrStudentsPage />} />
+        <Route path="guardian-links" element={<AdminGuardianLinksPage />} />
         <Route path="hr-teachers" element={<HrTeachersPage />} />
         <Route path="hr-staff" element={<HrStaffPage />} />
         <Route path="reverse" element={<AdminReversePage />} />

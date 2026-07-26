@@ -29,6 +29,9 @@ export function AdminLayout() {
         <nav className="sidebar-nav">
           <NavLink to="/admin/dashboard" className={navCls}>대시보드</NavLink>
           <NavLink to="/admin/students" className={navCls}>학생 등록·관리</NavLink>
+          {/* isAdmin 블록 밖 = HR 에게도 보인다. 백엔드가 @Roles('admin','hr') 이므로 nav 도 같아야 한다
+              — 코드는 권한을 주는데 메뉴만 숨기는 상태(N35)를 새로 만들지 않는다. */}
+          <NavLink to="/admin/guardian-links" className={navCls}>보호자 연결 복구</NavLink>
           <NavLink to="/admin/scores" className={navCls}>성적 업로드</NavLink>
           <NavLink to="/admin/academic" className={navCls}>학사일정</NavLink>
           <NavLink to="/admin/hr-teachers" className={navCls}>선생님 등록·관리</NavLink>

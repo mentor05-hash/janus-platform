@@ -49,6 +49,9 @@ const TEMPLATES: Record<string, Tmpl> = {
   // ── 연결·계정 ──
   guardian_link_requested: { title: '자녀 연결 요청', body: '자녀(학생) 연결 요청이 도착했어요. 확인 후 수락해 주세요.' },
   guardian_link_responded: { title: '연결 요청 응답', body: '보호자 연결 요청에 응답이 처리되었어요.' },
+  // 관리자 강제 복구(O125) — 학생이 끊은 연결을 학생 동의 없이 되살리는 것이라
+  // 학생에게 반드시 알린다. 조용히 복구되면 학생은 자기가 끊은 줄로 계속 알고 있게 된다.
+  guardian_link_restored: { title: '보호자 연결 복구', body: '관리자가 보호자 연결을 복구했어요. 문의는 센터로 연락해 주세요.' },
   account_approved: { title: '가입 승인', body: '계정이 승인되었어요. 이제 로그인해 서비스를 이용할 수 있어요.' },
   // ── 상담기록·성적·질문 ──
   note_shared: { title: '상담 기록 공개', body: '상담 기록(핵심요약·숙제·향후방향)이 공개되었어요.' },
