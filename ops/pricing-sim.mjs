@@ -23,6 +23,8 @@
  *   [가정]  아래 ASSUMPTIONS 중 source:'가정' — 확정 전 반드시 실측/견적으로 교체
  */
 
+import { readFileSync } from 'node:fs';
+
 // ─────────────────────────────────────────────────────────────
 // 0. 코드에서 가져온 고정 규칙 (바꾸면 코드도 바뀌어야 하는 값)
 // ─────────────────────────────────────────────────────────────
@@ -334,7 +336,7 @@ const OPTIONS = {
     ladderMustPass: false,
   },
   D_등급사다리교정: {
-    label: 'D 등급 사다리 교정 — 가격 승계 · Standard 부여 축소 + VIP 부여 확대',
+    label: 'D 등급 사다리 교정 — 가격 승계 · Standard 부여 축소 + VIP 부여 확대  ★확정(O50, 2026-07-26)',
     /**
      * 승계값(A·B·C 전부)에는 **등급 역전**이 있다: 상위 등급으로 갈수록 세션당 단가가 비싸진다
      * (B 기준 7,518 → 8,476 → 8,514원). 업그레이드할 이유가 가격에 없다는 뜻이다.
@@ -396,6 +398,41 @@ function runAll() {
     aiPerUserMonthlyWon: aiCostPerUserWon(),
   };
   return out;
+}
+
+/**
+ * N23 확정값(O50, 2026-07-26 — D 안). 코드/DB 의 실제 값과 갈라지면 안 된다.
+ * seed.ts 를 고쳐서 이 값과 달라지면 --selfcheck 가 실패한다.
+ */
+const CONFIRMED = {
+  option: 'D_등급사다리교정',
+  grants: { Standard: 24_000, Premium: 210_000, VIP: 380_000 },
+  prices: { Standard: 49_000, Premium: 89_000, VIP: 149_000 },
+  passWon: 19_000,
+};
+
+/** seed.ts 의 등급 부여량·플랜 가격을 읽어 확정값과 대조한다(문서·코드 표류 방지). */
+function readSeedValues() {
+  const src = readFileSync(
+    new URL('../apps/api/prisma/seed.ts', import.meta.url),
+    'utf8',
+  );
+  const num = (t) => Number(t.replace(/_/g, ''));
+  const grants = {};
+  // [ID.gradeStd, 'Standard', 2, 24_000, 'end_of_week', 1],
+  for (const m of src.matchAll(
+    /\[ID\.grade\w+,\s*'(\w+)',\s*\d+,\s*([\d_]+),/g,
+  )) {
+    grants[m[1]] = num(m[2]);
+  }
+  const prices = {};
+  // [ID.planStd, 'Standard 월간', 49_000, ID.gradeStd],
+  for (const m of src.matchAll(
+    /\[ID\.plan\w+,\s*'(\w+)\s*월간',\s*([\d_]+),/g,
+  )) {
+    prices[m[1]] = num(m[2]);
+  }
+  return { grants, prices };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -592,7 +629,45 @@ function selfcheck(r) {
     );
   }
 
-  // ⑥ 공헌이익률이 기획서 목표(30%) 근방인 안이 최소 1개는 있어야 한다
+  // ⑥ 확정값 정합 — seed.ts 가 O50 확정값과 같아야 한다.
+  //    문서만 고치고 코드를 안 고치는(또는 그 반대) 표류를 여기서 잡는다.
+  let seed;
+  try {
+    seed = readSeedValues();
+  } catch (e) {
+    fails.push(`seed.ts 를 읽지 못했다: ${e.message}`);
+  }
+  if (seed) {
+    for (const [plan, want] of Object.entries(CONFIRMED.grants)) {
+      ok(
+        seed.grants[plan] === want,
+        `seed.ts 부여량 일치 — ${plan} ${f(seed.grants[plan])} = 확정값 ${f(want)}`,
+      );
+    }
+    for (const [plan, want] of Object.entries(CONFIRMED.prices)) {
+      ok(
+        seed.prices[plan] === want,
+        `seed.ts 구독가 일치 — ${plan} ${f(seed.prices[plan])} = 확정값 ${f(want)}`,
+      );
+    }
+  }
+  // 확정안이 시뮬레이터의 OPTIONS 와도 같아야 한다
+  const confirmed = r.options[CONFIRMED.option];
+  ok(!!confirmed, `확정안 ${CONFIRMED.option} 이 OPTIONS 에 존재한다`);
+  if (confirmed) {
+    confirmed.rows.forEach((x) =>
+      ok(
+        x.grant === CONFIRMED.grants[x.plan] && x.priceWon === CONFIRMED.prices[x.plan],
+        `확정안 ${x.plan}: 구독가 ${f(x.priceWon)}원 · 부여 ${f(x.grant)}크 = 확정값`,
+      ),
+    );
+  }
+  ok(
+    r.passes.some((x) => x.priceWon === CONFIRMED.passWon),
+    `단품 확정가 ${f(CONFIRMED.passWon)}원이 후보에 존재한다`,
+  );
+
+  // ⑦ 공헌이익률이 기획서 목표(30%) 근방인 안이 최소 1개는 있어야 한다
   const has30 = Object.values(r.options).some((o) =>
     o.rows.some((x) => x.contributionPct >= 30),
   );
