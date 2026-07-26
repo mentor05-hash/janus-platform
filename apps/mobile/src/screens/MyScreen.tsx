@@ -9,6 +9,7 @@ import { RecordsScreen } from './RecordsScreen';
 import { ClassifyScreen } from './ClassifyScreen';
 import { LegalScreen } from './LegalScreen';
 import { ScoresScreen } from './ScoresScreen';
+import { MaterialsScreen } from './MaterialsScreen';
 
 type Plan = { id: string; name: string; price: number; membership_grade?: { name: string; weekly_credits: number } | null };
 type Pay = { id: string; amount: number; created_at: string };
@@ -25,10 +26,11 @@ const makeTxMeta = (C: Palette): Record<Tx['type'], { label: string; sign: 1 | -
   weekly_expire: { label: '주간 크레딧 소멸', sign: -1, color: C.confirmed },
 });
 
-type Sub = 'automatch' | 'autoassign' | 'records' | 'classify' | 'legal' | 'scores';
+type Sub = 'automatch' | 'autoassign' | 'records' | 'classify' | 'legal' | 'scores' | 'materials';
 const MENU: { key: Sub; icon: string; title: string; desc: string }[] = [
   { key: 'automatch', icon: '⚡', title: '30분 자동 매칭', desc: '유형·방식만 고르면 7일 내 가장 빠른 30분' },
   { key: 'autoassign', icon: '🗓', title: '자동배정 신청', desc: '시간 안 정해도 전임 선생님 근무시간에 배정' },
+  { key: 'materials', icon: '📂', title: '자료실', desc: '수업·상담 자료 모아보기' },
   { key: 'scores', icon: '📈', title: '내 성적·배치', desc: '성적 추이 + 예상 대학·학과 라인' },
   { key: 'records', icon: '📝', title: '내 상담 기록', desc: '공개된 핵심요약·숙제·향후방향 확인' },
   { key: 'classify', icon: '💚', title: '선생님 분류', desc: '나와 맞는 / 맞지 않는 선생님 관리' },
@@ -73,6 +75,15 @@ export function MyScreen() {
   if (sub === 'classify') return <ClassifyScreen onBack={() => setSub(null)} />;
   if (sub === 'legal') return <LegalScreen onBack={() => setSub(null)} onWithdrawn={() => { if (typeof window !== 'undefined') window.location.reload(); }} />;
   if (sub === 'scores') return <ScoresScreen onBack={() => setSub(null)} showPlacement={access?.showPlacement ?? false} />;
+  if (sub === 'materials')
+    return (
+      <View style={{ flex: 1 }}>
+        <TouchableOpacity onPress={() => setSub(null)} style={{ paddingHorizontal: SP.lg, paddingTop: SP.lg }}>
+          <Text style={{ color: C.teal, fontWeight: '700' }}>‹ 마이</Text>
+        </TouchableOpacity>
+        <MaterialsScreen />
+      </View>
+    );
 
   async function charge(amount: number) {
     setBusy(true); setError(''); setMsg('');

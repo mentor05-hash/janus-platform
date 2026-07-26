@@ -17,7 +17,7 @@ export function ScoresScreen({ onBack, showPlacement }: { onBack: () => void; sh
 
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
-      <TouchableOpacity onPress={onBack}><Text style={{ color: C.teal, fontWeight: '700', marginBottom: 8 }}>‹ 마이</Text></TouchableOpacity>
+      <TouchableOpacity onPress={onBack}><Text style={{ color: C.teal, fontWeight: '700', marginBottom: 8 }}>‹ 뒤로</Text></TouchableOpacity>
       <Text style={ui.h}>내 성적·배치</Text>
       <Text style={[ui.sub, { marginBottom: SP.md }]}>회차별 성적 추이와 예상 대학·학과 라인 변화를 확인하세요.</Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}

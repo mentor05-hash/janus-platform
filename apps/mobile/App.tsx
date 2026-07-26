@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { api, Child, hasSession, loadTokens, Me, Teacher } from './src/api';
 import { backStack } from './src/webBack';
@@ -10,13 +10,14 @@ import { TeacherDetailScreen } from './src/screens/TeacherDetailScreen';
 import { SlotsScreen } from './src/screens/SlotsScreen';
 import { BookingsScreen } from './src/screens/BookingsScreen';
 import { QnaScreen } from './src/screens/QnaScreen';
-import { MaterialsScreen } from './src/screens/MaterialsScreen';
 import { CommunityScreen } from './src/screens/CommunityScreen';
 import { MyScreen } from './src/screens/MyScreen';
+import { HomeScreen } from './src/screens/HomeScreen';
+import { ScoresScreen } from './src/screens/ScoresScreen';
 import { ClassroomScreen } from './src/screens/ClassroomScreen';
 import { GuardianHome, GuardianConsult, GuardianPay, GuardianCharge, GuardianMembership } from './src/screens/GuardianScreens';
 import { TeacherInbox, TeacherToday, TeacherSessions, TeacherRecords, TeacherMy } from './src/screens/TeacherScreens';
-import { ThemeProvider, useTheme, type Palette, SP } from './src/theme';
+import { ThemeProvider, useTheme, useUI, type Palette, SP } from './src/theme';
 import { APP_NAME } from './src/branding.generated';
 
 export default function App() {
@@ -35,6 +36,10 @@ function AppInner() {
   const [tab, setTab] = useState('a');
   const [teacher, setTeacher] = useState<Teacher | null>(null);
   const [booking, setBooking] = useState(false);
+  // 학생 5탭(O46): 홈 h · 질문 q(QnA/커뮤니티 세그먼트) · 진단 g · 일정 b(예약/강의실 세그먼트) · 마이 d
+  const [searchOpen, setSearchOpen] = useState(false); // 선생님 찾기 — 홈 타일·일정 CTA에서 진입
+  const [qSeg, setQSeg] = useState<'qna' | 'community'>('qna');
+  const [bSeg, setBSeg] = useState<'book' | 'class'>('book');
   const [bookMode, setBookMode] = useState<string | undefined>(undefined);
   const [bookType, setBookType] = useState<string | undefined>(undefined); // 검색에서 고른 상담 종류(담임/교과/입시/심리)
   const [bookSub, setBookSub] = useState<string | undefined>(undefined); // 세부 유형(과목 등)
@@ -55,7 +60,10 @@ function AppInner() {
     setTab(next);
     setTeacher(null);
     setBooking(false);
+    setSearchOpen(false);
   };
+  const openSearch = () => { setSearchOpen(true); pushGuard(); };
+  const goSearch = () => { goTab(me?.role === 'student' ? 'h' : 'a'); setSearchOpen(true); };
   const openTeacher = (t: Teacher, m?: string, ct?: string, sub?: string) => { setTeacher(t); setBooking(false); setBookMode(m); setBookType(ct); setBookSub(sub); pushGuard(); };
   const openBooking = () => { setBooking(true); pushGuard(); };
 
@@ -89,11 +97,13 @@ function AppInner() {
 
   // 뒤로가기(웹) → 앱 내부 이전 화면. 하위 화면 스택 우선, 없으면 예약/선생님/탭 순으로 복귀.
   const appBackRef = useRef<() => boolean>(() => false);
+  const homeKey = me?.role === 'teacher' ? 'ti' : me?.role === 'student' ? 'h' : 'a';
   appBackRef.current = () => {
     if (backStack.pop()) return true; // 하위 화면(자동매칭·기록·분류·시간변경 등) 닫기
     if (booking) { setBooking(false); return true; }
     if (teacher) { setTeacher(null); return true; }
-    if (tab !== 'a') { setTab(tabHist.current.pop() ?? 'a'); return true; } // 직전 탭으로 복귀(없으면 홈)
+    if (searchOpen) { setSearchOpen(false); return true; } // 선생님 찾기 닫기 → 홈
+    if (tab !== homeKey) { setTab(tabHist.current.pop() ?? homeKey); return true; } // 직전 탭으로 복귀(없으면 홈)
     // 홈 최상위: 첫 뒤로가기는 종료 안내 후 유지, 2초 내 다시 누르면 종료 허용.
     if (exitArmed.current) {
       exitArmed.current = false;
@@ -142,13 +152,18 @@ function AppInner() {
   const isGuardian = me.role === 'guardian';
   const isStudent = me.role === 'student';
   const isTeacher = me.role === 'teacher';
-  const tabs = isGuardian ? ['a', 'b', 'g', 'c', 'd'] : isTeacher ? ['ti', 'to', 'ts', 'tr', 'tm'] : ['a', 'b', 'r', 'e', 'c', 'f', 'd'];
+  // 학생 탭 7→5 (O46): 새 서비스는 탭이 아니라 홈 카드·세그먼트로 수용. 강의실·자료실·커뮤니티는 일정/마이/질문 안으로 수납.
+  const tabs = isGuardian ? ['a', 'b', 'g', 'c', 'd'] : isTeacher ? ['ti', 'to', 'ts', 'tr', 'tm'] : ['h', 'q', 'g', 'b', 'd'];
   const guardianLabel: Record<string, string> = { a: '홈', b: '상담', g: '멤버십', c: '결제', d: '충전' };
-  const studentLabel: Record<string, string> = { a: '선생님', b: '내 예약', r: '강의실', e: '자료실', c: 'Q&A', f: '커뮤니티', d: '마이' };
+  const studentLabel: Record<string, string> = { h: '홈', q: '질문', g: '진단', b: '일정', d: '마이' };
   const teacherLabel: Record<string, string> = { ti: '인박스', to: '오늘', ts: '상담', tr: '기록', tm: '마이' };
   const tabLabel = (t: string) => (isGuardian ? guardianLabel[t] ?? '' : isTeacher ? teacherLabel[t] ?? '' : studentLabel[t] ?? '');
-  // 선생님은 탭키가 다르므로 기본 진입 탭 보정('a' → 'ti')
-  const tTab = isTeacher && !['ti', 'to', 'ts', 'tr', 'tm'].includes(tab) ? 'ti' : tab;
+  // 역할별 탭키가 다르므로 기본 진입 탭 보정(선생님 'a'→'ti', 학생 'a'→'h')
+  const tTab = isTeacher && !['ti', 'to', 'ts', 'tr', 'tm'].includes(tab)
+    ? 'ti'
+    : isStudent && !['h', 'q', 'g', 'b', 'd'].includes(tab)
+      ? 'h'
+      : tab;
 
   return (
     <SafeAreaView style={styles.app}>
@@ -176,26 +191,45 @@ function AppInner() {
         {isTeacher && (tTab === 'ti' ? <TeacherInbox /> : tTab === 'to' ? <TeacherToday myId={me.id} /> : tTab === 'ts' ? <TeacherSessions myId={me.id} /> : tTab === 'tr' ? <TeacherRecords /> : <TeacherMy myId={me.id} />)}
 
         {isStudent &&
-          (tab === 'a' ? (
+          (tTab === 'h' ? (
             teacher ? (
               booking ? (
                 <SlotsScreen teacher={teacher} initialMode={bookMode} consultType={bookType} initialSubType={bookSub} onBack={() => setBooking(false)} />
               ) : (
                 <TeacherDetailScreen teacher={teacher} onBack={() => setTeacher(null)} onBook={openBooking} />
               )
+            ) : searchOpen ? (
+              <SearchScreen onPick={(t, m, ct, sub) => openTeacher(t, m, ct, sub)} onGoQna={() => goTab('q')} />
             ) : (
-              <SearchScreen onPick={(t, m, ct, sub) => openTeacher(t, m, ct, sub)} onGoQna={() => goTab('c')} />
+              <HomeScreen name={me.name} onQna={() => goTab('q')} onSearch={openSearch} onDiag={() => goTab('g')} onSched={() => goTab('b')} />
             )
-          ) : tab === 'b' ? (
-            <BookingsScreen myId={me.id} />
-          ) : tab === 'r' ? (
-            <ClassroomScreen />
-          ) : tab === 'e' ? (
-            <MaterialsScreen />
-          ) : tab === 'c' ? (
-            <QnaScreen />
-          ) : tab === 'f' ? (
-            <CommunityScreen />
+          ) : tTab === 'q' ? (
+            <View style={{ flex: 1 }}>
+              <View style={styles.seg}>
+                {([['qna', '질문 게시판'], ['community', '커뮤니티']] as const).map(([v, l]) => (
+                  <TouchableOpacity key={v} style={[styles.segBtn, qSeg === v && styles.segOn]} onPress={() => setQSeg(v)}>
+                    <Text style={[styles.segT, qSeg === v && styles.segTOn]}>{l}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {qSeg === 'qna' ? <QnaScreen /> : <CommunityScreen />}
+            </View>
+          ) : tTab === 'g' ? (
+            <DiagTab onHome={() => goTab('h')} />
+          ) : tTab === 'b' ? (
+            <View style={{ flex: 1 }}>
+              <View style={styles.seg}>
+                {([['book', '내 예약'], ['class', '강의실']] as const).map(([v, l]) => (
+                  <TouchableOpacity key={v} style={[styles.segBtn, bSeg === v && styles.segOn]} onPress={() => setBSeg(v)}>
+                    <Text style={[styles.segT, bSeg === v && styles.segTOn]}>{l}</Text>
+                  </TouchableOpacity>
+                ))}
+                <TouchableOpacity style={styles.segAct} onPress={goSearch}>
+                  <Text style={styles.segActT}>🔍 선생님 찾기</Text>
+                </TouchableOpacity>
+              </View>
+              {bSeg === 'book' ? <BookingsScreen myId={me.id} /> : <ClassroomScreen />}
+            </View>
           ) : (
             <MyScreen />
           ))}
@@ -240,6 +274,37 @@ function AppInner() {
   );
 }
 
+// 진단 탭(O46) — 접근 플래그와 무관하게 탭은 상시 노출, 미개방 시 유도 상태를 보여준다(숨기지 않음).
+function DiagTab({ onHome }: { onHome: () => void }) {
+  const { C } = useTheme();
+  const ui = useUI();
+  const [access, setAccess] = useState<{ showTrend: boolean; showPlacement: boolean } | null>(null);
+  useEffect(() => {
+    api.get<{ showTrend: boolean; showPlacement: boolean }>('/me/scores/access')
+      .then(setAccess)
+      .catch(() => setAccess({ showTrend: false, showPlacement: false }));
+  }, []);
+  if (access === null)
+    return (
+      <View style={[ui.screen, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator color={C.teal} />
+      </View>
+    );
+  if (!access.showTrend)
+    return (
+      <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
+        <Text style={ui.h}>진단</Text>
+        <View style={ui.card}>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: C.ink }}>🚪 성적으로 진단받기</Text>
+          <Text style={[ui.sub, { marginTop: 6 }]}>
+            성적을 등록하면 회차별 추이와 예상 배치 라인을 확인할 수 있어요. 성적 조회가 아직 열리지 않았다면 센터에 문의해 주세요.
+          </Text>
+        </View>
+      </ScrollView>
+    );
+  return <ScoresScreen onBack={onHome} showPlacement={access.showPlacement} />;
+}
+
 const makeStyles = (C: Palette) => StyleSheet.create({
   app: { flex: 1, backgroundColor: C.bg },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bg },
@@ -250,6 +315,13 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   notice: { padding: SP.xl, color: C.muted },
   exitToast: { position: 'absolute', left: 0, right: 0, bottom: 76, alignItems: 'center' },
   exitToastT: { backgroundColor: 'rgba(22,36,43,0.92)', color: '#fff', fontSize: 13, fontWeight: '700', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, overflow: 'hidden' },
+  seg: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: SP.lg, paddingTop: SP.md, paddingBottom: 2 },
+  segBtn: { borderWidth: 1, borderColor: C.line, borderRadius: 999, paddingVertical: 7, paddingHorizontal: 14, backgroundColor: C.white },
+  segOn: { borderColor: C.teal, backgroundColor: C.teal },
+  segT: { fontSize: 13, fontWeight: '700', color: C.muted },
+  segTOn: { color: '#FFFFFF' },
+  segAct: { marginLeft: 'auto', borderWidth: 1, borderColor: C.teal, borderRadius: 999, paddingVertical: 7, paddingHorizontal: 12, backgroundColor: C.white },
+  segActT: { fontSize: 12, fontWeight: '700', color: C.teal },
   tabs: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: C.line, backgroundColor: C.white, paddingBottom: 4 },
   tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderTopWidth: 2, borderTopColor: 'transparent' },
   tabActiveBox: { borderTopColor: C.teal },
