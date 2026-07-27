@@ -12,7 +12,10 @@ export interface AnalysisDocFields {
   original_name: string;
 }
 
-export function buildAnalysisInput(app: AnalysisAppFields, documents: AnalysisDocFields[]): ConsultingAnalysisInput {
+export function buildAnalysisInput(
+  app: AnalysisAppFields,
+  documents: AnalysisDocFields[],
+): ConsultingAnalysisInput {
   return {
     grade: app.student_grade,
     interest: app.interest_type,

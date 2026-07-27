@@ -20,10 +20,18 @@ const LOGIN_LIMIT = 10; // @RateLimit(login) — 분당 10
 const MAX_FAILS = 5; // AuthService.MAX_FAILS
 
 async function makeApp(): Promise<INestApplication> {
-  const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+  const mod = await Test.createTestingModule({
+    imports: [AppModule],
+  }).compile();
   const app = mod.createNestApplication();
   app.setGlobalPrefix('api/v1');
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      forbidNonWhitelisted: true,
+    }),
+  );
   app.useGlobalFilters(new AllExceptionsFilter());
   await app.init();
   return app;
@@ -35,7 +43,9 @@ describe('d1 rate limit(§10)', () => {
   const stamp = process.hrtime.bigint().toString(36);
 
   const attempt = (loginId: string) =>
-    request(app.getHttpServer()).post('/api/v1/auth/login').send({ loginId, password: 'wrongpw' });
+    request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ loginId, password: 'wrongpw' });
 
   afterEach(async () => {
     await app?.close();

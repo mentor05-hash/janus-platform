@@ -26,9 +26,12 @@ export class StubChannelGateway implements ChannelGateway {
     if (channel === 'push') {
       // mock 푸시: 등록된 기기 토큰으로 발송하는 척(실 연동은 Expo Push API 로 교체)
       const tokens = await this.prisma.push_token.findMany({
-        where: { account_id: msg.recipientId }, select: { token: true },
+        where: { account_id: msg.recipientId },
+        select: { token: true },
       });
-      this.logger.log(`[stub] 푸시 발송(mock) → ${msg.recipientId} type=${msg.type} 기기=${tokens.length}`);
+      this.logger.log(
+        `[stub] 푸시 발송(mock) → ${msg.recipientId} type=${msg.type} 기기=${tokens.length}`,
+      );
       return true; // mock: 항상 성공(토큰 없으면 no-op)
     }
     // SMS·카카오 알림톡: 미구성 → 실패(재시도 대상). 실 채널 교체 시 이 렌더 문구를 발송.

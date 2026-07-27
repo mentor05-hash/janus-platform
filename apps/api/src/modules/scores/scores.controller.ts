@@ -1,8 +1,35 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put, Query, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Put,
+  Query,
+  Res,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -22,7 +49,11 @@ class ManualScoreDto {
   @IsOptional() @IsString() examType?: string;
   @IsOptional() @IsString() note?: string;
   @IsOptional() @IsString() reportFileId?: string;
-  @IsArray() @ArrayMaxSize(30) @ValidateNested({ each: true }) @Type(() => ScoreItemDto) items!: ScoreItemDto[];
+  @IsArray()
+  @ArrayMaxSize(30)
+  @ValidateNested({ each: true })
+  @Type(() => ScoreItemDto)
+  items!: ScoreItemDto[];
 }
 class MyScoreItemDto {
   @IsString() subject!: string;
@@ -38,9 +69,15 @@ class MyScoreDto {
   @IsIn(['std', 'nb']) mode!: 'std' | 'nb';
   @IsOptional() @IsIn(['문과', '이과']) gye?: '문과' | '이과' | null;
   @IsOptional() @IsNumber() @Min(0.01) @Max(99.99) nb?: number | null;
-  @IsArray() @ArrayMaxSize(10) @ValidateNested({ each: true }) @Type(() => MyScoreItemDto) items!: MyScoreItemDto[];
+  @IsArray()
+  @ArrayMaxSize(10)
+  @ValidateNested({ each: true })
+  @Type(() => MyScoreItemDto)
+  items!: MyScoreItemDto[];
 }
-class OcrDto { @IsString() fileId!: string; }
+class OcrDto {
+  @IsString() fileId!: string;
+}
 class GapReportDto {
   @IsOptional() @IsIn(['jeongsi', 'susi']) mode?: 'jeongsi' | 'susi'; // 기본 jeongsi
   @IsString() @MaxLength(60) univ!: string;
@@ -64,13 +101,16 @@ class GoalCandidateDto {
   @IsOptional() @IsString() @MaxLength(20) track?: string | null;
   @IsOptional() @IsString() @MaxLength(200) note?: string | null;
   // 컷 출처 감사(O65) — 배치표 조회값인지 학생 수동 입력인지. 클라이언트 힌트이며 기본은 manual.
-  @IsOptional() @IsIn(['targets_file', 'manual']) cutSource?: 'targets_file' | 'manual';
+  @IsOptional() @IsIn(['targets_file', 'manual']) cutSource?:
+    'targets_file' | 'manual';
 }
 
 /** 자가목표(janus_goal) — PUT 전체 교체: 미지정 필드는 null 로 초기화된다. */
 class MyGoalDto {
   // 목표 라인 어휘는 웹 TIER_OPTIONS·모바일 TIERS 와 동일 6종(정본 밖 문자열이 저장되면 목표 매칭이 무력화된다).
-  @IsOptional() @IsIn(['최상위', '상위', '중상위', '중위', '중하위', '기초']) tier?: string | null;
+  @IsOptional()
+  @IsIn(['최상위', '상위', '중상위', '중위', '중하위', '기초'])
+  tier?: string | null;
   // goal_avg 는 Int 컬럼 — 소수를 조용히 절삭하지 않고 400 으로 거부한다.
   @IsOptional() @IsInt() @Min(0) @Max(100) avg?: number | null;
   @IsOptional() @IsString() @MaxLength(60) university?: string | null;
@@ -97,7 +137,11 @@ export class ScoresController {
 
   /** GET /admin/scores?period=&studentId= — 성적표 목록. */
   @Get()
-  list(@CurrentUser() user: AuthUser, @Query('period') period?: string, @Query('studentId') studentId?: string) {
+  list(
+    @CurrentUser() user: AuthUser,
+    @Query('period') period?: string,
+    @Query('studentId') studentId?: string,
+  ) {
     return this.scores.list(user, period, studentId);
   }
 
@@ -121,7 +165,10 @@ export class ScoresController {
 
   /** GET /admin/scores/trend?studentLoginId= — 성적 추이 + 배치 라인 변화. */
   @Get('trend')
-  trend(@CurrentUser() user: AuthUser, @Query('studentLoginId') studentLoginId: string) {
+  trend(
+    @CurrentUser() user: AuthUser,
+    @Query('studentLoginId') studentLoginId: string,
+  ) {
     return this.scores.trend(user, studentLoginId);
   }
 
@@ -133,24 +180,40 @@ export class ScoresController {
 
   /** POST /admin/scores/:id/placement — 배치 라인 저장(외부 배치표 서비스/관리자). */
   @Post(':id/placement')
-  placement(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: PlacementDto) {
+  placement(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: PlacementDto,
+  ) {
     return this.scores.setPlacement(user, id, { ...dto });
   }
 
   /** POST /admin/scores/goal — 학생 목표(대학 라인/평균) 설정. */
   @Post('goal')
   goal(@CurrentUser() user: AuthUser, @Body() dto: GoalDto) {
-    return this.scores.setGoal(user, dto.studentLoginId, dto.tier ?? null, dto.avg ?? null);
+    return this.scores.setGoal(
+      user,
+      dto.studentLoginId,
+      dto.tier ?? null,
+      dto.avg ?? null,
+    );
   }
 
   /** GET /admin/scores/export?period= — 성적 CSV 내보내기. */
   @Get('export')
-  async exportCsv(@CurrentUser() user: AuthUser, @Res() res: Response, @Query('period') period?: string) {
+  async exportCsv(
+    @CurrentUser() user: AuthUser,
+    @Res() res: Response,
+    @Query('period') period?: string,
+  ) {
     const csv = await this.scores.exportCsv(user, period);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     // 파일명은 ASCII(헤더 제약), 한글 기간은 RFC5987 filename* 로 전달
     const fn = encodeURIComponent(`scores-${period ?? 'all'}.csv`);
-    res.setHeader('Content-Disposition', `attachment; filename="scores.csv"; filename*=UTF-8''${fn}`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="scores.csv"; filename*=UTF-8''${fn}`,
+    );
     res.send(csv);
   }
 
@@ -158,8 +221,14 @@ export class ScoresController {
   @Get('template')
   template(@Res() res: Response) {
     const buf = this.scores.template();
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename="score-template.xlsx"');
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="score-template.xlsx"',
+    );
     res.send(buf);
   }
 
@@ -226,8 +295,13 @@ export class ScoresMeController {
   @Roles('student')
   saveMyScore(@CurrentUser() user: AuthUser, @Body() dto: MyScoreDto) {
     return this.scores.saveMyScore(user, {
-      period: dto.period, examType: dto.examType, note: dto.note,
-      mode: dto.mode, gye: dto.gye ?? null, nb: dto.nb ?? null, items: dto.items,
+      period: dto.period,
+      examType: dto.examType,
+      note: dto.note,
+      mode: dto.mode,
+      gye: dto.gye ?? null,
+      nb: dto.nb ?? null,
+      items: dto.items,
     });
   }
 
@@ -256,16 +330,30 @@ export class ScoresMeController {
    */
   @Get('me/reports')
   @Roles('student')
-  myReports(@CurrentUser() user: AuthUser, @Query('kind') kind?: string, @Query('limit') limit?: string) {
+  myReports(
+    @CurrentUser() user: AuthUser,
+    @Query('kind') kind?: string,
+    @Query('limit') limit?: string,
+  ) {
     const n = limit != null && limit !== '' ? Number(limit) : 20;
-    return this.scores.listMyReports(user, kind === 'diagnosis' || kind === 'weekly' ? kind : 'gap', Number.isFinite(n) ? n : 20);
+    return this.scores.listMyReports(
+      user,
+      kind === 'diagnosis' || kind === 'weekly' ? kind : 'gap',
+      Number.isFinite(n) ? n : 20,
+    );
   }
 
   /** GET /me/goal/candidates — 목표 후보 목록. ?mode= 로 정시/수시 필터. */
   @Get('me/goal/candidates')
   @Roles('student')
-  goalCandidates(@CurrentUser() user: AuthUser, @Query('mode') mode?: 'jeongsi' | 'susi') {
-    return this.scores.listGoalCandidates(user, mode === 'susi' || mode === 'jeongsi' ? mode : undefined);
+  goalCandidates(
+    @CurrentUser() user: AuthUser,
+    @Query('mode') mode?: 'jeongsi' | 'susi',
+  ) {
+    return this.scores.listGoalCandidates(
+      user,
+      mode === 'susi' || mode === 'jeongsi' ? mode : undefined,
+    );
   }
 
   /**
@@ -274,13 +362,20 @@ export class ScoresMeController {
    */
   @Get('me/goal/candidates/report')
   @Roles('student')
-  goalCandidateReport(@CurrentUser() user: AuthUser, @Query('mode') mode?: string, @Query('myGrade') myGrade?: string) {
+  goalCandidateReport(
+    @CurrentUser() user: AuthUser,
+    @Query('mode') mode?: string,
+    @Query('myGrade') myGrade?: string,
+  ) {
     const m = mode === 'susi' ? 'susi' : 'jeongsi';
     const g = myGrade != null && myGrade !== '' ? Number(myGrade) : undefined;
     // 쿼리 파라미터는 DTO 검증을 타지 않는다 — GapReportDto(@Min(1) @Max(9))와 같은 범위를 여기서 직접 막는다.
     // 범위를 안 막으면 등급 0·50 이 그대로 밴드 판정에 들어가 격차·뒤집힘이 무의미한 값으로 나온다.
     if (g !== undefined && (!Number.isFinite(g) || g < 1 || g > 9)) {
-      throw new BadRequestException({ code: 'BAD_GRADE', message: '내신 평균등급은 1~9 사이여야 합니다.' });
+      throw new BadRequestException({
+        code: 'BAD_GRADE',
+        message: '내신 평균등급은 1~9 사이여야 합니다.',
+      });
     }
     return this.scores.goalCandidateReport(user, m, g);
   }
@@ -288,21 +383,30 @@ export class ScoresMeController {
   /** POST /me/goal/candidates — 목표 후보 추가(학생 직접 등록). */
   @Post('me/goal/candidates')
   @Roles('student')
-  addGoalCandidate(@CurrentUser() user: AuthUser, @Body() dto: GoalCandidateDto) {
+  addGoalCandidate(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: GoalCandidateDto,
+  ) {
     return this.scores.addGoalCandidate(user, dto);
   }
 
   /** DELETE /me/goal/candidates/{id} — 목표 후보 삭제. */
   @Delete('me/goal/candidates/:id')
   @Roles('student')
-  removeGoalCandidate(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+  removeGoalCandidate(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.scores.removeGoalCandidate(user, id);
   }
 
   /** GET /scores/janus-score — 배치표 자동연동 export(O43·접합계약 C1). guardian 은 ?studentId=. */
   @Get('scores/janus-score')
   @Roles('student', 'guardian')
-  janusScore(@CurrentUser() user: AuthUser, @Query('studentId') studentId?: string) {
+  janusScore(
+    @CurrentUser() user: AuthUser,
+    @Query('studentId') studentId?: string,
+  ) {
     return this.scores.janusScore(user, studentId);
   }
 
@@ -312,8 +416,12 @@ export class ScoresMeController {
   gapReport(@CurrentUser() user: AuthUser, @Body() dto: GapReportDto) {
     return this.scores.gapReport(user, {
       mode: dto.mode ?? 'jeongsi',
-      univ: dto.univ, dept: dto.dept, cut: dto.cutNb, track: dto.track,
-      myGrade: dto.myGrade, studentId: dto.studentId,
+      univ: dto.univ,
+      dept: dto.dept,
+      cut: dto.cutNb,
+      track: dto.track,
+      myGrade: dto.myGrade,
+      studentId: dto.studentId,
     });
   }
 
@@ -331,13 +439,21 @@ export class ScoresMeController {
   ) {
     if (!studentId) throw new BadRequestException('studentId 가 필요합니다.');
     const n = limit != null && limit !== '' ? Number(limit) : 20;
-    return this.scores.listChildReports(user, studentId, kind === 'diagnosis' || kind === 'weekly' ? kind : 'gap', Number.isFinite(n) ? n : 20);
+    return this.scores.listChildReports(
+      user,
+      studentId,
+      kind === 'diagnosis' || kind === 'weekly' ? kind : 'gap',
+      Number.isFinite(n) ? n : 20,
+    );
   }
 
   /** GET /guardian/scores/trend?studentId= — 학부모 자녀 성적·배치 추이. */
   @Get('guardian/scores/trend')
   @Roles('guardian')
-  guardianTrend(@CurrentUser() user: AuthUser, @Query('studentId') studentId: string) {
+  guardianTrend(
+    @CurrentUser() user: AuthUser,
+    @Query('studentId') studentId: string,
+  ) {
     return this.scores.guardianTrend(user, studentId);
   }
 
@@ -355,13 +471,21 @@ export class ScoresMeController {
   ) {
     if (!studentId) throw new BadRequestException('studentId 가 필요합니다.');
     const n = limit != null && limit !== '' ? Number(limit) : 20;
-    return this.scores.listStudentReportsForTeacher(user, studentId, kind === 'diagnosis' || kind === 'weekly' ? kind : 'gap', Number.isFinite(n) ? n : 20);
+    return this.scores.listStudentReportsForTeacher(
+      user,
+      studentId,
+      kind === 'diagnosis' || kind === 'weekly' ? kind : 'gap',
+      Number.isFinite(n) ? n : 20,
+    );
   }
 
   /** GET /teacher/scores/trend?studentId= — 선생님 학생 추이(관계 게이트 O107 + 배치는 전사 정책). */
   @Get('teacher/scores/trend')
   @Roles('teacher')
-  teacherTrend(@CurrentUser() user: AuthUser, @Query('studentId') studentId: string) {
+  teacherTrend(
+    @CurrentUser() user: AuthUser,
+    @Query('studentId') studentId: string,
+  ) {
     return this.scores.teacherTrend(user, studentId);
   }
 }

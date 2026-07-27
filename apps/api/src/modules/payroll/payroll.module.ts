@@ -1,5 +1,8 @@
 import { Module } from '@nestjs/common';
-import { PayrollAdminController, PayrollController } from './payroll.controller';
+import {
+  PayrollAdminController,
+  PayrollController,
+} from './payroll.controller';
 import { PayrollService } from './payroll.service';
 
 /**

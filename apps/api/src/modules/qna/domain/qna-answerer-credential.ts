@@ -10,5 +10,5 @@ export const CREDENTIAL_BADGE: Record<VerifyTier, string> = {
 };
 
 export function credentialBadge(tier?: string | null): string {
-  return CREDENTIAL_BADGE[(tier as VerifyTier)] ?? CREDENTIAL_BADGE.claimed;
+  return CREDENTIAL_BADGE[tier as VerifyTier] ?? CREDENTIAL_BADGE.claimed;
 }

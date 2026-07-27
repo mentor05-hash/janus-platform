@@ -21,7 +21,9 @@ export interface PoolSla {
 }
 
 const avgMin = (deltas: number[]): number | null =>
-  deltas.length === 0 ? null : Math.round(deltas.reduce((a, b) => a + b, 0) / deltas.length / 60000);
+  deltas.length === 0
+    ? null
+    : Math.round(deltas.reduce((a, b) => a + b, 0) / deltas.length / 60000);
 
 export function computeSla(rows: SlaRow[]): PoolSla[] {
   const byPool = new Map<string, SlaRow[]>();
@@ -37,8 +39,10 @@ export function computeSla(rows: SlaRow[]): PoolSla[] {
     const resolve: number[] = [];
     let resolved = 0;
     for (const r of arr) {
-      if (r.claimedAt != null && r.claimedAt >= r.createdAt) claim.push(r.claimedAt - r.createdAt);
-      if (r.firstReplyAt != null && r.firstReplyAt >= r.createdAt) reply.push(r.firstReplyAt - r.createdAt);
+      if (r.claimedAt != null && r.claimedAt >= r.createdAt)
+        claim.push(r.claimedAt - r.createdAt);
+      if (r.firstReplyAt != null && r.firstReplyAt >= r.createdAt)
+        reply.push(r.firstReplyAt - r.createdAt);
       if (r.resolvedAt != null && r.resolvedAt >= r.createdAt) {
         resolve.push(r.resolvedAt - r.createdAt);
         resolved += 1;
@@ -48,7 +52,8 @@ export function computeSla(rows: SlaRow[]): PoolSla[] {
       pool,
       count: arr.length,
       resolved,
-      resolutionRate: arr.length === 0 ? 0 : Math.round((resolved / arr.length) * 100),
+      resolutionRate:
+        arr.length === 0 ? 0 : Math.round((resolved / arr.length) * 100),
       avgClaimMin: avgMin(claim),
       avgFirstReplyMin: avgMin(reply),
       avgResolveMin: avgMin(resolve),

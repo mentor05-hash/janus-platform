@@ -1,5 +1,22 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
-import { IsBoolean, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
+import {
+  IsBoolean,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -13,9 +30,16 @@ class CreateLectureDto {
   @IsOptional() @IsString() @MaxLength(10) level?: string;
   @IsOptional() @IsInt() @Min(1) @Max(1000) minutes?: number;
 }
-class ActiveDto { @IsBoolean() active!: boolean; }
-class ProgressDto { @IsInt() @Min(0) @Max(100) progress!: number; }
-class ReviewDto { @IsInt() @Min(1) @Max(5) rating!: number; @IsOptional() @IsString() @MaxLength(500) text?: string; }
+class ActiveDto {
+  @IsBoolean() active!: boolean;
+}
+class ProgressDto {
+  @IsInt() @Min(0) @Max(100) progress!: number;
+}
+class ReviewDto {
+  @IsInt() @Min(1) @Max(5) rating!: number;
+  @IsOptional() @IsString() @MaxLength(500) text?: string;
+}
 
 @Controller('lectures')
 export class LectureController {
@@ -38,14 +62,22 @@ export class LectureController {
   /** PATCH /lectures/:id/active — 강좌 활성 토글(교사). */
   @Patch(':id/active')
   @Roles('teacher')
-  setActive(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ActiveDto, @CurrentUser() user: AuthUser) {
+  setActive(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ActiveDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.lectures.setActive(user, id, dto.active);
   }
 
   /** GET /lectures?subject=&q= — 강좌 카탈로그(로그인 학생). */
   @Get()
   @Roles('student')
-  catalog(@CurrentUser() user: AuthUser, @Query('subject') subject?: string, @Query('q') q?: string) {
+  catalog(
+    @CurrentUser() user: AuthUser,
+    @Query('subject') subject?: string,
+    @Query('q') q?: string,
+  ) {
     return this.lectures.catalog(user, subject || undefined, q || undefined);
   }
 
@@ -59,14 +91,21 @@ export class LectureController {
   /** POST /lectures/:id/enroll — 수강신청(학생). */
   @Post(':id/enroll')
   @Roles('student')
-  enroll(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  enroll(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.lectures.enroll(user, id);
   }
 
   /** PATCH /lectures/:id/progress — 수강 진도 저장(학생). */
   @Patch(':id/progress')
   @Roles('student')
-  progress(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ProgressDto, @CurrentUser() user: AuthUser) {
+  progress(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ProgressDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.lectures.updateProgress(user, id, dto.progress);
   }
 
@@ -80,14 +119,21 @@ export class LectureController {
   /** POST /lectures/:id/reviews — 후기 작성(수강생). */
   @Post(':id/reviews')
   @Roles('student')
-  review(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ReviewDto, @CurrentUser() user: AuthUser) {
+  review(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ReviewDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.lectures.review(user, id, dto.rating, dto.text);
   }
 
   /** GET /lectures/:id — 강좌 상세+내 진도(학생). 정적 라우트 뒤에 선언. */
   @Get(':id')
   @Roles('student')
-  detail(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  detail(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.lectures.detail(user, id);
   }
 }

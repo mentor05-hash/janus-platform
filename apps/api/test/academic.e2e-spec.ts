@@ -9,9 +9,21 @@ import { AcademicService } from '../src/modules/academic/academic.service';
  * 타 스코프 수정 불가.
  */
 const C1 = '00000000-0000-4000-8000-0000000000c1';
-const hq: any = { id: '00000000-0000-4000-8000-0000000000a6', role: 'admin', centerId: null };
-const centerAdmin: any = { id: '00000000-0000-4000-8000-0000000000a3', role: 'admin', centerId: C1 };
-const student: any = { id: '00000000-0000-4000-8000-0000000000a1', role: 'student', centerId: C1 };
+const hq: any = {
+  id: '00000000-0000-4000-8000-0000000000a6',
+  role: 'admin',
+  centerId: null,
+};
+const centerAdmin: any = {
+  id: '00000000-0000-4000-8000-0000000000a3',
+  role: 'admin',
+  centerId: C1,
+};
+const student: any = {
+  id: '00000000-0000-4000-8000-0000000000a1',
+  role: 'student',
+  centerId: C1,
+};
 const TAG = '[E2E-ACA]';
 
 describe('학사일정(academic)', () => {
@@ -20,21 +32,32 @@ describe('학사일정(academic)', () => {
   let svc: AcademicService;
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     await app.init();
     prisma = mod.get(PrismaService);
     svc = mod.get(AcademicService);
-    await prisma.academic_event.deleteMany({ where: { title: { startsWith: TAG } } });
+    await prisma.academic_event.deleteMany({
+      where: { title: { startsWith: TAG } },
+    });
   });
 
   afterAll(async () => {
-    await prisma.academic_event.deleteMany({ where: { title: { startsWith: TAG } } });
+    await prisma.academic_event.deleteMany({
+      where: { title: { startsWith: TAG } },
+    });
     await app.close();
   });
 
   it('본사(HQ) 생성 → 전국 공통(center_id null)', async () => {
-    const ev = await svc.create(hq, { title: `${TAG} 수능`, type: 'suneung', startDate: '2026-11-19', grade: '고3' });
+    const ev = await svc.create(hq, {
+      title: `${TAG} 수능`,
+      type: 'suneung',
+      startDate: '2026-11-19',
+      grade: '고3',
+    });
     expect(ev.center_id).toBeNull();
     expect(ev.type).toBe('suneung');
   });
@@ -50,7 +73,12 @@ describe('학사일정(academic)', () => {
   });
 
   it('기간 일정(신청기간)은 end_date 저장', async () => {
-    const ev = await svc.create(hq, { title: `${TAG} 신청기간`, type: 'mock_apply', startDate: '2026-08-10', endDate: '2026-08-21' });
+    const ev = await svc.create(hq, {
+      title: `${TAG} 신청기간`,
+      type: 'mock_apply',
+      startDate: '2026-08-10',
+      endDate: '2026-08-21',
+    });
     expect(ev.end_date).not.toBeNull();
   });
 
@@ -61,12 +89,18 @@ describe('학사일정(academic)', () => {
   });
 
   it('센터관리자는 전국(본사) 일정 수정 불가', async () => {
-    const national = (await svc.listAdmin(hq)).find((e) => e.title === `${TAG} 수능`)!;
-    await expect(svc.update(centerAdmin, national.id, { title: `${TAG} 변경시도` })).rejects.toThrow();
+    const national = (await svc.listAdmin(hq)).find(
+      (e) => e.title === `${TAG} 수능`,
+    )!;
+    await expect(
+      svc.update(centerAdmin, national.id, { title: `${TAG} 변경시도` }),
+    ).rejects.toThrow();
   });
 
   it('본사는 전국 일정 수정 가능', async () => {
-    const national = (await svc.listAdmin(hq)).find((e) => e.title === `${TAG} 수능`)!;
+    const national = (await svc.listAdmin(hq)).find(
+      (e) => e.title === `${TAG} 수능`,
+    )!;
     const upd = await svc.update(hq, national.id, { grade: '재수' });
     expect(upd.grade).toBe('재수');
   });

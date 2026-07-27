@@ -34,7 +34,11 @@ export class CreateQuestionDto {
   @IsOptional() @IsIn(['item', 'general']) qType?: 'item' | 'general';
 
   /** 이미지 등 첨부 — 한 문항 기준 최대 3장. */
-  @IsOptional() @IsArray() @ArrayMaxSize(3) @ValidateNested({ each: true }) @Type(() => QnaAttachmentDto)
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(3)
+  @ValidateNested({ each: true })
+  @Type(() => QnaAttachmentDto)
   attachments?: QnaAttachmentDto[];
 }
 
@@ -42,6 +46,10 @@ export class CreateQuestionDto {
 export class CreateAnswerDto {
   @IsString() @IsNotEmpty() body!: string;
 
-  @IsOptional() @IsArray() @ArrayMaxSize(3) @ValidateNested({ each: true }) @Type(() => QnaAttachmentDto)
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(3)
+  @ValidateNested({ each: true })
+  @Type(() => QnaAttachmentDto)
   attachments?: QnaAttachmentDto[];
 }

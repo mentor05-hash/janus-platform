@@ -8,6 +8,9 @@ import { MetricsService } from './metrics.service';
 /** 관측성 — Prometheus /metrics + 전역 요청 메트릭 인터셉터(§10) + 관리자 지표(tutor_source 분해). */
 @Module({
   controllers: [MetricsController, AdminMetricsController],
-  providers: [{ provide: APP_INTERCEPTOR, useClass: MetricsInterceptor }, MetricsService],
+  providers: [
+    { provide: APP_INTERCEPTOR, useClass: MetricsInterceptor },
+    MetricsService,
+  ],
 })
 export class MetricsModule {}

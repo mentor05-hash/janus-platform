@@ -13,7 +13,10 @@ type DemoRoom = { roomId: string; teacherPid: string; studentPid: string };
  */
 @Controller('rooms-bridge')
 export class RoomsDemoController {
-  constructor(private readonly rooms: RoomsProvider, private readonly config: ConfigService) {}
+  constructor(
+    private readonly rooms: RoomsProvider,
+    private readonly config: ConfigService,
+  ) {}
 
   // 데모 룸을 재사용(멱등) — /room/demo 를 두 창에서 따로 열어도 선생님·학생이 같은 방에 들어가도록.
   // fresh=true 면 새 방을 만든다("새 룸 만들기"). api 재시작 시 캐시는 초기화됨(허용).
@@ -22,23 +25,38 @@ export class RoomsDemoController {
   @Public()
   @Post('demo')
   async demo(@Body() body: { fresh?: boolean } = {}) {
-    const env = this.config.get<string>('APP_ENV') ?? this.config.get<string>('NODE_ENV') ?? '';
+    const env =
+      this.config.get<string>('APP_ENV') ??
+      this.config.get<string>('NODE_ENV') ??
+      '';
     if (env === 'prod' || env === 'production') {
-      throw new BadRequestException('데모 프로비저닝은 로컬/데모 환경에서만 가능합니다.');
+      throw new BadRequestException(
+        '데모 프로비저닝은 로컬/데모 환경에서만 가능합니다.',
+      );
     }
     if (!this.rooms.enabled) {
-      throw new BadRequestException('실시간 룸 서비스가 비활성화되어 있습니다(REALTIME_ROOMS_ENABLED).');
+      throw new BadRequestException(
+        '실시간 룸 서비스가 비활성화되어 있습니다(REALTIME_ROOMS_ENABLED).',
+      );
     }
     if (body?.fresh || !this.demoRoom) {
       // 실패 시 캐시를 비워 다음 호출이 재시도하도록.
-      this.demoRoom = this.provision().catch((e) => { this.demoRoom = null; throw e; });
+      this.demoRoom = this.provision().catch((e) => {
+        this.demoRoom = null;
+        throw e;
+      });
     }
     const room = await this.demoRoom;
     const [teacherToken, studentToken] = await Promise.all([
       this.rooms.mintToken(room.roomId, room.teacherPid),
       this.rooms.mintToken(room.roomId, room.studentPid),
     ]);
-    return { url: this.rooms.publicUrl, roomId: room.roomId, teacherToken, studentToken };
+    return {
+      url: this.rooms.publicUrl,
+      roomId: room.roomId,
+      teacherToken,
+      studentToken,
+    };
   }
 
   private async provision(): Promise<DemoRoom> {
@@ -53,8 +71,16 @@ export class RoomsDemoController {
         { extUserId: 'demo-student', displayName: '학생', role: 'student' },
       ],
     });
-    const t = created.participants.find((p) => p.extUserId === 'demo-teacher') ?? created.participants[0];
-    const s = created.participants.find((p) => p.extUserId === 'demo-student') ?? created.participants[1];
-    return { roomId: created.roomId, teacherPid: t.participantId, studentPid: s.participantId };
+    const t =
+      created.participants.find((p) => p.extUserId === 'demo-teacher') ??
+      created.participants[0];
+    const s =
+      created.participants.find((p) => p.extUserId === 'demo-student') ??
+      created.participants[1];
+    return {
+      roomId: created.roomId,
+      teacherPid: t.participantId,
+      studentPid: s.participantId,
+    };
   }
 }

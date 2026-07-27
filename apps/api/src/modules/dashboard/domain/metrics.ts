@@ -72,7 +72,7 @@ export function weightedScore(
     wsum += w;
   }
   // 가중치 합이 100 이 아니어도 비례 보정(방어적)
-  return wsum === 0 ? 0 : Math.round((acc * (100 / wsum)) * 10) / 10;
+  return wsum === 0 ? 0 : Math.round(acc * (100 / wsum) * 10) / 10;
 }
 
 /** 비율(%) 안전 계산. */

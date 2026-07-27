@@ -30,8 +30,19 @@ import {
   sessionModeToPrisma,
 } from '../../config/prisma-enums';
 import { permAtLeast } from '../../config/perm';
-import { resolveStudentType, STUDENT_TYPE_LABEL, type StudentType } from '../../common/student-type';
-import { DEFAULT_CONSULT_DURATION, CONSULT_TYPES, isFullTime, DEFAULT_QUESTION_DURATION, QUESTION_TIERS, difficultyTier } from '../../common/consult-assignment';
+import {
+  resolveStudentType,
+  STUDENT_TYPE_LABEL,
+  type StudentType,
+} from '../../common/student-type';
+import {
+  DEFAULT_CONSULT_DURATION,
+  CONSULT_TYPES,
+  isFullTime,
+  DEFAULT_QUESTION_DURATION,
+  QUESTION_TIERS,
+  difficultyTier,
+} from '../../common/consult-assignment';
 import { AvailabilityService } from '../availability/availability.service';
 import { TUTOR_SOURCE_PAGE, tutorSourceOf } from '../metrics/tutor-source';
 import { CreditService } from '../billing/credit.service';
@@ -55,14 +66,22 @@ import {
 import { canProposeReverse } from './domain/reverse';
 
 /** 예약 불가 사유 → 학생 안내 문구(구체). null 은 호출측에서 처리(가능). */
-function slotReasonMessage(reason: 'booked' | 'blocked' | 'rest' | 'off' | 'range' | null): string {
+function slotReasonMessage(
+  reason: 'booked' | 'blocked' | 'rest' | 'off' | 'range' | null,
+): string {
   switch (reason) {
-    case 'booked': return '이미 예약된 시간이에요. 다른 시간을 선택해 주세요.';
-    case 'rest': return '앞뒤 상담 사이 휴게시간(10분)이라 예약할 수 없어요. 10분 이상 떨어진 시간을 골라 주세요.';
-    case 'blocked': return '관리자가 차단한 시간이라 예약할 수 없어요.';
-    case 'off': return '선생님 근무시간(또는 내 체류시간)이 아니에요. 다른 날짜·시간을 선택해 주세요.';
-    case 'range': return '상담 시간 범위가 올바르지 않아요.';
-    default: return '선택한 시간은 예약할 수 없어요.';
+    case 'booked':
+      return '이미 예약된 시간이에요. 다른 시간을 선택해 주세요.';
+    case 'rest':
+      return '앞뒤 상담 사이 휴게시간(10분)이라 예약할 수 없어요. 10분 이상 떨어진 시간을 골라 주세요.';
+    case 'blocked':
+      return '관리자가 차단한 시간이라 예약할 수 없어요.';
+    case 'off':
+      return '선생님 근무시간(또는 내 체류시간)이 아니에요. 다른 날짜·시간을 선택해 주세요.';
+    case 'range':
+      return '상담 시간 범위가 올바르지 않아요.';
+    default:
+      return '선택한 시간은 예약할 수 없어요.';
   }
 }
 
@@ -86,23 +105,42 @@ export class BookingService {
   private static readonly REVERSE_DEFAULT = { offlineOnly: false, free: false };
 
   async getReversePolicy(): Promise<{ offlineOnly: boolean; free: boolean }> {
-    const row = await this.prisma.system_setting.findUnique({ where: { key: BookingService.REVERSE_KEY } });
-    return { ...BookingService.REVERSE_DEFAULT, ...((row?.value as object) ?? {}) };
+    const row = await this.prisma.system_setting.findUnique({
+      where: { key: BookingService.REVERSE_KEY },
+    });
+    return {
+      ...BookingService.REVERSE_DEFAULT,
+      ...((row?.value as object) ?? {}),
+    };
   }
 
   /** 정책 변경: offlineOnly=본사 관리자(isHq), free=마스터(L1). */
-  async setReversePolicy(actor: AuthUser, dto: { offlineOnly?: boolean; free?: boolean }) {
+  async setReversePolicy(
+    actor: AuthUser,
+    dto: { offlineOnly?: boolean; free?: boolean },
+  ) {
     const isHq = actor.role === AccountRole.ADMIN && !actor.centerId;
     if (dto.offlineOnly !== undefined && !isHq) {
-      throw new ForbiddenException('역상담 오프라인 한정 정책은 본사 관리자만 변경할 수 있습니다.');
+      throw new ForbiddenException(
+        '역상담 오프라인 한정 정책은 본사 관리자만 변경할 수 있습니다.',
+      );
     }
-    if (dto.free !== undefined && !(isHq && permAtLeast(actor.permLevel, 'L1'))) {
-      throw new ForbiddenException('역상담 크레딧 정책은 본사 마스터관리자(L1)만 변경할 수 있습니다.');
+    if (
+      dto.free !== undefined &&
+      !(isHq && permAtLeast(actor.permLevel, 'L1'))
+    ) {
+      throw new ForbiddenException(
+        '역상담 크레딧 정책은 본사 마스터관리자(L1)만 변경할 수 있습니다.',
+      );
     }
     const next = { ...(await this.getReversePolicy()), ...dto };
     await this.prisma.system_setting.upsert({
       where: { key: BookingService.REVERSE_KEY },
-      create: { key: BookingService.REVERSE_KEY, value: next, updated_by: actor.id },
+      create: {
+        key: BookingService.REVERSE_KEY,
+        value: next,
+        updated_by: actor.id,
+      },
       update: { value: next, updated_by: actor.id, updated_at: new Date() },
     });
     return next;
@@ -120,9 +158,20 @@ export class BookingService {
     boardOnly: false, // true 면 외부생은 상담 예약 불가·게시판 질문만
   };
 
-  async getExternalPolicy(): Promise<{ offlineDiscovery: boolean; onlineOnly: boolean; surchargePct: number; weeklyGrant: boolean; boardOnly: boolean }> {
-    const row = await this.prisma.system_setting.findUnique({ where: { key: BookingService.EXTERNAL_KEY } });
-    return { ...BookingService.EXTERNAL_DEFAULT, ...((row?.value as object) ?? {}) };
+  async getExternalPolicy(): Promise<{
+    offlineDiscovery: boolean;
+    onlineOnly: boolean;
+    surchargePct: number;
+    weeklyGrant: boolean;
+    boardOnly: boolean;
+  }> {
+    const row = await this.prisma.system_setting.findUnique({
+      where: { key: BookingService.EXTERNAL_KEY },
+    });
+    return {
+      ...BookingService.EXTERNAL_DEFAULT,
+      ...((row?.value as object) ?? {}),
+    };
   }
 
   /**
@@ -141,7 +190,12 @@ export class BookingService {
       label: STUDENT_TYPE_LABEL[type],
       external:
         type === 'external'
-          ? { onlineOnly: pol.onlineOnly, surchargePct: pol.surchargePct, weeklyGrant: pol.weeklyGrant, boardOnly: pol.boardOnly }
+          ? {
+              onlineOnly: pol.onlineOnly,
+              surchargePct: pol.surchargePct,
+              weeklyGrant: pol.weeklyGrant,
+              boardOnly: pol.boardOnly,
+            }
           : null,
     };
   }
@@ -152,16 +206,40 @@ export class BookingService {
    * 2단계 불변식: 오프라인 예약을 열면(onlineOnly=false) 노출도 켜지고(offlineDiscovery=true),
    * 노출을 끄면(offlineDiscovery=false) 예약도 잠긴다(onlineOnly=true). → 3개 유효 상태만 존재.
    */
-  async setExternalPolicy(actor: AuthUser, dto: { offlineDiscovery?: boolean; onlineOnly?: boolean; surchargePct?: number; weeklyGrant?: boolean; boardOnly?: boolean }) {
+  async setExternalPolicy(
+    actor: AuthUser,
+    dto: {
+      offlineDiscovery?: boolean;
+      onlineOnly?: boolean;
+      surchargePct?: number;
+      weeklyGrant?: boolean;
+      boardOnly?: boolean;
+    },
+  ) {
     const isHq = actor.role === AccountRole.ADMIN && !actor.centerId;
     const isMaster = isHq && permAtLeast(actor.permLevel, 'L1');
-    if ((dto.offlineDiscovery !== undefined || dto.onlineOnly !== undefined || dto.boardOnly !== undefined) && !isHq) {
-      throw new ForbiddenException('외부학생 접근 정책(노출·온라인 한정·상담 제한)은 본사 관리자만 변경할 수 있습니다.');
+    if (
+      (dto.offlineDiscovery !== undefined ||
+        dto.onlineOnly !== undefined ||
+        dto.boardOnly !== undefined) &&
+      !isHq
+    ) {
+      throw new ForbiddenException(
+        '외부학생 접근 정책(노출·온라인 한정·상담 제한)은 본사 관리자만 변경할 수 있습니다.',
+      );
     }
-    if ((dto.surchargePct !== undefined || dto.weeklyGrant !== undefined) && !isMaster) {
-      throw new ForbiddenException('외부학생 요금·크레딧 정책은 본사 마스터관리자(L1)만 변경할 수 있습니다.');
+    if (
+      (dto.surchargePct !== undefined || dto.weeklyGrant !== undefined) &&
+      !isMaster
+    ) {
+      throw new ForbiddenException(
+        '외부학생 요금·크레딧 정책은 본사 마스터관리자(L1)만 변경할 수 있습니다.',
+      );
     }
-    if (dto.surchargePct !== undefined && (dto.surchargePct < 0 || dto.surchargePct > 300)) {
+    if (
+      dto.surchargePct !== undefined &&
+      (dto.surchargePct < 0 || dto.surchargePct > 300)
+    ) {
       throw new BadRequestException('할증률은 0~300% 범위여야 합니다.');
     }
     const next = { ...(await this.getExternalPolicy()), ...dto };
@@ -171,7 +249,11 @@ export class BookingService {
     if (!next.offlineDiscovery) next.onlineOnly = true; // 방어: 노출 off 상태에서 예약만 열린 모순 차단
     await this.prisma.system_setting.upsert({
       where: { key: BookingService.EXTERNAL_KEY },
-      create: { key: BookingService.EXTERNAL_KEY, value: next, updated_by: actor.id },
+      create: {
+        key: BookingService.EXTERNAL_KEY,
+        value: next,
+        updated_by: actor.id,
+      },
       update: { value: next, updated_by: actor.id, updated_at: new Date() },
     });
     return next;
@@ -181,8 +263,13 @@ export class BookingService {
   private static readonly DURATION_KEY = 'consult_duration_policy';
 
   async getDurationPolicy(): Promise<Record<string, number>> {
-    const row = await this.prisma.system_setting.findUnique({ where: { key: BookingService.DURATION_KEY } });
-    return { ...DEFAULT_CONSULT_DURATION, ...((row?.value as Record<string, number>) ?? {}) };
+    const row = await this.prisma.system_setting.findUnique({
+      where: { key: BookingService.DURATION_KEY },
+    });
+    return {
+      ...DEFAULT_CONSULT_DURATION,
+      ...((row?.value as Record<string, number>) ?? {}),
+    };
   }
 
   /** 특정 상담 종류의 기본 시간(분). */
@@ -194,17 +281,32 @@ export class BookingService {
   /** 정책 변경: 본사 관리자(isHq)만. 값은 10~240분, 10분 슬롯 배수. */
   async setDurationPolicy(actor: AuthUser, dto: Record<string, number>) {
     const isHq = actor.role === AccountRole.ADMIN && !actor.centerId;
-    if (!isHq) throw new ForbiddenException('상담 종류별 기본시간은 본사 관리자만 변경할 수 있습니다.');
+    if (!isHq)
+      throw new ForbiddenException(
+        '상담 종류별 기본시간은 본사 관리자만 변경할 수 있습니다.',
+      );
     for (const [k, v] of Object.entries(dto)) {
-      if (!CONSULT_TYPES.includes(k as never)) throw new BadRequestException(`알 수 없는 상담 종류: ${k}`);
-      if (typeof v !== 'number' || v < 10 || v > 240 || v % SLOT_GRANULARITY_MINUTES !== 0) {
-        throw new BadRequestException(`${k} 기본시간은 10~240분, ${SLOT_GRANULARITY_MINUTES}분 배수여야 합니다.`);
+      if (!CONSULT_TYPES.includes(k as never))
+        throw new BadRequestException(`알 수 없는 상담 종류: ${k}`);
+      if (
+        typeof v !== 'number' ||
+        v < 10 ||
+        v > 240 ||
+        v % SLOT_GRANULARITY_MINUTES !== 0
+      ) {
+        throw new BadRequestException(
+          `${k} 기본시간은 10~240분, ${SLOT_GRANULARITY_MINUTES}분 배수여야 합니다.`,
+        );
       }
     }
     const next = { ...(await this.getDurationPolicy()), ...dto };
     await this.prisma.system_setting.upsert({
       where: { key: BookingService.DURATION_KEY },
-      create: { key: BookingService.DURATION_KEY, value: next, updated_by: actor.id },
+      create: {
+        key: BookingService.DURATION_KEY,
+        value: next,
+        updated_by: actor.id,
+      },
       update: { value: next, updated_by: actor.id, updated_at: new Date() },
     });
     return next;
@@ -214,8 +316,13 @@ export class BookingService {
   private static readonly QUESTION_DURATION_KEY = 'question_duration_policy';
 
   async getQuestionDurationPolicy(): Promise<Record<string, number>> {
-    const row = await this.prisma.system_setting.findUnique({ where: { key: BookingService.QUESTION_DURATION_KEY } });
-    return { ...DEFAULT_QUESTION_DURATION, ...((row?.value as Record<string, number>) ?? {}) };
+    const row = await this.prisma.system_setting.findUnique({
+      where: { key: BookingService.QUESTION_DURATION_KEY },
+    });
+    return {
+      ...DEFAULT_QUESTION_DURATION,
+      ...((row?.value as Record<string, number>) ?? {}),
+    };
   }
 
   /** 난이도 문자열 → 답변블록 분. 티어 매핑 후 정책값. */
@@ -225,19 +332,37 @@ export class BookingService {
     return pol[tier] ?? DEFAULT_QUESTION_DURATION[tier] ?? 15;
   }
 
-  async setQuestionDurationPolicy(actor: AuthUser, dto: Record<string, number>) {
+  async setQuestionDurationPolicy(
+    actor: AuthUser,
+    dto: Record<string, number>,
+  ) {
     const isHq = actor.role === AccountRole.ADMIN && !actor.centerId;
-    if (!isHq) throw new ForbiddenException('질문 답변블록 길이는 본사 관리자만 변경할 수 있습니다.');
+    if (!isHq)
+      throw new ForbiddenException(
+        '질문 답변블록 길이는 본사 관리자만 변경할 수 있습니다.',
+      );
     for (const [k, v] of Object.entries(dto)) {
-      if (!QUESTION_TIERS.includes(k as never)) throw new BadRequestException(`알 수 없는 난이도 티어: ${k}`);
-      if (typeof v !== 'number' || v < 10 || v > 120 || v % SLOT_GRANULARITY_MINUTES !== 0) {
-        throw new BadRequestException(`${k} 길이는 10~120분, ${SLOT_GRANULARITY_MINUTES}분 배수여야 합니다.`);
+      if (!QUESTION_TIERS.includes(k as never))
+        throw new BadRequestException(`알 수 없는 난이도 티어: ${k}`);
+      if (
+        typeof v !== 'number' ||
+        v < 10 ||
+        v > 120 ||
+        v % SLOT_GRANULARITY_MINUTES !== 0
+      ) {
+        throw new BadRequestException(
+          `${k} 길이는 10~120분, ${SLOT_GRANULARITY_MINUTES}분 배수여야 합니다.`,
+        );
       }
     }
     const next = { ...(await this.getQuestionDurationPolicy()), ...dto };
     await this.prisma.system_setting.upsert({
       where: { key: BookingService.QUESTION_DURATION_KEY },
-      create: { key: BookingService.QUESTION_DURATION_KEY, value: next, updated_by: actor.id },
+      create: {
+        key: BookingService.QUESTION_DURATION_KEY,
+        value: next,
+        updated_by: actor.id,
+      },
       update: { value: next, updated_by: actor.id, updated_at: new Date() },
     });
     return next;
@@ -292,11 +417,18 @@ export class BookingService {
       throw new BadRequestException('slotEnd 는 slotStart 보다 커야 합니다.');
     const teacher = await this.requireTeacher(dto.teacherId);
     const studentId = user.role === AccountRole.STUDENT ? user.id : undefined;
-    const studentProfile = studentId ? await this.requireStudent(studentId) : null; // 미등록 승인계정 견적 시 500 방지
-    const studentType: StudentType = studentProfile ? resolveStudentType(studentProfile) : 'enrolled';
+    const studentProfile = studentId
+      ? await this.requireStudent(studentId)
+      : null; // 미등록 승인계정 견적 시 500 방지
+    const studentType: StudentType = studentProfile
+      ? resolveStudentType(studentProfile)
+      : 'enrolled';
     const extPol = await this.getExternalPolicy();
     const extBlocked = studentType === 'external' && extPol.boardOnly;
-    const extOfflineBlocked = studentType === 'external' && extPol.onlineOnly && dto.mode === ConsultMode.OFFLINE;
+    const extOfflineBlocked =
+      studentType === 'external' &&
+      extPol.onlineOnly &&
+      dto.mode === ConsultMode.OFFLINE;
 
     const slotReason = await this.availability.bookableReason(
       dto.teacherId,
@@ -307,9 +439,19 @@ export class BookingService {
     );
     const slotOk = slotReason === null;
     // 방식·상담유형 열림 여부까지 견적에서 미리 확인(제출 후 403 대신 사전 안내).
-    const modeFeature = await this.adminPolicy.resolveFeature(teacher.center_id, 'mode', dto.mode, studentType);
+    const modeFeature = await this.adminPolicy.resolveFeature(
+      teacher.center_id,
+      'mode',
+      dto.mode,
+      studentType,
+    );
     const catFeature = dto.consultType
-      ? await this.adminPolicy.resolveFeature(teacher.center_id, 'category', dto.consultType, studentType)
+      ? await this.adminPolicy.resolveFeature(
+          teacher.center_id,
+          'category',
+          dto.consultType,
+          studentType,
+        )
       : { enabled: true };
     const q = await this.pricing.quoteSession(
       dto.mode,
@@ -320,13 +462,21 @@ export class BookingService {
       studentType === 'external' ? extPol.surchargePct : 0,
     );
     const working = !teacher.work_status || teacher.work_status === 'on';
-    const valid = slotOk && modeFeature.enabled && catFeature.enabled && working && !extBlocked && !extOfflineBlocked;
+    const valid =
+      slotOk &&
+      modeFeature.enabled &&
+      catFeature.enabled &&
+      working &&
+      !extBlocked &&
+      !extOfflineBlocked;
     const message = extBlocked
       ? '외부학생은 상담 예약이 제한되어 있어요. 게시판 질문을 이용해 주세요.'
       : extOfflineBlocked
         ? '외부학생은 온라인 상담만 가능해요(오프라인 대면 불가).'
         : !working
-          ? (teacher.work_status === 'rest' ? '선생님이 휴게 중이에요. 잠시 후 다시 시도해 주세요.' : '선생님이 오늘 상담을 마감했어요.')
+          ? teacher.work_status === 'rest'
+            ? '선생님이 휴게 중이에요. 잠시 후 다시 시도해 주세요.'
+            : '선생님이 오늘 상담을 마감했어요.'
           : !slotOk
             ? slotReasonMessage(slotReason)
             : !modeFeature.enabled
@@ -334,7 +484,14 @@ export class BookingService {
               : !catFeature.enabled
                 ? `현재 ${dto.consultType} 상담은 닫혀 있어요.`
                 : '예약 가능';
-    return { minutes, credits: q.credits, valid, message, studentType, externalSurcharge: q.externalSurcharge };
+    return {
+      minutes,
+      credits: q.credits,
+      valid,
+      message,
+      studentType,
+      externalSurcharge: q.externalSurcharge,
+    };
   }
 
   /** POST /bookings — 예약 생성. 트랜잭션 + 슬롯 UNIQUE 로 동시성 보호, 크레딧 차감(§5-3). */
@@ -353,10 +510,14 @@ export class BookingService {
     if (studentType === 'external') {
       const extPol = await this.getExternalPolicy();
       if (extPol.boardOnly) {
-        throw new ForbiddenException('외부학생은 상담 예약이 제한되어 있어요. 게시판 질문을 이용해 주세요.');
+        throw new ForbiddenException(
+          '외부학생은 상담 예약이 제한되어 있어요. 게시판 질문을 이용해 주세요.',
+        );
       }
       if (extPol.onlineOnly && dto.mode === ConsultMode.OFFLINE) {
-        throw new ForbiddenException('외부학생은 온라인 상담만 가능해요(오프라인 대면 불가).');
+        throw new ForbiddenException(
+          '외부학생은 온라인 상담만 가능해요(오프라인 대면 불가).',
+        );
       }
     }
     await this.assertNotPenaltyRestricted(studentId); // §5-7 가중 제한
@@ -366,8 +527,16 @@ export class BookingService {
     }
     const teacher = await this.requireTeacher(dto.teacherId);
     // 근무 상태 게이팅: 휴게중/퇴근인 선생님에겐 신규 상담 신청 차단(학생 발신 한정).
-    if (user.role === AccountRole.STUDENT && teacher.work_status && teacher.work_status !== 'on') {
-      throw new ForbiddenException(teacher.work_status === 'rest' ? '선생님이 휴게 중이라 지금은 신청할 수 없어요.' : '선생님이 오늘 상담을 마감했어요.');
+    if (
+      user.role === AccountRole.STUDENT &&
+      teacher.work_status &&
+      teacher.work_status !== 'on'
+    ) {
+      throw new ForbiddenException(
+        teacher.work_status === 'rest'
+          ? '선생님이 휴게 중이라 지금은 신청할 수 없어요.'
+          : '선생님이 오늘 상담을 마감했어요.',
+      );
     }
     await this.assertConsultAllowed(
       teacher.center_id,
@@ -395,7 +564,9 @@ export class BookingService {
       teacher.grade,
       teacher.center_id,
       dto.consultType,
-      studentType === 'external' ? (await this.getExternalPolicy()).surchargePct : 0,
+      studentType === 'external'
+        ? (await this.getExternalPolicy()).surchargePct
+        : 0,
     );
     const credits = q.credits;
     const startAt = utcFromKst(dto.date, startMin);
@@ -456,7 +627,8 @@ export class BookingService {
             charged_credits: credits,
             origin: autoConfirm ? '전임자동' : '직접',
             content: dto.content ?? null,
-            attachments: (dto.attachments ?? []) as unknown as Prisma.InputJsonValue,
+            attachments: (dto.attachments ??
+              []) as unknown as Prisma.InputJsonValue,
           },
         });
 
@@ -488,14 +660,20 @@ export class BookingService {
       if (autoConfirm) {
         // 전임 자동 확정: 줌 입장 URL 발급 + 학생·선생님 알림(수락 절차 없음)
         await this.issueMeetingUrlIfZoom(booking.id);
-        await this.notify.notify(studentId, 'booking_confirmed', { bookingId: booking.id });
+        await this.notify.notify(studentId, 'booking_confirmed', {
+          bookingId: booking.id,
+        });
         await this.notify.notify(dto.teacherId, 'booking_assigned', {
-          bookingId: booking.id, studentId, date: dto.date,
+          bookingId: booking.id,
+          studentId,
+          date: dto.date,
         });
       } else {
         // 상담 신청 들어옴 → 선생님 알림
         await this.notify.notify(dto.teacherId, 'booking_requested', {
-          bookingId: booking.id, studentId, date: dto.date,
+          bookingId: booking.id,
+          studentId,
+          date: dto.date,
         });
       }
       return this.toBookingDto(booking);
@@ -549,51 +727,119 @@ export class BookingService {
     // 외부학생이면 세션 과금에 할증 반영(외부생 정책과 일관)
     let extSurcharge = 0;
     if (p.charge === 'session') {
-      const sp = await this.prisma.student_profile.findUnique({ where: { account_id: p.studentId }, select: { type_code: true, center_id: true } });
-      if (sp && resolveStudentType(sp) === 'external') extSurcharge = (await this.getExternalPolicy()).surchargePct;
+      const sp = await this.prisma.student_profile.findUnique({
+        where: { account_id: p.studentId },
+        select: { type_code: true, center_id: true },
+      });
+      if (sp && resolveStudentType(sp) === 'external')
+        extSurcharge = (await this.getExternalPolicy()).surchargePct;
     }
-    const credits = p.charge === 'free'
-      ? 0
-      : (await this.pricing.quoteSession(p.mode, minutes, p.teacherGrade, p.centerId, p.consultType, extSurcharge)).credits;
+    const credits =
+      p.charge === 'free'
+        ? 0
+        : (
+            await this.pricing.quoteSession(
+              p.mode,
+              minutes,
+              p.teacherGrade,
+              p.centerId,
+              p.consultType,
+              extSurcharge,
+            )
+          ).credits;
     try {
       const booking = await this.bookingTx(async (tx) => {
         await this.lockTeacherDate(tx, p.teacherId, p.dateStr);
-        const reason = await this.availability.bookableReason(p.teacherId, p.dateStr, startMin, endMin, p.studentId);
-        if (reason !== null) throw new ConflictException(slotReasonMessage(reason));
-        if (p.mode === ConsultMode.ZOOM) await this.assertZoomCapacity(tx, p.centerId, p.dateStr, startAt, endAt);
+        const reason = await this.availability.bookableReason(
+          p.teacherId,
+          p.dateStr,
+          startMin,
+          endMin,
+          p.studentId,
+        );
+        if (reason !== null)
+          throw new ConflictException(slotReasonMessage(reason));
+        if (p.mode === ConsultMode.ZOOM)
+          await this.assertZoomCapacity(
+            tx,
+            p.centerId,
+            p.dateStr,
+            startAt,
+            endAt,
+          );
         let roomId: string | null = null;
-        if (p.mode === ConsultMode.OFFLINE) roomId = await this.assignRoom(tx, p.centerId, p.dateStr, startAt, endAt);
+        if (p.mode === ConsultMode.OFFLINE)
+          roomId = await this.assignRoom(
+            tx,
+            p.centerId,
+            p.dateStr,
+            startAt,
+            endAt,
+          );
         const b = await tx.booking.create({
           data: {
-            student_id: p.studentId, teacher_id: p.teacherId, center_id: p.centerId,
-            consult_type: consultTypeToPrisma(p.consultType), sub_type: p.subType ?? null,
-            mode: p.mode, direction: p.direction ?? 'student',
-            start_at: startAt, end_at: endAt, status: BookingStatus.CONFIRMED,
-            room_id: roomId, charged_credits: credits, origin: p.origin, content: p.content ?? null,
-            attachments: (p.attachments ?? []) as unknown as Prisma.InputJsonValue,
+            student_id: p.studentId,
+            teacher_id: p.teacherId,
+            center_id: p.centerId,
+            consult_type: consultTypeToPrisma(p.consultType),
+            sub_type: p.subType ?? null,
+            mode: p.mode,
+            direction: p.direction ?? 'student',
+            start_at: startAt,
+            end_at: endAt,
+            status: BookingStatus.CONFIRMED,
+            room_id: roomId,
+            charged_credits: credits,
+            origin: p.origin,
+            content: p.content ?? null,
+            attachments: (p.attachments ??
+              []) as unknown as Prisma.InputJsonValue,
           },
         });
         if (credits > 0) {
-          const outcome = await this.credit.consumeWithin(tx, p.studentId, credits, {
-            refType: 'booking', refId: b.id, description: '전임 자동 배정 크레딧 차감',
-          });
+          const outcome = await this.credit.consumeWithin(
+            tx,
+            p.studentId,
+            credits,
+            {
+              refType: 'booking',
+              refId: b.id,
+              description: '전임 자동 배정 크레딧 차감',
+            },
+          );
           if (!outcome.ok) throw new ShortfallError(outcome.shortfall);
         }
         await tx.time_slot.createMany({
           data: this.sessionSlotIndices(p.slotStart, p.slotEnd).map((i) => ({
-            teacher_id: p.teacherId, slot_date: new Date(p.dateStr), slot_index: i, status: 'booked', booking_id: b.id,
+            teacher_id: p.teacherId,
+            slot_date: new Date(p.dateStr),
+            slot_index: i,
+            status: 'booked',
+            booking_id: b.id,
           })),
         });
         return b;
       });
       await this.issueMeetingUrlIfZoom(booking.id);
-      await this.notify.notify(p.studentId, 'booking_confirmed', { bookingId: booking.id });
-      await this.notify.notify(p.teacherId, 'booking_assigned', { bookingId: booking.id, studentId: p.studentId, date: p.dateStr });
+      await this.notify.notify(p.studentId, 'booking_confirmed', {
+        bookingId: booking.id,
+      });
+      await this.notify.notify(p.teacherId, 'booking_assigned', {
+        bookingId: booking.id,
+        studentId: p.studentId,
+        date: p.dateStr,
+      });
       return { ok: true, bookingId: booking.id };
     } catch (e) {
-      if (e instanceof ShortfallError) return { ok: false, reason: 'shortfall' };
-      if (e instanceof ConflictException) return { ok: false, reason: 'slot_taken' };
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') return { ok: false, reason: 'slot_taken' };
+      if (e instanceof ShortfallError)
+        return { ok: false, reason: 'shortfall' };
+      if (e instanceof ConflictException)
+        return { ok: false, reason: 'slot_taken' };
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      )
+        return { ok: false, reason: 'slot_taken' };
       throw e;
     }
   }
@@ -604,31 +850,67 @@ export class BookingService {
     const isTeacher = user.role === AccountRole.TEACHER;
     const now = new Date();
     const inOneHour = new Date(now.getTime() + 3600_000);
-    const side: Prisma.bookingWhereInput = isTeacher ? { teacher_id: user.id } : { student_id: user.id };
+    const side: Prisma.bookingWhereInput = isTeacher
+      ? { teacher_id: user.id }
+      : { student_id: user.id };
     const pending = isTeacher
-      ? await this.prisma.booking.count({ where: { teacher_id: user.id, status: BookingStatus.NEW, direction: 'student' } })
+      ? await this.prisma.booking.count({
+          where: {
+            teacher_id: user.id,
+            status: BookingStatus.NEW,
+            direction: 'student',
+          },
+        })
       : 0;
     const imminent = await this.prisma.booking.findFirst({
-      where: { ...side, status: BookingStatus.CONFIRMED, start_at: { lte: inOneHour }, end_at: { gte: now } },
+      where: {
+        ...side,
+        status: BookingStatus.CONFIRMED,
+        start_at: { lte: inOneHour },
+        end_at: { gte: now },
+      },
       orderBy: { start_at: 'asc' },
       select: { id: true, start_at: true, mode: true },
     });
-    return { pending, imminentAt: imminent?.start_at ?? null, imminentBookingId: imminent?.id ?? null };
+    return {
+      pending,
+      imminentAt: imminent?.start_at ?? null,
+      imminentBookingId: imminent?.id ?? null,
+    };
   }
 
   /** 선생님 상담 인지 확인(ack) — 자동확정 예약에서 "봤어요" 증빙. 학생에게 알림. */
   async ackByTeacher(user: AuthUser, id: string) {
-    const b = await this.prisma.booking.findUnique({ where: { id }, select: { id: true, teacher_id: true, student_id: true, teacher_ack_at: true, status: true } });
-    if (!b || b.teacher_id !== user.id) throw new NotFoundException('예약을 찾을 수 없습니다.');
+    const b = await this.prisma.booking.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        teacher_id: true,
+        student_id: true,
+        teacher_ack_at: true,
+        status: true,
+      },
+    });
+    if (!b || b.teacher_id !== user.id)
+      throw new NotFoundException('예약을 찾을 수 없습니다.');
     if (b.teacher_ack_at) return { ok: true, ackAt: b.teacher_ack_at };
     const now = new Date();
-    await this.prisma.booking.update({ where: { id }, data: { teacher_ack_at: now } });
+    await this.prisma.booking.update({
+      where: { id },
+      data: { teacher_ack_at: now },
+    });
     await this.notify.notify(b.student_id, 'booking_acked', { bookingId: id });
     return { ok: true, ackAt: now };
   }
 
   // 자동확정(수락 절차 없는) 예약 origin — 미인지 노쇼 판정 대상.
-  private static readonly AUTO_ORIGINS = ['자동배정', '우선배정', '질문배정', '질문승격', '역상담자동'];
+  private static readonly AUTO_ORIGINS = [
+    '자동배정',
+    '우선배정',
+    '질문배정',
+    '질문승격',
+    '역상담자동',
+  ];
 
   /** 미인지 노쇼 처리(30분 주기) — 자동확정 예약이 종료 후 30분까지 인지되지 않으면
    *  선생님 귀책 취소: 전액 환원 + 선생님 취소 카운트 + 양측·관리자 알림. */
@@ -636,30 +918,62 @@ export class BookingService {
   async processUnackedNoshow() {
     const cutoff = new Date(Date.now() - 30 * 60_000);
     const rows = await this.prisma.booking.findMany({
-      where: { status: BookingStatus.CONFIRMED, end_at: { lt: cutoff }, teacher_ack_at: null, origin: { in: BookingService.AUTO_ORIGINS } },
-      select: { id: true, student_id: true, teacher_id: true, center_id: true, charged_credits: true },
+      where: {
+        status: BookingStatus.CONFIRMED,
+        end_at: { lt: cutoff },
+        teacher_ack_at: null,
+        origin: { in: BookingService.AUTO_ORIGINS },
+      },
+      select: {
+        id: true,
+        student_id: true,
+        teacher_id: true,
+        center_id: true,
+        charged_credits: true,
+      },
       take: 50,
     });
     for (const b of rows) {
       const done = await this.bookingTx(async (tx) => {
-        const upd = await tx.booking.updateMany({ where: { id: b.id, status: BookingStatus.CONFIRMED }, data: { status: BookingStatus.CANCELLED } });
+        const upd = await tx.booking.updateMany({
+          where: { id: b.id, status: BookingStatus.CONFIRMED },
+          data: { status: BookingStatus.CANCELLED },
+        });
         if (upd.count !== 1) return false;
         await tx.time_slot.deleteMany({ where: { booking_id: b.id } });
         if ((b.charged_credits ?? 0) > 0) {
-          await this.credit.refundWithin(tx, b.student_id, b.charged_credits!, { refType: 'booking', refId: b.id });
+          await this.credit.refundWithin(tx, b.student_id, b.charged_credits!, {
+            refType: 'booking',
+            refId: b.id,
+          });
         }
         // 선생님 귀책 — 취소 카운트 누적(평판·관리 지표).
-        await tx.teacher_profile.update({ where: { account_id: b.teacher_id }, data: { cancel_count: { increment: 1 } } });
+        await tx.teacher_profile.update({
+          where: { account_id: b.teacher_id },
+          data: { cancel_count: { increment: 1 } },
+        });
         return true;
       });
       if (!done) continue;
-      await this.notify.notify(b.student_id, 'booking_teacher_noshow', { bookingId: b.id });
-      await this.notify.notify(b.teacher_id, 'booking_teacher_noshow_teacher', { bookingId: b.id });
-      const admins = await this.prisma.account.findMany({
-        where: { role: { in: [AccountRole.ADMIN, AccountRole.HR] }, ...(b.center_id ? { center_id: b.center_id } : {}) },
-        select: { id: true }, take: 5,
+      await this.notify.notify(b.student_id, 'booking_teacher_noshow', {
+        bookingId: b.id,
       });
-      for (const a of admins) await this.notify.notify(a.id, 'booking_teacher_noshow_admin', { bookingId: b.id, teacherId: b.teacher_id });
+      await this.notify.notify(b.teacher_id, 'booking_teacher_noshow_teacher', {
+        bookingId: b.id,
+      });
+      const admins = await this.prisma.account.findMany({
+        where: {
+          role: { in: [AccountRole.ADMIN, AccountRole.HR] },
+          ...(b.center_id ? { center_id: b.center_id } : {}),
+        },
+        select: { id: true },
+        take: 5,
+      });
+      for (const a of admins)
+        await this.notify.notify(a.id, 'booking_teacher_noshow_admin', {
+          bookingId: b.id,
+          teacherId: b.teacher_id,
+        });
     }
   }
 
@@ -668,7 +982,11 @@ export class BookingService {
   async remindPendingRequests() {
     const now = Date.now();
     const pend = await this.prisma.booking.findMany({
-      where: { status: BookingStatus.NEW, direction: 'student', created_at: { lt: new Date(now - 2 * 3600_000) } },
+      where: {
+        status: BookingStatus.NEW,
+        direction: 'student',
+        created_at: { lt: new Date(now - 2 * 3600_000) },
+      },
       select: { id: true, teacher_id: true, center_id: true, created_at: true },
       orderBy: { created_at: 'asc' },
       take: 200,
@@ -676,22 +994,40 @@ export class BookingService {
     for (const b of pend) {
       // 알림 원장으로 멱등 — 같은 예약에 리마인더/에스컬레이션은 각 1회만.
       const reminded = await this.prisma.notification.findFirst({
-        where: { type: 'booking_request_reminder', payload: { path: ['bookingId'], equals: b.id } }, select: { id: true },
+        where: {
+          type: 'booking_request_reminder',
+          payload: { path: ['bookingId'], equals: b.id },
+        },
+        select: { id: true },
       });
       if (!reminded) {
-        await this.notify.notify(b.teacher_id, 'booking_request_reminder', { bookingId: b.id });
+        await this.notify.notify(b.teacher_id, 'booking_request_reminder', {
+          bookingId: b.id,
+        });
         continue; // 에스컬레이션은 다음 주기부터 판단
       }
       if (b.created_at.getTime() > now - 24 * 3600_000) continue;
       const escalated = await this.prisma.notification.findFirst({
-        where: { type: 'booking_request_escalated', payload: { path: ['bookingId'], equals: b.id } }, select: { id: true },
+        where: {
+          type: 'booking_request_escalated',
+          payload: { path: ['bookingId'], equals: b.id },
+        },
+        select: { id: true },
       });
       if (escalated) continue;
       const admins = await this.prisma.account.findMany({
-        where: { role: { in: [AccountRole.ADMIN, AccountRole.HR] }, ...(b.center_id ? { center_id: b.center_id } : {}) },
-        select: { id: true }, take: 5,
+        where: {
+          role: { in: [AccountRole.ADMIN, AccountRole.HR] },
+          ...(b.center_id ? { center_id: b.center_id } : {}),
+        },
+        select: { id: true },
+        take: 5,
       });
-      for (const a of admins) await this.notify.notify(a.id, 'booking_request_escalated', { bookingId: b.id, teacherId: b.teacher_id });
+      for (const a of admins)
+        await this.notify.notify(a.id, 'booking_request_escalated', {
+          bookingId: b.id,
+          teacherId: b.teacher_id,
+        });
     }
   }
 
@@ -713,22 +1049,39 @@ export class BookingService {
     // 학생 뷰: 완료 상담의 후기 작성 여부를 표기(중복 후기 폼 방지·UX).
     let reviewed = new Set<string>();
     if (!asTeacher) {
-      const doneIds = rows.filter((b) => b.status === BookingStatus.DONE).map((b) => b.id);
+      const doneIds = rows
+        .filter((b) => b.status === BookingStatus.DONE)
+        .map((b) => b.id);
       if (doneIds.length) {
-        const revs = await this.prisma.review.findMany({ where: { booking_id: { in: doneIds } }, select: { booking_id: true } });
+        const revs = await this.prisma.review.findMany({
+          where: { booking_id: { in: doneIds } },
+          select: { booking_id: true },
+        });
         reviewed = new Set(revs.map((r) => r.booking_id));
       }
     }
     // 상대방 표시용 이름 — 선생님 목록엔 학생 이름, 학생 목록엔 선생님 이름(당사자 간이므로 신규 노출 아님).
-    const names = await this.accountNames(rows.flatMap((b) => [b.student_id, b.teacher_id]));
-    return rows.map((b) => ({ ...this.toBookingDto(b), reviewed: reviewed.has(b.id), studentName: names.get(b.student_id) ?? null, teacherName: names.get(b.teacher_id) ?? null }));
+    const names = await this.accountNames(
+      rows.flatMap((b) => [b.student_id, b.teacher_id]),
+    );
+    return rows.map((b) => ({
+      ...this.toBookingDto(b),
+      reviewed: reviewed.has(b.id),
+      studentName: names.get(b.student_id) ?? null,
+      teacherName: names.get(b.teacher_id) ?? null,
+    }));
   }
 
   /** 상대방 표시용 이름(학생·선생님) 배치 조회 — id → name. UUID 노출 대신 이름 표기용. */
-  private async accountNames(ids: Array<string | null | undefined>): Promise<Map<string, string>> {
+  private async accountNames(
+    ids: Array<string | null | undefined>,
+  ): Promise<Map<string, string>> {
     const uniq = [...new Set(ids.filter((x): x is string => !!x))];
     if (!uniq.length) return new Map();
-    const accts = await this.prisma.account.findMany({ where: { id: { in: uniq } }, select: { id: true, name: true } });
+    const accts = await this.prisma.account.findMany({
+      where: { id: { in: uniq } },
+      select: { id: true, name: true },
+    });
     return new Map(accts.map((a) => [a.id, a.name]));
   }
 
@@ -750,7 +1103,9 @@ export class BookingService {
     // 역상담 전사 정책: 오프라인 한정(본사) → 오프라인 외 방식 차단
     const revPolicy = await this.getReversePolicy();
     if (revPolicy.offlineOnly && dto.mode !== ConsultMode.OFFLINE) {
-      throw new ForbiddenException('역상담은 오프라인 대면만 가능합니다(본사 정책).');
+      throw new ForbiddenException(
+        '역상담은 오프라인 대면만 가능합니다(본사 정책).',
+      );
     }
 
     const student = await this.prisma.student_profile.findUnique({
@@ -1042,8 +1397,7 @@ export class BookingService {
           endMin,
           user.id,
         );
-        if (rzn !== null)
-          throw new ConflictException(slotReasonMessage(rzn));
+        if (rzn !== null) throw new ConflictException(slotReasonMessage(rzn));
         if (mode === ConsultMode.ZOOM)
           await this.assertZoomCapacity(
             tx,
@@ -1071,13 +1425,15 @@ export class BookingService {
           },
         });
         await tx.time_slot.createMany({
-          data: this.sessionSlotIndices(dto.slotStart, dto.slotEnd).map((i) => ({
-            teacher_id: b.teacher_id,
-            slot_date: new Date(dto.date),
-            slot_index: i,
-            status: 'booked',
-            booking_id: id,
-          })),
+          data: this.sessionSlotIndices(dto.slotStart, dto.slotEnd).map(
+            (i) => ({
+              teacher_id: b.teacher_id,
+              slot_date: new Date(dto.date),
+              slot_index: i,
+              status: 'booked',
+              booking_id: id,
+            }),
+          ),
         });
         return upd;
       });
@@ -1193,7 +1549,8 @@ export class BookingService {
         bookingId: id,
       });
     // tutor_source 계측(관측 전용·비차단) — 완주 스냅샷 + 재이용(재결제) 판정. 정산·상태에 개입하지 않음.
-    if (to === BookingStatus.DONE) void this.tagTutorSourceCompletion(b.teacher_id, b.student_id, id);
+    if (to === BookingStatus.DONE)
+      void this.tagTutorSourceCompletion(b.teacher_id, b.student_id, id);
     return { id, status: to, refunded: refund ? b.charged_credits : 0 };
   }
 
@@ -1201,17 +1558,52 @@ export class BookingService {
    * tutor_source 스냅샷 계측 — 완주 시점의 고용유형을 funnel_event 에 박제(소급 변경 방지).
    * 이 학생의 이전 완주가 있으면 재이용(repurchase)도 함께 기록. 실패는 삼킨다(관측이 본 로직을 막지 않음).
    */
-  private async tagTutorSourceCompletion(teacherId: string | null, studentId: string | null, bookingId: string) {
+  private async tagTutorSourceCompletion(
+    teacherId: string | null,
+    studentId: string | null,
+    bookingId: string,
+  ) {
     if (!teacherId) return;
     try {
-      const p = await this.prisma.teacher_profile.findUnique({ where: { account_id: teacherId }, select: { employment_type: true } });
-      const meta = { tutorSource: tutorSourceOf(p?.employment_type ?? null), bookingId, teacherId, studentId };
-      await this.prisma.funnel_event.create({ data: { page: TUTOR_SOURCE_PAGE, event: 'completed', cta: 'completed', meta } });
+      const p = await this.prisma.teacher_profile.findUnique({
+        where: { account_id: teacherId },
+        select: { employment_type: true },
+      });
+      const meta = {
+        tutorSource: tutorSourceOf(p?.employment_type ?? null),
+        bookingId,
+        teacherId,
+        studentId,
+      };
+      await this.prisma.funnel_event.create({
+        data: {
+          page: TUTOR_SOURCE_PAGE,
+          event: 'completed',
+          cta: 'completed',
+          meta,
+        },
+      });
       if (studentId) {
-        const priorDone = await this.prisma.booking.count({ where: { student_id: studentId, status: BookingStatus.DONE, id: { not: bookingId } } });
-        if (priorDone > 0) await this.prisma.funnel_event.create({ data: { page: TUTOR_SOURCE_PAGE, event: 'repurchase', cta: 'repurchase', meta } });
+        const priorDone = await this.prisma.booking.count({
+          where: {
+            student_id: studentId,
+            status: BookingStatus.DONE,
+            id: { not: bookingId },
+          },
+        });
+        if (priorDone > 0)
+          await this.prisma.funnel_event.create({
+            data: {
+              page: TUTOR_SOURCE_PAGE,
+              event: 'repurchase',
+              cta: 'repurchase',
+              meta,
+            },
+          });
       }
-    } catch { /* 계측 실패 비차단 */ }
+    } catch {
+      /* 계측 실패 비차단 */
+    }
   }
 
   /** §5-7 가중 제한: 노쇼·과다거절 임계 초과 학생은 신규 예약 차단. */
@@ -1274,7 +1666,9 @@ export class BookingService {
    * 예약 트랜잭션 래퍼(§7 동시성). advisory lock 으로 직렬화되므로 고동시성에선 뒤 요청이
    * 대기 → 기본 5s 타임아웃 초과 시 500 이 아니라 우아한 409 로 안내. 타임아웃·대기 상향.
    */
-  private bookingTx<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+  private bookingTx<T>(
+    fn: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
     // 타임아웃·대기 상향(advisory lock 직렬화 여유). 포화 시 오류는 전역 필터가 503(재시도)로 매핑.
     return this.prisma.$transaction(fn, { timeout: 20_000, maxWait: 20_000 });
   }
@@ -1407,14 +1801,23 @@ export class BookingService {
       b.student_id === user.id ||
       user.role === AccountRole.ADMIN ||
       user.role === AccountRole.HR;
-    if (!involved) throw new ForbiddenException('이 예약에 접근할 권한이 없습니다.');
+    if (!involved)
+      throw new ForbiddenException('이 예약에 접근할 권한이 없습니다.');
     // 학생 뷰: 완료 상담 후기 작성 여부(중복 후기 방지·UX)
     let reviewed = false;
     if (user.role === AccountRole.STUDENT && b.status === BookingStatus.DONE) {
-      reviewed = !!(await this.prisma.review.findUnique({ where: { booking_id: id }, select: { booking_id: true } }));
+      reviewed = !!(await this.prisma.review.findUnique({
+        where: { booking_id: id },
+        select: { booking_id: true },
+      }));
     }
     const names = await this.accountNames([b.student_id, b.teacher_id]);
-    return { ...this.toBookingDto(b), reviewed, studentName: names.get(b.student_id) ?? null, teacherName: names.get(b.teacher_id) ?? null };
+    return {
+      ...this.toBookingDto(b),
+      reviewed,
+      studentName: names.get(b.student_id) ?? null,
+      teacherName: names.get(b.teacher_id) ?? null,
+    };
   }
 
   /**

@@ -9,9 +9,10 @@ import { QuotaLlmProvider } from './quota-llm.provider';
 const limits = (
   over: Partial<Record<LlmPurpose, number>> = {},
 ): Record<LlmPurpose, number> => {
-  const base = Object.fromEntries(
-    LLM_PURPOSES.map((p) => [p, 100]),
-  ) as Record<LlmPurpose, number>;
+  const base = Object.fromEntries(LLM_PURPOSES.map((p) => [p, 100])) as Record<
+    LlmPurpose,
+    number
+  >;
   return { ...base, ...over };
 };
 const make = (l: Partial<Record<LlmPurpose, number>>, total = 1000) =>

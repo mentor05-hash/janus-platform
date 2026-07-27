@@ -7,7 +7,9 @@ import { SchoolRecordGuardService } from '../guard/school-record-guard.service';
  * 생기부로 감지된 첨부가 상담 예약 이관 목록(payload)에서 제외됨을 실측한다.
  */
 function makeService(readBytes: jest.Mock) {
-  const guard = new SchoolRecordGuardService({ get: () => undefined } as unknown as ConfigService);
+  const guard = new SchoolRecordGuardService({
+    get: () => undefined,
+  } as unknown as ConfigService);
   const files = { readBytes } as any;
   // 필터가 쓰는 의존성은 files·guard 뿐 — 나머지는 스텁.
   const svc = new QnaService(
@@ -34,10 +36,18 @@ describe('QnaService.filterEscalationAttachments (상담 승격 첨부 필터)',
   const readBytes = jest.fn(async (id: string) => {
     if (id === 'sr') {
       // 생기부 파일명 → 가드 차단(SR_FILENAME).
-      return { data: Buffer.from('임의'), filename: '생기부.pdf', contentType: 'application/octet-stream' };
+      return {
+        data: Buffer.from('임의'),
+        filename: '생기부.pdf',
+        contentType: 'application/octet-stream',
+      };
     }
     // 성적/일반 첨부 → 통과.
-    return { data: Buffer.from('국어 90 수학 85'), filename: '풀이.png', contentType: 'text/plain' };
+    return {
+      data: Buffer.from('국어 90 수학 85'),
+      filename: '풀이.png',
+      contentType: 'text/plain',
+    };
   });
 
   it('차단 파일은 이관 목록에서 제외, 통과 파일만 유지', async () => {

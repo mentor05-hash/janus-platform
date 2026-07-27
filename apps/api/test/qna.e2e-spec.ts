@@ -145,8 +145,15 @@ describe('3.1 온라인 Q&A 통합', () => {
     // 티어가 실제로 갈리는 설정이어야 이 테스트가 의미를 갖는다.
     expect(itemFee).toBeGreaterThan(genFee);
 
-    for (const [qType, expected] of [['general', genFee], ['item', itemFee]] as const) {
-      const p: any = await qna.createQuestion(studentUser, { scope: 'open', body: `요금 티어 ${qType}`, qType });
+    for (const [qType, expected] of [
+      ['general', genFee],
+      ['item', itemFee],
+    ] as const) {
+      const p: any = await qna.createQuestion(studentUser, {
+        scope: 'open',
+        body: `요금 티어 ${qType}`,
+        qType,
+      });
       expect(p.qType).toBe(qType); // 등록 시점에 확정·저장된다
       expect(p.escalateCredits).toBe(expected); // 학생에게 보여줄 예상 과금액
       expect(p.chargedCredits).toBe(0); // 등록은 여전히 무료
@@ -155,12 +162,17 @@ describe('3.1 온라인 Q&A 통합', () => {
       const esc: any = await qna.escalateToHuman(studentUser, p.id);
       expect(esc.freeUsed).toBe(false); // 무료 질문권이 끼면 과금 0 이 되어 검증이 공허해진다
       expect(esc.chargedCredits).toBe(expected); // **표시 = 과금**
-      expect((await credit.getAccount(STU_Q)).total).toBe(before.total - expected);
+      expect((await credit.getAccount(STU_Q)).total).toBe(
+        before.total - expected,
+      );
     }
   });
 
   it('유형을 안 보내면 general 로 저장된다(구 행·구 클라이언트 하위호환)', async () => {
-    const p: any = await qna.createQuestion(studentUser, { scope: 'open', body: '유형 미지정' });
+    const p: any = await qna.createQuestion(studentUser, {
+      scope: 'open',
+      body: '유형 미지정',
+    });
     expect(p.qType).toBe('general');
   });
 

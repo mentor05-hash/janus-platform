@@ -27,11 +27,17 @@ describe('상담기록 뷰어 개요(record-overview)', () => {
     request(app.getHttpServer()).get(`/api/v1/${p}`).set(auth(t));
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     app.setGlobalPrefix('api/v1');
     app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }),
+      new ValidationPipe({
+        whitelist: true,
+        transform: true,
+        forbidNonWhitelisted: true,
+      }),
     );
     app.useGlobalInterceptors(new TransformInterceptor());
     app.useGlobalFilters(new AllExceptionsFilter());
@@ -40,7 +46,9 @@ describe('상담기록 뷰어 개요(record-overview)', () => {
 
     tok.master = await login('master01');
     tok.student = await login('student01');
-    const s = await prisma.account.findUnique({ where: { login_id: 'student01' } });
+    const s = await prisma.account.findUnique({
+      where: { login_id: 'student01' },
+    });
     studentId = s?.id ?? '';
   });
 
@@ -51,7 +59,9 @@ describe('상담기록 뷰어 개요(record-overview)', () => {
   it('관리자: 200 + 담임 공백 레벨 + 거부 이력 배열', async () => {
     const r = await get(`students/${studentId}/record-overview`, tok.master);
     expect(r.status).toBe(200);
-    expect(['none', 'ok', 'warn', 'danger']).toContain(r.body.data.homeroomGap.level);
+    expect(['none', 'ok', 'warn', 'danger']).toContain(
+      r.body.data.homeroomGap.level,
+    );
     expect(Array.isArray(r.body.data.rejections)).toBe(true);
     expect(typeof r.body.data.rejectCount).toBe('number');
   });

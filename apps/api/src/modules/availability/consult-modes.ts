@@ -1,4 +1,10 @@
-import { intersectModes, slotModes, type SlotMode, type WeeklySlot, type Env } from '@mentoring/janus-planner';
+import {
+  intersectModes,
+  slotModes,
+  type SlotMode,
+  type WeeklySlot,
+  type Env,
+} from '@mentoring/janus-planner';
 import type { DayWindow } from './availability.service';
 
 /**
@@ -42,11 +48,19 @@ export function windowModes(dow: number, w: DayWindow): readonly SlotMode[] {
  * 결과가 비면 그 요일은 **상담 불가**이며, 예약 목록 생성 단계에서 걸러야 한다 —
  * 입장한 뒤에 "화상이 안 되네"를 알면 이미 늦다.
  */
-export function pairModes(dow: number, teacherWindows: DayWindow[], studentWindows: DayWindow[]): readonly SlotMode[] {
+export function pairModes(
+  dow: number,
+  teacherWindows: DayWindow[],
+  studentWindows: DayWindow[],
+): readonly SlotMode[] {
   const seen = new Set<SlotMode>();
   for (const t of teacherWindows) {
     for (const s of studentWindows) {
-      for (const m of intersectModes(toWeeklySlot(dow, t), toWeeklySlot(dow, s))) seen.add(m);
+      for (const m of intersectModes(
+        toWeeklySlot(dow, t),
+        toWeeklySlot(dow, s),
+      ))
+        seen.add(m);
     }
   }
   // 정본(intersectModes)의 우선순위 정렬을 유지한다 — 첫 항목이 기본 제안이 되므로 순서가 의미를 갖는다.
@@ -55,10 +69,15 @@ export function pairModes(dow: number, teacherWindows: DayWindow[], studentWindo
 }
 
 /** 학생 체류시간이 미설정이면 '제한 없음'이다(기존 규약) — 그 경우 선생님 쪽 모드를 그대로 쓴다. */
-export function pairModesWithOpenStudent(dow: number, teacherWindows: DayWindow[], studentWindows: DayWindow[] | null): readonly SlotMode[] {
+export function pairModesWithOpenStudent(
+  dow: number,
+  teacherWindows: DayWindow[],
+  studentWindows: DayWindow[] | null,
+): readonly SlotMode[] {
   if (!studentWindows) {
     const seen = new Set<SlotMode>();
-    for (const t of teacherWindows) for (const m of windowModes(dow, t)) seen.add(m);
+    for (const t of teacherWindows)
+      for (const m of windowModes(dow, t)) seen.add(m);
     const RANK: readonly SlotMode[] = ['video', 'voice', 'whiteboard', 'chat'];
     return RANK.filter((m) => seen.has(m));
   }
@@ -78,19 +97,23 @@ export function pairModesWithOpenStudent(dow: number, teacherWindows: DayWindow[
  * ⚠ 플래너의 `voice` 는 대응하는 consult_mode 가 아직 없다 — 교집합에 나와도 오늘은 예약할 수 없고
  *   '가능한 모드' 안내로만 쓴다. 상품·요금(pricing_policy)이 생기면 그때 매핑을 추가한다.
  */
-export const REQUIRED_SLOT_MODE: Readonly<Record<string, SlotMode | null>> = Object.freeze({
-  zoom: 'video',
-  chat: 'chat',
-  hand: 'whiteboard',
-  offline: null,
-  board: null,
-});
+export const REQUIRED_SLOT_MODE: Readonly<Record<string, SlotMode | null>> =
+  Object.freeze({
+    zoom: 'video',
+    chat: 'chat',
+    hand: 'whiteboard',
+    offline: null,
+    board: null,
+  });
 
 /**
  * 요청한 상담 모드가 그 시간대에 **불가능한가**.
  * 매핑이 없는 모드(offline·board·미지의 값)는 판단하지 않는다 — 모르는 것을 막으면 멀쩡한 예약이 사라진다.
  */
-export function consultModeBlocked(consultMode: string | undefined, available: readonly SlotMode[]): boolean {
+export function consultModeBlocked(
+  consultMode: string | undefined,
+  available: readonly SlotMode[],
+): boolean {
   if (!consultMode) return false;
   const required = REQUIRED_SLOT_MODE[consultMode];
   if (!required) return false;

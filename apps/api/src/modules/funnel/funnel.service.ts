@@ -10,7 +10,13 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 export class FunnelService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async record(dto: { page: string; event: 'view' | 'cta'; cta?: string; sessionId?: string; meta?: Record<string, unknown> }) {
+  async record(dto: {
+    page: string;
+    event: 'view' | 'cta';
+    cta?: string;
+    sessionId?: string;
+    meta?: Record<string, unknown>;
+  }) {
     await this.prisma.funnel_event.create({
       data: {
         page: dto.page,
@@ -24,31 +30,84 @@ export class FunnelService {
   }
 
   async summary(days: number) {
-    const since = new Date(Date.now() - Math.min(Math.max(days, 1), 90) * 86400_000);
+    const since = new Date(
+      Date.now() - Math.min(Math.max(days, 1), 90) * 86400_000,
+    );
     const rows = await this.prisma.funnel_event.groupBy({
       by: ['page', 'event', 'cta'],
       where: { created_at: { gte: since } },
       _count: { _all: true },
     });
     const count = (page: string, event: string, cta?: string) =>
-      rows.find((r) => r.page === page && r.event === event && (cta ? r.cta === cta : true))?._count._all ?? 0;
+      rows.find(
+        (r) =>
+          r.page === page && r.event === event && (cta ? r.cta === cta : true),
+      )?._count._all ?? 0;
     // 세션 기준 전환율(중복 클릭 보정): baechi view 세션 수 대비 consult-reserve 클릭 세션 수
     const [viewSessions, ctaSessions] = await Promise.all([
-      this.prisma.funnel_event.findMany({ where: { created_at: { gte: since }, page: 'baechi', event: 'view', session_id: { not: null } }, distinct: ['session_id'], select: { session_id: true } }),
-      this.prisma.funnel_event.findMany({ where: { created_at: { gte: since }, page: 'baechi', event: 'cta', cta: 'consult-reserve', session_id: { not: null } }, distinct: ['session_id'], select: { session_id: true } }),
+      this.prisma.funnel_event.findMany({
+        where: {
+          created_at: { gte: since },
+          page: 'baechi',
+          event: 'view',
+          session_id: { not: null },
+        },
+        distinct: ['session_id'],
+        select: { session_id: true },
+      }),
+      this.prisma.funnel_event.findMany({
+        where: {
+          created_at: { gte: since },
+          page: 'baechi',
+          event: 'cta',
+          cta: 'consult-reserve',
+          session_id: { not: null },
+        },
+        distinct: ['session_id'],
+        select: { session_id: true },
+      }),
     ]);
-    const conversion = viewSessions.length ? Math.round((ctaSessions.length / viewSessions.length) * 1000) / 10 : null;
+    const conversion = viewSessions.length
+      ? Math.round((ctaSessions.length / viewSessions.length) * 1000) / 10
+      : null;
 
     // 학원찾기 검색→리드 전환(세션6 접합) — page='academy' view 세션 대비 cta='lead' 세션.
     const [acadViewSessions, acadLeadSessions] = await Promise.all([
-      this.prisma.funnel_event.findMany({ where: { created_at: { gte: since }, page: 'academy', event: 'view', session_id: { not: null } }, distinct: ['session_id'], select: { session_id: true } }),
-      this.prisma.funnel_event.findMany({ where: { created_at: { gte: since }, page: 'academy', event: 'cta', cta: 'lead', session_id: { not: null } }, distinct: ['session_id'], select: { session_id: true } }),
+      this.prisma.funnel_event.findMany({
+        where: {
+          created_at: { gte: since },
+          page: 'academy',
+          event: 'view',
+          session_id: { not: null },
+        },
+        distinct: ['session_id'],
+        select: { session_id: true },
+      }),
+      this.prisma.funnel_event.findMany({
+        where: {
+          created_at: { gte: since },
+          page: 'academy',
+          event: 'cta',
+          cta: 'lead',
+          session_id: { not: null },
+        },
+        distinct: ['session_id'],
+        select: { session_id: true },
+      }),
     ]);
-    const acadConversion = acadViewSessions.length ? Math.round((acadLeadSessions.length / acadViewSessions.length) * 1000) / 10 : null;
+    const acadConversion = acadViewSessions.length
+      ? Math.round((acadLeadSessions.length / acadViewSessions.length) * 1000) /
+        10
+      : null;
 
     return {
       since: since.toISOString(),
-      rows: rows.map((r) => ({ page: r.page, event: r.event, cta: r.cta, count: r._count._all })),
+      rows: rows.map((r) => ({
+        page: r.page,
+        event: r.event,
+        cta: r.cta,
+        count: r._count._all,
+      })),
       baechi: {
         views: count('baechi', 'view'),
         consultClicks: count('baechi', 'cta', 'consult-reserve'),

@@ -33,18 +33,25 @@ export interface JanusScore {
 }
 
 /* 과목명 별칭 — OCR·수동 입력의 표기 편차 흡수 */
-const ALIAS: Record<'kor' | 'mat' | 'tam1' | 'tam2' | 'eng' | 'han', string[]> = {
-  kor: ['국어'],
-  mat: ['수학'],
-  tam1: ['탐구1', '탐구①', '과학', '사회', '탐구'],
-  tam2: ['탐구2', '탐구②', '사회', '과학'], // used 집합으로 탐1과 중복 배정 방지(과학+사회 조합 흡수)
-  eng: ['영어'],
-  han: ['한국사'],
-};
+const ALIAS: Record<'kor' | 'mat' | 'tam1' | 'tam2' | 'eng' | 'han', string[]> =
+  {
+    kor: ['국어'],
+    mat: ['수학'],
+    tam1: ['탐구1', '탐구①', '과학', '사회', '탐구'],
+    tam2: ['탐구2', '탐구②', '사회', '과학'], // used 집합으로 탐1과 중복 배정 방지(과학+사회 조합 흡수)
+    eng: ['영어'],
+    han: ['한국사'],
+  };
 
-function pick(items: JanusScoreItem[], key: keyof typeof ALIAS, used: Set<string>): JanusScoreItem | null {
+function pick(
+  items: JanusScoreItem[],
+  key: keyof typeof ALIAS,
+  used: Set<string>,
+): JanusScoreItem | null {
   for (const name of ALIAS[key]) {
-    const it = items.find((i) => !used.has(i.subject) && i.subject.trim() === name);
+    const it = items.find(
+      (i) => !used.has(i.subject) && i.subject.trim() === name,
+    );
     if (it) {
       used.add(it.subject);
       return it;
@@ -67,16 +74,20 @@ const intIn = (v: unknown, min: number, max: number): number | null => {
  */
 export function parseNb(raw: unknown): number | null {
   const n = typeof raw === 'string' ? Number(raw) : (raw as number | undefined);
-  if (!Number.isFinite(n) || (n as number) <= 0 || (n as number) >= 100) return null;
+  if (!Number.isFinite(n) || (n as number) <= 0 || (n as number) >= 100)
+    return null;
   return Math.round((n as number) * 100) / 100;
 }
 
 /** 최신 리포트 → janus_score. 산출 불가(성적 없음)면 null — API 는 404 NO_SCORE. */
-export function toJanusScore(report: JanusScoreReport | null | undefined): JanusScore | null {
+export function toJanusScore(
+  report: JanusScoreReport | null | undefined,
+): JanusScore | null {
   if (!report) return null;
   const pl = report.placement ?? {};
   const gyeRaw = (pl as { gye?: unknown }).gye;
-  const gye: JanusScore['gye'] = gyeRaw === '이과' || gyeRaw === '문과' ? gyeRaw : null;
+  const gye: JanusScore['gye'] =
+    gyeRaw === '이과' || gyeRaw === '문과' ? gyeRaw : null;
 
   const used = new Set<string>();
   const kor = pick(report.items, 'kor', used);
@@ -91,8 +102,12 @@ export function toJanusScore(report: JanusScoreReport | null | undefined): Janus
     period: report.period,
     source: report.source,
     // eng/han = 절대평가 등급 1~9 (§5)
-    ...(intIn(eng?.grade ?? eng?.score, 1, 9) != null ? { eng: intIn(eng?.grade ?? eng?.score, 1, 9)! } : {}),
-    ...(intIn(han?.grade ?? han?.score, 1, 9) != null ? { han: intIn(han?.grade ?? han?.score, 1, 9)! } : {}),
+    ...(intIn(eng?.grade ?? eng?.score, 1, 9) != null
+      ? { eng: intIn(eng?.grade ?? eng?.score, 1, 9)! }
+      : {}),
+    ...(intIn(han?.grade ?? han?.score, 1, 9) != null
+      ? { han: intIn(han?.grade ?? han?.score, 1, 9)! }
+      : {}),
   };
 
   // 모드 1 — 전국누백(placement.nb): 소수 허용 0.01~99.99
@@ -109,8 +124,20 @@ export function toJanusScore(report: JanusScoreReport | null | undefined): Janus
     tam1: intIn(tam1?.score, 0, 200),
     tam2: intIn(tam2?.score, 0, 200),
   };
-  if (std.kor != null && std.mat != null && std.tam1 != null && std.tam2 != null) {
-    return { ...base, mode: 'std', kor: std.kor, mat: std.mat, tam1: std.tam1, tam2: std.tam2 };
+  if (
+    std.kor != null &&
+    std.mat != null &&
+    std.tam1 != null &&
+    std.tam2 != null
+  ) {
+    return {
+      ...base,
+      mode: 'std',
+      kor: std.kor,
+      mat: std.mat,
+      tam1: std.tam1,
+      tam2: std.tam2,
+    };
   }
   return null;
 }

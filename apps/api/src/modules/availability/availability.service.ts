@@ -17,7 +17,12 @@ import {
   SLOT_GRANULARITY_MINUTES,
 } from '../../config/constants';
 import { BookingStatus } from '../../config/enums';
-import { buildDaySlots, Interval, isRangeBookable, rangeBlockReason } from './domain/slots';
+import {
+  buildDaySlots,
+  Interval,
+  isRangeBookable,
+  rangeBlockReason,
+} from './domain/slots';
 import { consultModeBlocked, pairModesWithOpenStudent } from './consult-modes';
 
 export interface DayWindow {
@@ -33,8 +38,14 @@ export interface DayWindow {
   modes?: string[];
 }
 export type WeeklyTemplate = Record<string, DayWindow[]>; // key '0'..'6' (일~토)
-export interface LeaveEntry { date: string; type: string } // 사유 제외(연차/반차/병가)
-export interface WeekPlan { weekStart: string; template: WeeklyTemplate } // 주별 근무 계획(weekStart=월요일)
+export interface LeaveEntry {
+  date: string;
+  type: string;
+} // 사유 제외(연차/반차/병가)
+export interface WeekPlan {
+  weekStart: string;
+  template: WeeklyTemplate;
+} // 주별 근무 계획(weekStart=월요일)
 
 /** 해당 날짜가 속한 주의 월요일(YYYY-MM-DD, KST 기준 날짜 문자열). */
 export function mondayOf(dateStr: string): string {
@@ -45,7 +56,9 @@ export function mondayOf(dateStr: string): string {
   return dt.toISOString().slice(0, 10);
 }
 function readWeekPlans(raw: unknown): WeekPlan[] {
-  return Array.isArray(raw) ? (raw as WeekPlan[]).filter((p) => p && p.weekStart && p.template) : [];
+  return Array.isArray(raw)
+    ? (raw as WeekPlan[]).filter((p) => p && p.weekStart && p.template)
+    : [];
 }
 
 const ACTIVE_STATUSES: BookingStatus[] = [
@@ -83,7 +96,12 @@ export class AvailabilityService {
    * 선생님 가용 슬롯 (§5-1). 학생이 조회하면 본인 체류시간과 교집합.
    * 반환: 10분 슬롯 상태 배열 + 그날 예약 가능 인터벌 계산의 입력.
    */
-  async getDaySlots(teacherId: string, dateStr: string, studentId?: string, consultMode?: string) {
+  async getDaySlots(
+    teacherId: string,
+    dateStr: string,
+    studentId?: string,
+    consultMode?: string,
+  ) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
       throw new BadRequestException('date 는 YYYY-MM-DD 형식이어야 합니다.');
     }
@@ -96,15 +114,23 @@ export class AvailabilityService {
     const weekday = String(weekdayKst(dateStr));
     const ws = teacher.work_schedule[0];
     // 주별 근무계획(week_plans)이 있으면 그 주 템플릿, 없으면 기본(recurring_template)
-    const plans = readWeekPlans((ws as { week_plans?: unknown } | undefined)?.week_plans);
+    const plans = readWeekPlans(
+      (ws as { week_plans?: unknown } | undefined)?.week_plans,
+    );
     const plan = plans.find((p) => p.weekStart === mondayOf(dateStr));
-    const recurring = (ws?.recurring_template as unknown as WeeklyTemplate) ?? {};
+    const recurring =
+      (ws?.recurring_template as unknown as WeeklyTemplate) ?? {};
     // 주계획은 부분 override — 지정한 요일만 덮어쓰고(휴무=빈 배열), 미지정 요일은 기본 유지.
-    const template: WeeklyTemplate = plan ? { ...recurring, ...plan.template } : recurring;
+    const template: WeeklyTemplate = plan
+      ? { ...recurring, ...plan.template }
+      : recurring;
     let work = this.windowsToIntervals(template[weekday]);
     // 사유 제외(연차·반차·병가): 연차·병가=종일 제외, 반차=오후(13:00~) 제외.
-    const leave = this.readLeaves(ws?.weekly_overrides).find((l) => l.date === dateStr);
-    if (leave) work = leave.type === '반차' ? work.filter((w) => w.end <= 780) : [];
+    const leave = this.readLeaves(ws?.weekly_overrides).find(
+      (l) => l.date === dateStr,
+    );
+    if (leave)
+      work = leave.type === '반차' ? work.filter((w) => w.end <= 780) : [];
 
     // 학생 체류시간(있으면 교집합, 없으면 종일)
     const stay = await this.resolveStay(studentId, weekday);
@@ -120,7 +146,11 @@ export class AvailabilityService {
     // ⚠ 반환 형태(Slot[])는 그대로 둔다 — 소비처 6곳이 배열을 기대한다. 사유는 별도 엔드포인트가 알려준다
     //   (빈 배열만 주고 이유를 안 알려주면 '막다른 길'이 된다).
     if (consultMode) {
-      const modes = await this.dayConsultModes(template[weekday], studentId, weekday);
+      const modes = await this.dayConsultModes(
+        template[weekday],
+        studentId,
+        weekday,
+      );
       if (consultModeBlocked(consultMode, modes)) return [];
     }
 
@@ -143,10 +173,16 @@ export class AvailabilityService {
    * 그 요일에 양측 모두 가능한 상담 모드(교집합). 교집합 산식은 플래너 정본(intersectModes)을 쓴다.
    * 학생 체류시간 미설정 = '제한 없음'이라는 기존 규약을 보존한다(그 경우 선생님 쪽 모드).
    */
-  private async dayConsultModes(teacherWindows: DayWindow[] | undefined, studentId: string | undefined, weekday: string) {
+  private async dayConsultModes(
+    teacherWindows: DayWindow[] | undefined,
+    studentId: string | undefined,
+    weekday: string,
+  ) {
     const t = teacherWindows ?? [];
     if (!studentId) return pairModesWithOpenStudent(Number(weekday), t, null);
-    const sp = await this.prisma.student_profile.findUnique({ where: { account_id: studentId } });
+    const sp = await this.prisma.student_profile.findUnique({
+      where: { account_id: studentId },
+    });
     const stayTpl = (sp?.stay_time as unknown as WeeklyTemplate) ?? null;
     // 체류 템플릿이 없으면 제한 없음. 있는데 그 요일이 비면 그날은 체류 없음 → 가능한 모드도 없다.
     const studentWindows = stayTpl ? (stayTpl[weekday] ?? []) : null;
@@ -157,7 +193,11 @@ export class AvailabilityService {
    * GET 용 — 그 날 가능한 상담 모드와, 각 상담 상품(consult_mode)이 예약 가능한지.
    * 슬롯이 빈 이유를 화면이 설명할 수 있게 하는 것이 목적이다.
    */
-  async getConsultModes(teacherId: string, dateStr: string, studentId?: string) {
+  async getConsultModes(
+    teacherId: string,
+    dateStr: string,
+    studentId?: string,
+  ) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
       throw new BadRequestException('date 는 YYYY-MM-DD 형식이어야 합니다.');
     }
@@ -168,15 +208,24 @@ export class AvailabilityService {
     if (!teacher) throw new NotFoundException('선생님을 찾을 수 없습니다.');
     const weekday = String(weekdayKst(dateStr));
     const ws = teacher.work_schedule[0];
-    const plans = readWeekPlans((ws as { week_plans?: unknown } | undefined)?.week_plans);
+    const plans = readWeekPlans(
+      (ws as { week_plans?: unknown } | undefined)?.week_plans,
+    );
     const plan = plans.find((p) => p.weekStart === mondayOf(dateStr));
-    const recurring = (ws?.recurring_template as unknown as WeeklyTemplate) ?? {};
-    const template: WeeklyTemplate = plan ? { ...recurring, ...plan.template } : recurring;
+    const recurring =
+      (ws?.recurring_template as unknown as WeeklyTemplate) ?? {};
+    const template: WeeklyTemplate = plan
+      ? { ...recurring, ...plan.template }
+      : recurring;
 
     // 근무 창 자체가 없는 날과 '모드만 막힌' 날은 다른 사실이다. 화면이 이 둘을 섞으면
     // "다른 방식을 골라 보세요" → 골라도 0칸 → 그제서야 "근무 시간이 없어요" 로 두 번 헛걸음시킨다.
     const hasWindows = (template[weekday]?.length ?? 0) > 0;
-    const availableModes = await this.dayConsultModes(template[weekday], studentId, weekday);
+    const availableModes = await this.dayConsultModes(
+      template[weekday],
+      studentId,
+      weekday,
+    );
     const consultModes = ['zoom', 'chat', 'hand', 'offline'].map((m) => ({
       mode: m,
       // 근무가 없으면 어떤 방식으로도 잡을 수 없다 — offline(환경 무관)도 마찬가지다.
@@ -187,7 +236,11 @@ export class AvailabilityService {
 
   /** 예약 생성 직전 재검증용 — [start,end) 가 모두 avail 인지 (§5-1). */
   /** 예약 검증용 슬롯 입력(근무·체류·예약·차단) 구성 — assertBookable/bookableReason 공용. */
-  private async buildSlotInput(teacherId: string, dateStr: string, studentId?: string) {
+  private async buildSlotInput(
+    teacherId: string,
+    dateStr: string,
+    studentId?: string,
+  ) {
     const teacher = await this.prisma.teacher_profile.findUnique({
       where: { account_id: teacherId },
       include: { work_schedule: true },
@@ -196,17 +249,36 @@ export class AvailabilityService {
 
     const weekday = String(weekdayKst(dateStr));
     const ws = teacher.work_schedule[0];
-    const plans = readWeekPlans((ws as { week_plans?: unknown } | undefined)?.week_plans);
+    const plans = readWeekPlans(
+      (ws as { week_plans?: unknown } | undefined)?.week_plans,
+    );
     const plan = plans.find((p) => p.weekStart === mondayOf(dateStr));
-    const recurring = (ws?.recurring_template as unknown as WeeklyTemplate) ?? {};
-    const template: WeeklyTemplate = plan ? { ...recurring, ...plan.template } : recurring;
+    const recurring =
+      (ws?.recurring_template as unknown as WeeklyTemplate) ?? {};
+    const template: WeeklyTemplate = plan
+      ? { ...recurring, ...plan.template }
+      : recurring;
     let work = this.windowsToIntervals(template[weekday]);
-    const leave = this.readLeaves(ws?.weekly_overrides).find((l) => l.date === dateStr);
-    if (leave) work = leave.type === '반차' ? work.filter((w) => w.end <= 780) : [];
+    const leave = this.readLeaves(ws?.weekly_overrides).find(
+      (l) => l.date === dateStr,
+    );
+    if (leave)
+      work = leave.type === '반차' ? work.filter((w) => w.end <= 780) : [];
 
     const stay = await this.resolveStay(studentId, weekday);
-    const { bookings, blocked } = await this.loadDayOccupancy(teacherId, teacher.center_id, dateStr);
-    return { work, stay, bookings, blocked, bufferMin: REST_BUFFER_MINUTES, slotMin: SLOT_GRANULARITY_MINUTES };
+    const { bookings, blocked } = await this.loadDayOccupancy(
+      teacherId,
+      teacher.center_id,
+      dateStr,
+    );
+    return {
+      work,
+      stay,
+      bookings,
+      blocked,
+      bufferMin: REST_BUFFER_MINUTES,
+      slotMin: SLOT_GRANULARITY_MINUTES,
+    };
   }
 
   async assertBookable(
@@ -328,10 +400,13 @@ export class AvailabilityService {
   // ── 주별 근무 계획(2주~2달 미리 설정) ──
   /** 현재 계획 + 기본 템플릿. defaultApplies=주계획이 하나도 없으면 true(기본 근무시간 적용 안내용). */
   async getWeekPlans(teacherId: string) {
-    const ws = await this.prisma.work_schedule.findFirst({ where: { teacher_id: teacherId } });
+    const ws = await this.prisma.work_schedule.findFirst({
+      where: { teacher_id: teacherId },
+    });
     const plans = readWeekPlans(ws?.week_plans);
     return {
-      recurringTemplate: (ws?.recurring_template as unknown as WeeklyTemplate) ?? {},
+      recurringTemplate:
+        (ws?.recurring_template as unknown as WeeklyTemplate) ?? {},
       weekPlans: plans.sort((a, b) => a.weekStart.localeCompare(b.weekStart)),
       defaultApplies: plans.length === 0,
     };
@@ -340,7 +415,11 @@ export class AvailabilityService {
   /** 관리자: 선생님별 근무시간 일괄 적용(아이디로 매칭). 기본/주계획 함께. */
   async bulkApplySchedules(
     actor: { id: string; role: string; centerId?: string | null },
-    items: { loginId: string; recurringTemplate?: WeeklyTemplate; weekPlans?: WeekPlan[] }[],
+    items: {
+      loginId: string;
+      recurringTemplate?: WeeklyTemplate;
+      weekPlans?: WeekPlan[];
+    }[],
     todayStr: string,
   ) {
     if (!(actor.role === 'admin' || actor.role === 'hr')) {
@@ -349,39 +428,87 @@ export class AvailabilityService {
     const results: { loginId: string; ok: boolean; error?: string }[] = [];
     for (const it of items) {
       try {
-        const acc = await this.prisma.account.findUnique({ where: { login_id: it.loginId } });
-        if (!acc || acc.role !== 'teacher') { results.push({ loginId: it.loginId, ok: false, error: '선생님 계정 없음' }); continue; }
+        const acc = await this.prisma.account.findUnique({
+          where: { login_id: it.loginId },
+        });
+        if (!acc || acc.role !== 'teacher') {
+          results.push({
+            loginId: it.loginId,
+            ok: false,
+            error: '선생님 계정 없음',
+          });
+          continue;
+        }
         // 센터 관리자는 자기 센터 소속만(본사 admin=센터無 는 전체 허용)
-        if (actor.role !== 'hr' && actor.centerId && acc.center_id && acc.center_id !== actor.centerId) {
-          results.push({ loginId: it.loginId, ok: false, error: '다른 센터 소속' }); continue;
+        if (
+          actor.role !== 'hr' &&
+          actor.centerId &&
+          acc.center_id &&
+          acc.center_id !== actor.centerId
+        ) {
+          results.push({
+            loginId: it.loginId,
+            ok: false,
+            error: '다른 센터 소속',
+          });
+          continue;
         }
         if (it.recurringTemplate && Object.keys(it.recurringTemplate).length) {
-          await this.putWorkSchedule(acc.id, { recurringTemplate: it.recurringTemplate }, actor);
+          await this.putWorkSchedule(
+            acc.id,
+            { recurringTemplate: it.recurringTemplate },
+            actor,
+          );
         }
         if (it.weekPlans && it.weekPlans.length) {
           await this.saveWeekPlans(acc.id, it.weekPlans, actor, todayStr);
         }
         results.push({ loginId: it.loginId, ok: true });
       } catch (e) {
-        results.push({ loginId: it.loginId, ok: false, error: e instanceof Error ? e.message : '적용 실패' });
+        results.push({
+          loginId: it.loginId,
+          ok: false,
+          error: e instanceof Error ? e.message : '적용 실패',
+        });
       }
     }
-    return { results, applied: results.filter((r) => r.ok).length, total: results.length };
+    return {
+      results,
+      applied: results.filter((r) => r.ok).length,
+      total: results.length,
+    };
   }
 
   /** 주계획 저장. 다음 주 이후(미래)만 허용, 최대 8주(약 2달). */
-  async saveWeekPlans(teacherId: string, plans: WeekPlan[], actor: { id: string; role: string }, todayStr: string) {
+  async saveWeekPlans(
+    teacherId: string,
+    plans: WeekPlan[],
+    actor: { id: string; role: string },
+    todayStr: string,
+  ) {
     this.assertScheduleOwner(teacherId, actor);
     const nextMonday = mondayOf(this.addDays(todayStr, 7));
     const clean = readWeekPlans(plans)
       .filter((p) => p.weekStart >= nextMonday) // 이번 주·과거는 변경 불가(다음 주부터)
-      .filter((p, i, arr) => arr.findIndex((x) => x.weekStart === p.weekStart) === i);
-    if (clean.length > 8) throw new BadRequestException('최대 8주(약 2달)까지 미리 설정할 수 있습니다.');
-    const ws = await this.prisma.work_schedule.findFirst({ where: { teacher_id: teacherId } });
+      .filter(
+        (p, i, arr) => arr.findIndex((x) => x.weekStart === p.weekStart) === i,
+      );
+    if (clean.length > 8)
+      throw new BadRequestException(
+        '최대 8주(약 2달)까지 미리 설정할 수 있습니다.',
+      );
+    const ws = await this.prisma.work_schedule.findFirst({
+      where: { teacher_id: teacherId },
+    });
     if (ws) {
-      await this.prisma.work_schedule.update({ where: { id: ws.id }, data: { week_plans: clean as unknown as object } });
+      await this.prisma.work_schedule.update({
+        where: { id: ws.id },
+        data: { week_plans: clean as unknown as object },
+      });
     } else {
-      await this.prisma.work_schedule.create({ data: { teacher_id: teacherId, week_plans: clean as unknown as object } });
+      await this.prisma.work_schedule.create({
+        data: { teacher_id: teacherId, week_plans: clean as unknown as object },
+      });
     }
     return { weekPlans: clean };
   }
@@ -392,18 +519,41 @@ export class AvailabilityService {
     if (!clean.length) return { conflicts: [] };
     const weekStarts = clean.map((p) => p.weekStart).sort();
     const rangeStart = utcFromKst(weekStarts[0], 0);
-    const rangeEnd = utcFromKst(this.addDays(weekStarts[weekStarts.length - 1], 7), 0);
+    const rangeEnd = utcFromKst(
+      this.addDays(weekStarts[weekStarts.length - 1], 7),
+      0,
+    );
     const rows = await this.prisma.booking.findMany({
-      where: { teacher_id: teacherId, status: { in: ACTIVE_STATUSES }, start_at: { gte: rangeStart, lt: rangeEnd } },
-      include: { student_profile: { include: { account: { select: { name: true } } } } },
+      where: {
+        teacher_id: teacherId,
+        status: { in: ACTIVE_STATUSES },
+        start_at: { gte: rangeStart, lt: rangeEnd },
+      },
+      include: {
+        student_profile: { include: { account: { select: { name: true } } } },
+      },
     });
-    const wsRow = await this.prisma.work_schedule.findFirst({ where: { teacher_id: teacherId } });
-    const recurring = (wsRow?.recurring_template as unknown as WeeklyTemplate) ?? {};
+    const wsRow = await this.prisma.work_schedule.findFirst({
+      where: { teacher_id: teacherId },
+    });
+    const recurring =
+      (wsRow?.recurring_template as unknown as WeeklyTemplate) ?? {};
     // 부분 override 반영: 계획 요일만 덮고 미지정 요일은 기본
-    const planByWeek = new Map(clean.map((p) => [p.weekStart, { ...recurring, ...p.template } as WeeklyTemplate]));
+    const planByWeek = new Map(
+      clean.map((p) => [
+        p.weekStart,
+        { ...recurring, ...p.template } as WeeklyTemplate,
+      ]),
+    );
     const conflicts: {
-      bookingId: string; date: string; startMin: number; endMin: number;
-      studentId: string; studentName: string; consultType: string | null; mode: string;
+      bookingId: string;
+      date: string;
+      startMin: number;
+      endMin: number;
+      studentId: string;
+      studentName: string;
+      consultType: string | null;
+      mode: string;
     }[] = [];
     for (const b of rows) {
       if (!b.start_at || !b.end_at) continue;
@@ -418,9 +568,14 @@ export class AvailabilityService {
       const within = work.some((w) => s >= w.start && e <= w.end);
       if (!within) {
         conflicts.push({
-          bookingId: b.id, date: dateStr, startMin: s, endMin: e,
-          studentId: b.student_id, studentName: b.student_profile?.account?.name ?? '학생',
-          consultType: b.consult_type, mode: b.mode,
+          bookingId: b.id,
+          date: dateStr,
+          startMin: s,
+          endMin: e,
+          studentId: b.student_id,
+          studentName: b.student_profile?.account?.name ?? '학생',
+          consultType: b.consult_type,
+          mode: b.mode,
         });
       }
     }
@@ -440,7 +595,10 @@ export class AvailabilityService {
       ? (raw as LeaveEntry[]).filter((l) => l && typeof l.date === 'string')
       : [];
   }
-  private assertScheduleOwner(teacherId: string, actor: { id: string; role: string }) {
+  private assertScheduleOwner(
+    teacherId: string,
+    actor: { id: string; role: string },
+  ) {
     const isSelf = actor.role === 'teacher' && actor.id === teacherId;
     const isAdmin = actor.role === 'admin' || actor.role === 'hr';
     if (!isSelf && !isAdmin) {
@@ -448,29 +606,61 @@ export class AvailabilityService {
     }
   }
   async listLeave(teacherId: string): Promise<LeaveEntry[]> {
-    const ws = await this.prisma.work_schedule.findFirst({ where: { teacher_id: teacherId } });
-    return this.readLeaves(ws?.weekly_overrides).sort((a, b) => a.date.localeCompare(b.date));
+    const ws = await this.prisma.work_schedule.findFirst({
+      where: { teacher_id: teacherId },
+    });
+    return this.readLeaves(ws?.weekly_overrides).sort((a, b) =>
+      a.date.localeCompare(b.date),
+    );
   }
-  async addLeave(teacherId: string, dto: { date: string; type: string }, actor: { id: string; role: string }) {
+  async addLeave(
+    teacherId: string,
+    dto: { date: string; type: string },
+    actor: { id: string; role: string },
+  ) {
     this.assertScheduleOwner(teacherId, actor);
-    const ws = await this.prisma.work_schedule.findFirst({ where: { teacher_id: teacherId } });
+    const ws = await this.prisma.work_schedule.findFirst({
+      where: { teacher_id: teacherId },
+    });
     const next = [
-      ...this.readLeaves(ws?.weekly_overrides).filter((l) => l.date !== dto.date),
+      ...this.readLeaves(ws?.weekly_overrides).filter(
+        (l) => l.date !== dto.date,
+      ),
       { date: dto.date, type: dto.type },
     ].sort((a, b) => a.date.localeCompare(b.date));
     if (ws) {
-      await this.prisma.work_schedule.update({ where: { id: ws.id }, data: { weekly_overrides: next as never } });
+      await this.prisma.work_schedule.update({
+        where: { id: ws.id },
+        data: { weekly_overrides: next as never },
+      });
     } else {
-      await this.prisma.work_schedule.create({ data: { teacher_id: teacherId, recurring_template: {}, weekly_overrides: next as never } });
+      await this.prisma.work_schedule.create({
+        data: {
+          teacher_id: teacherId,
+          recurring_template: {},
+          weekly_overrides: next as never,
+        },
+      });
     }
     return { data: next };
   }
-  async removeLeave(teacherId: string, date: string, actor: { id: string; role: string }) {
+  async removeLeave(
+    teacherId: string,
+    date: string,
+    actor: { id: string; role: string },
+  ) {
     this.assertScheduleOwner(teacherId, actor);
-    const ws = await this.prisma.work_schedule.findFirst({ where: { teacher_id: teacherId } });
+    const ws = await this.prisma.work_schedule.findFirst({
+      where: { teacher_id: teacherId },
+    });
     if (!ws) return { data: [] };
-    const next = this.readLeaves(ws.weekly_overrides).filter((l) => l.date !== date);
-    await this.prisma.work_schedule.update({ where: { id: ws.id }, data: { weekly_overrides: next as never } });
+    const next = this.readLeaves(ws.weekly_overrides).filter(
+      (l) => l.date !== date,
+    );
+    await this.prisma.work_schedule.update({
+      where: { id: ws.id },
+      data: { weekly_overrides: next as never },
+    });
     return { data: next };
   }
 
@@ -482,9 +672,7 @@ export class AvailabilityService {
     const isSelf = actor.role === 'teacher' && actor.id === teacherId;
     const isAdmin = actor.role === 'admin' || actor.role === 'hr';
     if (!isSelf && !isAdmin) {
-      throw new ForbiddenException(
-        '본인 또는 관리자만 조회할 수 있습니다.',
-      );
+      throw new ForbiddenException('본인 또는 관리자만 조회할 수 있습니다.');
     }
     const teacher = await this.prisma.teacher_profile.findUnique({
       where: { account_id: teacherId },

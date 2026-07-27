@@ -9,7 +9,10 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccountRole } from '../../config/enums';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { IdentityVerifyProvider } from './identity-verify.provider';
-import type { GuardianConsentDto, GuardianVerifyDto } from './dto/guardian-consent.dto';
+import type {
+  GuardianConsentDto,
+  GuardianVerifyDto,
+} from './dto/guardian-consent.dto';
 
 /**
  * 본부 결정 ① 학부모 동의·본인확인 — 미성년 자녀 데이터 전달 게이트.
@@ -29,7 +32,11 @@ export class GuardianConsentService {
   /** 승인된 보호자-자녀 연결만 인정(pending/rejected 차단). */
   private async assertApprovedLink(guardianId: string, studentId: string) {
     const link = await this.prisma.guardian_student_link.findFirst({
-      where: { guardian_id: guardianId, student_id: studentId, status: 'approved' },
+      where: {
+        guardian_id: guardianId,
+        student_id: studentId,
+        status: 'approved',
+      },
     });
     if (!link) throw new ForbiddenException('승인된 자녀 연결이 아닙니다.');
   }
@@ -44,10 +51,13 @@ export class GuardianConsentService {
 
   /** GET /guardian/consent?studentId= — 현재 본인확인·전달동의 상태. */
   async status(user: AuthUser, studentId: string) {
-    if (user.role !== AccountRole.GUARDIAN) throw new ForbiddenException('학부모만 사용할 수 있습니다.');
+    if (user.role !== AccountRole.GUARDIAN)
+      throw new ForbiddenException('학부모만 사용할 수 있습니다.');
     await this.assertApprovedLink(user.id, studentId);
     const row = await this.prisma.guardian_data_consent.findUnique({
-      where: { guardian_id_student_id: { guardian_id: user.id, student_id: studentId } },
+      where: {
+        guardian_id_student_id: { guardian_id: user.id, student_id: studentId },
+      },
     });
     const active = !!row?.consent_delivery && !row?.revoked_at;
     return {
@@ -58,7 +68,7 @@ export class GuardianConsentService {
       verifiedAt: row?.verified_at ?? null,
       verifyProvider: row?.verify_provider ?? null,
       consentDelivery: active,
-      consentAt: active ? row?.consent_at ?? null : null,
+      consentAt: active ? (row?.consent_at ?? null) : null,
       revokedAt: row?.revoked_at ?? null,
       policyVersion: GuardianConsentService.POLICY_VERSION,
     };
@@ -66,7 +76,8 @@ export class GuardianConsentService {
 
   /** POST /guardian/verify — 본인확인(어댑터). 성공 시 verify_status='verified'. 원본 PII 미저장. */
   async verify(user: AuthUser, dto: GuardianVerifyDto) {
-    if (user.role !== AccountRole.GUARDIAN) throw new ForbiddenException('학부모만 사용할 수 있습니다.');
+    if (user.role !== AccountRole.GUARDIAN)
+      throw new ForbiddenException('학부모만 사용할 수 있습니다.');
     await this.assertApprovedLink(user.id, dto.studentId);
 
     const result = await this.identity.verify({
@@ -77,7 +88,12 @@ export class GuardianConsentService {
     });
 
     await this.prisma.guardian_data_consent.upsert({
-      where: { guardian_id_student_id: { guardian_id: user.id, student_id: dto.studentId } },
+      where: {
+        guardian_id_student_id: {
+          guardian_id: user.id,
+          student_id: dto.studentId,
+        },
+      },
       create: {
         guardian_id: user.id,
         student_id: dto.studentId,
@@ -98,19 +114,35 @@ export class GuardianConsentService {
         updated_at: new Date(),
       },
     });
-    if (!result.ok) throw new BadRequestException(`본인확인에 실패했습니다(${result.reason ?? 'unknown'}).`);
-    return { ok: true, verifyStatus: 'verified', verifiedName: result.name, provider: result.provider };
+    if (!result.ok)
+      throw new BadRequestException(
+        `본인확인에 실패했습니다(${result.reason ?? 'unknown'}).`,
+      );
+    return {
+      ok: true,
+      verifyStatus: 'verified',
+      verifiedName: result.name,
+      provider: result.provider,
+    };
   }
 
   /** POST /guardian/consent — 데이터 전달 동의(본인확인 완료 후에만). */
   async grantConsent(user: AuthUser, dto: GuardianConsentDto) {
-    if (user.role !== AccountRole.GUARDIAN) throw new ForbiddenException('학부모만 사용할 수 있습니다.');
+    if (user.role !== AccountRole.GUARDIAN)
+      throw new ForbiddenException('학부모만 사용할 수 있습니다.');
     await this.assertApprovedLink(user.id, dto.studentId);
     const row = await this.prisma.guardian_data_consent.findUnique({
-      where: { guardian_id_student_id: { guardian_id: user.id, student_id: dto.studentId } },
+      where: {
+        guardian_id_student_id: {
+          guardian_id: user.id,
+          student_id: dto.studentId,
+        },
+      },
     });
     if (!row || row.verify_status !== 'verified') {
-      throw new BadRequestException('본인확인을 먼저 완료해야 동의할 수 있습니다.');
+      throw new BadRequestException(
+        '본인확인을 먼저 완료해야 동의할 수 있습니다.',
+      );
     }
     await this.prisma.guardian_data_consent.update({
       where: { id: row.id },
@@ -122,21 +154,30 @@ export class GuardianConsentService {
         updated_at: new Date(),
       },
     });
-    this.logger.log(`전달 동의 부여 guardian=${user.id} student=${dto.studentId} v=${GuardianConsentService.POLICY_VERSION}`);
+    this.logger.log(
+      `전달 동의 부여 guardian=${user.id} student=${dto.studentId} v=${GuardianConsentService.POLICY_VERSION}`,
+    );
     return { ok: true, consentDelivery: true };
   }
 
   /** DELETE /guardian/consent?studentId= — 전달 동의 철회(즉시). */
   async revokeConsent(user: AuthUser, studentId: string) {
-    if (user.role !== AccountRole.GUARDIAN) throw new ForbiddenException('학부모만 사용할 수 있습니다.');
+    if (user.role !== AccountRole.GUARDIAN)
+      throw new ForbiddenException('학부모만 사용할 수 있습니다.');
     await this.assertApprovedLink(user.id, studentId);
     const row = await this.prisma.guardian_data_consent.findUnique({
-      where: { guardian_id_student_id: { guardian_id: user.id, student_id: studentId } },
+      where: {
+        guardian_id_student_id: { guardian_id: user.id, student_id: studentId },
+      },
     });
     if (!row) throw new NotFoundException('동의 기록이 없습니다.');
     await this.prisma.guardian_data_consent.update({
       where: { id: row.id },
-      data: { consent_delivery: false, revoked_at: new Date(), updated_at: new Date() },
+      data: {
+        consent_delivery: false,
+        revoked_at: new Date(),
+        updated_at: new Date(),
+      },
     });
     return { ok: true, consentDelivery: false };
   }
@@ -145,12 +186,15 @@ export class GuardianConsentService {
 
   /** 내 보호자 목록 + 공유 동의 상태(학생). 미성년이면 보호자 권한이라 동의 토글이 무의미함을 함께 알린다. */
   async myShareConsents(user: AuthUser, scope = 'report') {
-    if (user.role !== AccountRole.STUDENT) throw new ForbiddenException('학생만 사용할 수 있습니다.');
+    if (user.role !== AccountRole.STUDENT)
+      throw new ForbiddenException('학생만 사용할 수 있습니다.');
     const links = await this.prisma.guardian_student_link.findMany({
       where: { student_id: user.id, status: 'approved' },
       select: { guardian_id: true, relation: true },
     });
-    const rows = await this.prisma.student_share_consent.findMany({ where: { student_id: user.id, scope } });
+    const rows = await this.prisma.student_share_consent.findMany({
+      where: { student_id: user.id, scope },
+    });
     const byGuardian = new Map(rows.map((r) => [r.guardian_id, r]));
     const guardians = await this.prisma.account.findMany({
       where: { id: { in: links.map((l) => l.guardian_id) } },
@@ -177,29 +221,57 @@ export class GuardianConsentService {
 
   /** 공유 동의 부여(학생 본인만). 승인된 연결의 보호자에게만. */
   async grantShare(user: AuthUser, guardianId: string, scope = 'report') {
-    if (user.role !== AccountRole.STUDENT) throw new ForbiddenException('학생만 동의할 수 있습니다.');
+    if (user.role !== AccountRole.STUDENT)
+      throw new ForbiddenException('학생만 동의할 수 있습니다.');
     await this.assertApprovedLink(guardianId, user.id);
     await this.prisma.student_share_consent.upsert({
-      where: { student_id_guardian_id_scope: { student_id: user.id, guardian_id: guardianId, scope } },
-      create: { student_id: user.id, guardian_id: guardianId, scope, policy_version: GuardianConsentService.POLICY_VERSION },
-      update: { granted_at: new Date(), revoked_at: null, policy_version: GuardianConsentService.POLICY_VERSION, updated_at: new Date() },
+      where: {
+        student_id_guardian_id_scope: {
+          student_id: user.id,
+          guardian_id: guardianId,
+          scope,
+        },
+      },
+      create: {
+        student_id: user.id,
+        guardian_id: guardianId,
+        scope,
+        policy_version: GuardianConsentService.POLICY_VERSION,
+      },
+      update: {
+        granted_at: new Date(),
+        revoked_at: null,
+        policy_version: GuardianConsentService.POLICY_VERSION,
+        updated_at: new Date(),
+      },
     });
-    this.logger.log(`학생 공유 동의 student=${user.id} guardian=${guardianId} scope=${scope}`);
+    this.logger.log(
+      `학생 공유 동의 student=${user.id} guardian=${guardianId} scope=${scope}`,
+    );
     return { ok: true, granted: true };
   }
 
   /** 공유 동의 철회(즉시). 이력은 남긴다(행 삭제 안 함). */
   async revokeShare(user: AuthUser, guardianId: string, scope = 'report') {
-    if (user.role !== AccountRole.STUDENT) throw new ForbiddenException('학생만 철회할 수 있습니다.');
+    if (user.role !== AccountRole.STUDENT)
+      throw new ForbiddenException('학생만 철회할 수 있습니다.');
     const row = await this.prisma.student_share_consent.findUnique({
-      where: { student_id_guardian_id_scope: { student_id: user.id, guardian_id: guardianId, scope } },
+      where: {
+        student_id_guardian_id_scope: {
+          student_id: user.id,
+          guardian_id: guardianId,
+          scope,
+        },
+      },
     });
     if (!row) throw new NotFoundException('동의 기록이 없습니다.');
     await this.prisma.student_share_consent.update({
       where: { id: row.id },
       data: { revoked_at: new Date(), updated_at: new Date() },
     });
-    this.logger.log(`학생 공유 동의 철회 student=${user.id} guardian=${guardianId} scope=${scope}`);
+    this.logger.log(
+      `학생 공유 동의 철회 student=${user.id} guardian=${guardianId} scope=${scope}`,
+    );
     return { ok: true, granted: false };
   }
 
@@ -210,28 +282,51 @@ export class GuardianConsentService {
    *   3) 성인   → **학생 본인의 공유 동의**(student_share_consent, 미철회)
    * is_minor 기록이 없으면 성인으로 간주해 학생 동의를 요구한다(보수적 기본값).
    */
-  async assertChildDataAccess(user: AuthUser, studentId: string, scope = 'report'): Promise<void> {
-    if (user.role !== AccountRole.GUARDIAN) throw new ForbiddenException('학부모만 조회할 수 있습니다.');
+  async assertChildDataAccess(
+    user: AuthUser,
+    studentId: string,
+    scope = 'report',
+  ): Promise<void> {
+    if (user.role !== AccountRole.GUARDIAN)
+      throw new ForbiddenException('학부모만 조회할 수 있습니다.');
     await this.assertApprovedLink(user.id, studentId);
     if (await this.isMinor(studentId)) {
       const row = await this.prisma.guardian_data_consent.findUnique({
-        where: { guardian_id_student_id: { guardian_id: user.id, student_id: studentId } },
+        where: {
+          guardian_id_student_id: {
+            guardian_id: user.id,
+            student_id: studentId,
+          },
+        },
       });
       if (!row || row.verify_status !== 'verified') {
-        throw new ForbiddenException({ code: 'NEED_VERIFY', message: '본인확인을 먼저 완료해야 자녀 데이터를 열람할 수 있습니다.' });
+        throw new ForbiddenException({
+          code: 'NEED_VERIFY',
+          message: '본인확인을 먼저 완료해야 자녀 데이터를 열람할 수 있습니다.',
+        });
       }
       if (!row.consent_delivery || row.revoked_at) {
-        throw new ForbiddenException({ code: 'NEED_GUARDIAN_CONSENT', message: '자녀 데이터 열람 동의가 필요합니다.' });
+        throw new ForbiddenException({
+          code: 'NEED_GUARDIAN_CONSENT',
+          message: '자녀 데이터 열람 동의가 필요합니다.',
+        });
       }
       return;
     }
     const share = await this.prisma.student_share_consent.findUnique({
-      where: { student_id_guardian_id_scope: { student_id: studentId, guardian_id: user.id, scope } },
+      where: {
+        student_id_guardian_id_scope: {
+          student_id: studentId,
+          guardian_id: user.id,
+          scope,
+        },
+      },
     });
     if (!share || share.revoked_at) {
       throw new ForbiddenException({
         code: 'NEED_STUDENT_CONSENT',
-        message: '성인 학생 본인의 공유 동의가 필요합니다. 학생이 마이페이지에서 동의하면 열람할 수 있습니다.',
+        message:
+          '성인 학생 본인의 공유 동의가 필요합니다. 학생이 마이페이지에서 동의하면 열람할 수 있습니다.',
       });
     }
   }
@@ -246,17 +341,29 @@ export class GuardianConsentService {
    * 미성년도 본인확인+전달동의를 요구한다. 제안은 보호자가 만든 내용을 학생에게 보내는 것이라
    * 학생 데이터가 흐르지 않는다 — 그래서 미성년은 연결만으로 충분하다.
    */
-  async assertGuardianInvolvementAllowed(user: AuthUser, studentId: string, scope = 'report'): Promise<void> {
-    if (user.role !== AccountRole.GUARDIAN) throw new ForbiddenException('학부모만 사용할 수 있습니다.');
+  async assertGuardianInvolvementAllowed(
+    user: AuthUser,
+    studentId: string,
+    scope = 'report',
+  ): Promise<void> {
+    if (user.role !== AccountRole.GUARDIAN)
+      throw new ForbiddenException('학부모만 사용할 수 있습니다.');
     await this.assertApprovedLink(user.id, studentId);
     if (await this.isMinor(studentId)) return; // 보호자 전권
     const share = await this.prisma.student_share_consent.findUnique({
-      where: { student_id_guardian_id_scope: { student_id: studentId, guardian_id: user.id, scope } },
+      where: {
+        student_id_guardian_id_scope: {
+          student_id: studentId,
+          guardian_id: user.id,
+          scope,
+        },
+      },
     });
     if (!share || share.revoked_at) {
       throw new ForbiddenException({
         code: 'NEED_STUDENT_CONSENT',
-        message: '성인 학생 본인의 동의가 필요합니다. 학생이 동의하면 계획을 제안할 수 있습니다.',
+        message:
+          '성인 학생 본인의 동의가 필요합니다. 학생이 동의하면 계획을 제안할 수 있습니다.',
       });
     }
   }
@@ -267,7 +374,12 @@ export class GuardianConsentService {
    */
   async consentedGuardianIds(studentId: string): Promise<string[]> {
     const rows = await this.prisma.guardian_data_consent.findMany({
-      where: { student_id: studentId, consent_delivery: true, revoked_at: null, verify_status: 'verified' },
+      where: {
+        student_id: studentId,
+        consent_delivery: true,
+        revoked_at: null,
+        verify_status: 'verified',
+      },
       select: { guardian_id: true },
     });
     return rows.map((r) => r.guardian_id);

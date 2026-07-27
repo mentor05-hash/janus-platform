@@ -40,7 +40,9 @@ export function homeroomGap(
   if (!lastHomeroomAt) {
     return { lastHomeroomAt: null, daysSince: null, level: 'none', ...base };
   }
-  const daysSince = Math.floor((now.getTime() - lastHomeroomAt.getTime()) / DAY_MS);
+  const daysSince = Math.floor(
+    (now.getTime() - lastHomeroomAt.getTime()) / DAY_MS,
+  );
   const warnAt = policy.warnDays ?? policy.cycleDays; // warn 미설정 시 주기로 대체
   const dangerAt = policy.dangerDays;
   let level: HomeroomGapLevel = 'ok';

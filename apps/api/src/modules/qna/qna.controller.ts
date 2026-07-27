@@ -11,7 +11,20 @@ import {
   Query,
 } from '@nestjs/common';
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  MaxLength,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { AccountRole } from '../../config/enums';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
@@ -50,7 +63,11 @@ class AnswerRatingItemDto {
   @IsInt() @Min(1) @Max(5) score!: number;
 }
 class RateAnswerDto {
-  @IsArray() @ArrayMaxSize(5) @ValidateNested({ each: true }) @Type(() => AnswerRatingItemDto) ratings!: AnswerRatingItemDto[];
+  @IsArray()
+  @ArrayMaxSize(5)
+  @ValidateNested({ each: true })
+  @Type(() => AnswerRatingItemDto)
+  ratings!: AnswerRatingItemDto[];
 }
 class QnaReportDto {
   @IsString() targetType!: 'post' | 'answer';
@@ -81,28 +98,43 @@ export class QnaController {
   /** POST /qna/posts/:id/request-teacher — P2: AI 1층 → 선생님 답변 요청(이 시점 과금·노출). */
   @Post('posts/:id/request-teacher')
   @Roles('student')
-  requestTeacher(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  requestTeacher(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.qna.escalateToHuman(user, id);
   }
 
   /** POST /qna/posts/:id/resolve-ai — P2: AI 답으로 충분(해결 종료, 과금 없음). */
   @Post('posts/:id/resolve-ai')
   @Roles('student')
-  resolveAi(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  resolveAi(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.qna.resolveWithAi(user, id);
   }
 
   /** POST /qna/similar — P3: 작성 중 질문과 유사한 해결 질문 상위 3건. */
   @Post('similar')
   @Roles('student')
-  similar(@Body() dto: { subject?: string | null; body: string }, @CurrentUser() user: AuthUser) {
-    return this.qna.findSimilar(user, { subject: dto?.subject ?? null, body: String(dto?.body ?? '') });
+  similar(
+    @Body() dto: { subject?: string | null; body: string },
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.qna.findSimilar(user, {
+      subject: dto?.subject ?? null,
+      body: String(dto?.body ?? ''),
+    });
   }
 
   /** GET /qna/similar/:id — P3: 유사 질문 익명 열람(해결 건·첨부 제외). */
   @Get('similar/:id')
   @Roles('student')
-  similarDetail(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  similarDetail(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.qna.similarDetail(user, id);
   }
 
@@ -111,7 +143,10 @@ export class QnaController {
   @Get('pricing')
   @Roles('student')
   pricing(@CurrentUser() user: AuthUser) {
-    return this.qna.pricingInfo(user.centerId ?? null, user.role === AccountRole.STUDENT ? user.id : undefined);
+    return this.qna.pricingInfo(
+      user.centerId ?? null,
+      user.role === AccountRole.STUDENT ? user.id : undefined,
+    );
   }
 
   /** GET /qna/attention — 선생님 대기 배지(공개 큐 미클레임 + 내가 맡은 미답변). */
@@ -131,7 +166,10 @@ export class QnaController {
   /** POST /qna/tickets/purchase — B1 묶음 구매(크레딧 차감, 부족 시 402). */
   @Post('tickets/purchase')
   @Roles('student')
-  purchaseTickets(@Body() dto: { count: number }, @CurrentUser() user: AuthUser) {
+  purchaseTickets(
+    @Body() dto: { count: number },
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.qna.purchaseTickets(user, Number(dto?.count ?? 0));
   }
 
@@ -143,10 +181,7 @@ export class QnaController {
   /** POST /qna/posts/{id}/claim — 공개질문 가져오기(교사, 선착순 배정). */
   @Post('posts/:id/claim')
   @Roles('teacher')
-  claim(
-    @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser() user: AuthUser,
-  ) {
+  claim(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
     return this.qna.claim(id, user);
   }
 
@@ -174,14 +209,22 @@ export class QnaController {
   /** POST /qna/posts/{id}/feedback — 해결 만족도+계속 여부(학생·Q1). continue=false 면 소프트 블록. */
   @Post('posts/:id/feedback')
   @Roles('student')
-  feedback(@Param('id', ParseUUIDPipe) id: string, @Body() dto: QnaFeedbackDto, @CurrentUser() user: AuthUser) {
+  feedback(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: QnaFeedbackDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.qna.feedback(user, id, dto);
   }
 
   /** POST /qna/posts/{id}/reanswer — 재답변 요청(학생·불만족). 이전 답변자 제외 후 재공개. */
   @Post('posts/:id/reanswer')
   @Roles('student')
-  reanswer(@Param('id', ParseUUIDPipe) id: string, @Body() dto: QnaReanswerDto, @CurrentUser() user: AuthUser) {
+  reanswer(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: QnaReanswerDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.qna.requestReanswer(user, id, dto.reason);
   }
 
@@ -189,8 +232,15 @@ export class QnaController {
   /** body 없이 호출 = 후보 시간대 제시, {dateStr, slotStart} 포함 = 그 시간으로 예약 확정. */
   @Post('posts/:id/escalate')
   @Roles('student')
-  escalate(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser, @Body() body?: { dateStr?: string; slotStart?: number }) {
-    const pick = body?.dateStr && typeof body?.slotStart === 'number' ? { dateStr: body.dateStr, slotStart: body.slotStart } : undefined;
+  escalate(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+    @Body() body?: { dateStr?: string; slotStart?: number },
+  ) {
+    const pick =
+      body?.dateStr && typeof body?.slotStart === 'number'
+        ? { dateStr: body.dateStr, slotStart: body.slotStart }
+        : undefined;
     return this.qna.escalate(user, id, pick);
   }
 
@@ -210,15 +260,26 @@ export class QnaController {
 
   /** POST /qna/answers/{id}/followups — 후속 문답(이어 묻기/이어 답하기·C2). */
   @Post('answers/:id/followups')
-  followup(@Param('id', ParseUUIDPipe) id: string, @Body() dto: { body: string }, @CurrentUser() user: AuthUser) {
+  followup(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: { body: string },
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.qna.addFollowup(user, id, dto.body ?? '');
   }
 
   /** POST /qna/favorites — F2 찜 토글(리스트 상단 고정·"계속 받을게요" 자동 찜과 동일 원장). */
   @Post('favorites')
   @Roles('student')
-  favorite(@Body() dto: { teacherId: string; favored: boolean }, @CurrentUser() user: AuthUser) {
-    return this.qna.setFavorite(user, String(dto?.teacherId ?? ''), !!dto?.favored);
+  favorite(
+    @Body() dto: { teacherId: string; favored: boolean },
+    @CurrentUser() user: AuthUser,
+  ) {
+    return this.qna.setFavorite(
+      user,
+      String(dto?.teacherId ?? ''),
+      !!dto?.favored,
+    );
   }
 
   /** GET /qna/teachers — 지정 질문용 선생님 디렉터리 + 공개 SLA 배지(학생·P5). */
@@ -251,14 +312,26 @@ export class QnaController {
   /** POST /qna/community — 커뮤니티 질문 등록(학생·무료·일 3건). */
   @Post('community')
   @Roles('student')
-  communityCreate(@Body() dto: CommunityQuestionDto, @CurrentUser() user: AuthUser) {
+  communityCreate(
+    @Body() dto: CommunityQuestionDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.qna.createCommunityQuestion(user, dto);
   }
 
   /** GET /qna/community — 커뮤니티 목록(로그인 전원). ?filter=unanswered·?subject=·?q= */
   @Get('community')
-  communityList(@CurrentUser() user: AuthUser, @Query('filter') filter?: string, @Query('subject') subject?: string, @Query('q') q?: string) {
-    return this.qna.listCommunity(user, { filter: filter === 'unanswered' ? 'unanswered' : undefined, subject: subject || undefined, q: q || undefined });
+  communityList(
+    @CurrentUser() user: AuthUser,
+    @Query('filter') filter?: string,
+    @Query('subject') subject?: string,
+    @Query('q') q?: string,
+  ) {
+    return this.qna.listCommunity(user, {
+      filter: filter === 'unanswered' ? 'unanswered' : undefined,
+      subject: subject || undefined,
+      q: q || undefined,
+    });
   }
 
   /** GET /qna/community/stats — 내 커뮤니티 실적(답변·채택·채택률). */
@@ -275,7 +348,10 @@ export class QnaController {
 
   /** PUT /qna/community/my-credentials — 내 자기신고 자격 upsert(N33 축 A). */
   @Put('community/my-credentials')
-  upsertCredential(@Body() dto: AnswererCredentialDto, @CurrentUser() user: AuthUser) {
+  upsertCredential(
+    @Body() dto: AnswererCredentialDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.qna.upsertMyCredential(user, dto);
   }
 
@@ -287,7 +363,10 @@ export class QnaController {
 
   /** DELETE /qna/community/my-credentials?subject= — 내 자격 삭제(과목). */
   @Delete('community/my-credentials')
-  deleteCredential(@Query('subject') subject: string, @CurrentUser() user: AuthUser) {
+  deleteCredential(
+    @Query('subject') subject: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.qna.deleteMyCredential(user, subject ?? '');
   }
 
@@ -299,32 +378,50 @@ export class QnaController {
 
   /** POST /qna/community/answers/{id}/rate — 답변 재평가(질문자, 축별 1~5). */
   @Post('community/answers/:id/rate')
-  rateAnswer(@Param('id', ParseUUIDPipe) id: string, @Body() dto: RateAnswerDto, @CurrentUser() user: AuthUser) {
+  rateAnswer(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RateAnswerDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.qna.rateAnswer(user, id, dto.ratings);
   }
 
   /** GET /qna/community/{id} — 커뮤니티 상세(질문·AI 초안·답변). */
   @Get('community/:id')
-  communityGet(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  communityGet(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.qna.getCommunity(user, id);
   }
 
   /** POST /qna/community/{id}/answers — 커뮤니티 답변(로그인 전원·무정산). */
   @Post('community/:id/answers')
-  communityAnswer(@Param('id', ParseUUIDPipe) id: string, @Body() dto: CommunityAnswerDto, @CurrentUser() user: AuthUser) {
+  communityAnswer(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CommunityAnswerDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.qna.answerCommunity(user, id, dto.body);
   }
 
   /** PATCH /qna/community/answers/{id}/accept — 커뮤니티 답변 채택(질문 학생·단일). */
   @Patch('community/answers/:id/accept')
   @Roles('student')
-  communityAccept(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  communityAccept(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.qna.acceptCommunityAnswer(user, id);
   }
 
   /** PATCH /qna/community/answers/{id} — 내 커뮤니티 답변 수정(채택·마감 전). */
   @Patch('community/answers/:id')
-  communityEditAnswer(@Param('id', ParseUUIDPipe) id: string, @Body() dto: CommunityAnswerDto, @CurrentUser() user: AuthUser) {
+  communityEditAnswer(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CommunityAnswerDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.qna.editCommunityAnswer(user, id, dto.body);
   }
 

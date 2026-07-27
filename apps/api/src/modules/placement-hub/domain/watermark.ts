@@ -6,7 +6,11 @@
  */
 
 /** 지문 토큰 — loginId|accountId|발급시각(ms) base64url. 유출본에서 계정·시각 역추적. */
-export function fingerprint(loginId: string, accountId: string, nowMs: number): string {
+export function fingerprint(
+  loginId: string,
+  accountId: string,
+  nowMs: number,
+): string {
   return Buffer.from(`${loginId}|${accountId}|${nowMs}`).toString('base64url');
 }
 
@@ -20,8 +24,16 @@ function tileSvg(label: string): string {
 }
 
 /** 워터마크 스니펫(오버레이 + 지문 주석). </body> 직전 주입용. */
-export function watermarkSnippet(opts: { name: string; loginId: string; accountId: string; nowMs: number }): string {
-  const kst = new Date(opts.nowMs + 9 * 3600 * 1000).toISOString().slice(0, 16).replace('T', ' ');
+export function watermarkSnippet(opts: {
+  name: string;
+  loginId: string;
+  accountId: string;
+  nowMs: number;
+}): string {
+  const kst = new Date(opts.nowMs + 9 * 3600 * 1000)
+    .toISOString()
+    .slice(0, 16)
+    .replace('T', ' ');
   const label = `야누스 · ${opts.name}(${opts.loginId}) · ${kst} KST · 열람자 표식`;
   const fp = fingerprint(opts.loginId, opts.accountId, opts.nowMs);
   return (

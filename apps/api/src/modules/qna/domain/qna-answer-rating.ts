@@ -3,7 +3,13 @@
  * 축(axis) 5종: 정확·친절·논리·속도·눈높이. 점수 1~5.
  * 집계 시 표본 미달(축별 n<minSample) 축은 avg=null 로 흐린다(노출 게이트 — 거짓 레이더 차단).
  */
-export const RATING_AXES = ['accuracy', 'kindness', 'logic', 'speed', 'level'] as const;
+export const RATING_AXES = [
+  'accuracy',
+  'kindness',
+  'logic',
+  'speed',
+  'level',
+] as const;
 export type RatingAxis = (typeof RATING_AXES)[number];
 
 export const AXIS_LABEL: Record<RatingAxis, string> = {
@@ -21,8 +27,10 @@ export const AXIS_MIN_SAMPLE = 5;
 /** 오각형(레이더) 전체 표시 게이트 — N33 ㉙ 확정값: 게이트 통과 축이 이 수 이상일 때만 렌더(1건 만점 거짓 레이더 차단). */
 export const PENTAGON_MIN_VISIBLE_AXES = 1;
 
-export const isValidAxis = (a: string): a is RatingAxis => (RATING_AXES as readonly string[]).includes(a);
-export const isValidScore = (n: number): boolean => Number.isInteger(n) && n >= RATING_MIN && n <= RATING_MAX;
+export const isValidAxis = (a: string): a is RatingAxis =>
+  (RATING_AXES as readonly string[]).includes(a);
+export const isValidScore = (n: number): boolean =>
+  Number.isInteger(n) && n >= RATING_MIN && n <= RATING_MAX;
 
 export interface AxisStat {
   axis: RatingAxis;
@@ -39,7 +47,7 @@ export function aggregateAxisStats(
   const acc: Record<string, { sum: number; n: number }> = {};
   for (const r of rows) {
     if (!isValidAxis(r.axis) || !isValidScore(r.score)) continue;
-    (acc[r.axis] ??= { sum: 0, n: 0 });
+    acc[r.axis] ??= { sum: 0, n: 0 };
     acc[r.axis].sum += r.score;
     acc[r.axis].n += 1;
   }
@@ -56,7 +64,8 @@ export function aggregateAxisStats(
 }
 
 /** 게이트 통과(avg!==null) 축 수. */
-export const visibleAxisCount = (stats: AxisStat[]): number => stats.filter((s) => s.avg !== null).length;
+export const visibleAxisCount = (stats: AxisStat[]): number =>
+  stats.filter((s) => s.avg !== null).length;
 
 /** 오각형 전체를 렌더할지(㉙: 통과 축 ≥ PENTAGON_MIN_VISIBLE_AXES). */
 export const isPentagonVisible = (stats: AxisStat[]): boolean =>

@@ -114,8 +114,16 @@ describe('2.2 학부모·공개정책·결제요청 통합', () => {
     // '승인된 자녀 연결이 아닙니다'로 통째로 실패한다. 이 스펙은 pending→approved 흐름을 검증하므로
     // 시작은 깨끗해야 하지만, 끝은 다른 스펙이 기대하는 기본값(approved)으로 남겨야 한다.
     await prisma.guardian_student_link.upsert({
-      where: { guardian_id_student_id: { guardian_id: GUARDIAN, student_id: STUDENT } },
-      create: { guardian_id: GUARDIAN, student_id: STUDENT, relation: '모', status: 'approved', link_method: 'test' },
+      where: {
+        guardian_id_student_id: { guardian_id: GUARDIAN, student_id: STUDENT },
+      },
+      create: {
+        guardian_id: GUARDIAN,
+        student_id: STUDENT,
+        relation: '모',
+        status: 'approved',
+        link_method: 'test',
+      },
       update: { status: 'approved' },
     });
     await prisma.payment_request.deleteMany({

@@ -1,4 +1,10 @@
-import { BadRequestException, Body, Controller, Inject, Post } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Inject,
+  Post,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Public } from '../../common/decorators/public.decorator';
 import { RateLimit } from '../../common/ratelimit/rate-limit.decorator';
@@ -21,11 +27,23 @@ export class MediaDemoController {
   @RateLimit({ limit: 30, windowSec: 60 })
   @Post('demo-token')
   async demoToken(@Body() body: { identity?: string; name?: string } = {}) {
-    const env = this.config.get<string>('APP_ENV') ?? this.config.get<string>('NODE_ENV') ?? '';
+    const env =
+      this.config.get<string>('APP_ENV') ??
+      this.config.get<string>('NODE_ENV') ??
+      '';
     if (env === 'prod' || env === 'production') {
-      throw new BadRequestException('데모 토큰은 로컬/데모 환경에서만 발급됩니다.');
+      throw new BadRequestException(
+        '데모 토큰은 로컬/데모 환경에서만 발급됩니다.',
+      );
     }
-    const identity = (body.identity || `demo-${Math.random().toString(36).slice(2, 8)}`).slice(0, 40);
-    return this.media.issueToken('media-demo', identity, 'publisher', body.name?.slice(0, 40));
+    const identity = (
+      body.identity || `demo-${Math.random().toString(36).slice(2, 8)}`
+    ).slice(0, 40);
+    return this.media.issueToken(
+      'media-demo',
+      identity,
+      'publisher',
+      body.name?.slice(0, 40),
+    );
   }
 }

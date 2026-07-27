@@ -25,7 +25,11 @@ export class LeadController {
 
   /** POST /academies/:academyId/leads — 상담 신청. */
   @Post('academies/:academyId/leads')
-  submit(@CurrentUser() user: AuthUser, @Param('academyId') academyId: string, @Body() dto: LeadSubmitDto) {
+  submit(
+    @CurrentUser() user: AuthUser,
+    @Param('academyId') academyId: string,
+    @Body() dto: LeadSubmitDto,
+  ) {
     return this.svc.submit(user, academyId, dto);
   }
 }

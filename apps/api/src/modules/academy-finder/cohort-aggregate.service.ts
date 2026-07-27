@@ -25,7 +25,9 @@ export class CohortAggregateService {
     const period = this.currentPeriod();
     this.logger.log(`분기 재원생 집계 시작 period=${period}`);
     const r = await this.aggregateAll(period);
-    this.logger.log(`분기 집계 완료 period=${period} 학원=${r.academies} 생성=${r.created} 미달=${r.skipped}`);
+    this.logger.log(
+      `분기 집계 완료 period=${period} 학원=${r.academies} 생성=${r.created} 미달=${r.skipped}`,
+    );
   }
 
   /** 전 학원 집계(동의 재원생 ≥1 인 학원만 대상). */
@@ -39,7 +41,8 @@ export class CohortAggregateService {
     let skipped = 0;
     for (const { academy_id } of academyIds) {
       const res = await this.aggregateOne(academy_id, period);
-      if (res.created) created += 1; else skipped += 1;
+      if (res.created) created += 1;
+      else skipped += 1;
     }
     return { academies: academyIds.length, created, skipped, period };
   }
@@ -48,16 +51,25 @@ export class CohortAggregateService {
    * 한 학원 집계. 동의 재원 n<VERIFIED_MIN_N 이면 verified cohort 미생성(+기존 삭제).
    * grade_band: 최신 score_report 등급 → 밴드 %. school_dist: enrollment.school k-익명.
    */
-  async aggregateOne(academyId: string, period: string): Promise<{ created: boolean; nTotal: number }> {
+  async aggregateOne(
+    academyId: string,
+    period: string,
+  ): Promise<{ created: boolean; nTotal: number }> {
     const enrollments = await this.prisma.academy_enrollment.findMany({
-      where: { academy_id: academyId, status: 'self_reported', consent_stats: true },
+      where: {
+        academy_id: academyId,
+        status: 'self_reported',
+        consent_stats: true,
+      },
       select: { user_id: true, school: true },
     });
     const nTotal = enrollments.length;
 
     // k-익명 게이트: 미달이면 이 학원의 verified cohort(해당 period) 제거하고 종료.
     if (nTotal < VERIFIED_MIN_N) {
-      await this.prisma.cohort_stat.deleteMany({ where: { academy_id: academyId, period, source: 'verified' } });
+      await this.prisma.cohort_stat.deleteMany({
+        where: { academy_id: academyId, period, source: 'verified' },
+      });
       return { created: false, nTotal };
     }
 
@@ -69,10 +81,22 @@ export class CohortAggregateService {
     const schoolDist = kAnonSchoolDist(enrollments.map((e) => e.school));
 
     if (Object.keys(bandPct).length > 0) {
-      await this.upsertVerified(academyId, 'grade_band', period, { 내신: bandPct }, nTotal);
+      await this.upsertVerified(
+        academyId,
+        'grade_band',
+        period,
+        { 내신: bandPct },
+        nTotal,
+      );
     }
     if (schoolDist.length > 0) {
-      await this.upsertVerified(academyId, 'school_dist', period, schoolDist, nTotal);
+      await this.upsertVerified(
+        academyId,
+        'school_dist',
+        period,
+        schoolDist,
+        nTotal,
+      );
     }
     return { created: true, nTotal };
   }
@@ -87,18 +111,44 @@ export class CohortAggregateService {
         include: { items: { select: { grade: true } } },
       });
       if (!report) continue;
-      const nums = report.items.map((i) => Number(i.grade)).filter((n) => Number.isFinite(n) && n >= 1 && n <= 9);
+      const nums = report.items
+        .map((i) => Number(i.grade))
+        .filter((n) => Number.isFinite(n) && n >= 1 && n <= 9);
       if (nums.length === 0) continue;
       out.push(Math.round(nums.reduce((a, b) => a + b, 0) / nums.length));
     }
     return out;
   }
 
-  private async upsertVerified(academyId: string, kind: string, period: string, payload: unknown, nTotal: number) {
+  private async upsertVerified(
+    academyId: string,
+    kind: string,
+    period: string,
+    payload: unknown,
+    nTotal: number,
+  ) {
     await this.prisma.cohort_stat.upsert({
-      where: { academy_id_kind_period_source: { academy_id: academyId, kind, period, source: 'verified' } },
-      create: { academy_id: academyId, kind, period, source: 'verified', n_total: nTotal, payload_json: payload as object },
-      update: { n_total: nTotal, payload_json: payload as object, updated_at: new Date() },
+      where: {
+        academy_id_kind_period_source: {
+          academy_id: academyId,
+          kind,
+          period,
+          source: 'verified',
+        },
+      },
+      create: {
+        academy_id: academyId,
+        kind,
+        period,
+        source: 'verified',
+        n_total: nTotal,
+        payload_json: payload as object,
+      },
+      update: {
+        n_total: nTotal,
+        payload_json: payload as object,
+        updated_at: new Date(),
+      },
     });
   }
 }

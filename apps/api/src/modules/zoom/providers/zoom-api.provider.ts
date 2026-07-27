@@ -14,7 +14,9 @@ export class ZoomApiProvider implements ZoomProvider {
 
   constructor(private readonly creds: Creds) {
     if (!creds.accountId || !creds.clientId || !creds.clientSecret) {
-      this.logger.warn('Zoom S2S 자격증명 미구성 — 호출 시 실패합니다(ZOOM_PROVIDER=mock 권장).');
+      this.logger.warn(
+        'Zoom S2S 자격증명 미구성 — 호출 시 실패합니다(ZOOM_PROVIDER=mock 권장).',
+      );
     }
   }
 
@@ -22,7 +24,9 @@ export class ZoomApiProvider implements ZoomProvider {
   private async accessToken(): Promise<string> {
     const { accountId, clientId, clientSecret } = this.creds;
     if (!accountId || !clientId || !clientSecret) {
-      throw new Error('Zoom 자격증명(ZOOM_ACCOUNT_ID·CLIENT_ID·CLIENT_SECRET)이 필요합니다.');
+      throw new Error(
+        'Zoom 자격증명(ZOOM_ACCOUNT_ID·CLIENT_ID·CLIENT_SECRET)이 필요합니다.',
+      );
     }
     const now = Date.now();
     if (this.token && this.token.exp - 60_000 > now) return this.token.value;
@@ -32,7 +36,10 @@ export class ZoomApiProvider implements ZoomProvider {
       { method: 'POST', headers: { Authorization: `Basic ${basic}` } },
     );
     if (!res.ok) throw new Error(`Zoom 토큰 발급 실패(${res.status})`);
-    const j = (await res.json()) as { access_token: string; expires_in: number };
+    const j = (await res.json()) as {
+      access_token: string;
+      expires_in: number;
+    };
     this.token = { value: j.access_token, exp: now + j.expires_in * 1000 };
     return j.access_token;
   }
@@ -41,17 +48,29 @@ export class ZoomApiProvider implements ZoomProvider {
     const token = await this.accessToken();
     const durationMin =
       input.startAt && input.endAt
-        ? Math.max(15, Math.round((input.endAt.getTime() - input.startAt.getTime()) / 60_000))
+        ? Math.max(
+            15,
+            Math.round(
+              (input.endAt.getTime() - input.startAt.getTime()) / 60_000,
+            ),
+          )
         : 40;
     const res = await fetch('https://api.zoom.us/v2/users/me/meetings', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
         topic: input.topic ?? `상담 ${input.bookingId}`,
         type: 2, // 예약 미팅
         start_time: input.startAt?.toISOString(),
         duration: durationMin,
-        settings: { join_before_host: true, waiting_room: false, approval_type: 2 },
+        settings: {
+          join_before_host: true,
+          waiting_room: false,
+          approval_type: 2,
+        },
       }),
     });
     if (!res.ok) throw new Error(`Zoom 미팅 생성 실패(${res.status})`);

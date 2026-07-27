@@ -104,8 +104,14 @@ describe('2.3 구독·등급·주간부여 통합', () => {
     // 바뀔 때마다 깨졌다 — 실제로 Premium 이 '주간 60k' → '월간 풀 210k' 로 바뀌면서 이 단정이 실패했다.
     // 스펙이 지켜야 할 계약은 금액 그 자체가 아니라 **'등급 설정대로 부여되고 상위가 더 많다'** 다.
     const [gStd, gPrem] = await Promise.all([
-      prisma.membership_grade.findUniqueOrThrow({ where: { id: GRADE_STD }, select: { weekly_credits: true } }),
-      prisma.membership_grade.findUniqueOrThrow({ where: { id: GRADE_PREM }, select: { weekly_credits: true } }),
+      prisma.membership_grade.findUniqueOrThrow({
+        where: { id: GRADE_STD },
+        select: { weekly_credits: true },
+      }),
+      prisma.membership_grade.findUniqueOrThrow({
+        where: { id: GRADE_PREM },
+        select: { weekly_credits: true },
+      }),
     ]);
     expect(aGranted).toBe(gStd.weekly_credits); // Standard — 설정대로
     expect(bGranted).toBe(gPrem.weekly_credits); // Premium — 설정대로

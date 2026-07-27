@@ -3,18 +3,29 @@ import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccountRole } from '../../config/enums';
 import { ConsentDto, WithdrawDto } from './dto/legal.dto';
-import { PRIVACY_DOC, PRIVACY_VERSION, TERMS_DOC, TERMS_VERSION } from './legal.content';
+import {
+  PRIVACY_DOC,
+  PRIVACY_VERSION,
+  TERMS_DOC,
+  TERMS_VERSION,
+} from './legal.content';
 
 /** 법/개인정보 — 약관·방침 조회, 동의 기록(미성년 보호자 동의), 데이터 내보내기, 회원 탈퇴. */
 @Injectable()
 export class LegalService {
   constructor(private readonly prisma: PrismaService) {}
 
-  terms() { return TERMS_DOC; }
-  privacy() { return PRIVACY_DOC; }
+  terms() {
+    return TERMS_DOC;
+  }
+  privacy() {
+    return PRIVACY_DOC;
+  }
 
   async getConsent(user: AuthUser) {
-    const c = await this.prisma.user_consent.findUnique({ where: { account_id: user.id } });
+    const c = await this.prisma.user_consent.findUnique({
+      where: { account_id: user.id },
+    });
     return {
       agreed: !!c,
       current: c
@@ -28,7 +39,10 @@ export class LegalService {
           }
         : null,
       // 최신 버전과 다르면 재동의 필요
-      needsRenewal: !c || c.terms_version !== TERMS_VERSION || c.privacy_version !== PRIVACY_VERSION,
+      needsRenewal:
+        !c ||
+        c.terms_version !== TERMS_VERSION ||
+        c.privacy_version !== PRIVACY_VERSION,
       latest: { termsVersion: TERMS_VERSION, privacyVersion: PRIVACY_VERSION },
     };
   }
@@ -37,8 +51,13 @@ export class LegalService {
     if (!dto.termsAgreed || !dto.privacyAgreed) {
       throw new BadRequestException('필수 약관·개인정보 동의가 필요합니다.');
     }
-    if (dto.isMinor && (!dto.guardianName?.trim() || !dto.guardianContact?.trim())) {
-      throw new BadRequestException('미성년 회원은 보호자 성명·연락처 동의가 필요합니다.');
+    if (
+      dto.isMinor &&
+      (!dto.guardianName?.trim() || !dto.guardianContact?.trim())
+    ) {
+      throw new BadRequestException(
+        '미성년 회원은 보호자 성명·연락처 동의가 필요합니다.',
+      );
     }
     const data = {
       terms_version: TERMS_VERSION,
@@ -61,9 +80,19 @@ export class LegalService {
   async exportData(user: AuthUser) {
     const account = await this.prisma.account.findUnique({
       where: { id: user.id },
-      select: { id: true, login_id: true, name: true, role: true, status: true, created_at: true, center: { select: { name: true } } },
+      select: {
+        id: true,
+        login_id: true,
+        name: true,
+        role: true,
+        status: true,
+        created_at: true,
+        center: { select: { name: true } },
+      },
     });
-    const consent = await this.prisma.user_consent.findUnique({ where: { account_id: user.id } });
+    const consent = await this.prisma.user_consent.findUnique({
+      where: { account_id: user.id },
+    });
     const out: Record<string, unknown> = {
       exportedAt: new Date().toISOString(),
       account,
@@ -71,21 +100,66 @@ export class LegalService {
     };
 
     if (user.role === AccountRole.STUDENT) {
-      out.profile = await this.prisma.student_profile.findUnique({ where: { account_id: user.id } });
+      out.profile = await this.prisma.student_profile.findUnique({
+        where: { account_id: user.id },
+      });
       out.bookings = await this.prisma.booking.findMany({
         where: { student_id: user.id },
-        select: { id: true, start_at: true, consult_type: true, sub_type: true, mode: true, status: true, created_at: true },
-        orderBy: { created_at: 'desc' }, take: 500,
+        select: {
+          id: true,
+          start_at: true,
+          consult_type: true,
+          sub_type: true,
+          mode: true,
+          status: true,
+          created_at: true,
+        },
+        orderBy: { created_at: 'desc' },
+        take: 500,
       });
-      out.credit = await this.prisma.credit_account.findFirst({ where: { student_id: user.id } });
-      out.qnaPosts = await this.prisma.qna_post.findMany({ where: { student_id: user.id }, select: { id: true, subject: true, body: true, status: true, created_at: true }, take: 500 });
-      out.reviews = await this.prisma.review.findMany({ where: { student_id: user.id }, select: { id: true, rating_content: true, text: true, created_at: true }, take: 500 });
+      out.credit = await this.prisma.credit_account.findFirst({
+        where: { student_id: user.id },
+      });
+      out.qnaPosts = await this.prisma.qna_post.findMany({
+        where: { student_id: user.id },
+        select: {
+          id: true,
+          subject: true,
+          body: true,
+          status: true,
+          created_at: true,
+        },
+        take: 500,
+      });
+      out.reviews = await this.prisma.review.findMany({
+        where: { student_id: user.id },
+        select: {
+          id: true,
+          rating_content: true,
+          text: true,
+          created_at: true,
+        },
+        take: 500,
+      });
     } else if (user.role === AccountRole.TEACHER) {
-      out.profile = await this.prisma.teacher_profile.findUnique({ where: { account_id: user.id } });
-      out.bookings = await this.prisma.booking.findMany({ where: { teacher_id: user.id }, select: { id: true, start_at: true, status: true, created_at: true }, orderBy: { created_at: 'desc' }, take: 500 });
-      out.answers = await this.prisma.qna_answer.findMany({ where: { teacher_id: user.id }, select: { id: true, body: true, accepted: true, created_at: true }, take: 500 });
+      out.profile = await this.prisma.teacher_profile.findUnique({
+        where: { account_id: user.id },
+      });
+      out.bookings = await this.prisma.booking.findMany({
+        where: { teacher_id: user.id },
+        select: { id: true, start_at: true, status: true, created_at: true },
+        orderBy: { created_at: 'desc' },
+        take: 500,
+      });
+      out.answers = await this.prisma.qna_answer.findMany({
+        where: { teacher_id: user.id },
+        select: { id: true, body: true, accepted: true, created_at: true },
+        take: 500,
+      });
     } else if (user.role === AccountRole.GUARDIAN) {
-      out.profile = await this.prisma.guardian.findUnique({ where: { account_id: user.id } });
+      out.profile = await this.prisma.guardian.findUnique({
+        where: { account_id: user.id },
+      });
     }
     return out;
   }
@@ -111,6 +185,9 @@ export class LegalService {
       // 보호자 동의 등 민감 개인정보 제거
       await tx.user_consent.deleteMany({ where: { account_id: user.id } });
     });
-    return { ok: true, message: '회원 탈퇴가 완료되었습니다. 개인정보는 비식별 처리되었습니다.' };
+    return {
+      ok: true,
+      message: '회원 탈퇴가 완료되었습니다. 개인정보는 비식별 처리되었습니다.',
+    };
   }
 }

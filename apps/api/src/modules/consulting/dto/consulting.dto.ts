@@ -1,4 +1,14 @@
-import { IsBoolean, IsIn, IsInt, IsOptional, IsString, IsUUID, Matches, MaxLength, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Matches,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import type { ConsultingPackage } from '../domain/status';
 
@@ -8,7 +18,9 @@ export class CreateApplicationDto {
   @MaxLength(40)
   applicantName!: string;
 
-  @Matches(/^[0-9\-+\s()]{7,20}$/, { message: 'applicantPhone 형식이 올바르지 않습니다.' })
+  @Matches(/^[0-9\-+\s()]{7,20}$/, {
+    message: 'applicantPhone 형식이 올바르지 않습니다.',
+  })
   applicantPhone!: string;
 
   @IsIn(['고1', '고2', '고3', 'N수', '기타'])
@@ -53,7 +65,15 @@ export class AssignConsultantDto {
 // 인박스/목록 — 역할별 스코프. 상태 필터 + 페이지네이션.
 export class InboxQueryDto {
   @IsOptional()
-  @IsIn(['draft', 'submitted', 'awaiting_payment', 'paid', 'in_review', 'completed', 'canceled'])
+  @IsIn([
+    'draft',
+    'submitted',
+    'awaiting_payment',
+    'paid',
+    'in_review',
+    'completed',
+    'canceled',
+  ])
   status?: string;
 
   @IsOptional()

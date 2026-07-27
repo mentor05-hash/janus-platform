@@ -17,10 +17,22 @@ export const PLACEMENT_FULL_SERVICE = 'baechipyo-full'; // 전체 유료 배치�
 export const PLACEMENT_JEONGSI_SERVICE = 'baechipyo-jeongsi'; // 정시(kind=jeongsi) 유료 배치표
 
 export const PRODUCTS: Record<ProductKey, ProductDef> = {
-  full: { key: 'full', label: '전체 배치표', services: [PLACEMENT_FULL_SERVICE, PLACEMENT_JEONGSI_SERVICE] },
-  jeongsi: { key: 'jeongsi', label: '정시 정밀배치표', services: [PLACEMENT_JEONGSI_SERVICE] },
+  full: {
+    key: 'full',
+    label: '전체 배치표',
+    services: [PLACEMENT_FULL_SERVICE, PLACEMENT_JEONGSI_SERVICE],
+  },
+  jeongsi: {
+    key: 'jeongsi',
+    label: '정시 정밀배치표',
+    services: [PLACEMENT_JEONGSI_SERVICE],
+  },
   kairos: { key: 'kairos', label: '카이로스 단독', services: ['kairos'] },
-  'kairos-alea': { key: 'kairos-alea', label: '카이로스+알레아 묶음', services: ['kairos', 'alea'] },
+  'kairos-alea': {
+    key: 'kairos-alea',
+    label: '카이로스+알레아 묶음',
+    services: ['kairos', 'alea'],
+  },
 };
 
 export const PRODUCT_KEYS = Object.keys(PRODUCTS) as ProductKey[];
@@ -36,8 +48,12 @@ export const productLabel = (key: string | null | undefined): string =>
  *   baechipyo-full   → 모든 유료 배치표
  *   baechipyo-jeongsi→ 정시(kind=jeongsi)만
  */
-export function coversPlacement(activeServiceIds: Set<string>, kind?: string): boolean {
+export function coversPlacement(
+  activeServiceIds: Set<string>,
+  kind?: string,
+): boolean {
   if (activeServiceIds.has(PLACEMENT_FULL_SERVICE)) return true;
-  if (kind === 'jeongsi' && activeServiceIds.has(PLACEMENT_JEONGSI_SERVICE)) return true;
+  if (kind === 'jeongsi' && activeServiceIds.has(PLACEMENT_JEONGSI_SERVICE))
+    return true;
   return false;
 }

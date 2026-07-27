@@ -9,7 +9,8 @@ import {
 
 describe('academy scoring (§5)', () => {
   it('가중치 합은 1', () => {
-    const sum = SCORE_WEIGHTS.match + SCORE_WEIGHTS.commute + SCORE_WEIGHTS.fresh;
+    const sum =
+      SCORE_WEIGHTS.match + SCORE_WEIGHTS.commute + SCORE_WEIGHTS.fresh;
     expect(sum).toBeCloseTo(1, 9);
   });
 
@@ -40,7 +41,12 @@ describe('academy scoring (§5)', () => {
 
   describe('classFitRatio / bestClassFitRatio', () => {
     it('필터 미요청 시 중립 1', () => {
-      expect(classFitRatio({ subject: '수학', level: 'basic', target_grades: [] }, {})).toBe(1);
+      expect(
+        classFitRatio(
+          { subject: '수학', level: 'basic', target_grades: [] },
+          {},
+        ),
+      ).toBe(1);
       expect(bestClassFitRatio([], {})).toBe(1);
     });
     it('모든 요청 필터를 만족하면 1', () => {
@@ -64,7 +70,13 @@ describe('academy scoring (§5)', () => {
         { subject: '수학', level: 'basic', target_grades: ['고1'] },
         { subject: '수학', level: 'prep', target_grades: ['고3'] },
       ];
-      expect(bestClassFitRatio(classes, { subject: '수학', level: 'prep', grade: '고3' })).toBe(1);
+      expect(
+        bestClassFitRatio(classes, {
+          subject: '수학',
+          level: 'prep',
+          grade: '고3',
+        }),
+      ).toBe(1);
     });
     it('반이 없으면(필터 있음) 0', () => {
       expect(bestClassFitRatio([], { subject: '수학' })).toBe(0);
@@ -73,21 +85,59 @@ describe('academy scoring (§5)', () => {
 
   describe('scoreAcademy — 종합', () => {
     it('0~1 범위', () => {
-      const s = scoreAcademy({ bestClassFitRatio: 1, busPass: true, walkMin: 3, verified: true, ageDays: 1 });
+      const s = scoreAcademy({
+        bestClassFitRatio: 1,
+        busPass: true,
+        walkMin: 3,
+        verified: true,
+        ageDays: 1,
+      });
       expect(s).toBeGreaterThanOrEqual(0);
       expect(s).toBeLessThanOrEqual(1);
     });
     it('완전 적합·버스경유·verified·최신 = 만점', () => {
-      expect(scoreAcademy({ bestClassFitRatio: 1, busPass: true, verified: true, walkMin: 1, ageDays: 1 })).toBeCloseTo(1, 9);
+      expect(
+        scoreAcademy({
+          bestClassFitRatio: 1,
+          busPass: true,
+          verified: true,
+          walkMin: 1,
+          ageDays: 1,
+        }),
+      ).toBeCloseTo(1, 9);
     });
     it('버스 경유가 통학 점수를 끌어올려 더 높다(다른 조건 동일)', () => {
-      const withBus = scoreAcademy({ bestClassFitRatio: 1, busPass: true, walkMin: null, verified: false, ageDays: 400 });
-      const noBus = scoreAcademy({ bestClassFitRatio: 1, busPass: false, walkMin: null, verified: false, ageDays: 400 });
+      const withBus = scoreAcademy({
+        bestClassFitRatio: 1,
+        busPass: true,
+        walkMin: null,
+        verified: false,
+        ageDays: 400,
+      });
+      const noBus = scoreAcademy({
+        bestClassFitRatio: 1,
+        busPass: false,
+        walkMin: null,
+        verified: false,
+        ageDays: 400,
+      });
       expect(withBus).toBeGreaterThan(noBus);
     });
     it('거리 단독 정렬이 아니다 — 적합도 낮은 근거리보다 적합도 높은 원거리가 이길 수 있다', () => {
-      const nearButUnfit = scoreAcademy({ bestClassFitRatio: 0, busPass: true, walkMin: 1, verified: false, ageDays: 400 });
-      const farButFit = scoreAcademy({ bestClassFitRatio: 1, busPass: false, walkMin: 15, verified: true, ageDays: 10 });
+      const nearButUnfit = scoreAcademy({
+        bestClassFitRatio: 0,
+        busPass: true,
+        walkMin: 1,
+        verified: false,
+        ageDays: 400,
+      });
+      const farButFit = scoreAcademy({
+        bestClassFitRatio: 1,
+        busPass: false,
+        walkMin: 15,
+        verified: true,
+        ageDays: 10,
+      });
       expect(farButFit).toBeGreaterThan(nearButUnfit);
     });
   });

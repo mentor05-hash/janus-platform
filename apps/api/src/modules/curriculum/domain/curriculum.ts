@@ -27,7 +27,10 @@ export interface WeeklyPlan {
 }
 
 /** 약점(정답률 낮은 순 최대 5개) → 주간 플랜. */
-export function buildWeeklyPlan(weak: WeakUnit[], score: PlanScore): WeeklyPlan {
+export function buildWeeklyPlan(
+  weak: WeakUnit[],
+  score: PlanScore,
+): WeeklyPlan {
   const sorted = [...weak].sort((a, b) => a.rate - b.rate).slice(0, 5);
   const items: PlanItem[] = sorted.map((w, i) => ({
     order: i + 1,
@@ -40,5 +43,10 @@ export function buildWeeklyPlan(weak: WeakUnit[], score: PlanScore): WeeklyPlan 
   const headline = !sorted.length
     ? '약점 유형이 없어요 — 실력진단을 먼저 보거나, 지금 페이스를 유지하세요.'
     : `이번 주 우선순위 ${sorted.length}개: ${sorted.map((s) => s.unit).join(' · ')}`;
-  return { headline, score, items, hasDiagnostic: weak.length > 0 || sorted.length > 0 };
+  return {
+    headline,
+    score,
+    items,
+    hasDiagnostic: weak.length > 0 || sorted.length > 0,
+  };
 }

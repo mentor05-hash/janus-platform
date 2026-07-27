@@ -15,17 +15,26 @@ describe('맞춤 할 일(tasks)', () => {
   let student: any;
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     await app.init();
     prisma = mod.get(PrismaService);
     svc = mod.get(TasksService);
-    const acc = await prisma.account.findFirstOrThrow({ where: { login_id: 'student01' }, select: { id: true, center_id: true } });
+    const acc = await prisma.account.findFirstOrThrow({
+      where: { login_id: 'student01' },
+      select: { id: true, center_id: true },
+    });
     student = { id: acc.id, role: 'student', centerId: acc.center_id };
-    await prisma.student_task.deleteMany({ where: { title: { startsWith: TAG }, student_id: acc.id } });
+    await prisma.student_task.deleteMany({
+      where: { title: { startsWith: TAG }, student_id: acc.id },
+    });
   });
   afterAll(async () => {
-    await prisma.student_task.deleteMany({ where: { title: { startsWith: TAG } } });
+    await prisma.student_task.deleteMany({
+      where: { title: { startsWith: TAG } },
+    });
     await app.close();
   });
 
@@ -65,25 +74,44 @@ describe('맞춤 할 일(tasks)', () => {
   describe('자가목표 → 격차 제안 자동생성·재조정', () => {
     const REPORT_ID = 'ffffffff-0000-4000-8000-00000000ee01';
     let scores: ScoresService;
-    let prevGoal: { tier: string | null; avg: number | null } = { tier: null, avg: null };
+    let prevGoal: { tier: string | null; avg: number | null } = {
+      tier: null,
+      avg: null,
+    };
 
-    const gapOf = async () => (await svc.list(student)).filter((t) => t.category === 'gap');
+    const gapOf = async () =>
+      (await svc.list(student)).filter((t) => t.category === 'gap');
 
     beforeAll(async () => {
       scores = app.get(ScoresService);
-      const sp = await prisma.student_profile.findUniqueOrThrow({ where: { account_id: student.id }, select: { goal_tier: true, goal_avg: true } });
+      const sp = await prisma.student_profile.findUniqueOrThrow({
+        where: { account_id: student.id },
+        select: { goal_tier: true, goal_avg: true },
+      });
       prevGoal = { tier: sp.goal_tier, avg: sp.goal_avg };
       // 원점수 회차를 최신으로 심는다(누백 모드는 과목 점수가 없어 격차 계산 대상이 아님).
       await prisma.score_report.create({
         data: {
-          id: REPORT_ID, student_id: student.id, period: '9999-격차사슬', exam_type: '내신', source: 'manual',
-          items: { create: [{ subject: '수학', score: 62 }, { subject: '영어', score: 88 }, { subject: '국어', score: 95 }] },
+          id: REPORT_ID,
+          student_id: student.id,
+          period: '9999-격차사슬',
+          exam_type: '내신',
+          source: 'manual',
+          items: {
+            create: [
+              { subject: '수학', score: 62 },
+              { subject: '영어', score: 88 },
+              { subject: '국어', score: 95 },
+            ],
+          },
         },
       });
     });
 
     afterAll(async () => {
-      await prisma.student_task.deleteMany({ where: { student_id: student.id, created_by: 'auto', category: 'gap' } });
+      await prisma.student_task.deleteMany({
+        where: { student_id: student.id, created_by: 'auto', category: 'gap' },
+      });
       await prisma.score_item.deleteMany({ where: { report_id: REPORT_ID } });
       await prisma.score_report.deleteMany({ where: { id: REPORT_ID } });
       await scores.setMyGoal(student, prevGoal); // 원상복구
@@ -92,8 +120,13 @@ describe('맞춤 할 일(tasks)', () => {
     it('목표 설정 → 미달 과목만 gap 제안(목표 초과 과목 제외) + 재조회 멱등', async () => {
       await scores.setMyGoal(student, { avg: 90 });
       const g1 = await gapOf();
-      expect(g1.map((t) => t.source_key).sort()).toEqual(['gap:수학', 'gap:영어']); // 국어 95 ≥ 90 → 제외
-      expect(g1.find((t) => t.source_key === 'gap:수학')?.title).toContain('28');
+      expect(g1.map((t) => t.source_key).sort()).toEqual([
+        'gap:수학',
+        'gap:영어',
+      ]); // 국어 95 ≥ 90 → 제외
+      expect(g1.find((t) => t.source_key === 'gap:수학')?.title).toContain(
+        '28',
+      );
       const g2 = await gapOf();
       expect(g2.length).toBe(g1.length); // 멱등 — 재조회로 중복 생성 없음
     });

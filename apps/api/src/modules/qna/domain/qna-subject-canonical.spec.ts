@@ -1,4 +1,8 @@
-import { normalizeSubject, isCanonicalSubject, CANONICAL_SUBJECTS } from './qna-subject-canonical';
+import {
+  normalizeSubject,
+  isCanonicalSubject,
+  CANONICAL_SUBJECTS,
+} from './qna-subject-canonical';
 
 describe('normalizeSubject (N33 ㉚ 과목 정규화)', () => {
   it('canonical 대분류는 그대로', () => {
@@ -6,7 +10,16 @@ describe('normalizeSubject (N33 ㉚ 과목 정규화)', () => {
   });
 
   it('수학 계열 별칭 → 수학', () => {
-    for (const a of ['미적분', '미적', '확률과통계', '확통', '기하', '수학1', '수1', '수학영역']) {
+    for (const a of [
+      '미적분',
+      '미적',
+      '확률과통계',
+      '확통',
+      '기하',
+      '수학1',
+      '수1',
+      '수학영역',
+    ]) {
       expect(normalizeSubject(a)).toBe('수학');
     }
   });

@@ -85,7 +85,11 @@ export class GuardianController {
     @Query('scope') scope?: string,
   ) {
     // 기본은 '막힌 연결만' — 전체를 기본으로 두면 정상 연결이 상한을 채워 볼 것이 잘린다.
-    return this.guardian.adminListLinks(user, q, scope === 'all' ? 'all' : 'stuck');
+    return this.guardian.adminListLinks(
+      user,
+      q,
+      scope === 'all' ? 'all' : 'stuck',
+    );
   }
 
   /**
@@ -95,7 +99,10 @@ export class GuardianController {
    */
   @Post('admin/guardian-links/:id/unlock')
   @Roles('admin', 'hr')
-  unlockLink(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  unlockLink(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.guardian.unlockRelink(user, id);
   }
 

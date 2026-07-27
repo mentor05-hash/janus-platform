@@ -19,9 +19,15 @@ export interface SsoTokenPayload {
   exp: number;
 }
 
-const TIER_RANK: Record<SsoTier, number> = { free: 0, member: 1, paid: 2, consultant: 3 };
+const TIER_RANK: Record<SsoTier, number> = {
+  free: 0,
+  member: 1,
+  paid: 2,
+  consultant: 3,
+};
 
-export const tierAtLeast = (tier: SsoTier, min: SsoTier): boolean => TIER_RANK[tier] >= TIER_RANK[min];
+export const tierAtLeast = (tier: SsoTier, min: SsoTier): boolean =>
+  TIER_RANK[tier] >= TIER_RANK[min];
 
 /**
  * 역할 → 서비스 티어(O53 잠정 규칙, 단일 소스). admin/hr = consultant · 그 외 로그인 = member.
@@ -32,36 +38,67 @@ export function tierForRole(role: string): SsoTier {
 }
 
 const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url');
-const hmac = (data: string, secret: string) => crypto.createHmac('sha256', secret).update(data).digest('base64url');
+const hmac = (data: string, secret: string) =>
+  crypto.createHmac('sha256', secret).update(data).digest('base64url');
 
-export function signSsoToken(payload: Omit<SsoTokenPayload, 'iat' | 'exp'>, ttlSec: number, secret: string, nowSec = Math.floor(Date.now() / 1000)): string {
+export function signSsoToken(
+  payload: Omit<SsoTokenPayload, 'iat' | 'exp'>,
+  ttlSec: number,
+  secret: string,
+  nowSec = Math.floor(Date.now() / 1000),
+): string {
   const h = b64({ alg: 'HS256', typ: 'JWT' });
-  const p = b64({ ...payload, iat: nowSec, exp: nowSec + ttlSec } satisfies SsoTokenPayload);
+  const p = b64({
+    ...payload,
+    iat: nowSec,
+    exp: nowSec + ttlSec,
+  } satisfies SsoTokenPayload);
   return `${h}.${p}.${hmac(`${h}.${p}`, secret)}`;
 }
 
 export type SsoVerifyResult =
   | { ok: true; payload: SsoTokenPayload }
-  | { ok: false; reason: 'malformed' | 'bad_signature' | 'expired' | 'epoch_revoked' | 'aud_mismatch' };
+  | {
+      ok: false;
+      reason:
+        | 'malformed'
+        | 'bad_signature'
+        | 'expired'
+        | 'epoch_revoked'
+        | 'aud_mismatch';
+    };
 
 /** currentEpoch: sso_service.epoch 현재값 — 불일치 = 일괄 폐기됨. expectedAud 지정 시 aud 일치 강제. */
-export function verifySsoToken(token: string, secret: string, currentEpoch?: number, expectedAud?: string, nowSec = Math.floor(Date.now() / 1000)): SsoVerifyResult {
+export function verifySsoToken(
+  token: string,
+  secret: string,
+  currentEpoch?: number,
+  expectedAud?: string,
+  nowSec = Math.floor(Date.now() / 1000),
+): SsoVerifyResult {
   const parts = (token || '').split('.');
   if (parts.length !== 3) return { ok: false, reason: 'malformed' };
   const [h, p, sig] = parts;
   const expect = hmac(`${h}.${p}`, secret);
   const a = Buffer.from(sig);
   const b = Buffer.from(expect);
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return { ok: false, reason: 'bad_signature' };
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b))
+    return { ok: false, reason: 'bad_signature' };
   let payload: SsoTokenPayload;
   try {
-    payload = JSON.parse(Buffer.from(p, 'base64url').toString()) as SsoTokenPayload;
+    payload = JSON.parse(
+      Buffer.from(p, 'base64url').toString(),
+    ) as SsoTokenPayload;
   } catch {
     return { ok: false, reason: 'malformed' };
   }
-  if (!payload.sub || !payload.aud || typeof payload.epoch !== 'number') return { ok: false, reason: 'malformed' };
-  if (payload.exp && payload.exp < nowSec) return { ok: false, reason: 'expired' };
-  if (expectedAud && payload.aud !== expectedAud) return { ok: false, reason: 'aud_mismatch' };
-  if (currentEpoch != null && payload.epoch !== currentEpoch) return { ok: false, reason: 'epoch_revoked' };
+  if (!payload.sub || !payload.aud || typeof payload.epoch !== 'number')
+    return { ok: false, reason: 'malformed' };
+  if (payload.exp && payload.exp < nowSec)
+    return { ok: false, reason: 'expired' };
+  if (expectedAud && payload.aud !== expectedAud)
+    return { ok: false, reason: 'aud_mismatch' };
+  if (currentEpoch != null && payload.epoch !== currentEpoch)
+    return { ok: false, reason: 'epoch_revoked' };
   return { ok: true, payload };
 }

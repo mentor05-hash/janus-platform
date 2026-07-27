@@ -44,7 +44,10 @@ export class ConsultingController {
   }
 
   @Get('applications/:id')
-  getOne(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  getOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.consulting.getOne(id, user);
   }
 
@@ -61,7 +64,10 @@ export class ConsultingController {
 
   @Post('applications/:id/submit')
   @HttpCode(200)
-  submit(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  submit(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.consulting.submit(id, user);
   }
 
@@ -78,7 +84,10 @@ export class ConsultingController {
   @Post('applications/:id/payment/confirm')
   @Roles('admin', 'hr')
   @HttpCode(200)
-  confirmPayment(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  confirmPayment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.consulting.confirmPayment(id, user);
   }
 
@@ -95,12 +104,18 @@ export class ConsultingController {
   // ── Phase 3: LLM 분석 (결제완료 게이트, 스태프/배정 컨설턴트) ──
   @Post('applications/:id/analysis')
   @HttpCode(200)
-  runAnalysis(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  runAnalysis(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.consulting.runAnalysis(id, user);
   }
 
   @Get('applications/:id/analysis')
-  getAnalysis(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  getAnalysis(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.consulting.getAnalysis(id, user);
   }
 
@@ -112,9 +127,16 @@ export class ConsultingController {
     @CurrentUser() user: AuthUser,
     @Res() res: Response,
   ) {
-    const { data, filename, contentType } = await this.consulting.getDocument(id, docId, user);
+    const { data, filename, contentType } = await this.consulting.getDocument(
+      id,
+      docId,
+      user,
+    );
     res.setHeader('Content-Type', contentType || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
+    );
     res.send(data);
   }
 }

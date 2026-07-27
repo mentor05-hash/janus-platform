@@ -7,8 +7,14 @@ import { isProdEnv } from '../config/env.validation';
  */
 
 /** 순수 코어: allowlist(csv) 있으면 배열, 없으면 로컬 true·운영 false(reflect 금지). */
-export function pickCorsOrigin(csv: string | undefined, isProd: boolean): string[] | boolean {
-  const origins = (csv ?? '').split(',').map((o) => o.trim()).filter(Boolean);
+export function pickCorsOrigin(
+  csv: string | undefined,
+  isProd: boolean,
+): string[] | boolean {
+  const origins = (csv ?? '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
   return origins.length ? origins : isProd ? false : true;
 }
 

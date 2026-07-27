@@ -31,10 +31,18 @@ describe('급여 권한 — HR 차단 + 센터 격리(O127)', () => {
   const OTHER_CENTER = '00000000-0000-4000-8000-0000000000c2';
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     app.setGlobalPrefix('api/v1');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        transform: true,
+        forbidNonWhitelisted: true,
+      }),
+    );
     app.useGlobalInterceptors(new TransformInterceptor());
     app.useGlobalFilters(new AllExceptionsFilter());
     await app.init();
@@ -57,7 +65,12 @@ describe('급여 권한 — HR 차단 + 센터 격리(O127)', () => {
 
   const hdr = (t: string) => ({ Authorization: `Bearer ${t}` });
   const admin = (cid: string | null) =>
-    ({ id: 'a0000000-0000-4000-8000-00000000000a', role: 'admin', centerId: cid, loginId: 'a' }) as any;
+    ({
+      id: 'a0000000-0000-4000-8000-00000000000a',
+      role: 'admin',
+      centerId: cid,
+      loginId: 'a',
+    }) as any;
 
   describe('HR 은 급여 엔드포인트 전부 403', () => {
     // 돈이 움직이거나 남의 급여가 보이는 경로 전수. 하나라도 열리면 N35 가 되살아난다.
@@ -81,7 +94,9 @@ describe('급여 권한 — HR 차단 + 센터 격리(O127)', () => {
     });
 
     it.each(READS)('%s — HR GET 403', async (_label, path) => {
-      const r = await request(app.getHttpServer()).get(`/api/v1/${path}`).set(hdr(tok.hr));
+      const r = await request(app.getHttpServer())
+        .get(`/api/v1/${path}`)
+        .set(hdr(tok.hr));
       expect(r.status).toBe(403);
     });
 
@@ -92,13 +107,17 @@ describe('급여 권한 — HR 차단 + 센터 격리(O127)', () => {
         `teachers/${teacherId}/payroll/revenue-share`,
         `teachers/${teacherId}/payroll`,
       ]) {
-        const r = await request(app.getHttpServer()).get(`/api/v1/${p}`).set(hdr(tok.hr));
+        const r = await request(app.getHttpServer())
+          .get(`/api/v1/${p}`)
+          .set(hdr(tok.hr));
         expect(r.status).toBe(403);
       }
     });
 
     it('관리자는 같은 경로가 열린다 — 차단이 급여 기능 자체를 죽인 게 아니다', async () => {
-      const r = await request(app.getHttpServer()).get('/api/v1/admin/payroll/report').set(hdr(tok.admin));
+      const r = await request(app.getHttpServer())
+        .get('/api/v1/admin/payroll/report')
+        .set(hdr(tok.admin));
       expect(r.status).toBe(200);
     });
 
@@ -117,17 +136,23 @@ describe('급여 권한 — HR 차단 + 센터 격리(O127)', () => {
     });
 
     it('지표(stats)로 급여 집계가 새지 않는다', async () => {
-      const r = await request(app.getHttpServer()).get('/api/v1/admin/stats/overview').set(hdr(tok.hr));
+      const r = await request(app.getHttpServer())
+        .get('/api/v1/admin/stats/overview')
+        .set(hdr(tok.hr));
       expect(r.status).toBe(403);
     });
 
     it('대시보드는 HR 착지 화면이라 열되, 급여 기준(payBasis)은 응답에서 빠진다', async () => {
-      const hrRes = await request(app.getHttpServer()).get('/api/v1/admin/dashboard').set(hdr(tok.hr));
+      const hrRes = await request(app.getHttpServer())
+        .get('/api/v1/admin/dashboard')
+        .set(hdr(tok.hr));
       expect(hrRes.status).toBe(200); // 막으면 로그인 직후 리다이렉트가 순환한다
       expect(hrRes.body.data.payBasis).toBeUndefined();
 
       // 관리자에게는 그대로 있어야 한다 — 필드를 통째로 없앤 게 아니다.
-      const admRes = await request(app.getHttpServer()).get('/api/v1/admin/dashboard').set(hdr(tok.admin));
+      const admRes = await request(app.getHttpServer())
+        .get('/api/v1/admin/dashboard')
+        .set(hdr(tok.admin));
       expect(admRes.body.data.payBasis).toBeDefined();
       expect(admRes.body.data.payBasis.sharePct).toBeGreaterThan(0);
     });
@@ -136,12 +161,18 @@ describe('급여 권한 — HR 차단 + 센터 격리(O127)', () => {
   describe('센터 격리 — 지급 완료에도 걸린다', () => {
     it('타 센터 관리자는 지급 완료를 할 수 없다', async () => {
       expect(teacherCenterId).toBeTruthy(); // 시드가 바뀌어 교사가 센터 미소속이면 무의미해진다
-      await expect(svc.markPaid(teacherId, admin(OTHER_CENTER))).rejects.toThrow(/다른 센터/);
+      await expect(
+        svc.markPaid(teacherId, admin(OTHER_CENTER)),
+      ).rejects.toThrow(/다른 센터/);
     });
 
     it('타 센터 관리자는 명세서·매출배분 명세도 못 본다', async () => {
-      await expect(svc.payslip(teacherId, admin(OTHER_CENTER))).rejects.toThrow(/다른 센터/);
-      await expect(svc.revenueSharePayslip(teacherId, admin(OTHER_CENTER))).rejects.toThrow(/다른 센터/);
+      await expect(svc.payslip(teacherId, admin(OTHER_CENTER))).rejects.toThrow(
+        /다른 센터/,
+      );
+      await expect(
+        svc.revenueSharePayslip(teacherId, admin(OTHER_CENTER)),
+      ).rejects.toThrow(/다른 센터/);
     });
 
     it('자기 센터 관리자는 센터를 이유로 막히지 않는다', async () => {

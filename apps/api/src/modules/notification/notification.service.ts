@@ -1,6 +1,9 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { renderNotification, type NotifPayload } from './notification-templates';
+import {
+  renderNotification,
+  type NotifPayload,
+} from './notification-templates';
 
 /**
  * 알림 조회/읽음 (CLAUDE.md §3 notification). 발송은 NotificationProvider 어댑터가,
@@ -18,7 +21,10 @@ export class NotificationService {
     });
     // type+payload → 표시용 {title, body} 를 서버에서 일관 렌더링.
     return rows.map((n) => {
-      const { title, body } = renderNotification(n.type ?? '', (n.payload as NotifPayload) ?? {});
+      const { title, body } = renderNotification(
+        n.type ?? '',
+        (n.payload as NotifPayload) ?? {},
+      );
       return { ...n, title, body };
     });
   }

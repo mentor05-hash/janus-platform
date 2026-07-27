@@ -17,7 +17,9 @@ function isOverloadError(e: unknown): boolean {
     e instanceof Prisma.PrismaClientKnownRequestError &&
     (e.code === 'P2024' ||
       e.code === 'P2028' ||
-      /connection pool|expired transaction|Transaction (already closed|API error)/i.test(e.message))
+      /connection pool|expired transaction|Transaction (already closed|API error)/i.test(
+        e.message,
+      ))
   );
 }
 
@@ -63,7 +65,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     const requestId = getRequestId();
-    if (status === HttpStatus.SERVICE_UNAVAILABLE) res.setHeader('Retry-After', '2');
+    if (status === HttpStatus.SERVICE_UNAVAILABLE)
+      res.setHeader('Retry-After', '2');
     // 에러 메트릭(로컬 에러추적) — 코드·상태별 카운터
     errorsTotal.inc({ code, status });
     if (status >= 500) {
@@ -77,7 +80,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
           code,
           requestId,
           message,
-          stack: exception instanceof Error ? exception.stack?.split('\n').slice(0, 4).join(' | ') : undefined,
+          stack:
+            exception instanceof Error
+              ? exception.stack?.split('\n').slice(0, 4).join(' | ')
+              : undefined,
         }),
       );
     }

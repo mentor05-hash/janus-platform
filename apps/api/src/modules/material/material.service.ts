@@ -47,7 +47,11 @@ export class MaterialService {
     return new Set();
   }
 
-  async create(teacher: AuthUser, dto: CreateMaterialDto, file?: UploadedFileLike) {
+  async create(
+    teacher: AuthUser,
+    dto: CreateMaterialDto,
+    file?: UploadedFileLike,
+  ) {
     const profile = await this.prisma.teacher_profile.findUnique({
       where: { account_id: teacher.id },
       select: { center_id: true },
@@ -72,7 +76,10 @@ export class MaterialService {
     return { data: this.shape(row) };
   }
 
-  async list(actor: AuthUser, q: { subject?: string; mine?: string; category?: string; q?: string }) {
+  async list(
+    actor: AuthUser,
+    q: { subject?: string; mine?: string; category?: string; q?: string },
+  ) {
     const centers = await this.viewerCenters(actor);
     const centerIds = [...centers];
     const where: Record<string, unknown> = {};
@@ -115,7 +122,10 @@ export class MaterialService {
         file: { select: { filename: true, size: true, content_type: true } },
       },
     });
-    return { data: rows.map((r) => this.shape(r)), meta: { count: rows.length } };
+    return {
+      data: rows.map((r) => this.shape(r)),
+      meta: { count: rows.length },
+    };
   }
 
   async download(actor: AuthUser, id: string) {
@@ -153,7 +163,8 @@ export class MaterialService {
     if (m.visibility === 'public') return true;
     if (m.teacher_id === actor.id) return true;
     if (this.isHqAdmin(actor)) return true;
-    if (this.isAdmin(actor)) return m.center_id != null && m.center_id === actor.centerId;
+    if (this.isAdmin(actor))
+      return m.center_id != null && m.center_id === actor.centerId;
     if (m.visibility === 'private') return false;
     // center 공개: 열람자 센터가 자료 센터와 일치
     const centers = await this.viewerCenters(actor);

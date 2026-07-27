@@ -38,7 +38,14 @@ export interface ParentReport {
   headline: string;
   sections: {
     score: (ParentReportScore & { label: string }) | null;
-    attendance: { done: number; upcoming: number; noshow: number; cancelled: number; rate: number | null; label: string };
+    attendance: {
+      done: number;
+      upcoming: number;
+      noshow: number;
+      cancelled: number;
+      rate: number | null;
+      label: string;
+    };
     consultation: { count: number; recent: ParentReportConsult[] };
     qna: { count: number };
   };
@@ -52,7 +59,8 @@ function attendanceRate(s: ParentReportSessions): number | null {
 }
 
 export function buildParentReport(input: ParentReportInput): ParentReport {
-  const { studentName, periodDays, score, sessions, consultations, qnaCount } = input;
+  const { studentName, periodDays, score, sessions, consultations, qnaCount } =
+    input;
   const rate = attendanceRate(sessions);
 
   const scoreLabel = !score
@@ -62,7 +70,11 @@ export function buildParentReport(input: ParentReportInput): ParentReport {
       : `표점 입력 · ${score.gye ?? '계열 미상'}`;
 
   const attLabel =
-    rate == null ? '이번 주 진행된 세션 없음' : rate === 100 ? `출석 ${rate}% — 개근` : `출석 ${rate}%${sessions.noshow ? ` · 노쇼 ${sessions.noshow}회` : ''}`;
+    rate == null
+      ? '이번 주 진행된 세션 없음'
+      : rate === 100
+        ? `출석 ${rate}% — 개근`
+        : `출석 ${rate}%${sessions.noshow ? ` · 노쇼 ${sessions.noshow}회` : ''}`;
 
   const parts: string[] = [];
   if (sessions.done) parts.push(`세션 ${sessions.done}회 완료`);
@@ -84,9 +96,13 @@ export function buildParentReport(input: ParentReportInput): ParentReport {
     sections: {
       score: score ? { ...score, label: scoreLabel } : null,
       attendance: { ...sessions, rate, label: attLabel },
-      consultation: { count: consultations.length, recent: consultations.slice(0, 3) },
+      consultation: {
+        count: consultations.length,
+        recent: consultations.slice(0, 3),
+      },
       qna: { count: qnaCount },
     },
-    disclaimer: '본 리포트는 자녀의 야누스 활동 요약이며, 성적 수치는 지난 입시 데이터 기반 추정입니다. 심리·민감 상담 기록은 포함되지 않습니다.',
+    disclaimer:
+      '본 리포트는 자녀의 야누스 활동 요약이며, 성적 수치는 지난 입시 데이터 기반 추정입니다. 심리·민감 상담 기록은 포함되지 않습니다.',
   };
 }

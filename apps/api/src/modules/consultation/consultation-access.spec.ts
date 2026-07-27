@@ -37,10 +37,12 @@ function build(
         center_id: opts.studentCenter === undefined ? 'c1' : opts.studentCenter,
       }),
     },
-    booking: { findFirst: track('booking', opts.hasBooking ? { id: 'b1' } : null) },
+    booking: {
+      findFirst: track('booking', opts.hasBooking ? { id: 'b1' } : null),
+    },
     consultation_note: { findMany: track('notes', []) },
   };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   const service = new ConsultationService(prisma as any);
   return { service, calls };
 }
@@ -61,7 +63,9 @@ describe('P0#1 상담기록 BOLA — 교사 접근 스코핑', () => {
 
   it('같은 센터 학생 → 통과(정상 조회)', async () => {
     const s = build({ teacherCenter: 'c1', studentCenter: 'c1' });
-    await expect(s.service.listForStudent('stu-y', teacher)).resolves.toEqual([]);
+    await expect(s.service.listForStudent('stu-y', teacher)).resolves.toEqual(
+      [],
+    );
     expect(s.calls['notes']).toBeDefined();
   });
 
@@ -72,7 +76,9 @@ describe('P0#1 상담기록 BOLA — 교사 접근 스코핑', () => {
 
   it('센터 없는 교사 → 담당 예약 이력 있으면 통과', async () => {
     const s = build({ teacherCenter: null, hasBooking: true });
-    await expect(s.service.listForStudent('stu-z', teacher)).resolves.toEqual([]);
+    await expect(s.service.listForStudent('stu-z', teacher)).resolves.toEqual(
+      [],
+    );
   });
 
   it('record-overview 도 동일 경계 — 타 센터 차단', async () => {

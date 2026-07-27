@@ -25,39 +25,65 @@ describe('학부모–자녀 연결', () => {
   let studentLoginId = '';
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     await app.init();
     prisma = mod.get(PrismaService);
     svc = mod.get(GuardianService);
 
-    const g = await prisma.account.findFirstOrThrow({ where: { login_id: ACCOUNTS.guardian }, select: { id: true, center_id: true } });
-    const s = await prisma.account.findFirstOrThrow({ where: { login_id: ACCOUNTS.student }, select: { id: true, center_id: true, login_id: true } });
+    const g = await prisma.account.findFirstOrThrow({
+      where: { login_id: ACCOUNTS.guardian },
+      select: { id: true, center_id: true },
+    });
+    const s = await prisma.account.findFirstOrThrow({
+      where: { login_id: ACCOUNTS.student },
+      select: { id: true, center_id: true, login_id: true },
+    });
     guardian = { id: g.id, role: 'guardian', centerId: g.center_id };
     student = { id: s.id, role: 'student', centerId: s.center_id };
     studentLoginId = s.login_id;
 
     // 이 스펙이 상태를 만들고 되돌린다 — 다른 스위트가 기대하는 기본값은 'approved' 연결 1건이다.
-    await prisma.guardian_student_link.deleteMany({ where: { guardian_id: g.id, student_id: s.id } });
+    await prisma.guardian_student_link.deleteMany({
+      where: { guardian_id: g.id, student_id: s.id },
+    });
   });
 
   afterAll(async () => {
     // 기본값 복원(approved) — 다른 O105/O106 스위트가 이 연결을 전제한다.
     await prisma.guardian_student_link.upsert({
-      where: { guardian_id_student_id: { guardian_id: guardian.id, student_id: student.id } },
-      create: { guardian_id: guardian.id, student_id: student.id, relation: '모', status: 'approved', link_method: 'test' },
+      where: {
+        guardian_id_student_id: {
+          guardian_id: guardian.id,
+          student_id: student.id,
+        },
+      },
+      create: {
+        guardian_id: guardian.id,
+        student_id: student.id,
+        relation: '모',
+        status: 'approved',
+        link_method: 'test',
+      },
       update: { status: 'approved' },
     });
     await app.close();
   });
 
   it('보호자가 자녀 아이디로 연결을 신청하면 pending 으로 생긴다', async () => {
-    const link = await svc.requestLink(guardian, { studentLoginId, relation: '모' });
+    const link = await svc.requestLink(guardian, {
+      studentLoginId,
+      relation: '모',
+    });
     expect(link.status).toBe('pending');
   });
 
   it('같은 자녀에 중복 신청은 거절된다', async () => {
-    await expect(svc.requestLink(guardian, { studentLoginId })).rejects.toThrow(/이미 연결 신청/);
+    await expect(svc.requestLink(guardian, { studentLoginId })).rejects.toThrow(
+      /이미 연결 신청/,
+    );
   });
 
   it('학생은 자기에게 온 신청을 조회할 수 있다 — 이 경로가 없어서 승인이 불가능했다', async () => {
@@ -85,14 +111,18 @@ describe('학부모–자녀 연결', () => {
   it('타인은 남의 연결에 응답할 수 없다(소유권)', async () => {
     const [link] = await svc.listLinks(student);
     const stranger = { ...student, id: '00000000-0000-4000-8000-0000000000fe' };
-    await expect(svc.respondLink(link.id, { action: 'revoke' }, stranger as any)).rejects.toThrow();
+    await expect(
+      svc.respondLink(link.id, { action: 'revoke' }, stranger as any),
+    ).rejects.toThrow();
   });
 
   it('학생이 연결을 해제하면 보호자 자녀 목록에서 사라진다', async () => {
     const [link] = await svc.listLinks(student);
     await svc.respondLink(link.id, { action: 'revoke' }, student);
     const children = await svc.listChildren(guardian);
-    expect(children.find((c: any) => c.studentId === student.id)).toBeUndefined();
+    expect(
+      children.find((c: any) => c.studentId === student.id),
+    ).toBeUndefined();
   });
 
   /**
@@ -117,10 +147,15 @@ describe('학부모–자녀 연결', () => {
       data: { created_at: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000) },
     });
     const notifs = () =>
-      prisma.notification.count({ where: { recipient_id: student.id, type: 'guardian_link_requested' } });
+      prisma.notification.count({
+        where: { recipient_id: student.id, type: 'guardian_link_requested' },
+      });
     const before = await notifs();
 
-    const revived = await svc.requestLink(guardian, { studentLoginId, relation: '모' });
+    const revived = await svc.requestLink(guardian, {
+      studentLoginId,
+      relation: '모',
+    });
 
     // @@unique(guardian_id, student_id) 때문에 새 행이 아니라 **같은 행**이 되살아나야 한다.
     expect(revived.id).toBe(link.id);
@@ -132,24 +167,51 @@ describe('학부모–자녀 연결', () => {
     });
     expect(ev?.reason).toBe('relink');
     // 부활은 pending 일 뿐 — 학생 승인 전에는 자녀 목록에 나타나지 않는다.
-    expect((await svc.listChildren(guardian)).find((c: any) => c.studentId === student.id)).toBeUndefined();
+    expect(
+      (await svc.listChildren(guardian)).find(
+        (c: any) => c.studentId === student.id,
+      ),
+    ).toBeUndefined();
   });
 
   it('재신청 3회를 모두 쓰면 자동 경로가 닫히고 관리자 안내로 바뀐다', async () => {
     const [link] = await svc.listLinks(student);
     const old = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 쿨다운 밖 — 횟수만으로 막히는지 본다
-    await prisma.guardian_student_link.update({ where: { id: link.id }, data: { status: 'revoked' } });
-    await prisma.guardian_link_event.deleteMany({ where: { link_id: link.id } });
+    await prisma.guardian_student_link.update({
+      where: { id: link.id },
+      data: { status: 'revoked' },
+    });
+    await prisma.guardian_link_event.deleteMany({
+      where: { link_id: link.id },
+    });
     for (let i = 0; i < 3; i++) {
       await prisma.guardian_link_event.create({
-        data: { link_id: link.id, from_status: 'revoked', to_status: 'pending', actor_id: guardian.id, actor_role: 'guardian', reason: 'relink', created_at: old },
+        data: {
+          link_id: link.id,
+          from_status: 'revoked',
+          to_status: 'pending',
+          actor_id: guardian.id,
+          actor_role: 'guardian',
+          reason: 'relink',
+          created_at: old,
+        },
       });
     }
     await prisma.guardian_link_event.create({
-      data: { link_id: link.id, from_status: 'approved', to_status: 'revoked', actor_id: student.id, actor_role: 'student', reason: 'respond', created_at: old },
+      data: {
+        link_id: link.id,
+        from_status: 'approved',
+        to_status: 'revoked',
+        actor_id: student.id,
+        actor_role: 'student',
+        reason: 'respond',
+        created_at: old,
+      },
     });
 
-    await expect(svc.requestLink(guardian, { studentLoginId })).rejects.toThrow(/센터 관리자에게 문의/);
+    await expect(svc.requestLink(guardian, { studentLoginId })).rejects.toThrow(
+      /센터 관리자에게 문의/,
+    );
   });
 
   it('종착 상태 복구는 관리자만 — 학생은 스스로 되돌릴 수 없다', async () => {
@@ -157,24 +219,50 @@ describe('학부모–자녀 연결', () => {
     expect(link.status).toBe('revoked');
 
     // 학생에게 revoked 는 여전히 종착이다(학생의 해제 의사를 학생이 뒤집지 않는다).
-    await expect(svc.respondLink(link.id, { action: 'approve' }, student)).rejects.toThrow(
-      /허용되지 않는 연결 상태 전이/,
-    );
+    await expect(
+      svc.respondLink(link.id, { action: 'approve' }, student),
+    ).rejects.toThrow(/허용되지 않는 연결 상태 전이/);
 
     // 관리자는 쿨다운·횟수와 무관하게 강제 복구할 수 있다(법정대리인 확인 등 오프라인 근거).
-    const adminAcc = await prisma.account.findFirstOrThrow({ where: { login_id: ACCOUNTS.centerAdmin }, select: { id: true, center_id: true } });
-    const admin = { id: adminAcc.id, role: 'admin', centerId: adminAcc.center_id };
-    const r = await svc.respondLink(link.id, { action: 'approve' }, admin as any);
+    const adminAcc = await prisma.account.findFirstOrThrow({
+      where: { login_id: ACCOUNTS.centerAdmin },
+      select: { id: true, center_id: true },
+    });
+    const admin = {
+      id: adminAcc.id,
+      role: 'admin',
+      centerId: adminAcc.center_id,
+    };
+    const r = await svc.respondLink(
+      link.id,
+      { action: 'approve' },
+      admin as any,
+    );
     expect(r.status).toBe('approved');
-    const ev = await prisma.guardian_link_event.findFirst({ where: { link_id: link.id }, orderBy: { created_at: 'desc' } });
+    const ev = await prisma.guardian_link_event.findFirst({
+      where: { link_id: link.id },
+      orderBy: { created_at: 'desc' },
+    });
     expect(ev?.reason).toBe('admin_override'); // 일반 응답과 구분해 감사에 남는다
   });
 
   it('relation 은 부/모/기타로 좁혀져 있다 — 이 값이 자녀 승인 카드에 그대로 렌더되므로 자유 텍스트면 문구를 심을 수 있다', async () => {
-    const inject = plainToInstance(GuardianLinkRequestDto, { studentLoginId, relation: '지금 승인하세요! 미승인 시 계정 정지' });
-    expect((await validate(inject)).some((e) => e.property === 'relation')).toBe(true);
+    const inject = plainToInstance(GuardianLinkRequestDto, {
+      studentLoginId,
+      relation: '지금 승인하세요! 미승인 시 계정 정지',
+    });
+    expect(
+      (await validate(inject)).some((e) => e.property === 'relation'),
+    ).toBe(true);
     for (const ok of ['부', '모', '기타']) {
-      expect(await validate(plainToInstance(GuardianLinkRequestDto, { studentLoginId, relation: ok }))).toHaveLength(0);
+      expect(
+        await validate(
+          plainToInstance(GuardianLinkRequestDto, {
+            studentLoginId,
+            relation: ok,
+          }),
+        ),
+      ).toHaveLength(0);
     }
   });
 });

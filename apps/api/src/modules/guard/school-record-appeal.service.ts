@@ -31,7 +31,10 @@ export class SchoolRecordAppealService {
   constructor(private readonly prisma: PrismaService) {}
 
   /** 사용자 이의 접수 — 로그인 사용자 누구나(§4-b 모달의 "문의하기"). */
-  async create(actor: AuthUser, dto: { reason: string; surface?: string; note?: string }) {
+  async create(
+    actor: AuthUser,
+    dto: { reason: string; surface?: string; note?: string },
+  ) {
     const row = await this.prisma.school_record_appeal.create({
       data: {
         reason: dto.reason,
@@ -60,12 +63,21 @@ export class SchoolRecordAppealService {
       this.prisma.school_record_appeal.count({ where }),
       this.prisma.school_record_appeal.count({ where: { status: 'open' } }),
     ]);
-    return { data: rows.map((r) => this.toDto(r)), meta: { page, size, total, openCount } };
+    return {
+      data: rows.map((r) => this.toDto(r)),
+      meta: { page, size, total, openCount },
+    };
   }
 
   /** 상태 갱신(관리자) — reviewing/resolved/rejected + 처리 메모. resolved/rejected 시 처리자·시각 기록. */
-  async updateStatus(actor: AuthUser, id: string, dto: { status: string; resolution?: string }) {
-    const existing = await this.prisma.school_record_appeal.findUnique({ where: { id } });
+  async updateStatus(
+    actor: AuthUser,
+    id: string,
+    dto: { status: string; resolution?: string },
+  ) {
+    const existing = await this.prisma.school_record_appeal.findUnique({
+      where: { id },
+    });
     if (!existing) throw new NotFoundException('이의 신고를 찾을 수 없습니다.');
     const closed = dto.status === 'resolved' || dto.status === 'rejected';
     const row = await this.prisma.school_record_appeal.update({

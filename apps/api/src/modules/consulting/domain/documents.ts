@@ -39,10 +39,17 @@ export function validateDocument(file: DocFileMeta): DocValidation {
   const mimeOk = isAllowedDocMime(file.mimetype);
   const nameOk = isAllowedDocName(file.originalname);
   if (!mimeOk && !nameOk) {
-    return { ok: false, reason: '허용되지 않는 형식입니다. PDF 또는 Word(.doc/.docx) 파일만 업로드할 수 있습니다.' };
+    return {
+      ok: false,
+      reason:
+        '허용되지 않는 형식입니다. PDF 또는 Word(.doc/.docx) 파일만 업로드할 수 있습니다.',
+    };
   }
   if (file.size > MAX_DOC_SIZE_BYTES) {
-    return { ok: false, reason: '파일이 너무 큽니다. 최대 20MB까지 업로드할 수 있습니다.' };
+    return {
+      ok: false,
+      reason: '파일이 너무 큽니다. 최대 20MB까지 업로드할 수 있습니다.',
+    };
   }
   return { ok: true };
 }

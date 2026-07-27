@@ -1,11 +1,24 @@
-import { BadRequestException, Body, Controller, Headers, Param, Post, Req, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Headers,
+  Param,
+  Post,
+  Req,
+  UnauthorizedException,
+} from '@nestjs/common';
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
 import { Public } from '../../../common/decorators/public.decorator';
 import { PgWebhookService } from './pg-webhook.service';
 import { PgWebhookEvent, PgWebhookType } from './pg.types';
 
-const TYPES: PgWebhookType[] = ['payment.paid', 'payment.failed', 'payment.refunded'];
+const TYPES: PgWebhookType[] = [
+  'payment.paid',
+  'payment.failed',
+  'payment.refunded',
+];
 
 /**
  * PG 웹훅 수신 엔드포인트 (CLAUDE.md §9 O2).
@@ -39,14 +52,18 @@ export class PgWebhookController {
     const type = body.type as PgWebhookType;
     const idempotencyKey = String(body.idempotencyKey ?? body.orderId ?? '');
     if (!eventId || !TYPES.includes(type) || !idempotencyKey) {
-      throw new BadRequestException('필수 필드 누락(eventId/type/idempotencyKey)');
+      throw new BadRequestException(
+        '필수 필드 누락(eventId/type/idempotencyKey)',
+      );
     }
     const amount = body.amount != null ? Number(body.amount) : undefined;
     return {
       eventId,
       type,
       idempotencyKey,
-      payerAccountId: body.payerAccountId ? String(body.payerAccountId) : undefined,
+      payerAccountId: body.payerAccountId
+        ? String(body.payerAccountId)
+        : undefined,
       amount: Number.isFinite(amount) ? amount : undefined,
       pgTxnId: body.pgTxnId ? String(body.pgTxnId) : undefined,
     };

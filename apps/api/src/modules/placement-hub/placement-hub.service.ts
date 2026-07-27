@@ -1,4 +1,10 @@
-import { ForbiddenException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
@@ -9,12 +15,26 @@ import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { AuditService } from '../audit/audit.service';
 import { EntitlementService } from '../entitlement/entitlement.service';
 import { coversPlacement } from '../entitlement/domain/products';
-import { tierAtLeast, tierForRole, type SsoTier } from '../sso/domain/sso-token';
-import { filterSliceRows, type SliceResult, type SliceRow } from './domain/slice';
+import {
+  tierAtLeast,
+  tierForRole,
+  type SsoTier,
+} from '../sso/domain/sso-token';
+import {
+  filterSliceRows,
+  type SliceResult,
+  type SliceRow,
+} from './domain/slice';
 import { injectWatermark, watermarkSnippet } from './domain/watermark';
 
 /** 티켓 페이로드 — 파일 서빙 시 워터마크·감사에 쓸 열람자 신원(발급 시점 고정). */
-interface TicketPayload { s: string; u: string; l: string; n: string; r: string }
+interface TicketPayload {
+  s: string;
+  u: string;
+  l: string;
+  n: string;
+  r: string;
+}
 
 /**
  * 배치표 허브(§CLAUDE.md 4) — 저작권 데이터(배치표·격차 리포트 HTML)는 repo 에 없고
@@ -86,11 +106,28 @@ export class PlacementHubService {
    * 에서 검색해 제공. 컷 수치는 저작권 데이터라 repo 무반입(C6), 회원+ 로그인에게만(C2 — 컨트롤러 인증).
    * 데이터 미배치(개발·CI)면 available:false → 격차 페이지는 수동 입력 폴백.
    */
-  searchTargets(user: AuthUser, q: string, mode: 'jeongsi' | 'susi' = 'jeongsi', limit = 20): { available: boolean; targets: Array<{ univ: string; dept: string; track?: string; cut: number }> } {
-    if (!tierAtLeast(tierForRole(user.role), 'member')) return { available: false, targets: [] };
+  searchTargets(
+    user: AuthUser,
+    q: string,
+    mode: 'jeongsi' | 'susi' = 'jeongsi',
+    limit = 20,
+  ): {
+    available: boolean;
+    targets: Array<{ univ: string; dept: string; track?: string; cut: number }>;
+  } {
+    if (!tierAtLeast(tierForRole(user.role), 'member'))
+      return { available: false, targets: [] };
     const base = this.baseDir();
     if (!base) return { available: false, targets: [] };
-    let all: Array<{ univ?: string; dept?: string; track?: string; mode?: string; cut?: unknown; cutNb?: unknown; cutGrade?: unknown }> = [];
+    let all: Array<{
+      univ?: string;
+      dept?: string;
+      track?: string;
+      mode?: string;
+      cut?: unknown;
+      cutNb?: unknown;
+      cutGrade?: unknown;
+    }> = [];
     try {
       const raw = fs.readFileSync(path.join(base, 'targets.json'), 'utf8');
       const j = JSON.parse(raw) as { targets?: typeof all };
@@ -100,14 +137,24 @@ export class PlacementHubService {
     }
     const term = (q ?? '').trim();
     // 컷 값: mode 별 필드(정시=cut/cutNb, 수시=cut/cutGrade). mode 미지정 항목은 정시로 간주.
-    const cutOf = (t: (typeof all)[number]): number => Number(t.cut ?? (mode === 'susi' ? t.cutGrade : t.cutNb));
+    const cutOf = (t: (typeof all)[number]): number =>
+      Number(t.cut ?? (mode === 'susi' ? t.cutGrade : t.cutNb));
     const valid = all
-      .filter((t) => t && typeof t.univ === 'string' && typeof t.dept === 'string')
+      .filter(
+        (t) => t && typeof t.univ === 'string' && typeof t.dept === 'string',
+      )
       .filter((t) => (t.mode ?? 'jeongsi') === mode)
       .filter((t) => Number.isFinite(cutOf(t)))
-      .filter((t) => !term || `${t.univ} ${t.dept} ${t.track ?? ''}`.includes(term))
+      .filter(
+        (t) => !term || `${t.univ} ${t.dept} ${t.track ?? ''}`.includes(term),
+      )
       .slice(0, Math.min(50, Math.max(1, limit)))
-      .map((t) => ({ univ: t.univ as string, dept: t.dept as string, track: t.track, cut: Math.round(cutOf(t) * 100) / 100 }));
+      .map((t) => ({
+        univ: t.univ as string,
+        dept: t.dept as string,
+        track: t.track,
+        cut: Math.round(cutOf(t) * 100) / 100,
+      }));
     return { available: true, targets: valid };
   }
 
@@ -118,7 +165,10 @@ export class PlacementHubService {
   private assertNotInternalOnly(user: AuthUser, entry: HubTable): void {
     if (entry.audience !== 'internal') return;
     if (!tierAtLeast(tierForRole(user.role), 'consultant')) {
-      throw new ForbiddenException({ code: 'HUB_INTERNAL_ONLY', message: '내부 검증용 자료입니다 — 외부 공개본을 이용해 주세요.' });
+      throw new ForbiddenException({
+        code: 'HUB_INTERNAL_ONLY',
+        message: '내부 검증용 자료입니다 — 외부 공개본을 이용해 주세요.',
+      });
     }
   }
 
@@ -128,7 +178,12 @@ export class PlacementHubService {
     return t === 'member' || t === 'paid' || t === 'consultant' ? t : 'free';
   }
 
-  private readonly TIER_LABEL: Record<SsoTier, string> = { free: '무료', member: '회원', paid: '유료 회원', consultant: '컨설턴트' };
+  private readonly TIER_LABEL: Record<SsoTier, string> = {
+    free: '무료',
+    member: '회원',
+    paid: '유료 회원',
+    consultant: '컨설턴트',
+  };
 
   /**
    * 접합계약 C2 — 토큰 없으면 무료판만. 회원급 파일은 **사용자 티어가 표 요구 티어 이상일 때만**
@@ -136,35 +191,75 @@ export class PlacementHubService {
    */
   async issueTicket(user: AuthUser, slug: string): Promise<{ ticket: string }> {
     const entry = this.readManifest().find((t) => t.slug === slug);
-    if (!entry) throw new NotFoundException({ code: 'HUB_NOT_FOUND', message: '해당 배치표가 없습니다.' });
+    if (!entry)
+      throw new NotFoundException({
+        code: 'HUB_NOT_FOUND',
+        message: '해당 배치표가 없습니다.',
+      });
     this.assertNotInternalOnly(user, entry); // O77 — 내부용(V1·V2)은 상품 권한으로도 불가
     const required = this.tierOf(entry);
     const userTier = tierForRole(user.role);
     if (!tierAtLeast(userTier, required)) {
       // 티어 미달이어도 유료 배치표 상품(entitlement)이 이 표(kind)를 덮으면 통과.
-      const covered = required === 'paid' && coversPlacement(await this.entitlement.activeServices(user.id), entry.kind);
+      const covered =
+        required === 'paid' &&
+        coversPlacement(
+          await this.entitlement.activeServices(user.id),
+          entry.kind,
+        );
       if (!covered) {
         const need = this.TIER_LABEL[required];
-        const msg = required === 'paid'
-          ? '유료 배치표 상품 전용입니다 — 전체 배치표/정시 정밀배치표를 구매하면 열람할 수 있어요.'
-          : required === 'consultant'
-            ? '컨설턴트 전용 자료입니다.'
-            : `${need}부터 열람할 수 있습니다.`;
-        throw new ForbiddenException({ code: 'HUB_TIER_LOCKED', message: msg, requiredTier: required, yourTier: userTier });
+        const msg =
+          required === 'paid'
+            ? '유료 배치표 상품 전용입니다 — 전체 배치표/정시 정밀배치표를 구매하면 열람할 수 있어요.'
+            : required === 'consultant'
+              ? '컨설턴트 전용 자료입니다.'
+              : `${need}부터 열람할 수 있습니다.`;
+        throw new ForbiddenException({
+          code: 'HUB_TIER_LOCKED',
+          message: msg,
+          requiredTier: required,
+          yourTier: userTier,
+        });
       }
     }
     // 이상행동 상한(O76): 계정당 하루 유료 파일 티켓 N회 — 전 탭 자동 스크래핑 억제.
-    const used = await this.cache.incr(`hubcap:file:${user.id}:${this.dayKey()}`, 86_400);
+    const used = await this.cache.incr(
+      `hubcap:file:${user.id}:${this.dayKey()}`,
+      86_400,
+    );
     if (used > PlacementHubService.FILE_DAY_CAP) {
-      await this.audit.record(user, { action: 'hub.cap.file', targetType: 'placement', targetId: slug, summary: `유료표 일일 상한 초과(${used}회)` });
-      throw new ForbiddenException({ code: 'HUB_DAILY_CAP', message: '오늘 열람 한도를 초과했습니다. 내일 다시 이용해 주세요.' });
+      await this.audit.record(user, {
+        action: 'hub.cap.file',
+        targetType: 'placement',
+        targetId: slug,
+        summary: `유료표 일일 상한 초과(${used}회)`,
+      });
+      throw new ForbiddenException({
+        code: 'HUB_DAILY_CAP',
+        message: '오늘 열람 한도를 초과했습니다. 내일 다시 이용해 주세요.',
+      });
     }
     // 열람자 신원(발급 시점 고정) — 파일 서빙 시 워터마크·감사(O76). name 은 조회 실패 시 loginId 폴백.
-    const name = await this.entitlement.resolveAccount(user.id).then((a) => a.name).catch(() => user.loginId);
-    const payload: TicketPayload = { s: slug, u: user.id, l: user.loginId, n: name, r: user.role };
+    const name = await this.entitlement
+      .resolveAccount(user.id)
+      .then((a) => a.name)
+      .catch(() => user.loginId);
+    const payload: TicketPayload = {
+      s: slug,
+      u: user.id,
+      l: user.loginId,
+      n: name,
+      r: user.role,
+    };
     const ticket = crypto.randomUUID();
     await this.cache.set(`hubtkt:${ticket}`, JSON.stringify(payload), 120); // 2분 내 iframe 로드용
-    await this.audit.record(user, { action: 'hub.ticket', targetType: 'placement', targetId: slug, summary: `배치표 티켓 발급(${slug})` });
+    await this.audit.record(user, {
+      action: 'hub.ticket',
+      targetType: 'placement',
+      targetId: slug,
+      summary: `배치표 티켓 발급(${slug})`,
+    });
     return { ticket };
   }
 
@@ -172,47 +267,89 @@ export class PlacementHubService {
    * 허용목록 파일 스트리밍용 로드. slug 이외의 입력은 받지 않는다. 무료(tier=free/미지정)만 티켓 없이 공개.
    * 유료(비무료)는 ①티켓 1회용(재사용=재발급 강제) ②per-user 워터마크 주입 ③서빙 감사 로그(O76).
    */
-  async fileHtml(slug: string, ticket?: string): Promise<{ html: Buffer | string; updated?: string }> {
+  async fileHtml(
+    slug: string,
+    ticket?: string,
+  ): Promise<{ html: Buffer | string; updated?: string }> {
     const base = this.baseDir();
     const entry = this.readManifest().find((t) => t.slug === slug);
-    if (!base || !entry) throw new NotFoundException({ code: 'HUB_NOT_FOUND', message: '해당 배치표가 없습니다.' });
+    if (!base || !entry)
+      throw new NotFoundException({
+        code: 'HUB_NOT_FOUND',
+        message: '해당 배치표가 없습니다.',
+      });
     // 내부용(O77)은 tier 표기와 무관하게 항상 티켓 필수 — 티켓 발급 단계가 관리자만 허용하므로 이중 잠금.
-    const isFree = (!entry.tier || entry.tier === 'free') && entry.audience !== 'internal';
+    const isFree =
+      (!entry.tier || entry.tier === 'free') && entry.audience !== 'internal';
     let viewer: TicketPayload | null = null;
     if (!isFree) {
-      const raw = ticket ? await this.cache.get<string>(`hubtkt:${ticket}`) : null;
+      const raw = ticket
+        ? await this.cache.get<string>(`hubtkt:${ticket}`)
+        : null;
       if (raw) {
         try {
           const p = JSON.parse(raw) as TicketPayload;
           if (p.s === slug) viewer = p;
         } catch {
-          if (raw === slug) viewer = { s: slug, u: 'legacy', l: 'legacy', n: '열람자', r: 'student' }; // 구형 티켓 호환
+          if (raw === slug)
+            viewer = {
+              s: slug,
+              u: 'legacy',
+              l: 'legacy',
+              n: '열람자',
+              r: 'student',
+            }; // 구형 티켓 호환
         }
       }
-      if (!viewer) throw new ForbiddenException({ code: 'HUB_TIER_LOCKED', message: '회원부터 열람할 수 있습니다 — 로그인 후 이용하세요.' });
+      if (!viewer)
+        throw new ForbiddenException({
+          code: 'HUB_TIER_LOCKED',
+          message: '회원부터 열람할 수 있습니다 — 로그인 후 이용하세요.',
+        });
       await this.cache.del(`hubtkt:${ticket}`); // 1회용 — 유출된 URL 재사용 차단(재열람은 재발급)
     }
     // 경로 탈출 차단: manifest 파일명이라도 base 밖이면 거부
     const abs = path.resolve(base, entry.file);
     if (!abs.startsWith(path.resolve(base) + path.sep)) {
       this.logger.warn(`경로 탈출 시도 차단: ${entry.file}`);
-      throw new NotFoundException({ code: 'HUB_NOT_FOUND', message: '해당 배치표가 없습니다.' });
+      throw new NotFoundException({
+        code: 'HUB_NOT_FOUND',
+        message: '해당 배치표가 없습니다.',
+      });
     }
     let buf: Buffer;
     try {
       buf = fs.readFileSync(abs);
     } catch {
-      throw new NotFoundException({ code: 'HUB_FILE_MISSING', message: '파일이 데이터 디렉토리에 없습니다.' });
+      throw new NotFoundException({
+        code: 'HUB_FILE_MISSING',
+        message: '파일이 데이터 디렉토리에 없습니다.',
+      });
     }
     if (!viewer) return { html: buf, updated: entry.updated }; // 무료판 — 원문 그대로
     // per-user 워터마크(가시 오버레이+지문 주석) + 서빙 감사 — 유출 억지·귀속(O76)
     const html = injectWatermark(
       buf.toString('utf8'),
-      watermarkSnippet({ name: viewer.n, loginId: viewer.l, accountId: viewer.u, nowMs: Date.now() }),
+      watermarkSnippet({
+        name: viewer.n,
+        loginId: viewer.l,
+        accountId: viewer.u,
+        nowMs: Date.now(),
+      }),
     );
     await this.audit.record(
-      { id: viewer.u, role: viewer.r as never, centerId: null, loginId: viewer.l },
-      { action: 'hub.file', targetType: 'placement', targetId: slug, summary: `유료 배치표 서빙(${slug} → ${viewer.l})` },
+      {
+        id: viewer.u,
+        role: viewer.r as never,
+        centerId: null,
+        loginId: viewer.l,
+      },
+      {
+        action: 'hub.file',
+        targetType: 'placement',
+        targetId: slug,
+        summary: `유료 배치표 서빙(${slug} → ${viewer.l})`,
+      },
     );
     return { html, updated: entry.updated };
   }
@@ -223,21 +360,41 @@ export class PlacementHubService {
    * 데이터: JANUS_DATA_DIR/placement-hub/slices/<slug>.json (데이터 트랙이 생성 — README §slice).
    * 파일이 없으면 available:false → 프런트는 기존 전체 HTML(티켓) 경로 폴백.
    */
-  async slice(user: AuthUser, slug: string, q: string, limit?: number): Promise<SliceResult & { remainingToday?: number }> {
+  async slice(
+    user: AuthUser,
+    slug: string,
+    q: string,
+    limit?: number,
+  ): Promise<SliceResult & { remainingToday?: number }> {
     const entry = this.readManifest().find((t) => t.slug === slug);
-    if (!entry) throw new NotFoundException({ code: 'HUB_NOT_FOUND', message: '해당 배치표가 없습니다.' });
+    if (!entry)
+      throw new NotFoundException({
+        code: 'HUB_NOT_FOUND',
+        message: '해당 배치표가 없습니다.',
+      });
     this.assertNotInternalOnly(user, entry); // O77 — 내부용(V1·V2)은 상품 권한으로도 불가
     // 게이트 — 티켓과 동일 판정(티어 또는 상품 권한)
     const required = this.tierOf(entry);
     if (!tierAtLeast(tierForRole(user.role), required)) {
-      const covered = required === 'paid' && coversPlacement(await this.entitlement.activeServices(user.id), entry.kind);
-      if (!covered) throw new ForbiddenException({ code: 'HUB_TIER_LOCKED', message: '이 자료는 상품 구매 후 열람할 수 있습니다.' });
+      const covered =
+        required === 'paid' &&
+        coversPlacement(
+          await this.entitlement.activeServices(user.id),
+          entry.kind,
+        );
+      if (!covered)
+        throw new ForbiddenException({
+          code: 'HUB_TIER_LOCKED',
+          message: '이 자료는 상품 구매 후 열람할 수 있습니다.',
+        });
     }
     const base = this.baseDir();
     if (!base) return { available: false, total: 0, rows: [], capped: false };
     let rows: SliceRow[] = [];
     try {
-      const j = JSON.parse(fs.readFileSync(path.join(base, 'slices', `${slug}.json`), 'utf8')) as { rows?: SliceRow[] };
+      const j = JSON.parse(
+        fs.readFileSync(path.join(base, 'slices', `${slug}.json`), 'utf8'),
+      ) as { rows?: SliceRow[] };
       rows = Array.isArray(j.rows) ? j.rows : [];
     } catch {
       return { available: false, total: 0, rows: [], capped: false }; // slice 미배치 — 전체파일 경로 폴백
@@ -247,10 +404,22 @@ export class PlacementHubService {
     const capKey = `hubcap:slice:${user.id}:${this.dayKey()}`;
     const served = (await this.cache.get<number>(capKey)) ?? 0;
     if (served + result.rows.length > PlacementHubService.SLICE_ROW_DAY_CAP) {
-      await this.audit.record(user, { action: 'hub.cap.slice', targetType: 'placement', targetId: slug, summary: `slice 일일 행 상한 초과(${served}행)` });
-      throw new ForbiddenException({ code: 'HUB_DAILY_CAP', message: '오늘 조회 한도를 초과했습니다. 내일 다시 이용해 주세요.' });
+      await this.audit.record(user, {
+        action: 'hub.cap.slice',
+        targetType: 'placement',
+        targetId: slug,
+        summary: `slice 일일 행 상한 초과(${served}행)`,
+      });
+      throw new ForbiddenException({
+        code: 'HUB_DAILY_CAP',
+        message: '오늘 조회 한도를 초과했습니다. 내일 다시 이용해 주세요.',
+      });
     }
     await this.cache.set(capKey, served + result.rows.length, 86_400);
-    return { ...result, remainingToday: PlacementHubService.SLICE_ROW_DAY_CAP - served - result.rows.length };
+    return {
+      ...result,
+      remainingToday:
+        PlacementHubService.SLICE_ROW_DAY_CAP - served - result.rows.length,
+    };
   }
 }

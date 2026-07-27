@@ -14,10 +14,22 @@ export class AdminScheduleController {
   @HttpCode(200)
   @Roles('admin', 'hr')
   bulk(
-    @Body() body: { items?: { loginId: string; recurringTemplate?: Record<string, { start: string; end: string }[]>; weekPlans?: { weekStart: string; template: Record<string, { start: string; end: string }[]> }[] }[] },
+    @Body()
+    body: {
+      items?: {
+        loginId: string;
+        recurringTemplate?: Record<string, { start: string; end: string }[]>;
+        weekPlans?: {
+          weekStart: string;
+          template: Record<string, { start: string; end: string }[]>;
+        }[];
+      }[];
+    },
     @CurrentUser() user: AuthUser,
   ) {
-    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
+    const today = new Date().toLocaleDateString('en-CA', {
+      timeZone: 'Asia/Seoul',
+    });
     return this.availability.bulkApplySchedules(
       { id: user.id, role: user.role, centerId: user.centerId },
       (body?.items ?? []) as never,

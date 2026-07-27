@@ -46,7 +46,10 @@ import {
           const legacy = legacyKey
             ? envInt(config.get<string>(legacyKey), limits[p])
             : limits[p];
-          limits[p] = envInt(config.get<string>(llmDailyLimitEnvKey(p)), legacy);
+          limits[p] = envInt(
+            config.get<string>(llmDailyLimitEnvKey(p)),
+            legacy,
+          );
         }
         const total = envInt(
           config.get<string>('LLM_DAILY_CALL_LIMIT'),

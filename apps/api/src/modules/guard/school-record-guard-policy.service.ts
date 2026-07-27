@@ -1,4 +1,10 @@
-import { ForbiddenException, Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  Logger,
+  Optional,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -39,7 +45,9 @@ export class SchoolRecordGuardPolicyService {
 
   /** 자동 활성 예약 시각. 테스트/운영 조정을 위해 ENV(SR_CONSULTING_ACTIVATION_AT)로 덮어쓸 수 있다. */
   private activationAt(): Date {
-    const raw = this.config.get<string>('SR_CONSULTING_ACTIVATION_AT') ?? DEFAULT_ACTIVATION_AT;
+    const raw =
+      this.config.get<string>('SR_CONSULTING_ACTIVATION_AT') ??
+      DEFAULT_ACTIVATION_AT;
     const d = new Date(raw);
     return Number.isNaN(d.getTime()) ? new Date(DEFAULT_ACTIVATION_AT) : d;
   }
@@ -81,7 +89,10 @@ export class SchoolRecordGuardPolicyService {
    * 관리자 수동 on/off — 본사 마스터(admin·centerId 없음)만(ops.putOpsSetting 규약과 동일).
    * autoActivatedAt 마커는 보존한다(자동 활성 이력 유지).
    */
-  async setConsultingUploadDisabled(actor: AuthUser, enabled: boolean): Promise<ConsultingToggleState> {
+  async setConsultingUploadDisabled(
+    actor: AuthUser,
+    enabled: boolean,
+  ): Promise<ConsultingToggleState> {
     if (actor.role !== 'admin' || actor.centerId) {
       throw new ForbiddenException('본사 마스터관리자만 변경할 수 있습니다.');
     }
@@ -107,9 +118,11 @@ export class SchoolRecordGuardPolicyService {
    * 스케줄 발화 — now ≥ 활성 시각이고 아직 자동 활성 전이면 1회 활성(멱등).
    * `now` 는 테스트에서 시각을 주입하기 위한 시접(공지 runDue 패턴).
    */
-  async runScheduledActivation(
-    now = new Date(),
-  ): Promise<{ activated: boolean; reason: string; state: ConsultingToggleState }> {
+  async runScheduledActivation(now = new Date()): Promise<{
+    activated: boolean;
+    reason: string;
+    state: ConsultingToggleState;
+  }> {
     const target = this.activationAt();
     const cur = await this.getConsultingUploadDisabled();
     if (now.getTime() < target.getTime()) {
@@ -144,7 +157,9 @@ export class SchoolRecordGuardPolicyService {
       async () => {
         const r = await this.runScheduledActivation();
         if (r.activated) {
-          this.logger.warn('컨설팅 업로드 토글 자동 활성 완료(7/29 법령 시행).');
+          this.logger.warn(
+            '컨설팅 업로드 토글 자동 활성 완료(7/29 법령 시행).',
+          );
         }
       },
       this.logger,

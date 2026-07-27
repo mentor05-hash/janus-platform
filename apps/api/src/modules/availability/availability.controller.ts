@@ -85,8 +85,15 @@ export class AvailabilityController {
     @Body() body: { weekPlans?: unknown },
     @CurrentUser() user: AuthUser,
   ) {
-    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
-    return this.availability.saveWeekPlans(id, (body?.weekPlans ?? []) as never, user, today);
+    const today = new Date().toLocaleDateString('en-CA', {
+      timeZone: 'Asia/Seoul',
+    });
+    return this.availability.saveWeekPlans(
+      id,
+      (body?.weekPlans ?? []) as never,
+      user,
+      today,
+    );
   }
 
   /** POST /teachers/{id}/week-plans/conflicts — 저장 전 학생 예약 충돌 검사. */
@@ -97,7 +104,10 @@ export class AvailabilityController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: { weekPlans?: unknown },
   ) {
-    return this.availability.detectConflicts(id, (body?.weekPlans ?? []) as never);
+    return this.availability.detectConflicts(
+      id,
+      (body?.weekPlans ?? []) as never,
+    );
   }
 
   /** GET /teachers/{id}/leave — 사유 제외(연차/반차/병가) 목록. */

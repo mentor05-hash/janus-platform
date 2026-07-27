@@ -12,9 +12,17 @@ import { ManualPaymentProvider } from './payment/manual-payment.provider';
 // 결제는 PaymentProvider 추상화 — 현재 ManualProvider(수동/모의), 실 PG는 교체.
 // SchoolRecordGuardModule: 신규 생기부 업로드 토글(스텝3)·차단 통계 기록 주입.
 @Module({
-  imports: [StorageModule, LlmModule, NotificationModule, SchoolRecordGuardModule],
+  imports: [
+    StorageModule,
+    LlmModule,
+    NotificationModule,
+    SchoolRecordGuardModule,
+  ],
   controllers: [ConsultingController],
-  providers: [ConsultingService, { provide: PAYMENT_PROVIDER, useClass: ManualPaymentProvider }],
+  providers: [
+    ConsultingService,
+    { provide: PAYMENT_PROVIDER, useClass: ManualPaymentProvider },
+  ],
   exports: [ConsultingService],
 })
 export class ConsultingModule {}

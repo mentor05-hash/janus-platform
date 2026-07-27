@@ -37,11 +37,17 @@ describe('대시보드(§dashboard)', () => {
   };
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     app.setGlobalPrefix('api/v1');
     app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }),
+      new ValidationPipe({
+        whitelist: true,
+        transform: true,
+        forbidNonWhitelisted: true,
+      }),
     );
     app.useGlobalInterceptors(new TransformInterceptor());
     app.useGlobalFilters(new AllExceptionsFilter());
@@ -53,10 +59,14 @@ describe('대시보드(§dashboard)', () => {
     tok.center = await login(ACCOUNTS.centerAdmin);
     tok.teacher = await login(ACCOUNTS.teacher); // 구 't1' 없음
 
-    const ca = await prisma.account.findUnique({ where: { login_id: 'admin01' } });
+    const ca = await prisma.account.findUnique({
+      where: { login_id: 'admin01' },
+    });
     adminCenter = ca?.center_id ?? null;
     const own = adminCenter
-      ? await prisma.teacher_profile.findFirst({ where: { center_id: adminCenter } })
+      ? await prisma.teacher_profile.findFirst({
+          where: { center_id: adminCenter },
+        })
       : null;
     ownTeacher = own?.account_id ?? '';
     const other = await prisma.teacher_profile.findFirst({
@@ -67,9 +77,13 @@ describe('대시보드(§dashboard)', () => {
 
   afterAll(async () => {
     if (adminCenter)
-      await prisma.evaluation_weight_policy.deleteMany({ where: { center_id: adminCenter } });
+      await prisma.evaluation_weight_policy.deleteMany({
+        where: { center_id: adminCenter },
+      });
     if (ownTeacher) {
-      await prisma.teacher_monthly_hours.deleteMany({ where: { teacher_id: ownTeacher } });
+      await prisma.teacher_monthly_hours.deleteMany({
+        where: { teacher_id: ownTeacher },
+      });
       await prisma.teacher_profile.update({
         where: { account_id: ownTeacher },
         data: { director_role: null },
@@ -85,7 +99,10 @@ describe('대시보드(§dashboard)', () => {
   });
 
   it('가중치 조정: 합계≠100 → 400', async () => {
-    const r = await put('admin/evaluation/weights', tok.hq, { ...WEIGHTS_OK, w_satisfaction: 16 });
+    const r = await put('admin/evaluation/weights', tok.hq, {
+      ...WEIGHTS_OK,
+      w_satisfaction: 16,
+    });
     expect(r.status).toBe(400);
   });
 
@@ -124,9 +141,13 @@ describe('대시보드(§dashboard)', () => {
 
   it('원장 지정: 센터관리자 → 403, 본사 → 200', async () => {
     if (!ownTeacher) return;
-    const denied = await put(`admin/teachers/${ownTeacher}/director`, tok.center, {
-      directorRole: '원장',
-    });
+    const denied = await put(
+      `admin/teachers/${ownTeacher}/director`,
+      tok.center,
+      {
+        directorRole: '원장',
+      },
+    );
     expect(denied.status).toBe(403);
     const ok = await put(`admin/teachers/${ownTeacher}/director`, tok.hq, {
       directorRole: '원장',
@@ -137,19 +158,27 @@ describe('대시보드(§dashboard)', () => {
 
   it('월별 시수: 센터관리자가 타 센터 선생님 → 403', async () => {
     if (!otherTeacher) return;
-    const r = await put(`admin/teachers/${otherTeacher}/monthly-hours`, tok.center, {
-      yearMonth: '2026-06',
-      hours: 80,
-    });
+    const r = await put(
+      `admin/teachers/${otherTeacher}/monthly-hours`,
+      tok.center,
+      {
+        yearMonth: '2026-06',
+        hours: 80,
+      },
+    );
     expect(r.status).toBe(403);
   });
 
   it('월별 시수: 자기 센터 선생님 → 200', async () => {
     if (!ownTeacher) return;
-    const r = await put(`admin/teachers/${ownTeacher}/monthly-hours`, tok.center, {
-      yearMonth: '2026-06',
-      hours: 80,
-    });
+    const r = await put(
+      `admin/teachers/${ownTeacher}/monthly-hours`,
+      tok.center,
+      {
+        yearMonth: '2026-06',
+        hours: 80,
+      },
+    );
     expect(r.status).toBe(200);
     expect(Number(r.body.data.hours)).toBe(80);
   });
@@ -176,11 +205,16 @@ describe('대시보드(§dashboard)', () => {
   });
 
   it('피벗 dedup: 같은 선생님·학생·날짜 중복 예약은 1건만(상태 우선 done 보존)', async () => {
-    const student = await prisma.student_profile.findFirst({ select: { account_id: true } });
+    const student = await prisma.student_profile.findFirst({
+      select: { account_id: true },
+    });
     if (!student || !ownTeacher) return; // 시드 없으면 skip(방어)
 
     const teacherTotal = async () => {
-      const r = await get(`ops/pivots/teacher-in-center?period=all&teacherId=${ownTeacher}`, tok.hq);
+      const r = await get(
+        `ops/pivots/teacher-in-center?period=all&teacherId=${ownTeacher}`,
+        tok.hq,
+      );
       const row = r.body.data.find((x: any) => x.key === ownTeacher);
       return { total: row?.total ?? 0, done: row?.done ?? 0 };
     };
@@ -188,7 +222,11 @@ describe('대시보드(§dashboard)', () => {
     const before = await teacherTotal();
     // 동일 T·U·D(같은 날 10시/11시) 2건: done 1 + cancelled 1 → dedup 후 1건(done 보존)
     const day = '2026-05-15';
-    const mk = (h: number, status: 'done' | 'cancelled', type: 'subject' | 'homeroom') =>
+    const mk = (
+      h: number,
+      status: 'done' | 'cancelled',
+      type: 'subject' | 'homeroom',
+    ) =>
       prisma.booking.create({
         data: {
           student_id: student.account_id,
@@ -210,7 +248,9 @@ describe('대시보드(§dashboard)', () => {
       expect(after.total - before.total).toBe(1); // 2건 → +1 (중복제거)
       expect(after.done - before.done).toBe(1); // done 이 cancelled 보다 우선 보존
     } finally {
-      await prisma.booking.deleteMany({ where: { id: { in: created.map((c) => c.id) } } });
+      await prisma.booking.deleteMany({
+        where: { id: { in: created.map((c) => c.id) } },
+      });
     }
   });
 

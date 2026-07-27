@@ -1,5 +1,8 @@
 import { Module } from '@nestjs/common';
-import { GuardianConsentController, StudentShareConsentController } from './guardian-consent.controller';
+import {
+  GuardianConsentController,
+  StudentShareConsentController,
+} from './guardian-consent.controller';
 import { GuardianConsentService } from './guardian-consent.service';
 import { IdentityVerifyProvider } from './identity-verify.provider';
 

@@ -26,8 +26,16 @@ let STUB_FILE_ID = ''; // beforeAll 에서 실 stored_file 행 생성(consulting
 const configStub = { get: () => undefined } as unknown as ConfigService;
 const cacheStub = { acquireLock: async () => true } as unknown as CacheProvider;
 const benignPdf = (name = 'benign.pdf') => {
-  const buffer = Buffer.from('%PDF-1.4 benign consulting doc (not a school record)\n', 'utf8');
-  return { buffer, originalname: name, mimetype: 'application/pdf', size: buffer.length };
+  const buffer = Buffer.from(
+    '%PDF-1.4 benign consulting doc (not a school record)\n',
+    'utf8',
+  );
+  return {
+    buffer,
+    originalname: name,
+    mimetype: 'application/pdf',
+    size: buffer.length,
+  };
 };
 
 describe('생기부 가드 스텝3 — 컨설팅 토글·예약·통계·이의(§6 스텝3)', () => {
@@ -38,7 +46,8 @@ describe('생기부 가드 스텝3 — 컨설팅 토글·예약·통계·이의(
   let consulting: ConsultingService;
   const appIds: string[] = [];
 
-  const resetToggle = () => prisma.system_setting.deleteMany({ where: { key: KEY } });
+  const resetToggle = () =>
+    prisma.system_setting.deleteMany({ where: { key: KEY } });
 
   beforeAll(async () => {
     prisma = new PrismaService();
@@ -47,16 +56,36 @@ describe('생기부 가드 스텝3 — 컨설팅 토글·예약·통계·이의(
     appeals = new SchoolRecordAppealService(prisma);
     policy = new SchoolRecordGuardPolicyService(prisma, cacheStub, configStub);
     const filesStub: any = { upload: async () => ({ id: STUB_FILE_ID }) };
-    consulting = new ConsultingService(prisma, filesStub, {} as any, {} as any, {} as any, policy, events);
+    consulting = new ConsultingService(
+      prisma,
+      filesStub,
+      {} as any,
+      {} as any,
+      {} as any,
+      policy,
+      events,
+    );
     // FK 충족을 위해 실 계정 id 사용(테스트 시드 계정).
-    const stu = await prisma.account.findFirst({ where: { role: 'student' }, select: { id: true } });
-    const adm = await prisma.account.findFirst({ where: { role: 'admin' }, select: { id: true } });
+    const stu = await prisma.account.findFirst({
+      where: { role: 'student' },
+      select: { id: true },
+    });
+    const adm = await prisma.account.findFirst({
+      where: { role: 'admin' },
+      select: { id: true },
+    });
     if (!stu || !adm) throw new Error('시드 계정(student/admin)이 필요합니다.');
     STUDENT.id = stu.id;
     HQ.id = adm.id;
     // 통과 케이스에서 consulting_document.file_id FK 를 충족할 실 stored_file 1건.
     const sf = await prisma.stored_file.create({
-      data: { owner_id: STUDENT.id, storage_key: `test/sr-step3-${randomUUID()}`, filename: 'stub.pdf', content_type: 'application/pdf', size: 1 },
+      data: {
+        owner_id: STUDENT.id,
+        storage_key: `test/sr-step3-${randomUUID()}`,
+        filename: 'stub.pdf',
+        content_type: 'application/pdf',
+        size: 1,
+      },
       select: { id: true },
     });
     STUB_FILE_ID = sf.id;
@@ -65,19 +94,33 @@ describe('생기부 가드 스텝3 — 컨설팅 토글·예약·통계·이의(
 
   afterAll(async () => {
     for (const id of appIds) {
-      await prisma.consulting_document.deleteMany({ where: { application_id: id } });
+      await prisma.consulting_document.deleteMany({
+        where: { application_id: id },
+      });
       await prisma.consulting_application.deleteMany({ where: { id } });
     }
-    await prisma.school_record_appeal.deleteMany({ where: { actor_id: STUDENT.id } });
-    await prisma.school_record_block_event.deleteMany({ where: { actor_id: STUDENT.id } });
-    if (STUB_FILE_ID) await prisma.stored_file.deleteMany({ where: { id: STUB_FILE_ID } });
+    await prisma.school_record_appeal.deleteMany({
+      where: { actor_id: STUDENT.id },
+    });
+    await prisma.school_record_block_event.deleteMany({
+      where: { actor_id: STUDENT.id },
+    });
+    if (STUB_FILE_ID)
+      await prisma.stored_file.deleteMany({ where: { id: STUB_FILE_ID } });
     await resetToggle();
     await prisma.$disconnect();
   });
 
   async function newApplication(): Promise<string> {
     const a = await consulting.create(
-      { applicantName: '홍길동', applicantPhone: '010-0000-0000', studentGrade: '고3', interestType: 'susi', package: 'single', agree: true },
+      {
+        applicantName: '홍길동',
+        applicantPhone: '010-0000-0000',
+        studentGrade: '고3',
+        interestType: 'susi',
+        package: 'single',
+        agree: true,
+      },
       STUDENT,
     );
     appIds.push(a.id);
@@ -101,7 +144,9 @@ describe('생기부 가드 스텝3 — 컨설팅 토글·예약·통계·이의(
   });
 
   it('본사 마스터가 아니면(centerId 보유) 변경 거부', async () => {
-    await expect(policy.setConsultingUploadDisabled({ ...HQ, centerId: 'ctr-1' }, true)).rejects.toThrow();
+    await expect(
+      policy.setConsultingUploadDisabled({ ...HQ, centerId: 'ctr-1' }, true),
+    ).rejects.toThrow();
   });
 
   // ── 2) 컨설팅 게이트: 토글이 신규 생기부(student_record) 업로드를 막는다 ──
@@ -109,46 +154,83 @@ describe('생기부 가드 스텝3 — 컨설팅 토글·예약·통계·이의(
     await policy.setConsultingUploadDisabled(HQ, true);
     const id = await newApplication();
     await expect(
-      consulting.uploadDocument(id, { type: 'student_record' }, benignPdf('sr.pdf'), STUDENT),
+      consulting.uploadDocument(
+        id,
+        { type: 'student_record' },
+        benignPdf('sr.pdf'),
+        STUDENT,
+      ),
     ).rejects.toBeInstanceOf(SchoolRecordConsultingDisabledException);
-    expect(await prisma.consulting_document.count({ where: { application_id: id } })).toBe(0);
+    expect(
+      await prisma.consulting_document.count({ where: { application_id: id } }),
+    ).toBe(0);
   });
 
   it('토글 ON 이어도 성적표(transcript)는 통과 — 생기부만 막는다', async () => {
     await policy.setConsultingUploadDisabled(HQ, true);
     const id = await newApplication();
-    const doc = await consulting.uploadDocument(id, { type: 'transcript' }, benignPdf('score.pdf'), STUDENT);
+    const doc = await consulting.uploadDocument(
+      id,
+      { type: 'transcript' },
+      benignPdf('score.pdf'),
+      STUDENT,
+    );
     expect(doc.type).toBe('transcript');
   });
 
   it('토글 OFF → 신규 생기부(student_record) 업로드 허용(정책 게이트 통과)', async () => {
     await policy.setConsultingUploadDisabled(HQ, false);
     const id = await newApplication();
-    const doc = await consulting.uploadDocument(id, { type: 'student_record' }, benignPdf('sr2.pdf'), STUDENT);
+    const doc = await consulting.uploadDocument(
+      id,
+      { type: 'student_record' },
+      benignPdf('sr2.pdf'),
+      STUDENT,
+    );
     expect(doc.type).toBe('student_record');
   });
 
   // ── 3) 차단 통계(사유 코드별 집계) ──────────────────────────────────
   it('차단 통계에 CONSULTING_UPLOAD_DISABLED 가 사유별로 집계된다', async () => {
     const before = await events.stats();
-    const beforeCount = before.byReason.find((r) => r.reason === 'CONSULTING_UPLOAD_DISABLED')?.count ?? 0;
+    const beforeCount =
+      before.byReason.find((r) => r.reason === 'CONSULTING_UPLOAD_DISABLED')
+        ?.count ?? 0;
     await policy.setConsultingUploadDisabled(HQ, true);
     const id = await newApplication();
-    await consulting.uploadDocument(id, { type: 'student_record' }, benignPdf('sr3.pdf'), STUDENT).catch(() => undefined);
+    await consulting
+      .uploadDocument(
+        id,
+        { type: 'student_record' },
+        benignPdf('sr3.pdf'),
+        STUDENT,
+      )
+      .catch(() => undefined);
     const after = await events.stats();
-    const afterCount = after.byReason.find((r) => r.reason === 'CONSULTING_UPLOAD_DISABLED')?.count ?? 0;
+    const afterCount =
+      after.byReason.find((r) => r.reason === 'CONSULTING_UPLOAD_DISABLED')
+        ?.count ?? 0;
     expect(afterCount).toBeGreaterThan(beforeCount);
-    expect(after.bySurface.some((s) => s.surface === 'consulting_intake')).toBe(true);
+    expect(after.bySurface.some((s) => s.surface === 'consulting_intake')).toBe(
+      true,
+    );
   });
 
   // ── 4) 이의 큐 ─────────────────────────────────────────────────────
   it('이의 접수 → 큐에 노출(open) → 처리(resolved)', async () => {
-    const created = await appeals.create(STUDENT, { reason: 'SR_UNSURE', surface: 'upload', note: '생기부 아님(문제 풀이 사진)' });
+    const created = await appeals.create(STUDENT, {
+      reason: 'SR_UNSURE',
+      surface: 'upload',
+      note: '생기부 아님(문제 풀이 사진)',
+    });
     expect(created.status).toBe('open');
     const list = await appeals.list({ status: 'open' });
     expect(list.data.some((a) => a.id === created.id)).toBe(true);
     expect(list.meta.openCount).toBeGreaterThanOrEqual(1);
-    const resolved = await appeals.updateStatus(HQ, created.id, { status: 'resolved', resolution: '확인 완료 — 오탐' });
+    const resolved = await appeals.updateStatus(HQ, created.id, {
+      status: 'resolved',
+      resolution: '확인 완료 — 오탐',
+    });
     expect(resolved.status).toBe('resolved');
     expect(resolved.resolvedAt).toBeTruthy();
   });

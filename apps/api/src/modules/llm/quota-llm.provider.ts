@@ -93,7 +93,9 @@ export class QuotaLlmProvider implements LlmProvider {
     return this.guard('draft', () => this.inner.draftAnswer(input));
   }
 
-  classifySchoolRecord(input: ScoreOcrInput): Promise<SchoolRecordVisionResult> {
+  classifySchoolRecord(
+    input: ScoreOcrInput,
+  ): Promise<SchoolRecordVisionResult> {
     return this.guard('vision', () => this.inner.classifySchoolRecord(input));
   }
 

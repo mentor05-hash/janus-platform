@@ -1,5 +1,13 @@
 import { Type } from 'class-transformer';
-import { IsBooleanString, IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+  IsBooleanString,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 
 /** 학원찾기 검색 쿼리 — 세션 2: 과목·학년·레벨·통학·수강료·요일 필터 + §5 스코어 정렬. */
 export class AcademySearchDto {

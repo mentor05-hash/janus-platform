@@ -40,14 +40,21 @@ export class ClaimService {
   // ── 클레임 신청·심사 ──────────────────────────────────────────────
   /** POST /claims — 학원 클레임 신청(teacher/hr/admin). */
   async submit(user: AuthUser, dto: ClaimSubmitDto) {
-    const academy = await this.prisma.academy.findUnique({ where: { id: dto.academyId } });
+    const academy = await this.prisma.academy.findUnique({
+      where: { id: dto.academyId },
+    });
     if (!academy) throw new NotFoundException('학원을 찾을 수 없습니다.');
     const active = await this.prisma.academy_claim.findFirst({
-      where: { academy_id: dto.academyId, status: { in: ['pending', 'approved'] } },
+      where: {
+        academy_id: dto.academyId,
+        status: { in: ['pending', 'approved'] },
+      },
     });
     if (active) {
       throw new BadRequestException(
-        active.status === 'approved' ? '이미 승인된 운영자가 있는 학원입니다.' : '이미 심사 대기 중인 클레임이 있습니다.',
+        active.status === 'approved'
+          ? '이미 승인된 운영자가 있는 학원입니다.'
+          : '이미 심사 대기 중인 클레임이 있습니다.',
       );
     }
     const claim = await this.prisma.academy_claim.create({
@@ -61,7 +68,10 @@ export class ClaimService {
         status: 'pending',
       },
     });
-    await this.prisma.academy.update({ where: { id: dto.academyId }, data: { claim_status: 'pending' } });
+    await this.prisma.academy.update({
+      where: { id: dto.academyId },
+      data: { claim_status: 'pending' },
+    });
     this.logger.log(`클레임 신청 academy=${dto.academyId} claimant=${user.id}`);
     return { id: claim.id, status: claim.status };
   }
@@ -71,14 +81,22 @@ export class ClaimService {
     const rows = await this.prisma.academy_claim.findMany({
       where: { claimant_id: user.id },
       orderBy: { created_at: 'desc' },
-      include: { academy: { select: { id: true, name: true, claim_status: true, owner_id: true } } },
+      include: {
+        academy: {
+          select: { id: true, name: true, claim_status: true, owner_id: true },
+        },
+      },
     });
     return rows.map((c) => ({
       id: c.id,
       status: c.status,
       reviewNote: c.review_note,
       createdAt: c.created_at,
-      academy: { id: c.academy.id, name: c.academy.name, isOwner: c.academy.owner_id === user.id },
+      academy: {
+        id: c.academy.id,
+        name: c.academy.name,
+        isOwner: c.academy.owner_id === user.id,
+      },
     }));
   }
 
@@ -104,42 +122,71 @@ export class ClaimService {
 
   /** POST /admin/claims/:id/review — 승인/반려. 승인 시 owner 지정 + source=claimed. */
   async review(admin: AuthUser, claimId: string, dto: ClaimReviewDto) {
-    const claim = await this.prisma.academy_claim.findUnique({ where: { id: claimId } });
+    const claim = await this.prisma.academy_claim.findUnique({
+      where: { id: claimId },
+    });
     if (!claim) throw new NotFoundException('클레임을 찾을 수 없습니다.');
-    if (claim.status !== 'pending') throw new BadRequestException('이미 처리된 클레임입니다.');
+    if (claim.status !== 'pending')
+      throw new BadRequestException('이미 처리된 클레임입니다.');
 
     if (dto.approve) {
       await this.prisma.$transaction([
         this.prisma.academy_claim.update({
           where: { id: claimId },
-          data: { status: 'approved', review_note: dto.reviewNote ?? null, reviewed_by: admin.id, reviewed_at: new Date() },
+          data: {
+            status: 'approved',
+            review_note: dto.reviewNote ?? null,
+            reviewed_by: admin.id,
+            reviewed_at: new Date(),
+          },
         }),
         this.prisma.academy.update({
           where: { id: claim.academy_id },
-          data: { owner_id: claim.claimant_id, claim_status: 'approved', source: 'claimed', updated_at: new Date() },
+          data: {
+            owner_id: claim.claimant_id,
+            claim_status: 'approved',
+            source: 'claimed',
+            updated_at: new Date(),
+          },
         }),
       ]);
-      this.logger.log(`클레임 승인 claim=${claimId} owner=${claim.claimant_id}`);
+      this.logger.log(
+        `클레임 승인 claim=${claimId} owner=${claim.claimant_id}`,
+      );
       return { ok: true, status: 'approved' };
     }
     // 반려: 다른 승인 클레임이 없으면 학원 claim_status 원복.
     await this.prisma.academy_claim.update({
       where: { id: claimId },
-      data: { status: 'rejected', review_note: dto.reviewNote ?? null, reviewed_by: admin.id, reviewed_at: new Date() },
+      data: {
+        status: 'rejected',
+        review_note: dto.reviewNote ?? null,
+        reviewed_by: admin.id,
+        reviewed_at: new Date(),
+      },
     });
-    const stillApproved = await this.prisma.academy_claim.findFirst({ where: { academy_id: claim.academy_id, status: 'approved' } });
+    const stillApproved = await this.prisma.academy_claim.findFirst({
+      where: { academy_id: claim.academy_id, status: 'approved' },
+    });
     if (!stillApproved) {
-      await this.prisma.academy.update({ where: { id: claim.academy_id }, data: { claim_status: 'none' } });
+      await this.prisma.academy.update({
+        where: { id: claim.academy_id },
+        data: { claim_status: 'none' },
+      });
     }
     return { ok: true, status: 'rejected' };
   }
 
   // ── 소유자 편집 게이트 ────────────────────────────────────────────
   private async assertOwner(user: AuthUser, academyId: string) {
-    const a = await this.prisma.academy.findUnique({ where: { id: academyId }, select: { owner_id: true } });
+    const a = await this.prisma.academy.findUnique({
+      where: { id: academyId },
+      select: { owner_id: true },
+    });
     if (!a) throw new NotFoundException('학원을 찾을 수 없습니다.');
     if (user.role === AccountRole.ADMIN) return;
-    if (a.owner_id !== user.id) throw new ForbiddenException('이 학원의 승인된 운영자가 아닙니다.');
+    if (a.owner_id !== user.id)
+      throw new ForbiddenException('이 학원의 승인된 운영자가 아닙니다.');
   }
 
   // ── 반 CRUD ──────────────────────────────────────────────────────
@@ -162,9 +209,16 @@ export class ClaimService {
     return { id: c.id };
   }
 
-  async updateClass(user: AuthUser, academyId: string, classId: string, dto: ClassUpsertDto) {
+  async updateClass(
+    user: AuthUser,
+    academyId: string,
+    classId: string,
+    dto: ClassUpsertDto,
+  ) {
     await this.assertOwner(user, academyId);
-    const existing = await this.prisma.academy_class.findFirst({ where: { id: classId, academy_id: academyId } });
+    const existing = await this.prisma.academy_class.findFirst({
+      where: { id: classId, academy_id: academyId },
+    });
     if (!existing) throw new NotFoundException('반을 찾을 수 없습니다.');
     await this.prisma.academy_class.update({
       where: { id: classId },
@@ -185,7 +239,9 @@ export class ClaimService {
 
   async deleteClass(user: AuthUser, academyId: string, classId: string) {
     await this.assertOwner(user, academyId);
-    const existing = await this.prisma.academy_class.findFirst({ where: { id: classId, academy_id: academyId } });
+    const existing = await this.prisma.academy_class.findFirst({
+      where: { id: classId, academy_id: academyId },
+    });
     if (!existing) throw new NotFoundException('반을 찾을 수 없습니다.');
     await this.prisma.academy_class.delete({ where: { id: classId } });
     await this.touch(academyId);
@@ -194,10 +250,19 @@ export class ClaimService {
 
   // ── 버스 노선/정류장 ─────────────────────────────────────────────
   /** 노선 생성(정류장 포함). dong_code 는 DongResolver 로 결정. */
-  async createBusRoute(user: AuthUser, academyId: string, dto: BusRouteUpsertDto) {
+  async createBusRoute(
+    user: AuthUser,
+    academyId: string,
+    dto: BusRouteUpsertDto,
+  ) {
     await this.assertOwner(user, academyId);
     const route = await this.prisma.bus_route.create({
-      data: { academy_id: academyId, name: dto.name, days: dto.days ?? [], direction: dto.direction ?? 'pickup' },
+      data: {
+        academy_id: academyId,
+        name: dto.name,
+        days: dto.days ?? [],
+        direction: dto.direction ?? 'pickup',
+      },
     });
     await this.replaceStops(route.id, dto.stops ?? []);
     await this.touch(academyId);
@@ -205,13 +270,24 @@ export class ClaimService {
   }
 
   /** 노선 수정(정류장 전체 교체). */
-  async updateBusRoute(user: AuthUser, academyId: string, routeId: string, dto: BusRouteUpsertDto) {
+  async updateBusRoute(
+    user: AuthUser,
+    academyId: string,
+    routeId: string,
+    dto: BusRouteUpsertDto,
+  ) {
     await this.assertOwner(user, academyId);
-    const route = await this.prisma.bus_route.findFirst({ where: { id: routeId, academy_id: academyId } });
+    const route = await this.prisma.bus_route.findFirst({
+      where: { id: routeId, academy_id: academyId },
+    });
     if (!route) throw new NotFoundException('노선을 찾을 수 없습니다.');
     await this.prisma.bus_route.update({
       where: { id: routeId },
-      data: { name: dto.name, days: dto.days ?? [], direction: dto.direction ?? 'pickup' },
+      data: {
+        name: dto.name,
+        days: dto.days ?? [],
+        direction: dto.direction ?? 'pickup',
+      },
     });
     await this.replaceStops(routeId, dto.stops ?? []);
     await this.touch(academyId);
@@ -220,18 +296,27 @@ export class ClaimService {
 
   async deleteBusRoute(user: AuthUser, academyId: string, routeId: string) {
     await this.assertOwner(user, academyId);
-    const route = await this.prisma.bus_route.findFirst({ where: { id: routeId, academy_id: academyId } });
+    const route = await this.prisma.bus_route.findFirst({
+      where: { id: routeId, academy_id: academyId },
+    });
     if (!route) throw new NotFoundException('노선을 찾을 수 없습니다.');
     await this.prisma.bus_route.delete({ where: { id: routeId } });
     await this.touch(academyId);
     return { ok: true };
   }
 
-  private async replaceStops(routeId: string, stops: BusRouteUpsertDto['stops']) {
+  private async replaceStops(
+    routeId: string,
+    stops: BusRouteUpsertDto['stops'],
+  ) {
     await this.prisma.bus_stop.deleteMany({ where: { route_id: routeId } });
     let seq = 0;
     for (const st of stops ?? []) {
-      const dongCode = await this.dong.resolve({ dongCode: st.dongCode, lat: st.lat, lng: st.lng });
+      const dongCode = await this.dong.resolve({
+        dongCode: st.dongCode,
+        lat: st.lat,
+        lng: st.lng,
+      });
       await this.prisma.bus_stop.create({
         data: {
           route_id: routeId,
@@ -251,8 +336,21 @@ export class ClaimService {
   async upsertCohort(user: AuthUser, academyId: string, dto: CohortUpsertDto) {
     await this.assertOwner(user, academyId);
     await this.prisma.cohort_stat.upsert({
-      where: { academy_id_kind_period_source: { academy_id: academyId, kind: dto.kind, period: dto.period, source: 'claimed' } },
-      create: { academy_id: academyId, kind: dto.kind, period: dto.period, source: 'claimed', payload_json: dto.payload as object },
+      where: {
+        academy_id_kind_period_source: {
+          academy_id: academyId,
+          kind: dto.kind,
+          period: dto.period,
+          source: 'claimed',
+        },
+      },
+      create: {
+        academy_id: academyId,
+        kind: dto.kind,
+        period: dto.period,
+        source: 'claimed',
+        payload_json: dto.payload as object,
+      },
       update: { payload_json: dto.payload as object, updated_at: new Date() },
     });
     await this.touch(academyId);
@@ -260,7 +358,10 @@ export class ClaimService {
   }
 
   private async touch(academyId: string) {
-    await this.prisma.academy.update({ where: { id: academyId }, data: { updated_at: new Date() } });
+    await this.prisma.academy.update({
+      where: { id: academyId },
+      data: { updated_at: new Date() },
+    });
   }
 
   // ── 리드 인박스(승인 owner) ──────────────────────────────────────
@@ -273,19 +374,44 @@ export class ClaimService {
       take: 200,
     });
     return rows.map((l) => {
-      const s = (l.summary_json ?? {}) as { message?: string; shared?: object; consentScope?: string[]; reply?: object | null };
-      return { id: l.id, status: l.status, message: s.message ?? null, shared: s.shared ?? {}, consentScope: s.consentScope ?? [], reply: s.reply ?? null, classId: l.class_id, ts: l.ts };
+      const s = (l.summary_json ?? {}) as {
+        message?: string;
+        shared?: object;
+        consentScope?: string[];
+        reply?: object | null;
+      };
+      return {
+        id: l.id,
+        status: l.status,
+        message: s.message ?? null,
+        shared: s.shared ?? {},
+        consentScope: s.consentScope ?? [],
+        reply: s.reply ?? null,
+        classId: l.class_id,
+        ts: l.ts,
+      };
     });
   }
 
   /** PATCH /claims/:academyId/leads/:leadId — 상태 갱신·응답(인박스 왕복). */
-  async replyLead(user: AuthUser, academyId: string, leadId: string, dto: { status: 'read' | 'replied' | 'closed'; reply?: string }) {
+  async replyLead(
+    user: AuthUser,
+    academyId: string,
+    leadId: string,
+    dto: { status: 'read' | 'replied' | 'closed'; reply?: string },
+  ) {
     await this.assertOwner(user, academyId);
-    const lead = await this.prisma.academy_lead.findFirst({ where: { id: leadId, academy_id: academyId } });
+    const lead = await this.prisma.academy_lead.findFirst({
+      where: { id: leadId, academy_id: academyId },
+    });
     if (!lead) throw new NotFoundException('신청을 찾을 수 없습니다.');
     const summary = (lead.summary_json ?? {}) as Record<string, unknown>;
-    if (dto.reply) summary.reply = { text: dto.reply, at: new Date().toISOString() };
-    await this.prisma.academy_lead.update({ where: { id: leadId }, data: { status: dto.status, summary_json: summary as object } });
+    if (dto.reply)
+      summary.reply = { text: dto.reply, at: new Date().toISOString() };
+    await this.prisma.academy_lead.update({
+      where: { id: leadId },
+      data: { status: dto.status, summary_json: summary as object },
+    });
     return { ok: true, status: dto.status };
   }
 }

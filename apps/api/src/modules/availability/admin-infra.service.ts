@@ -12,10 +12,7 @@ import {
   kstMinutesInDay,
   weekdayKst,
 } from '../../common/time/kst';
-import {
-  mondayOf,
-  WeeklyTemplate,
-} from './availability.service';
+import { mondayOf, WeeklyTemplate } from './availability.service';
 import {
   CreateBlockedTimeDto,
   CreateRoomDto,
@@ -54,15 +51,18 @@ export class AdminInfraService {
         },
       }),
     ]);
-    const base = zp ?? { center_id: centerId, concurrent_limit: 6, allow_map: {} };
+    const base = zp ?? {
+      center_id: centerId,
+      concurrent_limit: 6,
+      allow_map: {},
+    };
     return { ...base, currentUsage };
   }
 
   async setZoomPolicy(dto: SetZoomPolicyDto, actor: AuthUser) {
     const centerId = this.requireCenter(actor);
     const allowMap = (dto.allowMap ?? undefined) as
-      | Prisma.InputJsonValue
-      | undefined;
+      Prisma.InputJsonValue | undefined;
     return this.prisma.zoom_policy.upsert({
       where: { center_id: centerId },
       update: {
@@ -106,9 +106,13 @@ export class AdminInfraService {
     for (const t of teachers) {
       const ws = t.work_schedule[0];
       if (!ws) continue;
-      const recurring = (ws.recurring_template as unknown as WeeklyTemplate) ?? {};
+      const recurring =
+        (ws.recurring_template as unknown as WeeklyTemplate) ?? {};
       const plans = Array.isArray(ws.week_plans)
-        ? (ws.week_plans as unknown as { weekStart: string; template: WeeklyTemplate }[])
+        ? (ws.week_plans as unknown as {
+            weekStart: string;
+            template: WeeklyTemplate;
+          }[])
         : [];
       const plan = plans.find((p) => p && p.weekStart === monday);
       const tpl: WeeklyTemplate = plan
@@ -123,7 +127,9 @@ export class AdminInfraService {
 
     const total = rooms.length;
     const manualAvailable = rooms.filter(
-      (r) => r.setting === 'manual' && (r.status === 'available' || r.status === 'open'),
+      (r) =>
+        r.setting === 'manual' &&
+        (r.status === 'available' || r.status === 'open'),
     ).length;
     const autoRooms = rooms.filter((r) => r.setting !== 'manual').length;
     const autoAvailable = Math.max(0, autoRooms - workingTeachers);

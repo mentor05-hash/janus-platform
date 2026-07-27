@@ -1,4 +1,10 @@
-import { Body, Controller, Headers, Post, UnauthorizedException } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Headers,
+  Post,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Public } from '../../common/decorators/public.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -23,20 +29,40 @@ export class RoomsEventsController {
   @Post('events')
   async handle(
     @Headers('x-api-key') key: string,
-    @Body() body: { type?: string; externalRef?: string; recipientExtUserId?: string; preview?: string },
+    @Body()
+    body: {
+      type?: string;
+      externalRef?: string;
+      recipientExtUserId?: string;
+      preview?: string;
+    },
   ) {
-    const expect = this.config.get<string>('ROOMS_API_KEY') || 'dev-rooms-api-key';
-    if (!key || key !== expect) throw new UnauthorizedException('유효하지 않은 API 키');
+    const expect =
+      this.config.get<string>('ROOMS_API_KEY') || 'dev-rooms-api-key';
+    if (!key || key !== expect)
+      throw new UnauthorizedException('유효하지 않은 API 키');
 
-    if (body.type === 'chat.missed' && body.externalRef && body.recipientExtUserId) {
+    if (
+      body.type === 'chat.missed' &&
+      body.externalRef &&
+      body.recipientExtUserId
+    ) {
       const b = await this.prisma.booking.findUnique({
         where: { id: body.externalRef },
         select: { id: true, student_id: true, teacher_id: true },
       });
       // 수신자가 실제 예약 참여자일 때만 통지(위조·오배송 방지).
-      if (!b || (body.recipientExtUserId !== b.student_id && body.recipientExtUserId !== b.teacher_id)) return { ok: false };
+      if (
+        !b ||
+        (body.recipientExtUserId !== b.student_id &&
+          body.recipientExtUserId !== b.teacher_id)
+      )
+        return { ok: false };
       this.gateway.emitToUser(body.recipientExtUserId, 'notif:new', {
-        type: 'chat_message', payload: { bookingId: b.id }, title: '새 채팅 메시지', body: (body.preview ?? '').slice(0, 60),
+        type: 'chat_message',
+        payload: { bookingId: b.id },
+        title: '새 채팅 메시지',
+        body: (body.preview ?? '').slice(0, 60),
       });
       void this.realtime.recordChatUnread(b.id, body.recipientExtUserId);
       return { ok: true };

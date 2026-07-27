@@ -9,7 +9,9 @@ describe('PgWebhookService.verifySignature', () => {
     new PgWebhookService(
       {} as never,
       {} as never,
-      { get: (k: string) => (k === 'PG_WEBHOOK_SECRET' ? secret : undefined) } as unknown as ConfigService,
+      {
+        get: (k: string) => (k === 'PG_WEBHOOK_SECRET' ? secret : undefined),
+      } as unknown as ConfigService,
     );
 
   it('시크릿 미설정(데모)이면 서명 없이도 통과', () => {

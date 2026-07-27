@@ -61,7 +61,11 @@ export class StaffPermDto {
 /** 분류 한도 저장(HR). */
 export class HrLimitsDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) classifyFitLimit?: number;
-  @IsOptional() @Type(() => Number) @IsInt() @Min(0) classifyUnfitLimit?: number;
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  classifyUnfitLimit?: number;
 }
 
 /** 회원 등급 편집(HR): 주간 부여 크레딧 + 활성. */

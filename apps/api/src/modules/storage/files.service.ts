@@ -31,7 +31,10 @@ export class FilesService {
   ) {}
 
   /** 이 선생님의 예약 중 해당 파일을 첨부로 가진 건이 있는지(jsonb 포함 검사). */
-  private async teacherOwnsAttachment(teacherId: string, fileId: string): Promise<boolean> {
+  private async teacherOwnsAttachment(
+    teacherId: string,
+    fileId: string,
+  ): Promise<boolean> {
     const match = `[{"id":"${fileId}"}]`;
     // 담당 예약의 첨부(§5-10)
     const b = await this.prisma.$queryRaw<{ ok: number }[]>`
@@ -52,10 +55,17 @@ export class FilesService {
   /** 참여 관계 기반 열람(역할 무관) — 상대방이 올린 파일이라도 같은 맥락의 참여자면 허용.
    *  ① 예약 채팅 이미지/파일: 그 예약의 참여자 ② Q&A 답변 첨부(필기 풀이): 질문 작성 학생
    *  ③ 화이트보드 스냅샷 배경: 그 예약의 참여자. (P4에서 표면화 — 선생님 업로드가 학생에게 403이던 갭) */
-  private async participantCanAccess(userId: string, fileId: string): Promise<boolean> {
+  private async participantCanAccess(
+    userId: string,
+    fileId: string,
+  ): Promise<boolean> {
     const chat = await this.prisma.chat_message.findFirst({
       // 삭제(회수)된 메시지의 첨부는 상대에게 다시 열지 않는다(소유자는 위의 owner 검사로 통과).
-      where: { image_file_id: fileId, deleted_at: null, booking: { OR: [{ student_id: userId }, { teacher_id: userId }] } },
+      where: {
+        image_file_id: fileId,
+        deleted_at: null,
+        booking: { OR: [{ student_id: userId }, { teacher_id: userId }] },
+      },
       select: { id: true },
     });
     if (chat) return true;
@@ -66,7 +76,10 @@ export class FilesService {
       LIMIT 1`;
     if (ans.length > 0) return true;
     const wb = await this.prisma.whiteboard_snapshot.findFirst({
-      where: { background_file_id: fileId, booking: { OR: [{ student_id: userId }, { teacher_id: userId }] } },
+      where: {
+        background_file_id: fileId,
+        booking: { OR: [{ student_id: userId }, { teacher_id: userId }] },
+      },
       select: { id: true },
     });
     return !!wb;
@@ -117,32 +130,72 @@ export class FilesService {
     const p = join(dir, 'in.pdf');
     try {
       await writeFile(p, pdfBuffer);
-      const { stdout } = await promisify(execFile)('pdfinfo', [p], { timeout: 15000 });
+      const { stdout } = await promisify(execFile)('pdfinfo', [p], {
+        timeout: 15000,
+      });
       const m = /Pages:\s+(\d+)/.exec(stdout);
       return m ? Math.max(1, parseInt(m[1], 10)) : 1;
-    } catch { return 1; } finally { await rm(dir, { recursive: true, force: true }).catch(() => {}); }
+    } catch {
+      return 1;
+    } finally {
+      await rm(dir, { recursive: true, force: true }).catch(() => {});
+    }
   }
 
   /** PDF 특정 페이지 → PNG 저장 후 stored_file 반환(150dpi). */
-  private async renderPageToPng(ownerId: string, pdfBuffer: Buffer, page: number, baseName: string) {
+  private async renderPageToPng(
+    ownerId: string,
+    pdfBuffer: Buffer,
+    page: number,
+    baseName: string,
+  ) {
     const dir = await mkdtemp(join(tmpdir(), 'wbpdf-'));
     const pdfPath = join(dir, 'in.pdf');
     const outBase = join(dir, 'out'); // pdftoppm -singlefile → out.png
     try {
       await writeFile(pdfPath, pdfBuffer);
-      await promisify(execFile)('pdftoppm', ['-png', '-r', '150', '-f', String(page), '-l', String(page), '-singlefile', pdfPath, outBase], { timeout: 20000 });
+      await promisify(execFile)(
+        'pdftoppm',
+        [
+          '-png',
+          '-r',
+          '150',
+          '-f',
+          String(page),
+          '-l',
+          String(page),
+          '-singlefile',
+          pdfPath,
+          outBase,
+        ],
+        { timeout: 20000 },
+      );
       const png = await readFile(`${outBase}.png`);
       const key = `uploads/${randomUUID()}`;
       await this.storage.put({ key, data: png, contentType: 'image/png' });
       const name = `${baseName.replace(/\.pdf$/i, '')}-p${page}.png`;
       const row = await this.prisma.stored_file.create({
-        data: { owner_id: ownerId, storage_key: key, filename: name, content_type: 'image/png', size: png.length },
+        data: {
+          owner_id: ownerId,
+          storage_key: key,
+          filename: name,
+          content_type: 'image/png',
+          size: png.length,
+        },
         select: { id: true, filename: true, content_type: true, size: true },
       });
-      return { id: row.id, filename: row.filename, contentType: row.content_type, size: row.size, url: `/files/${row.id}` };
+      return {
+        id: row.id,
+        filename: row.filename,
+        contentType: row.content_type,
+        size: row.size,
+        url: `/files/${row.id}`,
+      };
     } catch (e) {
       throw new BadRequestException(`PDF 변환 실패: ${(e as Error).message}`);
-    } finally { await rm(dir, { recursive: true, force: true }).catch(() => {}); }
+    } finally {
+      await rm(dir, { recursive: true, force: true }).catch(() => {});
+    }
   }
 
   /**
@@ -150,36 +203,70 @@ export class FilesService {
    * 클라이언트 번들러에 pdfjs 미포함(poppler 서버 렌더). 공유 배경은 항상 PNG(웹·모바일 호환).
    */
   async rasterizePdf(ownerId: string, file: UploadedFileLike) {
-    if (!file?.buffer?.length) throw new BadRequestException('업로드할 파일이 없습니다.');
-    const isPdf = file.mimetype === 'application/pdf' || /\.pdf$/i.test(file.originalname ?? '');
+    if (!file?.buffer?.length)
+      throw new BadRequestException('업로드할 파일이 없습니다.');
+    const isPdf =
+      file.mimetype === 'application/pdf' ||
+      /\.pdf$/i.test(file.originalname ?? '');
     if (!isPdf) throw new BadRequestException('PDF 파일이 아닙니다.');
-    if (file.buffer.length > 40 * 1024 * 1024) throw new BadRequestException('PDF 가 너무 큽니다(40MB 초과).');
+    if (file.buffer.length > 40 * 1024 * 1024)
+      throw new BadRequestException('PDF 가 너무 큽니다(40MB 초과).');
 
     // 생기부 가드(지시서 §6 스텝2) — PDF 텍스트 판정. 감지 시 저장·렌더 전 예외.
     await this.guard.assertUploadAllowed(file);
 
     // 원본 PDF 저장(페이지 넘김 시 재렌더용)
     const pdfKey = `uploads/${randomUUID()}`;
-    await this.storage.put({ key: pdfKey, data: file.buffer, contentType: 'application/pdf' });
+    await this.storage.put({
+      key: pdfKey,
+      data: file.buffer,
+      contentType: 'application/pdf',
+    });
     const pdfRow = await this.prisma.stored_file.create({
-      data: { owner_id: ownerId, storage_key: pdfKey, filename: file.originalname ?? 'document.pdf', content_type: 'application/pdf', size: file.buffer.length },
+      data: {
+        owner_id: ownerId,
+        storage_key: pdfKey,
+        filename: file.originalname ?? 'document.pdf',
+        content_type: 'application/pdf',
+        size: file.buffer.length,
+      },
       select: { id: true },
     });
     const pageCount = await this.pdfPageCount(file.buffer);
-    const png = await this.renderPageToPng(ownerId, file.buffer, 1, file.originalname ?? 'document');
+    const png = await this.renderPageToPng(
+      ownerId,
+      file.buffer,
+      1,
+      file.originalname ?? 'document',
+    );
     return { ...png, pdfId: pdfRow.id, page: 1, pageCount };
   }
 
   /** 저장된 PDF(pdfId)의 특정 페이지를 렌더(페이지 넘김). 업로더(소유자)만. */
   async renderPdfPage(ownerId: string, pdfId: string, page: number) {
-    const row = await this.prisma.stored_file.findUnique({ where: { id: pdfId }, select: { owner_id: true, storage_key: true, filename: true, content_type: true } });
+    const row = await this.prisma.stored_file.findUnique({
+      where: { id: pdfId },
+      select: {
+        owner_id: true,
+        storage_key: true,
+        filename: true,
+        content_type: true,
+      },
+    });
     if (!row) throw new NotFoundException('PDF 를 찾을 수 없습니다.');
-    if (row.owner_id !== ownerId) throw new ForbiddenException('이 PDF 에 접근할 권한이 없습니다.');
-    if (row.content_type !== 'application/pdf') throw new BadRequestException('PDF 가 아닙니다.');
+    if (row.owner_id !== ownerId)
+      throw new ForbiddenException('이 PDF 에 접근할 권한이 없습니다.');
+    if (row.content_type !== 'application/pdf')
+      throw new BadRequestException('PDF 가 아닙니다.');
     const pdfBuffer = Buffer.from(await this.storage.get(row.storage_key));
     const pageCount = await this.pdfPageCount(pdfBuffer);
     const p = Math.min(Math.max(1, Math.floor(page)), pageCount);
-    const png = await this.renderPageToPng(ownerId, pdfBuffer, p, row.filename ?? 'document');
+    const png = await this.renderPageToPng(
+      ownerId,
+      pdfBuffer,
+      p,
+      row.filename ?? 'document',
+    );
     return { ...png, pdfId, page: p, pageCount };
   }
 
@@ -191,7 +278,8 @@ export class FilesService {
       row.owner_id === user.id ||
       user.role === AccountRole.ADMIN ||
       // 학생이 예약에 첨부한 문제 파일 → 그 예약의 담당 선생님은 열람 가능(§5-10)
-      (user.role === AccountRole.TEACHER && (await this.teacherOwnsAttachment(user.id, id))) ||
+      (user.role === AccountRole.TEACHER &&
+        (await this.teacherOwnsAttachment(user.id, id))) ||
       // 참여 관계 열람 — 채팅 이미지·Q&A 답변 첨부·보드 배경(상대가 올린 파일)
       (await this.participantCanAccess(user.id, id));
     if (!allowed) {

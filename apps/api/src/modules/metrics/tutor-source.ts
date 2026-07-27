@@ -7,6 +7,8 @@ export type TutorSource = 'freelance' | 'salaried';
 export const TUTOR_SOURCE_PAGE = 'tutor_source';
 
 /** 고용유형 → tutor_source. 미설정/미인식 값은 freelance(현재 전원 freelance가 기본). */
-export function tutorSourceOf(employmentType: string | null | undefined): TutorSource {
+export function tutorSourceOf(
+  employmentType: string | null | undefined,
+): TutorSource {
   return employmentType === 'salaried' ? 'salaried' : 'freelance';
 }

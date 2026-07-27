@@ -40,7 +40,10 @@ export class PgWebhookService {
   /**
    * 정규화된 웹훅 이벤트 처리(멱등). 반환: 실제 반영 여부·중복 여부.
    */
-  async handle(provider: string, event: PgWebhookEvent): Promise<{ duplicate: boolean; applied: boolean }> {
+  async handle(
+    provider: string,
+    event: PgWebhookEvent,
+  ): Promise<{ duplicate: boolean; applied: boolean }> {
     // 1) 멱등 원장에 선점 INSERT — 이미 있으면 중복(재전송)으로 판정하고 종료.
     try {
       await this.prisma.payment_event.create({
@@ -65,7 +68,10 @@ export class PgWebhookService {
       const applied = await this.dispatch(provider, event);
       await this.prisma.payment_event.update({
         where: { provider_event_id: { provider, event_id: event.eventId } },
-        data: { status: applied ? 'processed' : 'ignored', processed_at: new Date() },
+        data: {
+          status: applied ? 'processed' : 'ignored',
+          processed_at: new Date(),
+        },
       });
       return { duplicate: false, applied };
     } catch (e) {
@@ -78,7 +84,10 @@ export class PgWebhookService {
     }
   }
 
-  private async dispatch(provider: string, event: PgWebhookEvent): Promise<boolean> {
+  private async dispatch(
+    provider: string,
+    event: PgWebhookEvent,
+  ): Promise<boolean> {
     const type: PgWebhookType = event.type;
     if (type === 'payment.paid') {
       if (!event.payerAccountId || !event.amount) {
@@ -98,7 +107,11 @@ export class PgWebhookService {
     }
     if (type === 'payment.refunded') {
       const r = await this.prisma.$transaction((tx) =>
-        this.credit.applyPgRefund(tx, { idempotencyKey: event.idempotencyKey, provider, amount: event.amount }),
+        this.credit.applyPgRefund(tx, {
+          idempotencyKey: event.idempotencyKey,
+          provider,
+          amount: event.amount,
+        }),
       );
       return r.applied;
     }
@@ -107,6 +120,10 @@ export class PgWebhookService {
   }
 
   private isUniqueViolation(e: unknown): boolean {
-    return typeof e === 'object' && e !== null && (e as { code?: string }).code === 'P2002';
+    return (
+      typeof e === 'object' &&
+      e !== null &&
+      (e as { code?: string }).code === 'P2002'
+    );
   }
 }

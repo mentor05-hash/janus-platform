@@ -24,7 +24,10 @@ import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import type { UploadedFileLike } from '../storage/storage.types';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { PaginationQueryDto, buildPageMeta } from '../../common/dto/pagination.dto';
+import {
+  PaginationQueryDto,
+  buildPageMeta,
+} from '../../common/dto/pagination.dto';
 import { AccountRole, AccountStatus } from '../../config/enums';
 import { NotifyService } from '../notification/notify.service';
 import {
@@ -167,35 +170,66 @@ export class HrController {
   private parseSheet(file: UploadedFileLike): Record<string, unknown>[] {
     try {
       const wb = XLSX.read(file.buffer, { type: 'buffer' });
-      return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: null });
+      return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {
+        defval: null,
+      });
     } catch {
       throw new BadRequestException('엑셀을 읽을 수 없습니다(.xlsx).');
     }
   }
   private cell(row: Record<string, unknown>, ...keys: string[]): string {
-    for (const k of keys) { const v = row[k]; if (v != null && String(v).trim()) return String(v).trim(); }
+    for (const k of keys) {
+      const v = row[k];
+      if (v != null && String(v).trim()) return String(v).trim();
+    }
     return '';
   }
 
   /** POST /hr/students/excel — 학생 명부 엑셀 일괄 등록(자기 센터·승인). 열: 아이디·이름·비밀번호(선택)·학년(선택). */
   @Post('students/excel')
   @UseInterceptors(FileInterceptor('file'))
-  async studentsExcel(@UploadedFile() file: UploadedFileLike, @CurrentUser() user: AuthUser) {
+  async studentsExcel(
+    @UploadedFile() file: UploadedFileLike,
+    @CurrentUser() user: AuthUser,
+  ) {
     const rows = this.parseSheet(file);
-    let created = 0; const errors: { loginId: string; reason: string }[] = [];
+    let created = 0;
+    const errors: { loginId: string; reason: string }[] = [];
     for (let i = 0; i < rows.length; i++) {
-      const norm: Record<string, unknown> = {}; for (const k of Object.keys(rows[i])) norm[k.trim()] = rows[i][k];
+      const norm: Record<string, unknown> = {};
+      for (const k of Object.keys(rows[i])) norm[k.trim()] = rows[i][k];
       const loginId = this.cell(norm, '아이디', '로그인아이디', 'id');
       const name = this.cell(norm, '이름', '성명', 'name');
-      if (!loginId || !name) { errors.push({ loginId: loginId || `${i + 2}행`, reason: '아이디·이름 필수' }); continue; }
+      if (!loginId || !name) {
+        errors.push({
+          loginId: loginId || `${i + 2}행`,
+          reason: '아이디·이름 필수',
+        });
+        continue;
+      }
       try {
         const pw = this.cell(norm, '비밀번호', 'password') || `mp-${loginId}`;
         const acc = await this.prisma.account.create({
-          data: { role: AccountRole.STUDENT, login_id: loginId, pw_hash: await bcrypt.hash(pw, 10), name, center_id: user.centerId ?? null, status: AccountStatus.APPROVED },
+          data: {
+            role: AccountRole.STUDENT,
+            login_id: loginId,
+            pw_hash: await bcrypt.hash(pw, 10),
+            name,
+            center_id: user.centerId ?? null,
+            status: AccountStatus.APPROVED,
+          },
         });
-        await this.prisma.student_profile.create({ data: { account_id: acc.id, center_id: user.centerId ?? null, school_grade: this.cell(norm, '학년', '학교학년') || null } });
+        await this.prisma.student_profile.create({
+          data: {
+            account_id: acc.id,
+            center_id: user.centerId ?? null,
+            school_grade: this.cell(norm, '학년', '학교학년') || null,
+          },
+        });
         created += 1;
-      } catch { errors.push({ loginId, reason: '이미 존재하는 아이디' }); }
+      } catch {
+        errors.push({ loginId, reason: '이미 존재하는 아이디' });
+      }
     }
     return { created, failed: errors.length, errors: errors.slice(0, 50) };
   }
@@ -203,27 +237,62 @@ export class HrController {
   /** POST /hr/teachers/excel — 선생님 명부 엑셀 일괄 등록. 열: 아이디·이름·비밀번호(선택)·과목(콤마)·등급(S/A/B)·경력(선택)·직군(선택). */
   @Post('teachers/excel')
   @UseInterceptors(FileInterceptor('file'))
-  async teachersExcel(@UploadedFile() file: UploadedFileLike, @CurrentUser() user: AuthUser) {
+  async teachersExcel(
+    @UploadedFile() file: UploadedFileLike,
+    @CurrentUser() user: AuthUser,
+  ) {
     const rows = this.parseSheet(file);
-    let created = 0; const errors: { loginId: string; reason: string }[] = [];
+    let created = 0;
+    const errors: { loginId: string; reason: string }[] = [];
     for (let i = 0; i < rows.length; i++) {
-      const norm: Record<string, unknown> = {}; for (const k of Object.keys(rows[i])) norm[k.trim()] = rows[i][k];
+      const norm: Record<string, unknown> = {};
+      for (const k of Object.keys(rows[i])) norm[k.trim()] = rows[i][k];
       const loginId = this.cell(norm, '아이디', '로그인아이디', 'id');
       const name = this.cell(norm, '이름', '성명', 'name');
-      if (!loginId || !name) { errors.push({ loginId: loginId || `${i + 2}행`, reason: '아이디·이름 필수' }); continue; }
+      if (!loginId || !name) {
+        errors.push({
+          loginId: loginId || `${i + 2}행`,
+          reason: '아이디·이름 필수',
+        });
+        continue;
+      }
       const gradeRaw = (this.cell(norm, '등급', 'grade') || 'B').toUpperCase();
-      const grade = (['S', 'A', 'B'].includes(gradeRaw) ? gradeRaw : 'B') as $Enums.teacher_grade_t;
-      const subjects = this.cell(norm, '과목', 'subjects').split(/[,·\/]/).map((s) => s.trim()).filter(Boolean);
+      const grade = (
+        ['S', 'A', 'B'].includes(gradeRaw) ? gradeRaw : 'B'
+      ) as $Enums.teacher_grade_t;
+      const subjects = this.cell(norm, '과목', 'subjects')
+        .split(/[,·\/]/)
+        .map((s) => s.trim())
+        .filter(Boolean);
       try {
         const pw = this.cell(norm, '비밀번호', 'password') || `mp-${loginId}`;
         const acc = await this.prisma.account.create({
-          data: { role: AccountRole.TEACHER, login_id: loginId, pw_hash: await bcrypt.hash(pw, 10), name, center_id: user.centerId ?? null, status: AccountStatus.APPROVED },
+          data: {
+            role: AccountRole.TEACHER,
+            login_id: loginId,
+            pw_hash: await bcrypt.hash(pw, 10),
+            name,
+            center_id: user.centerId ?? null,
+            status: AccountStatus.APPROVED,
+          },
         });
         await this.prisma.teacher_profile.create({
-          data: { account_id: acc.id, center_id: user.centerId ?? null, subjects, sub_subjects: [], grade, career: this.cell(norm, '경력', 'career') || null, teacher_category: this.cell(norm, '직군', '분류', 'category') || null, employment_type: this.cell(norm, '고용형태') || null },
+          data: {
+            account_id: acc.id,
+            center_id: user.centerId ?? null,
+            subjects,
+            sub_subjects: [],
+            grade,
+            career: this.cell(norm, '경력', 'career') || null,
+            teacher_category:
+              this.cell(norm, '직군', '분류', 'category') || null,
+            employment_type: this.cell(norm, '고용형태') || null,
+          },
         });
         created += 1;
-      } catch { errors.push({ loginId, reason: '이미 존재하는 아이디' }); }
+      } catch {
+        errors.push({ loginId, reason: '이미 존재하는 아이디' });
+      }
     }
     return { created, failed: errors.length, errors: errors.slice(0, 50) };
   }
@@ -239,16 +308,42 @@ export class HrController {
   @Get('teachers/template')
   teachersTemplate(@Res() res: Response) {
     this.sendXlsx(res, 'teachers-template.xlsx', '선생님', [
-      { 아이디: 'teacher201', 이름: '이선생', 비밀번호: '', 과목: '수학,과학', 등급: 'A', 경력: '5년', 직군: '교과', 고용형태: '기본급' },
-      { 아이디: 'teacher202', 이름: '박선생', 비밀번호: '', 과목: '영어', 등급: 'B', 경력: '', 직군: '담임', 고용형태: '건당' },
+      {
+        아이디: 'teacher201',
+        이름: '이선생',
+        비밀번호: '',
+        과목: '수학,과학',
+        등급: 'A',
+        경력: '5년',
+        직군: '교과',
+        고용형태: '기본급',
+      },
+      {
+        아이디: 'teacher202',
+        이름: '박선생',
+        비밀번호: '',
+        과목: '영어',
+        등급: 'B',
+        경력: '',
+        직군: '담임',
+        고용형태: '건당',
+      },
     ]);
   }
-  private sendXlsx(res: Response, filename: string, sheet: string, sample: Record<string, unknown>[]) {
+  private sendXlsx(
+    res: Response,
+    filename: string,
+    sheet: string,
+    sample: Record<string, unknown>[],
+  ) {
     const ws = XLSX.utils.json_to_sheet(sample);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, sheet);
     const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(buf);
   }
@@ -315,7 +410,13 @@ export class HrController {
         errors.push({ loginId, reason: '동기화 실패' });
       }
     }
-    return { source: dto.source, created, updated, failed: errors.length, errors };
+    return {
+      source: dto.source,
+      created,
+      updated,
+      failed: errors.length,
+      errors,
+    };
   }
 
   /** POST /hr/teachers — 선생님 등록(계정+프로필). 급여(T5) 연동 필드 포함. */
@@ -391,7 +492,9 @@ export class HrController {
         grade: t.grade,
         category: t.teacher_category,
         centerName: t.center?.name ?? null,
-        achievementsCount: Array.isArray(t.target_achievements) ? t.target_achievements.length : 0,
+        achievementsCount: Array.isArray(t.target_achievements)
+          ? t.target_achievements.length
+          : 0,
         targetAchievementsVerified: t.target_achievements_verified === true,
       })),
       meta: buildPageMeta(total, q.page, q.size),

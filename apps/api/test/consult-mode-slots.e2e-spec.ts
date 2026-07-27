@@ -25,19 +25,32 @@ describe('상담 모드 슬롯 필터', () => {
   let monday = '';
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     await app.init();
     prisma = mod.get(PrismaService);
     svc = mod.get(AvailabilityService);
 
-    const t = await prisma.account.findFirstOrThrow({ where: { login_id: ACCOUNTS.teacher }, select: { id: true } });
-    const s = await prisma.account.findFirstOrThrow({ where: { login_id: ACCOUNTS.student }, select: { id: true } });
-    teacherId = t.id; studentId = s.id;
+    const t = await prisma.account.findFirstOrThrow({
+      where: { login_id: ACCOUNTS.teacher },
+      select: { id: true },
+    });
+    const s = await prisma.account.findFirstOrThrow({
+      where: { login_id: ACCOUNTS.student },
+      select: { id: true },
+    });
+    teacherId = t.id;
+    studentId = s.id;
 
-    const ws = await prisma.work_schedule.findFirst({ where: { teacher_id: teacherId } });
+    const ws = await prisma.work_schedule.findFirst({
+      where: { teacher_id: teacherId },
+    });
     prevRecurring = ws?.recurring_template ?? null;
-    const sp = await prisma.student_profile.findUnique({ where: { account_id: studentId } });
+    const sp = await prisma.student_profile.findUnique({
+      where: { account_id: studentId },
+    });
     prevStay = sp?.stay_time ?? null;
 
     // 다음 월요일(UTC 기준 계산 — periodBounds 류와 같은 규약)
@@ -48,18 +61,30 @@ describe('상담 모드 슬롯 필터', () => {
     // 선생님: 집(전 모드 가능) / 학생: 독서실(소리 불가 — chat·whiteboard 만)
     await prisma.work_schedule.updateMany({
       where: { teacher_id: teacherId },
-      data: { recurring_template: { '1': [{ start: '19:00', end: '22:00', env: 'home' }] } },
+      data: {
+        recurring_template: {
+          '1': [{ start: '19:00', end: '22:00', env: 'home' }],
+        },
+      },
     });
     await prisma.student_profile.update({
       where: { account_id: studentId },
-      data: { stay_time: { '1': [{ start: '19:00', end: '21:00', env: 'study' }] } },
+      data: {
+        stay_time: { '1': [{ start: '19:00', end: '21:00', env: 'study' }] },
+      },
     });
   });
 
   afterAll(async () => {
     // 원복 — 다른 스위트가 데모 근무·체류 템플릿을 전제한다.
-    await prisma.work_schedule.updateMany({ where: { teacher_id: teacherId }, data: { recurring_template: (prevRecurring ?? Prisma.DbNull) as never } });
-    await prisma.student_profile.update({ where: { account_id: studentId }, data: { stay_time: (prevStay ?? Prisma.DbNull) as never } });
+    await prisma.work_schedule.updateMany({
+      where: { teacher_id: teacherId },
+      data: { recurring_template: (prevRecurring ?? Prisma.DbNull) as never },
+    });
+    await prisma.student_profile.update({
+      where: { account_id: studentId },
+      data: { stay_time: (prevStay ?? Prisma.DbNull) as never },
+    });
     await app.close();
   });
 
@@ -71,56 +96,82 @@ describe('상담 모드 슬롯 필터', () => {
   it('줌 화상은 예약 불가로 표시되고 슬롯도 내주지 않는다 — 예약 단계에서 걸러야 한다', async () => {
     const r = await svc.getConsultModes(teacherId, monday, studentId);
     expect(r.consultModes.find((m) => m.mode === 'zoom')!.bookable).toBe(false);
-    expect(await svc.getDaySlots(teacherId, monday, studentId, 'zoom')).toEqual([]);
+    expect(await svc.getDaySlots(teacherId, monday, studentId, 'zoom')).toEqual(
+      [],
+    );
   });
 
   it('채팅·필기공유는 예약 가능 — 슬롯이 나온다', async () => {
     const r = await svc.getConsultModes(teacherId, monday, studentId);
     expect(r.consultModes.find((m) => m.mode === 'chat')!.bookable).toBe(true);
     expect(r.consultModes.find((m) => m.mode === 'hand')!.bookable).toBe(true);
-    expect((await svc.getDaySlots(teacherId, monday, studentId, 'chat')).length).toBeGreaterThan(0);
+    expect(
+      (await svc.getDaySlots(teacherId, monday, studentId, 'chat')).length,
+    ).toBeGreaterThan(0);
   });
 
   it('오프라인(센터 대면)은 온라인 모드와 무관하므로 걸러내지 않는다', async () => {
     const r = await svc.getConsultModes(teacherId, monday, studentId);
-    expect(r.consultModes.find((m) => m.mode === 'offline')!.bookable).toBe(true);
-    expect((await svc.getDaySlots(teacherId, monday, studentId, 'offline')).length).toBeGreaterThan(0);
+    expect(r.consultModes.find((m) => m.mode === 'offline')!.bookable).toBe(
+      true,
+    );
+    expect(
+      (await svc.getDaySlots(teacherId, monday, studentId, 'offline')).length,
+    ).toBeGreaterThan(0);
   });
 
   it('mode 를 주지 않으면 기존과 동일하다 — 소비처 6곳의 계약이 바뀌지 않는다', async () => {
     const withoutMode = await svc.getDaySlots(teacherId, monday, studentId);
     expect(withoutMode.length).toBeGreaterThan(0);
     // zoom 이 막혀도 mode 미지정 조회는 영향받지 않아야 한다.
-    expect(withoutMode).toEqual(await svc.getDaySlots(teacherId, monday, studentId, undefined));
+    expect(withoutMode).toEqual(
+      await svc.getDaySlots(teacherId, monday, studentId, undefined),
+    );
   });
 
   it('근무 창이 없는 날은 hasWindows=false 이고 어떤 모드도 예약 불가 — 화면이 "방식을 바꿔 보세요"로 헛걸음시키지 않게', async () => {
     // 템플릿에 월요일('1')만 심었으므로 화요일에는 창이 없다.
     const tue = new Date(`${monday}T00:00:00Z`);
     tue.setUTCDate(tue.getUTCDate() + 1);
-    const r = await svc.getConsultModes(teacherId, tue.toISOString().slice(0, 10), studentId);
+    const r = await svc.getConsultModes(
+      teacherId,
+      tue.toISOString().slice(0, 10),
+      studentId,
+    );
     expect(r.hasWindows).toBe(false);
     // offline 은 환경과 무관하지만, 근무가 없으면 그것도 잡을 수 없다.
     expect(r.consultModes.every((m) => !m.bookable)).toBe(true);
   });
 
   it('근무가 있는 날은 hasWindows=true — 빈 슬롯의 원인이 모드임을 화면이 구분할 수 있다', async () => {
-    expect((await svc.getConsultModes(teacherId, monday, studentId)).hasWindows).toBe(true);
+    expect(
+      (await svc.getConsultModes(teacherId, monday, studentId)).hasWindows,
+    ).toBe(true);
   });
 
   it('모르는 모드는 막지 않는다 — 멀쩡한 예약을 사라지게 하면 안 된다', async () => {
-    expect((await svc.getDaySlots(teacherId, monday, studentId, 'unknown_mode')).length).toBeGreaterThan(0);
+    expect(
+      (await svc.getDaySlots(teacherId, monday, studentId, 'unknown_mode'))
+        .length,
+    ).toBeGreaterThan(0);
   });
 
   it('학생 체류시간이 없으면 제한 없음(기존 규약) — 선생님 쪽 모드를 그대로 쓴다', async () => {
-    await prisma.student_profile.update({ where: { account_id: studentId }, data: { stay_time: Prisma.DbNull } }); // undefined 는 '변경 안 함'이라 실제로 비워지지 않는다
+    await prisma.student_profile.update({
+      where: { account_id: studentId },
+      data: { stay_time: Prisma.DbNull },
+    }); // undefined 는 '변경 안 함'이라 실제로 비워지지 않는다
     const r = await svc.getConsultModes(teacherId, monday, studentId);
     expect(r.availableModes).toContain('video'); // 집(선생님) 기준
-    expect((await svc.getDaySlots(teacherId, monday, studentId, 'zoom')).length).toBeGreaterThan(0);
+    expect(
+      (await svc.getDaySlots(teacherId, monday, studentId, 'zoom')).length,
+    ).toBeGreaterThan(0);
     // 되돌리기
     await prisma.student_profile.update({
       where: { account_id: studentId },
-      data: { stay_time: { '1': [{ start: '19:00', end: '21:00', env: 'study' }] } },
+      data: {
+        stay_time: { '1': [{ start: '19:00', end: '21:00', env: 'study' }] },
+      },
     });
   });
 });

@@ -80,7 +80,10 @@ export class AcademicController {
 
   @Delete('admin/academic-events/:id')
   @Roles('admin')
-  remove(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+  remove(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.academic.remove(user, id);
   }
 

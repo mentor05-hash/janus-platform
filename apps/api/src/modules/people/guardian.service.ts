@@ -60,7 +60,11 @@ export class GuardianService {
   /** 승인된 연결 자녀인지 확인(무단 열람·충전 방지). */
   private async assertLinked(guardianId: string, studentId: string) {
     const link = await this.prisma.guardian_student_link.findFirst({
-      where: { guardian_id: guardianId, student_id: studentId, status: 'approved' },
+      where: {
+        guardian_id: guardianId,
+        student_id: studentId,
+        status: 'approved',
+      },
     });
     if (!link) throw new ForbiddenException('연결된 자녀가 아닙니다.');
   }
@@ -114,7 +118,11 @@ export class GuardianService {
     const since = unlock ? { created_at: { gt: unlock.created_at } } : {};
     const [lastEnded, attempts] = await Promise.all([
       this.prisma.guardian_link_event.findFirst({
-        where: { link_id: linkId, to_status: { in: RELINKABLE_STATUSES }, ...since },
+        where: {
+          link_id: linkId,
+          to_status: { in: RELINKABLE_STATUSES },
+          ...since,
+        },
         orderBy: { created_at: 'desc' },
         select: { created_at: true },
       }),
@@ -150,7 +158,10 @@ export class GuardianService {
     });
 
     // 진행 중(pending)이거나 이미 연결된(approved) 건은 재신청 대상이 아니다.
-    if (existing && !RELINKABLE_STATUSES.includes(existing.status as GuardianLinkStatus)) {
+    if (
+      existing &&
+      !RELINKABLE_STATUSES.includes(existing.status as GuardianLinkStatus)
+    ) {
       throw new BadRequestException(
         `이미 연결 신청이 존재합니다(status=${existing.status}).`,
       );
@@ -179,7 +190,9 @@ export class GuardianService {
           },
         });
         if (count !== 1) {
-          throw new BadRequestException('연결 상태가 변경되었습니다. 다시 시도해 주세요.');
+          throw new BadRequestException(
+            '연결 상태가 변경되었습니다. 다시 시도해 주세요.',
+          );
         }
         await this.recordEvent(tx, {
           linkId: existing.id,
@@ -239,13 +252,25 @@ export class GuardianService {
    * 학생/보호자용 `listLinks` 와 달리 로그인 아이디를 함께 준다 — 운영자가 동명이인을
    * 가려내야 하고, 이 화면 자체가 이미 admin/hr 전용이라 PII 노출 경계가 다르다.
    */
-  async adminListLinks(actor: AuthUser, q?: string, scope: 'stuck' | 'all' = 'stuck') {
+  async adminListLinks(
+    actor: AuthUser,
+    q?: string,
+    scope: 'stuck' | 'all' = 'stuck',
+  ) {
     const term = q?.trim();
     const nameOrLogin = term
       ? {
           OR: [
-            { account: { name: { contains: term, mode: 'insensitive' as const } } },
-            { account: { login_id: { contains: term, mode: 'insensitive' as const } } },
+            {
+              account: {
+                name: { contains: term, mode: 'insensitive' as const },
+              },
+            },
+            {
+              account: {
+                login_id: { contains: term, mode: 'insensitive' as const },
+              },
+            },
           ],
         }
       : {};
@@ -253,14 +278,13 @@ export class GuardianService {
     // 전체를 가져오면 정상 approved 가 상한을 채워 정작 봐야 할 행이 잘려 나간다.
     const where = {
       // 연결의 센터 = 학생의 센터. 본사(centerId 없음)는 전체.
-      ...(actor.centerId ? { student_profile: { center_id: actor.centerId } } : {}),
+      ...(actor.centerId
+        ? { student_profile: { center_id: actor.centerId } }
+        : {}),
       ...(scope === 'stuck' ? { status: { in: RELINKABLE_STATUSES } } : {}),
       ...(term
         ? {
-            OR: [
-              { student_profile: nameOrLogin },
-              { guardian: nameOrLogin },
-            ],
+            OR: [{ student_profile: nameOrLogin }, { guardian: nameOrLogin }],
           }
         : {}),
     };
@@ -273,7 +297,9 @@ export class GuardianService {
         link_method: true,
         student_id: true,
         guardian_id: true,
-        guardian: { select: { account: { select: { name: true, login_id: true } } } },
+        guardian: {
+          select: { account: { select: { name: true, login_id: true } } },
+        },
         student_profile: {
           select: {
             account: { select: { name: true, login_id: true } },
@@ -294,7 +320,10 @@ export class GuardianService {
       },
       // guardian_student_link 에는 created_at 이 없어 자연 정렬 키가 없다 → 학생 이름으로 고정한다.
       // orderBy 가 없으면 상한에 걸릴 때 **매번 다른 100건**이 와서 "아까 본 행이 사라진다".
-      orderBy: [{ student_profile: { account: { name: 'asc' } } }, { id: 'asc' }],
+      orderBy: [
+        { student_profile: { account: { name: 'asc' } } },
+        { id: 'asc' },
+      ],
       take: LIST_LIMIT + 1, // 상한 초과를 감지하려고 1건 더 — 잘린 사실을 화면이 말해야 한다.
     });
     const truncated = rows.length > LIST_LIMIT;
@@ -307,11 +336,14 @@ export class GuardianService {
       // 목록 쿼리로 이미 가져온 이력에서 계산한다 — relinkHistory 를 행마다 부르면 N+1 이다.
       // **relinkHistory 와 같은 규칙이어야 한다** — 어긋나면 화면이 서버 판정과 다른 말을 한다.
       // events 는 최신순이므로 해제 이벤트보다 '앞'(인덱스가 작은 쪽)이 그 이후에 일어난 일이다.
-      const unlockIdx = events.findIndex((e) => e.reason === LINK_REASON.adminUnlock);
+      const unlockIdx = events.findIndex(
+        (e) => e.reason === LINK_REASON.adminUnlock,
+      );
       const scoped = unlockIdx >= 0 ? events.slice(0, unlockIdx) : events;
       const lastEnded =
-        scoped.find((e) => RELINKABLE_STATUSES.includes(e.to_status as GuardianLinkStatus))
-          ?.created_at ?? null;
+        scoped.find((e) =>
+          RELINKABLE_STATUSES.includes(e.to_status as GuardianLinkStatus),
+        )?.created_at ?? null;
       const attempts = scoped.filter(
         (e) =>
           e.to_status === 'pending' &&
@@ -337,7 +369,9 @@ export class GuardianService {
         /** 보호자가 스스로 재신청할 수 있는지 — 없으면 관리자 개입이 유일한 길이다. */
         relinkBlocked: relink && !relink.allowed ? relink.code : null,
         relinkAvailableAt:
-          relink && !relink.allowed && relink.code === 'cooldown' ? relink.availableAt : null,
+          relink && !relink.allowed && relink.code === 'cooldown'
+            ? relink.availableAt
+            : null,
         relinkAttempts: attempts,
         relinkMaxAttempts: RELINK_MAX_ATTEMPTS,
         events: events.map((e) => ({
@@ -364,7 +398,9 @@ export class GuardianService {
     const rows = await this.prisma.guardian_student_link.findMany({
       where: isGuardian ? { guardian_id: user.id } : { student_id: user.id },
       select: {
-        id: true, status: true, relation: true,
+        id: true,
+        status: true,
+        relation: true,
         guardian: { select: { account: { select: { name: true } } } },
         student_profile: { select: { account: { select: { name: true } } } },
       },
@@ -374,7 +410,10 @@ export class GuardianService {
       status: r.status,
       relation: r.relation,
       /** 상대의 이름 — 보호자가 보면 자녀, 학생이 보면 보호자. */
-      counterpartName: (isGuardian ? r.student_profile?.account?.name : r.guardian?.account?.name) ?? '이름 없음',
+      counterpartName:
+        (isGuardian
+          ? r.student_profile?.account?.name
+          : r.guardian?.account?.name) ?? '이름 없음',
       /** 학생만 응답할 수 있다(pending 일 때). 화면이 버튼 노출을 판단하는 근거. */
       canRespond: !isGuardian && r.status === 'pending',
     }));
@@ -399,7 +438,9 @@ export class GuardianService {
               homeroom_teacher_id: true,
               school_grade: true,
               center: { select: { name: true } },
-              membership_grade: { select: { name: true, weekly_credits: true } },
+              membership_grade: {
+                select: { name: true, weekly_credits: true },
+              },
             },
           }),
           this.prisma.credit_account.findUnique({
@@ -484,7 +525,9 @@ export class GuardianService {
    * 이력이 append-only 라 '지우기'가 불가능하므로 지우는 대신 해제 이벤트를 남긴다.
    */
   async unlockRelink(actor: AuthUser, linkId: string) {
-    const link = await this.prisma.guardian_student_link.findUnique({ where: { id: linkId } });
+    const link = await this.prisma.guardian_student_link.findUnique({
+      where: { id: linkId },
+    });
     if (!link) throw new NotFoundException('연결을 찾을 수 없습니다.');
     await this.assertLinkCenter(actor, link.student_id);
 
@@ -516,8 +559,14 @@ export class GuardianService {
     });
 
     const [g, s] = await Promise.all([
-      this.prisma.account.findUnique({ where: { id: link.guardian_id }, select: { name: true } }),
-      this.prisma.account.findUnique({ where: { id: link.student_id }, select: { name: true } }),
+      this.prisma.account.findUnique({
+        where: { id: link.guardian_id },
+        select: { name: true },
+      }),
+      this.prisma.account.findUnique({
+        where: { id: link.student_id },
+        select: { name: true },
+      }),
     ]);
     await this.audit.record(actor, {
       action: 'guardian.link.unlock',
@@ -572,7 +621,9 @@ export class GuardianService {
     }
     // 종착 상태(rejected·revoked)를 되돌리는 건 관리자만 가능한 강제 복구 — 이력에 구분해 남긴다.
     const reason =
-      isAdmin && RELINKABLE_STATUSES.includes(from) ? LINK_REASON.adminOverride : LINK_REASON.respond;
+      isAdmin && RELINKABLE_STATUSES.includes(from)
+        ? LINK_REASON.adminOverride
+        : LINK_REASON.respond;
     const updated = await this.prisma.$transaction(async (tx) => {
       const row = await tx.guardian_student_link.update({
         where: { id: linkId },
@@ -587,15 +638,26 @@ export class GuardianService {
     // meta 는 화면에 표시되지 않으므로 운영자가 봐야 할 것은 summary 한 줄에 담는다.
     if (reason === LINK_REASON.adminOverride) {
       const [g, s] = await Promise.all([
-        this.prisma.account.findUnique({ where: { id: link.guardian_id }, select: { name: true } }),
-        this.prisma.account.findUnique({ where: { id: link.student_id }, select: { name: true } }),
+        this.prisma.account.findUnique({
+          where: { id: link.guardian_id },
+          select: { name: true },
+        }),
+        this.prisma.account.findUnique({
+          where: { id: link.student_id },
+          select: { name: true },
+        }),
       ]);
       await this.audit.record(actor, {
         action: 'guardian.link.override',
         targetType: 'guardian_student_link',
         targetId: linkId,
         summary: `보호자 연결 강제 복구(${from} → ${to}) — 보호자 ${g?.name ?? '?'} · 학생 ${s?.name ?? '?'}`,
-        meta: { from, to, guardianId: link.guardian_id, studentId: link.student_id },
+        meta: {
+          from,
+          to,
+          guardianId: link.guardian_id,
+          studentId: link.student_id,
+        },
       });
       // 학생이 끊은 연결을 학생 동의 없이 되살린 것이므로 학생에게도 알린다.
       await this.notify.notify(link.student_id, 'guardian_link_restored', {

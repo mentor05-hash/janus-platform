@@ -1,4 +1,9 @@
-import { Counter, Histogram, Registry, collectDefaultMetrics } from 'prom-client';
+import {
+  Counter,
+  Histogram,
+  Registry,
+  collectDefaultMetrics,
+} from 'prom-client';
 
 /**
  * Prometheus 메트릭(§10 관측성) — 프로세스 기본 지표 + HTTP 요청/에러 카운터.
@@ -33,7 +38,10 @@ export const errorsTotal = new Counter({
 /** 경로 정규화 — UUID·숫자 ID 를 :id 로 치환해 라벨 카디널리티를 낮춘다. */
 export function normalizeRoute(path: string): string {
   return (path || '/')
-    .replace(/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '/:id')
+    .replace(
+      /\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
+      '/:id',
+    )
     .replace(/\/\d+/g, '/:id')
     .split('?')[0];
 }

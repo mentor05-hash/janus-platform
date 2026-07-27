@@ -1,6 +1,11 @@
 import { scorePct, weaknessByUnit, prescribe } from './diagnostic';
 
-const g = (unit: string, correct: boolean, subject = '수학') => ({ questionId: 'q', unit, subject, correct });
+const g = (unit: string, correct: boolean, subject = '수학') => ({
+  questionId: 'q',
+  unit,
+  subject,
+  correct,
+});
 
 describe('수준진단 채점·약점', () => {
   it('정답률', () => {
@@ -10,8 +15,11 @@ describe('수준진단 채점·약점', () => {
 
   it('유형별 약점(60% 미만)', () => {
     const stats = weaknessByUnit([
-      g('미적분', false), g('미적분', false), g('미적분', true), // 33% → 약점
-      g('대수', true), g('대수', true), // 100% → 정상
+      g('미적분', false),
+      g('미적분', false),
+      g('미적분', true), // 33% → 약점
+      g('대수', true),
+      g('대수', true), // 100% → 정상
     ]);
     const mi = stats.find((s) => s.unit === '미적분')!;
     const de = stats.find((s) => s.unit === '대수')!;
