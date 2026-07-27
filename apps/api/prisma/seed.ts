@@ -80,7 +80,7 @@ async function main() {
     // 승계값(Standard 30k / VIP 350k)에는 등급 역전이 있었다 — 상위 등급의 세션당 단가가 더 비쌌다.
     // 근거·재현: docs/20_exec/유료_티어_가격_결정_워크시트_v1_2026-07-26.md · ops/pricing-sim.mjs
     // ⚠ 정책값이다. 운영 중 변경은 seed 가 아니라 PATCH /hr/membership-grades/{id} 로 한다
-    //   (seed 는 ON CONFLICT DO NOTHING 이라 기존 DB 에 반영되지 않는다 — 마이그레이션 0106 참조).
+    //   (seed 는 ON CONFLICT DO NOTHING 이라 기존 DB 에 반영되지 않는다 — 마이그레이션 0105 참조).
     const grades: [string, string, number, number, string, number][] = [
       [ID.gradeBasic, 'Basic', 1, 0, 'end_of_week', 0],
       [ID.gradeStd, 'Standard', 2, 24_000, 'end_of_week', 1],
