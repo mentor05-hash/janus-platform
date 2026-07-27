@@ -15,7 +15,8 @@ import { ACCOUNTS, DEMO_PW, login as loginAs } from './fixtures/demo-accounts';
  * 화면은 "관리자에게 문의"라고 안내하는데 그 문의를 받은 관리자가 쓸 경로가 제품에 없었다.
  *
  * 여기서 고정하는 계약:
- *  ① 목록은 admin/hr 전용이고 '왜 막혔는지'(쿨다운/횟수)를 준다 — 없으면 개입 판단이 불가능하다.
+ *  ① 목록은 관리자 전용이고 '왜 막혔는지'(쿨다운/횟수)를 준다 — 없으면 개입 판단이 불가능하다.
+ *     (O180·N37: 화면·백엔드 모두 관리자 전용으로 좁혔다 — 강제 복구는 학생 동의를 우회한다.)
  *  ② 강제 복구는 **센터로 좁혀진다**(O125 전에는 가드가 없어 타 센터 연결까지 뒤집혔다).
  *  ③ 복구는 감사 로그에 남고 **학생에게 알림이 간다**(학생이 끊은 것을 동의 없이 되살리므로).
  *
@@ -137,7 +138,7 @@ describe('관리자 보호자 연결 복구(O125)', () => {
       loginId: ACCOUNTS.centerAdmin,
     }) as any;
 
-  it('목록은 admin/hr 전용 — 학생 토큰은 403', async () => {
+  it('목록은 관리자 전용 — 학생 토큰은 403', async () => {
     const r = await get('admin/guardian-links', tok.student);
     expect(r.status).toBe(403);
   });

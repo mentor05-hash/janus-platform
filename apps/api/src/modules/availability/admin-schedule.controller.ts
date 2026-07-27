@@ -12,7 +12,7 @@ export class AdminScheduleController {
   /** POST /admin/schedules/bulk — 여러 선생님 기본/주계획 일괄 적용. */
   @Post('schedules/bulk')
   @HttpCode(200)
-  @Roles('admin', 'hr')
+  @Roles('admin')
   bulk(
     @Body()
     body: {

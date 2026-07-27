@@ -131,7 +131,10 @@ class ScorePolicyDto {
 }
 
 @Controller('admin/scores')
-@Roles('admin', 'hr')
+// 화면(`ADMIN_ROUTES` 의 `scores`)이 관리자 전용이다 — 성적은 민감정보이고
+// 이 컨트롤러는 목록·추이·목표·정책·export·excel·OCR 을 전부 포함한다(14경로).
+// 클래스 레벨이라 HR 이 화면 없이 API 로 전량 조회·내려받기가 가능했다(N37).
+@Roles('admin')
 export class ScoresController {
   constructor(private readonly scores: ScoresService) {}
 

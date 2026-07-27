@@ -78,7 +78,7 @@ export class GuardianController {
    * 센터 격리는 서비스에서 학생 센터 기준으로 적용된다.
    */
   @Get('admin/guardian-links')
-  @Roles('admin', 'hr')
+  @Roles('admin')
   adminLinks(
     @CurrentUser() user: AuthUser,
     @Query('q') q?: string,
@@ -98,7 +98,7 @@ export class GuardianController {
    * 연결 성립은 학생 승인에 남긴다(학생 동의권을 우회하지 않는 가벼운 경로).
    */
   @Post('admin/guardian-links/:id/unlock')
-  @Roles('admin', 'hr')
+  @Roles('admin')
   unlockLink(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthUser,

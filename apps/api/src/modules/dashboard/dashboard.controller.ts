@@ -63,7 +63,9 @@ export class DashboardController {
     return this.dash.setVisibility(user, dto);
   }
 
+  // 화면 `evaluation` 은 관리자 전용 — 클래스 기본(admin,hr)을 여기서 좁힌다(N37).
   @Get('admin/evaluation/weights')
+  @Roles('admin')
   getWeights(
     @CurrentUser() user: AuthUser,
     @Query('centerId') centerId?: string,
@@ -72,12 +74,14 @@ export class DashboardController {
   }
 
   @Put('admin/evaluation/weights')
+  @Roles('admin')
   @MinPerm('L2')
   updateWeights(@Body() dto: UpdateWeightsDto, @CurrentUser() user: AuthUser) {
     return this.dash.updateWeights(user, dto);
   }
 
   @Get('admin/evaluation/ranking')
+  @Roles('admin')
   ranking(
     @CurrentUser() user: AuthUser,
     @Query('period') period?: string,
