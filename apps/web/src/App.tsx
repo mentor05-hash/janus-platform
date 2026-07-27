@@ -5,6 +5,7 @@ import { RealtimeNotifier } from './components/RealtimeNotifier';
 import { SchoolRecordBlockModal } from './components/SchoolRecordGuard';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { roleHome } from './auth/roleHome';
+import { ADMIN_ROUTES, canAccessAdminRoute, type AdminRoute } from './auth/adminRoutes';
 import { AppLayout } from './components/AppLayout';
 import { AdminLayout } from './components/AdminLayout';
 import { LoginPage } from './pages/LoginPage';
@@ -116,6 +117,51 @@ function Protected({ roles, children }: { roles?: string[]; children: JSX.Elemen
   return children;
 }
 
+/** path → 화면. ADMIN_ROUTES 와 **키가 1:1** 이어야 한다(adminRoutes.test.ts 가 고정). */
+const ADMIN_ELEMENTS: Record<string, JSX.Element> = {
+  dashboard: <AdminDashboardPage />,
+  students: <HrStudentsPage />,
+  'hr-teachers': <HrTeachersPage />,
+  'guardian-links': <AdminGuardianLinksPage />,
+  'hr-staff': <HrStaffPage />,
+  'member-types': <AdminMemberTypesPage />,
+  academic: <AdminAcademicPage />,
+  scores: <AdminScoresPage />,
+  'placement/hub': <PlacementHubPage embedded />,
+  membership: <AdminMembershipPage />,
+  entitlements: <AdminEntitlementPage />,
+  reverse: <AdminReversePage />,
+  policy: <AdminPolicyPage />,
+  ops: <AdminOpsSettingsPage />,
+  rooms: <AdminRoomsPage />,
+  block: <AdminBlockPage />,
+  infra: <AdminInfraPage />,
+  'sr-guard': <AdminSchoolRecordGuardPage />,
+  reports: <AdminReportsPage />,
+  announcements: <AnnouncementsPage />,
+  schedules: <AdminSchedulesPage />,
+  evaluation: <AdminEvaluationPage />,
+  assignment: <AdminAssignmentPage />,
+  analytics: <AdminAnalyticsPage />,
+  stats: <AdminStatsPage />,
+  diagnostics: <AdminDiagnosticPage />,
+  payroll: <AdminPayrollPage />,
+  audit: <AdminAuditPage />,
+  org: <AdminOrgPage />,
+  categories: <AdminCategoriesPage />,
+  legal: <LegalPage />,
+};
+
+/** 표의 roles·hqOnly·centerOnly 를 그대로 적용 — 메뉴 노출과 **같은 판정 함수**를 쓴다. */
+function AdminGuard({ route, children }: { route: AdminRoute; children: JSX.Element }) {
+  const { user, loading } = useAuth();
+  if (loading) return <div style={{ padding: 40 }}>불러오는 중…</div>;
+  if (!user) return <Navigate to="/login" replace />;
+  // 착지 화면(dashboard)까지 막히면 리다이렉트가 순환하므로 홈이 아니라 대시보드로 되돌린다.
+  if (!canAccessAdminRoute(user, route)) return <Navigate to="/admin/dashboard" replace />;
+  return children;
+}
+
 function HomeRedirect() {
   const { user } = useAuth();
   return <Navigate to={user ? roleHome(user.role) : '/login'} replace />;
@@ -215,37 +261,17 @@ export function App() {
         }
       >
         <Route index element={<Navigate to="dashboard" replace />} />
-        <Route path="dashboard" element={<AdminDashboardPage />} />
-        <Route path="students" element={<HrStudentsPage />} />
-        <Route path="guardian-links" element={<AdminGuardianLinksPage />} />
-        <Route path="hr-teachers" element={<HrTeachersPage />} />
-        <Route path="hr-staff" element={<HrStaffPage />} />
-        <Route path="reverse" element={<AdminReversePage />} />
-        <Route path="policy" element={<AdminPolicyPage />} />
-        <Route path="ops" element={<AdminOpsSettingsPage />} />
-        <Route path="rooms" element={<AdminRoomsPage />} />
-        <Route path="block" element={<AdminBlockPage />} />
-        <Route path="infra" element={<AdminInfraPage />} />
-        <Route path="reports" element={<AdminReportsPage />} />
-        <Route path="announcements" element={<AnnouncementsPage />} />
-        <Route path="org" element={<AdminOrgPage />} />
-        <Route path="categories" element={<AdminCategoriesPage />} />
-        <Route path="schedules" element={<AdminSchedulesPage />} />
-        <Route path="member-types" element={<AdminMemberTypesPage />} />
-        <Route path="membership" element={<AdminMembershipPage />} />
-        <Route path="entitlements" element={<AdminEntitlementPage />} />
-        <Route path="placement/hub" element={<PlacementHubPage embedded />} />
-        <Route path="evaluation" element={<AdminEvaluationPage />} />
-        <Route path="assignment" element={<AdminAssignmentPage />} />
-        <Route path="analytics" element={<AdminAnalyticsPage />} />
-        <Route path="stats" element={<AdminStatsPage />} />
-        <Route path="diagnostics" element={<AdminDiagnosticPage />} />
-        <Route path="audit" element={<AdminAuditPage />} />
-        <Route path="payroll" element={<AdminPayrollPage />} />
-        <Route path="academic" element={<AdminAcademicPage />} />
-        <Route path="scores" element={<AdminScoresPage />} />
-        <Route path="sr-guard" element={<AdminSchoolRecordGuardPage />} />
-        <Route path="legal" element={<LegalPage />} />
+        {/* 라우트는 ADMIN_ROUTES 에서 생성한다(N36 → O128). 이전에는 여기(라우트)와
+            AdminLayout(메뉴)이 서로 모르는 두 목록이라, 메뉴에서 숨긴 화면 20곳이 URL 직접
+            입력으로는 그대로 열렸다. 이제 둘 다 같은 표에서 나오므로 갈라질 수 없고,
+            표에 없는 화면은 라우트 자체가 생기지 않는다. 권한 판정도 canAccessAdminRoute 하나다. */}
+        {ADMIN_ROUTES.map((r) => (
+          <Route
+            key={r.path}
+            path={r.path}
+            element={<AdminGuard route={r}>{ADMIN_ELEMENTS[r.path]}</AdminGuard>}
+          />
+        ))}
       </Route>
 
       <Route

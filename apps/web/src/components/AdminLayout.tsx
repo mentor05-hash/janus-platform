@@ -3,6 +3,7 @@ import { APP_NAME } from '../branding.generated';
 import { JanusLogo } from './JanusLogo';
 import { useAuth } from '../auth/AuthContext';
 import { isHq } from '../auth/roleHome';
+import { visibleAdminNav } from '../auth/adminRoutes';
 import { ThemeToggle } from './ThemeToggle';
 
 const navCls = ({ isActive }: { isActive: boolean }) => (isActive ? 'nav-item active' : 'nav-item');
@@ -11,7 +12,9 @@ export function AdminLayout() {
   const { user, logout } = useAuth();
   const hq = isHq(user);
   const isMaster = user?.permLevel === 'L1';
-  const isAdmin = user?.role === 'admin';
+  // 메뉴는 ADMIN_ROUTES 에서 생성한다 — 라우트 가드와 **같은 표·같은 판정 함수**를 쓰므로
+  // '메뉴엔 없는데 URL 로는 열리는' 상태(N36)가 구조적으로 생기지 않는다.
+  const nav = visibleAdminNav(user);
   // 권한레벨 정확 표기: 마스터/본사관리자/센터관리자 (HR 은 별도)
   const scopeLabel = user?.role === 'hr' ? 'HR' : (user?.adminTier ?? (hq ? '본사관리자' : '센터관리자'));
   const initial = (user?.name ?? '관').slice(0, 1);
@@ -27,45 +30,9 @@ export function AdminLayout() {
           </div>
         </Link>
         <nav className="sidebar-nav">
-          <NavLink to="/admin/dashboard" className={navCls}>대시보드</NavLink>
-          <NavLink to="/admin/students" className={navCls}>학생 등록·관리</NavLink>
-          {/* isAdmin 블록 밖 = HR 에게도 보인다. 백엔드가 @Roles('admin','hr') 이므로 nav 도 같아야 한다
-              — 코드는 권한을 주는데 메뉴만 숨기는 상태(N35)를 새로 만들지 않는다. */}
-          <NavLink to="/admin/guardian-links" className={navCls}>보호자 연결 복구</NavLink>
-          <NavLink to="/admin/scores" className={navCls}>성적 업로드</NavLink>
-          <NavLink to="/admin/academic" className={navCls}>학사일정</NavLink>
-          <NavLink to="/admin/hr-teachers" className={navCls}>선생님 등록·관리</NavLink>
-          <NavLink to="/admin/hr-staff" className={navCls}>직원·권한</NavLink>
-          <NavLink to="/admin/membership" className={navCls}>회원 등급·구독</NavLink>
-          <NavLink to="/admin/placement/hub" className={navCls}>배치표 허브</NavLink>
-          {isAdmin && (
-            <>
-              <NavLink to="/admin/entitlements" className={navCls}>상품 권한</NavLink>
-              {!hq && <NavLink to="/admin/reverse" className={navCls}>역상담 대상</NavLink>}
-              <NavLink to="/admin/policy" className={navCls}>정책 편집</NavLink>
-              <NavLink to="/admin/ops" className={navCls}>운영 설정</NavLink>
-              {/* 상담실·줌·차단은 센터 단위 — 본사(HQ)에는 숨김 */}
-              {!hq && <NavLink to="/admin/rooms" className={navCls}>상담실 현황</NavLink>}
-              {!hq && <NavLink to="/admin/block" className={navCls}>신청불가 시간</NavLink>}
-              {!hq && <NavLink to="/admin/infra" className={navCls}>줌·상담실·차단</NavLink>}
-              <NavLink to="/admin/sr-guard" className={navCls}>생기부 가드</NavLink>
-              <NavLink to="/admin/reports" className={navCls}>신고</NavLink>
-              <NavLink to="/admin/announcements" className={navCls}>공지</NavLink>
-              <NavLink to="/admin/member-types" className={navCls}>회원 분류</NavLink>
-              <NavLink to="/admin/schedules" className={navCls}>근무 일괄업로드</NavLink>
-              <NavLink to="/admin/evaluation" className={navCls}>평가·순위</NavLink>
-              <NavLink to="/admin/assignment" className={navCls}>자동배정</NavLink>
-              <NavLink to="/admin/analytics" className={navCls}>센터 분석</NavLink>
-              <NavLink to="/admin/stats" className={navCls}>지표 대시보드</NavLink>
-              <NavLink to="/admin/diagnostics" className={navCls}>진단 문항</NavLink>
-              <NavLink to="/admin/payroll" className={navCls}>급여 정산</NavLink>
-              <NavLink to="/admin/audit" className={navCls}>감사 로그</NavLink>
-              {/* 조직 관리는 본사 이상(전사) 전용 */}
-              {hq && <NavLink to="/admin/org" className={navCls}>조직 관리</NavLink>}
-              {hq && <NavLink to="/admin/categories" className={navCls}>카테고리 관리</NavLink>}
-            </>
-          )}
-          <NavLink to="/admin/legal" className={navCls}>약관·개인정보</NavLink>
+          {nav.map((r) => (
+            <NavLink key={r.path} to={`/admin/${r.path}`} className={navCls}>{r.label}</NavLink>
+          ))}
         </nav>
         <div className="sidebar-foot">
           <span className="avatar">{initial}</span>

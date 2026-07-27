@@ -9,8 +9,18 @@ export function slotToTime(index: number): string {
 }
 
 /** ISO 시각이 기준일(ref)과 같은 캘린더 날짜인가. */
+/**
+ * 로컬 타임존이 아니라 **KST 기준** 날짜 문자열. sv-SE 로케일이 YYYY-MM-DD 를 준다.
+ * `toDateString()` 은 실행 환경 타임존을 따르므로, UTC 로 도는 서버·CI 와 KST 브라우저에서
+ * 같은 예약이 다른 날로 갈린다(오전 9시 이전 예약이 전날로 보이는 증상).
+ */
+function kstDate(d: Date): string {
+  return d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
+}
+
+/** ISO 시각이 기준일(ref)과 같은 캘린더 날짜인가(KST 기준). */
 export function isSameDay(iso: string | null, ref: Date): boolean {
-  return !!iso && new Date(iso).toDateString() === ref.toDateString();
+  return !!iso && kstDate(new Date(iso)) === kstDate(ref);
 }
 
 /** ISO 시각이 now 가 속한 주(월~일)에 포함되는가. */
