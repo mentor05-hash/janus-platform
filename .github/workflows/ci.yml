@@ -3,7 +3,11 @@ name: CI
 # CLAUDE.md §10 — CI 에서 빌드/검증. 컨테이너 이미지·배포는 클라우드 대상 확정 후(배포 전환).
 on:
   push:
-    branches: [main, master]
+    # ⚠ 실제 기본 브랜치를 반드시 포함할 것. `[main, master]` 만 있던 동안
+    #    기본 브랜치(feat/consulting-intake)로의 **직접 push 는 CI 가 아예 돌지 않았다** —
+    #    PR 을 거치지 않고 들어온 변경은 검증 없이 통과했다는 뜻이다.
+    #    기본 브랜치가 바뀌면 여기도 함께 바꿔야 한다.
+    branches: [feat/consulting-intake, main, master]
   pull_request:
 
 concurrency:
@@ -11,6 +15,69 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ── 실수 유입 방지 ──────────────────────────────────────────────
+  # 실험·서브 계획으로 하던 작업이 기본 브랜치에 들어가는 경로는 둘이다:
+  #   ① 미완성 PR 을 그대로 머지  ② PR 을 거치지 않고 직접 push
+  # 아래 두 잡이 각각을 담당한다. **물리적 차단은 브랜치 보호 규칙의 몫**이고,
+  # 이 잡들은 그 규칙이 필수 상태 검사로 지정할 대상이다(규칙 없이는 빨간불까지만).
+  merge-readiness:
+    name: 머지 준비 확인 (미완성 표식)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 미완성 표식 검사
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          HEAD_REF: ${{ github.head_ref }}
+          IS_DRAFT: ${{ github.event.pull_request.draft }}
+        run: |
+          fail=0
+          # 제목의 미완성 표식 — 머지할 의사가 생기면 저자가 직접 지운다(명시적 행위).
+          #
+          # ⚠ 한글 표식은 **대괄호 형태만** 본다. `초안`·`실험` 은 이 제품의 일상 어휘라
+          #    맨문자로 잡으면 "AI 초안 한도 추가" 같은 정상 PR 이 막힌다(실측 확인).
+          #    표식은 우연히 들어갈 수 없는 모양이어야 한다.
+          if printf '%s' "$TITLE" | grep -qiE '(\[wip\]|^wip[: ]|\bdo not merge\b|\[머지금지\]|\[미완성\]|\[실험\]|\[초안\])'; then
+            echo "::error::PR 제목에 미완성 표식이 있습니다: $TITLE"
+            echo "  → 머지할 준비가 되면 표식을 지우세요. 이 검사는 '실수로 머지'를 막기 위한 것입니다."
+            fail=1
+          fi
+          # 실험용 브랜치 접두사 — 서브 계획은 exp/·wip/·spike/ 로 두고 기본 브랜치로 보내지 않는다.
+          if printf '%s' "$HEAD_REF" | grep -qE '^(exp|wip|spike|tmp)/'; then
+            echo "::error::실험용 브랜치입니다: $HEAD_REF"
+            echo "  → 정식으로 넣을 작업이면 브랜치를 옮기세요(예: claude/…·feat/…)."
+            fail=1
+          fi
+          if [ "$IS_DRAFT" = "true" ]; then
+            echo "::error::Draft PR 입니다 — 준비되면 'Ready for review' 로 전환하세요."
+            fail=1
+          fi
+          [ "$fail" = 0 ] && echo "✓ 미완성 표식 없음"
+          exit $fail
+
+  direct-push-guard:
+    name: 직접 push 감지 (기본 브랜치)
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: PR 을 거쳤는지 확인
+        run: |
+          # PR 머지는 부모가 2개(머지 커밋)이거나 제목에 (#N) 이 붙는다(squash).
+          parents=$(git rev-list --parents -n 1 HEAD | wc -w)
+          msg=$(git log -1 --pretty=%s)
+          if [ "$parents" -ge 3 ] || printf '%s' "$msg" | grep -qE '\(#[0-9]+\)'; then
+            echo "✓ PR 경유 확인: $msg"
+            exit 0
+          fi
+          echo "::error::PR 을 거치지 않은 직접 push 로 보입니다: $msg"
+          echo "  기본 브랜치에는 PR 로만 들어와야 합니다 — 실험·서브 계획 작업이"
+          echo "  검증 없이 섞이는 것을 막기 위해서입니다."
+          echo "  이 커밋이 의도한 것이라면 무시해도 되지만, 아니라면 지금 되돌리세요."
+          exit 1
+
   lint-build-unit:
     name: Lint · Build · Unit
     runs-on: ubuntu-latest
