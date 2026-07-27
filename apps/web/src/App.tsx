@@ -63,6 +63,7 @@ const GuardianReportPage = lazy(() => import('./pages/GuardianReportPage').then(
 const GuardianConsultReportsPage = lazy(() => import('./pages/GuardianConsultReportsPage').then((m) => ({ default: m.GuardianConsultReportsPage })));
 const GuardianConsentPage = lazy(() => import('./pages/GuardianConsentPage').then((m) => ({ default: m.GuardianConsentPage })));
 const AdminAuditPage = lazy(() => import('./pages/AdminAuditPage').then((m) => ({ default: m.AdminAuditPage })));
+const AdminGuardianLinksPage = lazy(() => import('./pages/AdminGuardianLinksPage').then((m) => ({ default: m.AdminGuardianLinksPage })));
 const AdminPayrollPage = lazy(() => import('./pages/AdminPayrollPage').then((m) => ({ default: m.AdminPayrollPage })));
 const AdminScoresPage = lazy(() => import('./pages/AdminScoresPage').then((m) => ({ default: m.AdminScoresPage })));
 const AdminSchoolRecordGuardPage = lazy(() => import('./pages/AdminSchoolRecordGuardPage').then((m) => ({ default: m.AdminSchoolRecordGuardPage })));
@@ -121,6 +122,7 @@ const ADMIN_ELEMENTS: Record<string, JSX.Element> = {
   dashboard: <AdminDashboardPage />,
   students: <HrStudentsPage />,
   'hr-teachers': <HrTeachersPage />,
+  'guardian-links': <AdminGuardianLinksPage />,
   'hr-staff': <HrStaffPage />,
   'member-types': <AdminMemberTypesPage />,
   academic: <AdminAcademicPage />,

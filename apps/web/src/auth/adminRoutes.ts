@@ -48,6 +48,12 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   //   백엔드에 맞춰 닫는다.
 
   // ── 관리자 전용 ──
+  // 보호자–자녀 연결 복구(O125·O126). 백엔드는 admin·hr 을 허용하지만 **표는 더 좁게** 둔다:
+  //   ① 기능정의서 권한 매트릭스에 보호자 연결 행이 없다 — 명시 근거 없이 HR 을 넣지 않는다(O128 기본 차단).
+  //   ② 강제 복구(`PATCH /guardian/links/:id/respond`)는 **학생 동의를 우회**한다. 연결이 서면
+  //      보호자가 성적·리포트에 닿으므로, 등록·승인 직무보다 무거운 권한이다.
+  // ⚠ 백엔드 @Roles('admin','hr') 는 그대로라 API 직접 호출은 여전히 열려 있다 — N37 에서 좁혀야 한다.
+  { path: 'guardian-links', label: '보호자 연결 복구', roles: ADMIN },
   { path: 'scores', label: '성적 업로드', roles: ADMIN },              // 성적=민감정보 전량 조회·수정
   { path: 'placement/hub', label: '배치표 허브', roles: ADMIN },        // 저작권 데이터(CLAUDE.md §4)
   { path: 'membership', label: '회원 등급·구독', roles: ADMIN },

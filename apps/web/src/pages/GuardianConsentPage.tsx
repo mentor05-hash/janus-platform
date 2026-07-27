@@ -144,9 +144,18 @@ export function GuardianConsentPage() {
         {links && links.length > 0 && (
           <div style={{ marginTop: 12, display: 'grid', gap: 6 }}>
             {links.map((l) => (
-              <div key={l.id} style={{ display: 'flex', gap: 10, fontSize: 13.5, paddingTop: 8, borderTop: '1px solid var(--line)' }}>
-                <b style={{ flex: 1 }}>{l.counterpartName}{l.relation ? <span style={{ color: 'var(--muted)', fontWeight: 400 }}> · {l.relation}</span> : null}</b>
-                <span style={{ color: 'var(--muted)' }}>{LINK_STATUS[l.status] ?? l.status}</span>
+              <div key={l.id} style={{ paddingTop: 8, borderTop: '1px solid var(--line)' }}>
+                <div style={{ display: 'flex', gap: 10, fontSize: 13.5 }}>
+                  <b style={{ flex: 1 }}>{l.counterpartName}{l.relation ? <span style={{ color: 'var(--muted)', fontWeight: 400 }}> · {l.relation}</span> : null}</b>
+                  <span style={{ color: 'var(--muted)' }}>{LINK_STATUS[l.status] ?? l.status}</span>
+                </div>
+                {/* 막다른 길로 보이지 않게 다음 행동을 알려준다 — 거절·해제는 끝이 아니라 대기다(O124).
+                    숫자는 API 의 RELINK_COOLDOWN_DAYS·RELINK_MAX_ATTEMPTS 와 짝. */}
+                {(l.status === 'rejected' || l.status === 'revoked') && (
+                  <div style={{ fontSize: 12.5, color: 'var(--muted)', marginTop: 2 }}>
+                    7일 뒤 같은 아이디로 다시 신청할 수 있어요(최대 3회). 더 빨리 연결하려면 센터 관리자에게 문의해 주세요.
+                  </div>
+                )}
               </div>
             ))}
           </div>
