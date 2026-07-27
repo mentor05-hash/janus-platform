@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import * as XLSX from 'xlsx';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
@@ -7,20 +7,29 @@ import { FilesService } from '../storage/files.service';
 import { AuditService } from '../audit/audit.service';
 import { LLM_PROVIDER } from '../llm/llm.types';
 import type { LlmProvider, ScoreOcrResult } from '../llm/llm.types';
+import { SchoolRecordGuardService } from '../guard/school-record-guard.service';
+import { GuardianConsentService } from '../guardian-consent/guardian-consent.service';
+import { parseNb, toJanusScore } from './domain/janus-score';
+import { buildGapReport, type GapMode, type JanusReport } from './domain/gap-report';
 
-type ItemInput = { subject: string; score?: number | null; maxScore?: number | null; grade?: string | null };
-type ManualInput = { studentId?: string; studentLoginId?: string; period: string; examType?: string; note?: string; reportFileId?: string; items: ItemInput[] };
+type ItemInput = { subject: string; score?: number | null; maxScore?: number | null; grade?: string | null; subSubject?: string | null };
+type ManualInput = { studentId?: string; studentLoginId?: string; period: string; examType?: string; note?: string; reportFileId?: string; items: ItemInput[]; placement?: Record<string, unknown> | null };
+type MyScoreInput = { period: string; examType?: string; note?: string; mode: 'std' | 'nb'; gye?: '문과' | '이과' | null; nb?: number | null; items: ItemInput[] };
 
 const META_KEYS = ['아이디', '학생아이디', '로그인아이디', '이름', '학생', '기간', '시험', '시험유형', '메모', 'note', 'id', 'loginid'];
 
 /** 성적 업로드 — 엑셀 일괄·수동·OCR + 미업로드 학생 조회(관리자/HR). */
 @Injectable()
 export class ScoresService {
+  private readonly logger = new Logger(ScoresService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly files: FilesService,
     @Inject(LLM_PROVIDER) private readonly llm: LlmProvider,
     private readonly audit: AuditService,
+    private readonly guard: SchoolRecordGuardService,
+    private readonly guardianConsent: GuardianConsentService,
   ) {}
 
   private assertAdmin(actor: AuthUser) {
@@ -40,15 +49,15 @@ export class ScoresService {
       const report = existing
         ? await tx.score_report.update({
             where: { id: existing.id },
-            data: { exam_type: input.examType ?? null, note: input.note ?? null, source, report_file_id: input.reportFileId ?? existing.report_file_id, updated_at: new Date() },
+            data: { exam_type: input.examType ?? null, note: input.note ?? null, source, report_file_id: input.reportFileId ?? existing.report_file_id, updated_at: new Date(), ...(input.placement ? { placement: input.placement as object } : {}) },
           })
         : await tx.score_report.create({
-            data: { student_id: studentAccountId, center_id: centerId, period: input.period, exam_type: input.examType ?? null, note: input.note ?? null, source, report_file_id: input.reportFileId ?? null, created_by: actor.id },
+            data: { student_id: studentAccountId, center_id: centerId, period: input.period, exam_type: input.examType ?? null, note: input.note ?? null, source, report_file_id: input.reportFileId ?? null, created_by: actor.id, ...(input.placement ? { placement: input.placement as object } : {}) },
           });
       await tx.score_item.deleteMany({ where: { report_id: report.id } });
       if (items.length) {
         await tx.score_item.createMany({
-          data: items.map((i) => ({ report_id: report.id, subject: i.subject.trim(), score: i.score ?? null, max_score: i.maxScore ?? 100, grade: i.grade ?? null })),
+          data: items.map((i) => ({ report_id: report.id, subject: i.subject.trim(), score: i.score ?? null, max_score: i.maxScore ?? 100, grade: i.grade ?? null, sub_subject: i.subSubject ?? null })),
         });
       }
       return report;
@@ -61,6 +70,46 @@ export class ScoresService {
     const sp = await this.resolveStudent(actor, dto.studentId, dto.studentLoginId);
     const report = await this.upsertReport(actor, sp.account_id, sp.center_id, dto, 'manual');
     return { ok: true, reportId: report.id };
+  }
+
+  /**
+   * 학생 자가 성적 입력(수능) → 배치표·격차 자동 반영(C1 단일 소스).
+   * 표점 모드(std): 국어·수학·탐구1·탐구2 표점 + 영어·한국사 등급. 누백 모드(nb): 전국누백 + 영어·한국사 등급.
+   * 세부과목·제2외국어는 메타 저장(브리지 무시). 계열(gye)·nb 는 placement 에.
+   */
+  async saveMyScore(user: AuthUser, dto: MyScoreInput) {
+    if (user.role !== AccountRole.STUDENT) throw new ForbiddenException('학생만 자가 입력할 수 있습니다.');
+    if (!dto.period?.trim()) throw new BadRequestException('기간을 입력하세요(예: 2026-9월 모의고사).');
+    const placement: Record<string, unknown> = { gye: dto.gye ?? null, source: 'self' };
+    if (dto.mode === 'nb' && dto.nb != null) placement.nb = dto.nb;
+    const report = await this.upsertReport(
+      user, user.id, user.centerId ?? null,
+      { period: dto.period, examType: dto.examType ?? '수능/모의', note: dto.note, items: dto.items, placement },
+      'self',
+    );
+    // 저장 즉시 배치표 연동 가능 여부 확인(표점 4종 또는 nb + 필수 충족).
+    let linkable = false;
+    try { await this.janusScore(user); linkable = true; } catch { linkable = false; }
+    return { ok: true, reportId: report.id, linkable };
+  }
+
+  /** 학생 자가 입력 프리필 — 최신 자가 리포트(모드·계열·과목·세부과목). */
+  async myScore(user: AuthUser) {
+    if (user.role !== AccountRole.STUDENT) throw new ForbiddenException('학생만 사용할 수 있습니다.');
+    const report = await this.prisma.score_report.findFirst({
+      where: { student_id: user.id }, orderBy: { period: 'desc' }, include: { items: true },
+    });
+    if (!report) return { exists: false };
+    const pl = (report.placement as Record<string, unknown> | null) ?? {};
+    const nb = pl.nb;
+    return {
+      exists: true,
+      period: report.period,
+      mode: typeof nb === 'number' ? 'nb' : 'std',
+      gye: (pl.gye as string | null) ?? null,
+      nb: typeof nb === 'number' ? nb : null,
+      items: report.items.map((i) => ({ subject: i.subject, subSubject: i.sub_subject, score: i.score == null ? null : Number(i.score), grade: i.grade })),
+    };
   }
 
   private async resolveStudent(actor: AuthUser, studentId?: string, loginId?: string) {
@@ -130,7 +179,13 @@ export class ScoresService {
   /** 성적표 이미지 OCR → 과목·점수 추출(폼 프리필). */
   async ocr(actor: AuthUser, fileId: string): Promise<ScoreOcrResult & { fileId: string }> {
     this.assertAdmin(actor);
-    const { data, contentType } = await this.files.readBytes(fileId);
+    const { data, contentType, filename } = await this.files.readBytes(fileId);
+    // 생기부 가드(§5 3단 비전) — 성적표는 허용, 생기부 사진은 차단. OCR·저장 전 판정.
+    // forceVision: 이미 비전 LLM 을 호출하는 경로이므로 정책 llmCheck 와 무관하게 비전 판정.
+    await this.guard.assertUploadAllowed(
+      { buffer: Buffer.from(data), mimetype: contentType, originalname: filename },
+      { forceVision: true, surface: 'scores_ocr', actorId: actor.id, actorRole: actor.role },
+    );
     const res = await this.llm.extractScoreReport({ imageBase64: data.toString('base64'), mimeType: contentType });
     return { ...res, fileId };
   }
@@ -180,6 +235,201 @@ export class ScoresService {
     return { ok: true };
   }
 
+  /** 학생 본인 목표 조회(janus_goal 규약). */
+  async getMyGoal(user: AuthUser) {
+    const sp = await this.prisma.student_profile.findUnique({
+      where: { account_id: user.id },
+      select: { goal_tier: true, goal_avg: true, goal_university: true, goal_department: true },
+    });
+    if (!sp) throw new NotFoundException('학생 프로필이 없습니다.');
+    return {
+      tier: sp.goal_tier ?? null,
+      avg: sp.goal_avg ?? null,
+      university: sp.goal_university ?? null,
+      department: sp.goal_department ?? null,
+    };
+  }
+
+  /** 학생 본인 목표 설정(자기 목표만 — 격차 리포트·대시보드 반영). PUT 시맨틱: 미지정 필드는 null 로 초기화. */
+  async setMyGoal(user: AuthUser, goal: { tier?: string | null; avg?: number | null; university?: string | null; department?: string | null }) {
+    const sp = await this.prisma.student_profile.findUnique({ where: { account_id: user.id }, select: { account_id: true } });
+    if (!sp) throw new NotFoundException('학생 프로필이 없습니다.');
+    await this.prisma.student_profile.update({
+      where: { account_id: user.id },
+      data: {
+        goal_tier: goal.tier ?? null,
+        goal_avg: goal.avg ?? null,
+        goal_university: goal.university ?? null,
+        goal_department: goal.department ?? null,
+      },
+    });
+    return this.getMyGoal(user);
+  }
+
+  // ── 목표 후보 ──
+  // 기준 목표(goal_*) 는 그대로 두고, 비교용 후보를 몇 개 등록해 같은 성적으로 밴드를 나란히 본다.
+  // 후보는 **학생이 직접 등록**한 것만(본인만 조회 — 학부모·선생님 노출은 별도 결정 전까지 하지 않는다).
+  // 하지 않는 것: 자동 제안(실컷 데이터·정시 cut 의미 확정 선행) · 조합 추천 · 종합 합격확률(N28 미결·착수금지).
+  // 상한 3 — 응답 크기·가독성 + '조합 최적화'로 흘러가지 않도록 코드 레벨 제약(N28 침범 방지).
+  private static readonly CANDIDATE_MAX = 3;
+
+  async listGoalCandidates(user: AuthUser, mode?: GapMode) {
+    const rows = await this.prisma.student_goal_candidate.findMany({
+      where: { student_id: user.id, ...(mode ? { mode } : {}) },
+      orderBy: [{ mode: 'asc' }, { sort_order: 'asc' }, { created_at: 'asc' }],
+    });
+    return rows.map((r) => ({ ...r, cut: Number(r.cut) }));
+  }
+
+  async addGoalCandidate(user: AuthUser, dto: { mode: GapMode; univ: string; dept: string; cut: number; track?: string | null; note?: string | null; cutSource?: 'targets_file' | 'manual' }) {
+    const count = await this.prisma.student_goal_candidate.count({ where: { student_id: user.id, mode: dto.mode } });
+    if (count >= ScoresService.CANDIDATE_MAX) {
+      throw new BadRequestException(`후보는 모드별 최대 ${ScoresService.CANDIDATE_MAX}개까지 등록할 수 있습니다.`);
+    }
+    const created = await this.prisma.student_goal_candidate
+      .create({
+        data: {
+          student_id: user.id, mode: dto.mode, univ: dto.univ.trim(), dept: dto.dept.trim(),
+          cut: dto.cut, cut_source: dto.cutSource ?? 'manual',
+          track: dto.track?.trim() || null, note: dto.note?.trim() || null, sort_order: count,
+        },
+      })
+      .catch(() => {
+        throw new BadRequestException('이미 등록한 대학·학과입니다.');
+      });
+    return { ...created, cut: Number(created.cut) };
+  }
+
+  async removeGoalCandidate(user: AuthUser, id: string) {
+    const row = await this.prisma.student_goal_candidate.findUnique({ where: { id } });
+    if (!row) throw new NotFoundException('후보를 찾을 수 없습니다.');
+    if (row.student_id !== user.id) throw new ForbiddenException('본인 후보만 삭제할 수 있습니다.');
+    await this.prisma.student_goal_candidate.delete({ where: { id } });
+    return { id, deleted: true };
+  }
+
+  /** 이력 통계의 창 — 누백이 기록된 최근 회차 수. 두 소비 경로(변동성 판정·후보 비교)가 같은 값을 봐야 한다. */
+  private static readonly NB_WINDOW = 12;
+
+  /**
+   * 누백 이력 — **누백이 기록된 최근 12회, 오래된 순**(마지막이 최신 = janusScore 가 고른 값).
+   * 변동성 판정(O108)과 후보 비교 헤더가 **같은 창**을 쓰도록 단일화한 유일한 조달 지점이다.
+   * 저장값만 읽는다 — 예측·환산은 하지 않는다(O65).
+   *
+   * ⚠ 이전 구현은 `orderBy asc + take 12` 라 '최근 12회'가 아니라 **가장 오래된 12회**를 읽었다.
+   *   회차가 13개 이상이면 점 판정(gap.band)의 근거인 최신 회차가 창에서 **확정적으로** 빠져
+   *   'best~worst' 밖의 밴드가 그 옆에 표시되는 모순이 생긴다(janusScore 도 같은 period 정렬을 쓴다).
+   * ⚠ `period` 문자열 정렬이 실제 시간순이 아닌 문제(periodSortKey 참조)는 여기서 고치지 않는다 —
+   *   janusScore·myScore·archiveReport 가 모두 같은 키를 쓰므로 **창과 '최신' 선정이 같은 정렬을 공유**하는 것이
+   *   지금은 정합에 더 중요하다(정렬 키 통일은 별건).
+   */
+  private async recentNbValues(studentId: string): Promise<number[]> {
+    // 누백이 없는 회차(표점 모드 등)가 섞이므로 넉넉히 읽고 nb 보유분만 12개까지 채운다 — 창 크기가 '누백 회차' 기준이 되게.
+    const rows = await this.prisma.score_report.findMany({
+      where: { student_id: studentId }, orderBy: { period: 'desc' }, select: { placement: true }, take: ScoresService.NB_WINDOW * 4,
+    });
+    const vals: number[] = [];
+    for (const r of rows) {
+      const nb = parseNb((r.placement as Record<string, unknown> | null)?.nb);
+      if (nb != null) vals.push(nb);
+      if (vals.length >= ScoresService.NB_WINDOW) break;
+    }
+    return vals.reverse(); // 최신→오래된 순으로 읽었으니 계약(오래된 순)으로 되돌린다
+  }
+
+  /**
+   * 후보 목록 헤더용 회차 분포 — 후보(컷)와 **무관한** '내가 얼마나 흔들리나' 요약.
+   * 후보별 '이 컷에서 판정이 뒤집히나'는 volatility 가 담당한다(역할이 다르므로 둘 다 있다).
+   * 같은 recent 배열에서 파생시켜 헤더의 '최근 N회 a~b' 와 후보 판정이 어긋나지 않게 한다.
+   */
+  private static nbSpread(recent: number[]) {
+    if (recent.length < 2) return null;
+    const best = Math.min(...recent); // 누백은 낮을수록 상위
+    const worst = Math.max(...recent);
+    return { count: recent.length, best, worst, spread: Math.round((worst - best) * 100) / 100 };
+  }
+
+  /**
+   * 목표 후보 비교 — 같은 내 성적으로 후보별 밴드·격차를 나란히 산출.
+   * gap-report 정본(buildGapReport)을 후보 수만큼 순수 호출한다(O102 — 엔진 무변경).
+   * evidence·disclaimer 는 후보마다 동일하므로 한 번만 실어 중복·오해를 줄인다.
+   */
+  async goalCandidateReport(user: AuthUser, mode: GapMode, myGrade?: number) {
+    const candidates = await this.listGoalCandidates(user, mode);
+    let myValue: number;
+    let gye: '이과' | '문과' | null = null;
+    if (mode === 'susi') {
+      if (myGrade == null) throw new BadRequestException({ code: 'NO_GRADE', message: '내신 평균등급이 필요합니다(1~9).' });
+      myValue = myGrade;
+      try { gye = (await this.janusScore(user)).gye; } catch { /* 성적 없어도 진행 */ }
+    } else {
+      const js = await this.janusScore(user); // 성적 없으면 NO_SCORE
+      if (js.nb == null) throw new BadRequestException({ code: 'NO_NB', message: '전국누백이 필요합니다 — 배치표에서 점수를 적용하면 자동 계산됩니다.' });
+      myValue = js.nb;
+      gye = js.gye;
+    }
+    // 회차 이력은 후보와 무관한 학생 단위 값 → **루프 밖에서 1회** 조회해 모든 후보에 같은 배열을 넘긴다(쿼리 순증 0).
+    // 수시는 등급이 매 요청 입력이라 비교할 이력이 없다.
+    const recent = mode === 'jeongsi' ? await this.recentNbValues(user.id) : [];
+    let anyAdmitHint = false;
+    // 방향(improving|worsening|mixed)은 회차 계열만의 함수라 **후보 불변값**이다 → 목록 레벨로 올린다.
+    // 서비스에서 다시 계산하지 않고 정본 산출물에서 들어올린다(임계값 '3회 이상' 규칙이 갈라지지 않게).
+    let direction: NonNullable<JanusReport['volatility']>['direction'] = null;
+    const reports = candidates.map((c) => {
+      const r = buildGapReport({
+        mode, gye, myValue, target: { univ: c.univ, dept: c.dept, cut: c.cut, track: c.track ?? undefined },
+        recent: recent.length ? recent : undefined,
+      });
+      // admitProbHint(정시 컷근접 37%)는 **후보별로 싣지 않는다** — 컷이 촘촘하면 인접 후보 전부에 같은 37% 가 붙어
+      // "세 대학 합격률이 같다"로 오독된다. 집단 백테스트 상수이므로 목록 수준에서 1회만 안내한다.
+      const { admitProbHint, ...gap } = r.gap;
+      if (admitProbHint != null) anyAdmitHint = true;
+      // volatility 는 **컷에 종속된 3키만** 투영한다 — count·best·worst·spread·smallSample·message 는 후보 불변값이라
+      // 후보 3개에 똑같은 문장이 3번 실린다(admitProbHint 를 목록 1회로 올린 것과 같은 판단). 범위·표본은 목록 레벨이 담당.
+      const v = r.volatility;
+      direction ??= v?.direction ?? null;
+      const volatility = v ? { bestBand: v.bestBand, worstBand: v.worstBand, consistent: v.consistent } : null;
+      return { id: c.id, univ: c.univ, dept: c.dept, track: c.track, cutSource: c.cut_source, note: c.note, cut: c.cut, ...gap, volatility };
+    });
+    // 격차 작은 순(안정 → 상향)으로 정렬해 포트폴리오 균형이 한눈에 보이도록.
+    // 기준은 **최신 회차 점 판정(delta)** 이다 — 범위를 함께 보여주면 '최선/최악 중 무엇 기준인가'가 열리므로
+    // 정렬을 바꾸지 않고 sortKey·라벨로 답한다.
+    reports.sort((a, b) => a.delta - b.delta);
+    const sample = candidates.length
+      ? buildGapReport({ mode, gye, myValue, target: { univ: candidates[0].univ, dept: candidates[0].dept, cut: candidates[0].cut } })
+      : null;
+    const spread = mode === 'jeongsi' ? ScoresService.nbSpread(recent) : null;
+    return {
+      mode,
+      myValue,
+      gye,
+      unit: sample?.unit ?? (mode === 'susi' ? { label: '내신 등급', suffix: '등급' } : { label: '전국누백', suffix: '%' }),
+      // 정시만 이력 분포 제공(수시 등급은 사용자 입력이라 이력이 없다).
+      spread,
+      /** 표본 과소 판정은 정본(buildVolatility)에서 들어올린다 — 클라마다 `count < 3` 을 재구현하면 임계값이 드리프트한다. */
+      smallSample: spread ? spread.count < 3 : null,
+      /** 판정이 뒤집히는 후보 수 — 0이면 '흔들렸지만 순서는 그대로'로 안내해 불필요한 불안을 만들지 않는다. */
+      flipCount: reports.filter((r) => r.volatility && !r.volatility.consistent).length,
+      /**
+       * 회차 방향(3회 이상에서만). **꾸준히 향상한 학생에게 '회차에 따라 갈려요'만 보여주면
+       * 향상을 운·변동으로 잘못 프레이밍한다** — 도메인 message 에서 이미 분기한 것과 같은 이유로
+       * 목록 카피도 여기서 분기해야 한다(후보 화면은 도메인 message 를 쓰지 않는다).
+       */
+      direction,
+      /** 정렬 기준 — 화면 라벨('안전한 순서')이 최선/최악 기준으로 오독되지 않게 이름으로 못박는다. */
+      sortKey: 'delta' as const,
+      /** 수시에 변동 표시가 없는 **사유**(침묵하면 '수시는 더 확실하다'로 오독된다). 사실 진술만 — 지원 약속 금지. */
+      volatilityNote: mode === 'susi' ? '내신 평균등급은 매번 직접 입력하는 값이라 회차 이력이 없어 변동 판정을 제공하지 않아요.' : null,
+      candidates: reports,
+      // 컷 근접 후보가 하나라도 있을 때만, 목록 전체에 1회 표기(후보별 확률로 오독되지 않도록 문구를 고정).
+      admitHintNote: anyAdmitHint
+        ? '컷 근접 구간 참고 — 작년 70%컷 지원자 집단의 실제 합격률은 약 37%였습니다(집단 백테스트 상수이며 개별 학과 합격률이 아닙니다).'
+        : null,
+      evidence: sample?.evidence ?? [],
+      disclaimer: sample?.disclaimer ?? '',
+    };
+  }
+
   /** 데모 배치 추정 — 평균 → 등급/라인/샘플 대학·학과. 실 배치표 서비스가 덮어쓸 자리. */
   private static estimateLine(avg: number): { tier: string; line: string; universities: string[]; departments: string[] } {
     if (avg >= 95) return { tier: '최상위', line: '서울 최상위·의약학 라인', universities: ['서울대', '연세대', '고려대'], departments: ['의예', '컴퓨터공학', '경영'] };
@@ -217,17 +467,21 @@ export class ScoresService {
       orderBy: { created_at: 'asc' },
     });
     const student = await this.prisma.account.findUnique({ where: { id: studentAccountId }, select: { name: true, login_id: true } });
-    const sp = await this.prisma.student_profile.findUnique({ where: { account_id: studentAccountId }, select: { goal_tier: true, goal_avg: true } });
+    const sp = await this.prisma.student_profile.findUnique({ where: { account_id: studentAccountId }, select: { goal_tier: true, goal_avg: true, goal_university: true, goal_department: true } });
     return {
       student: { name: student?.name, loginId: student?.login_id },
-      goal: { tier: sp?.goal_tier ?? null, avg: sp?.goal_avg ?? null },
+      // janus_goal 규약 — 격차 리포트(과목별 바·목표 라벨)가 대학·학과까지 소비.
+      goal: { tier: sp?.goal_tier ?? null, avg: sp?.goal_avg ?? null, university: sp?.goal_university ?? null, department: sp?.goal_department ?? null },
       points: reports.map((r) => {
         const s = r.items.map((i) => (i.score ? Number(i.score) : null)).filter((x): x is number => x != null);
         const avg = s.length ? Math.round((s.reduce((a, b) => a + b, 0) / s.length) * 10) / 10 : null;
+        const pl = r.placement as Record<string, unknown> | null;
+        // 누백 모드는 과목별 표점이 없어 avg=null → placement.nb(전국 누백)를 추이 지표로 노출.
+        const nb = pl && typeof pl.nb === 'number' ? (pl.nb as number) : null;
         return {
-          period: r.period, examType: r.exam_type, avg,
+          period: r.period, examType: r.exam_type, avg, nb,
           subjects: r.items.map((i) => ({ subject: i.subject, score: i.score ? Number(i.score) : null })),
-          placement: includePlacement ? ((r.placement as Record<string, unknown> | null) ?? null) : null,
+          placement: includePlacement ? (pl ?? null) : null,
         };
       }),
     };
@@ -240,12 +494,54 @@ export class ScoresService {
   }
 
   /** 선생님: 같은 센터 학생 성적·배치 추이(내부 열람, 배치 포함). studentId=account uuid. */
-  async teacherTrend(actor: AuthUser, studentId: string) {
+  /**
+   * **선생님↔학생 관계 게이트**(O107) — 지도 관계가 있는 선생님만 학생 데이터를 본다.
+   *   ①선생님 역할 ②같은 센터 ③**담임이거나 상담 이력(booking)이 있음**
+   * 학부모(O105)와 달리 연령이 권한을 주지 않는다 — 직업적 관계가 근거다.
+   * 관례 정합: consultation 은 이미 '본인 담당 + 타 교사 FINAL·마스킹'의 관계 기반 모델을 쓴다.
+   */
+  private async assertTeacherStudentAccess(actor: AuthUser, studentId: string) {
     if (actor.role !== AccountRole.TEACHER) throw new ForbiddenException('선생님만 조회할 수 있습니다.');
-    const sp = await this.prisma.student_profile.findUnique({ where: { account_id: studentId }, select: { account_id: true, center_id: true } });
+    const sp = await this.prisma.student_profile.findUnique({
+      where: { account_id: studentId },
+      select: { account_id: true, center_id: true, homeroom_teacher_id: true },
+    });
     if (!sp) throw new NotFoundException('학생 프로필이 없습니다.');
     if (sp.center_id !== actor.centerId) throw new ForbiddenException('다른 센터 학생입니다.');
-    return this.buildTrend(sp.account_id, true);
+    if (sp.homeroom_teacher_id === actor.id) return sp; // 담임
+    const booked = await this.prisma.booking.findFirst({
+      where: { student_id: studentId, teacher_id: actor.id },
+      select: { id: true },
+    });
+    if (!booked) {
+      throw new ForbiddenException({
+        code: 'NO_TEACHING_RELATION',
+        message: '담임이거나 상담을 진행한 학생만 조회할 수 있습니다.',
+      });
+    }
+    return sp;
+  }
+
+  /** 선생님 성적·배치 추이 — 관계 게이트(O107) + 배치 노출은 전사 정책을 따른다. */
+  async teacherTrend(actor: AuthUser, studentId: string) {
+    const sp = await this.assertTeacherStudentAccess(actor, studentId);
+    // 배치 라인은 학생·학부모와 동일하게 정책(p.placement)을 따른다 — 선생님만 우회하던 비대칭 제거(O107).
+    const p = await this.getScorePolicy();
+    return this.buildTrend(sp.account_id, !!p.placement);
+  }
+
+  /**
+   * 학생 산출물 이력(선생님) — 관계 게이트(O107) 통과 시에만. 지도 목적의 최소 열람.
+   * 학부모 경로(O105)와 게이트가 다르다: 여기서는 연령·동의가 아니라 **지도 관계**가 근거다.
+   */
+  async listStudentReportsForTeacher(actor: AuthUser, studentId: string, kind = 'gap', limit = 20) {
+    await this.assertTeacherStudentAccess(actor, studentId);
+    return this.prisma.janus_report.findMany({
+      where: { student_id: studentId, kind },
+      orderBy: { created_at: 'desc' },
+      take: Math.min(Math.max(limit, 1), 50),
+      select: { id: true, kind: true, status: true, created_at: true, payload: true },
+    });
   }
 
   // ── 노출 정책(본사 마스터) ──
@@ -285,11 +581,148 @@ export class ScoresService {
     return this.buildTrend(user.id, !!p.placement);
   }
 
+  /** janus_score export(O43·C1) — 최신 리포트를 배치표 규약으로. 성적 없으면 404 NO_SCORE. */
+  async janusScore(actor: AuthUser, studentId?: string) {
+    let targetId = actor.id;
+    if (actor.role === AccountRole.GUARDIAN) {
+      if (!studentId) throw new BadRequestException('studentId 가 필요합니다.');
+      const link = await this.prisma.guardian_student_link.findFirst({ where: { guardian_id: actor.id, student_id: studentId, status: 'approved' } });
+      if (!link) throw new ForbiddenException('연결된 자녀가 아닙니다.');
+      targetId = studentId;
+    } else if (actor.role !== AccountRole.STUDENT) {
+      throw new ForbiddenException('학생·학부모만 사용할 수 있습니다.');
+    }
+    const report = await this.prisma.score_report.findFirst({
+      where: { student_id: targetId },
+      orderBy: { period: 'desc' },
+      include: { items: true },
+    });
+    const js = toJanusScore(
+      report && {
+        period: report.period,
+        source: report.source,
+        placement: (report.placement as Record<string, unknown> | null) ?? null,
+        items: report.items.map((i) => ({ subject: i.subject, score: i.score == null ? null : Number(i.score), grade: i.grade })),
+      },
+    );
+    if (!js) throw new NotFoundException({ code: 'NO_SCORE', message: '연동할 성적이 없습니다 — 배치표에서 직접 입력하세요.' });
+    return js;
+  }
+
+  /**
+   * 격차 리포트 대상 학생 확정 — **이후 모든 경로가 이 반환값만 쓴다**(opts.studentId 재사용 금지).
+   *
+   * 왜 별도 단계인가(IDOR 이력): janusScore 는 **학생 액터에게 studentId 를 조용히 무시**한다(예외 없음).
+   * 그래서 '게이트를 통과했다'고 착각한 채 이력 조회·적재가 opts.studentId 를 그대로 써서
+   * 타인의 누백 이력 통계를 읽고(volatility) 타인 이력에 행을 쓸 수 있었다.
+   * 보호자도 승인 연결만으로는 부족하다 — 자녀 데이터 열람은 O105 연령별 동의 게이트를 통과해야 한다
+   * (listChildReports 와 같은 게이트). 여기만 빠져 있으면 '이력 조회'는 막히는데 '새로 생성'으로 우회된다.
+   */
+  private async resolveGapTarget(actor: AuthUser, studentId?: string): Promise<string> {
+    if (actor.role === AccountRole.GUARDIAN) {
+      if (!studentId) throw new BadRequestException('studentId 가 필요합니다.');
+      await this.guardianConsent.assertChildDataAccess(actor, studentId, 'report');
+      return studentId;
+    }
+    if (actor.role !== AccountRole.STUDENT) throw new ForbiddenException('학생·학부모만 사용할 수 있습니다.');
+    // 조용히 무시하지 않고 **거절**한다 — 무시하면 호출자가 성공으로 오해하고, 같은 실수가 재발한다.
+    if (studentId && studentId !== actor.id) throw new ForbiddenException('본인 리포트만 조회할 수 있습니다.');
+    return actor.id;
+  }
+
+  /** 격차 리포트(janus_report v1·C5) — 정시(누백)/수시(내신등급) + 목표 컷 → 격차·근거·처방. */
+  async gapReport(
+    actor: AuthUser,
+    opts: { mode: GapMode; univ: string; dept: string; cut: number; track?: string; myGrade?: number; studentId?: string },
+  ): Promise<JanusReport> {
+    const target = { univ: opts.univ, dept: opts.dept, cut: opts.cut, track: opts.track };
+    const targetId = await this.resolveGapTarget(actor, opts.studentId);
+    if (opts.mode === 'susi') {
+      if (opts.myGrade == null) {
+        throw new BadRequestException({ code: 'NO_GRADE', message: '내신 평균등급이 필요합니다(1~9).' });
+      }
+      // 수시는 내신 등급 입력으로 진행 — 계열(gye)만 성적에서 가져오되 없으면 null.
+      let gye: '이과' | '문과' | null = null;
+      // catch 는 **성적 부재(NO_SCORE)만** 삼킨다 — 인가 실패를 함께 뭉개면 게이트가 조용히 사라진다.
+      try { gye = (await this.janusScore(actor, targetId)).gye; } catch (e) { if (!(e instanceof NotFoundException)) throw e; }
+      const susi = buildGapReport({ mode: 'susi', gye, myValue: opts.myGrade, target });
+      await this.archiveReport(targetId, susi);
+      return susi;
+    }
+    // 정시: janus_score.nb 필요
+    const js = await this.janusScore(actor, targetId); // 성적 없으면 NO_SCORE throw
+    if (js.nb == null) {
+      throw new BadRequestException({ code: 'NO_NB', message: '전국누백이 필요합니다 — 배치표에서 점수를 적용하면 자동 계산됩니다.' });
+    }
+    // 회차 변동성(O108) — 정시만. 수시 등급은 매 요청 입력값이라 비교할 이력이 없다.
+    const recent = await this.recentNbValues(targetId);
+    const jeongsi = buildGapReport({ mode: 'jeongsi', gye: js.gye, myValue: js.nb, target, recent });
+    await this.archiveReport(targetId, jeongsi);
+    return jeongsi;
+  }
+
+  // ── janus_report 이력(append-only) ──
+  // '무엇을 언제 산출해 보여줬나'의 재현용. 리포트는 조회 시마다 다시 계산되므로 **동일 산출은 적재하지 않는다**
+  // (같은 목표·같은 내 위치 → 행 폭증 방지). 조회 접근 감사는 audit_log 가 담당하므로 여기엔 actor 를 남기지 않는다.
+
+  /** 산출물 동일성 서명 — 모드·목표(대학·학과·컷)·내 위치·밴드가 같으면 같은 산출로 본다. */
+  private static reportSig(r: JanusReport): string {
+    return [r.kind, r.mode, r.target.univ, r.target.dept, r.target.cut, r.generatedFor.value, r.gap.band, r.gap.delta].join('|');
+  }
+
+  /** 이력 적재(변경분만). 실패가 리포트 응답을 막지 않도록 격리한다. */
+  private async archiveReport(studentId: string, report: JanusReport): Promise<void> {
+    try {
+      const latest = await this.prisma.janus_report.findFirst({
+        where: { student_id: studentId, kind: report.kind },
+        orderBy: { created_at: 'desc' },
+        select: { payload: true },
+      });
+      const prev = latest?.payload as unknown as JanusReport | null;
+      if (prev && ScoresService.reportSig(prev) === ScoresService.reportSig(report)) return; // 동일 산출 → skip
+      // 근거 성적(있으면) 연결 — 정시는 최신 회차의 누백을 썼다.
+      const src = await this.prisma.score_report.findFirst({
+        where: { student_id: studentId }, orderBy: { period: 'desc' }, select: { id: true },
+      });
+      await this.prisma.janus_report.create({
+        data: { student_id: studentId, kind: report.kind, status: 'final', payload: report as unknown as object, score_report_id: src?.id ?? null },
+      });
+    } catch (e) {
+      // 학생 프로필 미존재(FK)·DB 오류 등은 무해하게 넘긴다 — 이력은 부가 기능이고 리포트가 본선이다.
+      this.logger.warn(`janus_report 적재 실패(student=${studentId}): ${(e as Error).message}`);
+    }
+  }
+
+  /**
+   * 자녀 산출물 이력(보호자) — **연령별 동의 게이트 통과 시에만**(O105).
+   * 미성년: 보호자 본인확인+전달동의 / 성인: 학생 본인의 공유 동의. 미충족이면 403(코드로 사유 구분).
+   */
+  async listChildReports(guardian: AuthUser, studentId: string, kind = 'gap', limit = 20) {
+    await this.guardianConsent.assertChildDataAccess(guardian, studentId, 'report');
+    return this.prisma.janus_report.findMany({
+      where: { student_id: studentId, kind },
+      orderBy: { created_at: 'desc' },
+      take: Math.min(Math.max(limit, 1), 50),
+      select: { id: true, kind: true, status: true, created_at: true, payload: true },
+    });
+  }
+
+  /** 내 산출물 이력(최신순) — 학생 본인. */
+  async listMyReports(user: AuthUser, kind = 'gap', limit = 20) {
+    const rows = await this.prisma.janus_report.findMany({
+      where: { student_id: user.id, kind },
+      orderBy: { created_at: 'desc' },
+      take: Math.min(Math.max(limit, 1), 50),
+      select: { id: true, kind: true, status: true, created_at: true, payload: true },
+    });
+    return rows;
+  }
+
   /** 학부모 자녀 성적·배치 추이(연결·정책 게이트). */
   async guardianTrend(user: AuthUser, studentId: string) {
     const p = await this.getScorePolicy();
     if (!p.guardian) throw new ForbiddenException('성적 조회가 비활성화되어 있습니다.');
-    const link = await this.prisma.guardian_student_link.findFirst({ where: { guardian_id: user.id, student_id: studentId } });
+    const link = await this.prisma.guardian_student_link.findFirst({ where: { guardian_id: user.id, student_id: studentId, status: 'approved' } });
     if (!link) throw new ForbiddenException('연결된 자녀가 아닙니다.');
     return this.buildTrend(studentId, !!p.placement);
   }

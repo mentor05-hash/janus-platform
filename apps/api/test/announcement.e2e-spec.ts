@@ -48,7 +48,7 @@ describe('관리자 공지 알림(§3)', () => {
       targets: ['student', 'teacher'],
       title: '휴원 안내',
       body: '8/1 휴원합니다',
-    } as any);
+    } as any) as any; // 즉시 발송 분기({scope, sent, byTarget})
     expect(r.scope).toBe(C1);
     expect(r.byTarget.student).toBeGreaterThanOrEqual(1);
     expect(r.byTarget.teacher).toBeGreaterThanOrEqual(1);
@@ -75,7 +75,7 @@ describe('관리자 공지 알림(§3)', () => {
       targets: ['guardian'],
       title: '상담주간',
       body: '이번주 상담주간',
-    } as any);
+    } as any) as any; // 즉시 발송 분기({scope, sent, byTarget})
     expect(r.byTarget.guardian).toBeGreaterThanOrEqual(1);
     const gua = await prisma.notification.findFirst({
       where: { recipient_id: GUA, type: 'announcement' },

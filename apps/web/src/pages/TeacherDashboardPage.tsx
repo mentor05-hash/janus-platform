@@ -23,9 +23,15 @@ export function TeacherDashboardPage() {
   const [payroll, setPayroll] = useState<Payroll | null>(null);
   const [notis, setNotis] = useState<Notification[]>([]);
   const [reverseCount, setReverseCount] = useState<number | null>(null);
+  const [lectures, setLectures] = useState<{ enrolled: number }[] | null>(null);
+  const [league, setLeague] = useState<{ label: string } | null>(null);
+  const [commStats, setCommStats] = useState<{ authored: number; accepted: number; acceptRate: number } | null>(null);
 
   useEffect(() => {
     if (!user) return;
+    api.get<{ enrolled: number }[]>('/lectures/mine').then(setLectures).catch(() => setLectures([]));
+    api.get<{ label: string }>('/qna/league/me').then(setLeague).catch(() => {});
+    api.get<{ authored: number; accepted: number; acceptRate: number }>('/qna/community/stats').then(setCommStats).catch(() => {});
     api.get<Booking[]>('/bookings?role=teacher').then(setBookings).catch(() => setBookings([]));
     api.get<MyEvaluations>('/me/evaluations').then(setEvalv).catch(() => {});
     api.get<Payroll>(`/teachers/${user.id}/payroll`).then(setPayroll).catch(() => {});
@@ -44,6 +50,25 @@ export function TeacherDashboardPage() {
     <div>
       <PageHeader title={`${user?.name ?? '선생님'} 대시보드`} sub="오늘 일정과 주요 지표를 한눈에 확인합니다." />
       <WorkStatusBar />
+
+      {/* 실적 위젯 — 강좌·Q&A·리그 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
+        <Link to="/app/lectures" className="card" style={{ textDecoration: 'none', padding: 16 }}>
+          <div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 6 }}>◧ 내 강좌</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--ink)' }}>{lectures === null ? '…' : `${lectures.length}개`}</div>
+          <div style={{ fontSize: 12, color: 'var(--caption)', marginTop: 2 }}>수강 {lectures?.reduce((a, l) => a + (l.enrolled ?? 0), 0) ?? 0}명</div>
+        </Link>
+        <Link to="/app/community" className="card" style={{ textDecoration: 'none', padding: 16 }}>
+          <div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 6 }}>◎ 커뮤니티 답변</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--ink)' }}>{commStats ? `${commStats.accepted}채택` : '…'}</div>
+          <div style={{ fontSize: 12, color: 'var(--caption)', marginTop: 2 }}>답변 {commStats?.authored ?? 0} · {commStats?.acceptRate ?? 0}%</div>
+        </Link>
+        <div className="card" style={{ padding: 16 }}>
+          <div style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 6 }}>🏅 리그</div>
+          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--ink)' }}>{league?.label ?? '3부 · 입문'}</div>
+          <div style={{ fontSize: 12, color: 'var(--caption)', marginTop: 2 }}>커뮤니티 채택 실적</div>
+        </div>
+      </div>
 
       <StatGrid>
         <StatCard label="오늘 예약" value={bookings === null ? '…' : `${todays.length}건`} tone="teal" />

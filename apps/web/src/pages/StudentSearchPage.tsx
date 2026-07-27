@@ -10,13 +10,18 @@ const WD = ['일', '월', '화', '수', '목', '금', '토'];
 const DURATION = 3, MIN_LEN = 1, FORCE_WINDOW = 4;
 
 const SLOT_UI: Record<Slot['status'], { label: string; bg: string; fg: string; bd: string }> = {
-  avail: { label: '가능', bg: '#CDEBDD', fg: '#0F7A43', bd: '#9FD9BE' },
-  booked: { label: '예약', bg: '#D6E4FB', fg: '#2563EB', bd: '#AFC8F4' },
-  rest: { label: '휴게', bg: '#E9EDF0', fg: '#8B9BA3', bd: '#DCE2E6' },
-  off: { label: '근무외', bg: '#F4F6F8', fg: '#BAC4CA', bd: '#EAEEF0' },
-  blocked: { label: '차단', bg: '#FAD9D9', fg: '#C92A2A', bd: '#F0BEBE' },
+  avail: { label: '가능', bg: '#CFE7DA', fg: '#2A8A5F', bd: '#BFE0D0' },
+  booked: { label: '예약', bg: '#DCE9F7', fg: '#2F6FB3', bd: '#C4D8EE' },
+  rest: { label: '휴게', bg: '#E9EDF0', fg: '#8695A8', bd: '#DCE4EE' },
+  off: { label: '근무외', bg: '#F0F4FA', fg: '#B9C4D6', bd: '#E8EDF5' },
+  blocked: { label: '차단', bg: '#F9E8E4', fg: '#C25A43', bd: '#EFC7BD' },
 };
 const SUBJECTS = ['국어', '수학', '영어', '탐구'];
+/** 문장 안에 넣기 위한 짧은 라벨 — MODES 의 라벨은 셀렉트용이라 문장에 그대로 넣으면 어색하다. */
+const MODE_LABEL_SHORT: Record<string, string> = {
+  zoom: '줌 화상', chat: '실시간 채팅', hand: '필기 공유', offline: '오프라인(대면)',
+};
+
 const MODES: { value: string; label: string }[] = [
   { value: 'zoom', label: '줌 화상' }, { value: 'chat', label: '실시간 채팅' }, { value: 'hand', label: '필기 공유' }, { value: 'offline', label: '오프라인(센터 대면)' },
 ];
@@ -37,6 +42,11 @@ function BookingForm({ teacher, onDone, onBack, initialMode, consultType, initia
   }, [ctype]);
   const [date, setDate] = useState(todayStr());
   const [slots, setSlots] = useState<Slot[] | null>(null);
+  /**
+   * 환경 인지 상담 모드(O120) — 양측 가용시간에 적힌 환경으로 "이 시간엔 무엇이 가능한가"를 계산한 결과.
+   * 슬롯이 비었을 때 **이유를 말해주기 위해** 함께 조회한다(빈 목록만 보여주면 막다른 길이 된다).
+   */
+  const [modeInfo, setModeInfo] = useState<{ hasWindows: boolean; availableModes: string[]; consultModes: { mode: string; bookable: boolean }[] } | null>(null);
   const [selStart, setSelStart] = useState<number | null>(null);
   const [selEnd, setSelEnd] = useState<number | null>(null);
   const [notice, setNotice] = useState('');
@@ -51,17 +61,28 @@ function BookingForm({ teacher, onDone, onBack, initialMode, consultType, initia
   const [msg, setMsg] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
+  /**
+   * 고른 방식이 이 날짜에 불가능한가 — 빈 목록 문구와 안내 배너가 같은 판단을 써야 서로 어긋나지 않는다.
+   * 근무 자체가 없는 날은 제외한다: 그건 '방식' 문제가 아니라 '날짜' 문제라, 방식을 바꾸라고 하면 헛걸음이 된다.
+   */
+  const modeBlocked = !!modeInfo?.hasWindows && !!modeInfo.consultModes.some((m) => m.mode === mode && !m.bookable);
+
   function resetSel() { setSelStart(null); setSelEnd(null); setNotice(''); setQuote(null); }
   /** 슬롯 최신화(다른 학생 예약 반영). 선택은 유지하지 않고 호출측이 필요 시 resetSel. */
   function loadSlots() {
     setSlots(null);
-    api.get<Slot[]>(`/teachers/${teacher.id}/slots?date=${date}`).then(setSlots).catch((e) => setError(e instanceof ApiError ? e.message : '슬롯 조회 실패'));
+    // mode 를 넘기면 그 방식이 불가능한 날은 빈 배열이 온다(예약 단계에서 거른다 — 입장 후 알면 늦다).
+    api.get<Slot[]>(`/teachers/${teacher.id}/slots?date=${date}&mode=${encodeURIComponent(mode)}`)
+      .then(setSlots).catch((e) => setError(e instanceof ApiError ? e.message : '슬롯 조회 실패'));
+    api.get<typeof modeInfo>(`/teachers/${teacher.id}/consult-modes?date=${date}`)
+      .then(setModeInfo).catch(() => setModeInfo(null)); // 안내용 — 실패해도 예약 흐름을 막지 않는다
   }
 
   useEffect(() => {
     resetSel(); loadSlots();
+    // mode 도 의존성이다 — 빠지면 '줌 불가'로 바꿔도 이전 슬롯이 남아 예약을 시도하게 된다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [teacher.id, date]);
+  }, [teacher.id, date, mode]);
 
   useEffect(() => {
     if (selStart === null || selEnd === null) return;
@@ -74,7 +95,7 @@ function BookingForm({ teacher, onDone, onBack, initialMode, consultType, initia
     return Array.from({ length: 14 }, (_, i) => {
       const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i);
       const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      return { iso, md: `${d.getMonth() + 1}/${d.getDate()}`, wd: WD[d.getDay()], dow: d.getDay() };
+      return { iso, md: `${d.getMonth() + 1}/${d.getDate()}`, wd: i === 0 ? '오늘' : i === 1 ? '내일' : WD[d.getDay()], dow: d.getDay() };
     });
   }, []);
   const byHour = useMemo(() => {
@@ -155,7 +176,7 @@ function BookingForm({ teacher, onDone, onBack, initialMode, consultType, initia
                   minWidth: 54, padding: '6px 8px', borderRadius: 9, cursor: 'pointer',
                   border: on ? '2px solid var(--teal)' : '1px solid var(--line)', background: on ? 'var(--teal)' : '#fff', color: on ? '#fff' : 'var(--ink)',
                 }}>
-                  <div style={{ fontSize: 11, color: on ? '#fff' : d.dow === 0 ? '#DC2626' : d.dow === 6 ? '#2563EB' : 'var(--muted)' }}>{d.wd}</div>
+                  <div style={{ fontSize: 11, color: on ? '#fff' : d.dow === 0 ? '#D06B52' : d.dow === 6 ? '#2F6FB3' : 'var(--muted)' }}>{d.wd}</div>
                   <div style={{ fontSize: 14, fontWeight: 700 }}>{d.md}</div>
                 </button>
               );
@@ -163,7 +184,15 @@ function BookingForm({ teacher, onDone, onBack, initialMode, consultType, initia
           </div>
           {/* 시간 표 */}
           <label className="label" style={{ marginTop: 12 }}>시간 (가능 시간만 · {ctype} 기본 {defaultSlots * 10}분)</label>
-          {slots === null ? <Spinner /> : slots.length === 0 ? <EmptyState>이 날짜엔 선생님 근무 시간이 없어요.</EmptyState> : (
+          {slots === null ? <Spinner /> : slots.length === 0 ? (
+            // 빈 이유가 둘이다 — 근무가 없거나, 근무는 있는데 **고른 방식이 그 시간대에 불가능**하거나.
+            // 후자에 "근무 시간이 없어요"를 띄우면 거짓말이 된다(다른 날짜를 뒤지게 만든다).
+            <EmptyState>
+              {modeBlocked
+                ? `이 날짜엔 ${MODE_LABEL_SHORT[mode] ?? mode}으로 잡을 수 있는 시간이 없어요. 아래에서 다른 방식을 골라 보세요.`
+                : '이 날짜엔 선생님 근무 시간이 없어요.'}
+            </EmptyState>
+          ) : (
             <>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {byHour.map(([h, cells]) => (
@@ -192,12 +221,16 @@ function BookingForm({ teacher, onDone, onBack, initialMode, consultType, initia
                   </span>
                 ))}
               </div>
-              {notice && <div style={{ marginTop: 8, background: '#FEF6E7', border: '1px solid #F0DCAE', borderRadius: 8, padding: 8, fontSize: 12, color: '#92600a' }}>ⓘ {notice}</div>}
+              {selStart === null && availSet.size > 0 && (
+                <div style={{ marginTop: 8, fontSize: 12, color: 'var(--muted)' }}>👆 예약할 시작 시간을 눌러주세요. 이어서 끝 시간을 누르면 구간이 선택돼요.</div>
+              )}
+              {availSet.size === 0 && <div style={{ marginTop: 8, fontSize: 12, color: 'var(--muted)' }}>이 날짜엔 예약 가능한 시간이 없어요. 다른 날짜를 골라보세요.</div>}
+              {notice && <div style={{ marginTop: 8, background: '#FAF1E2', border: '1px solid #EDDCB8', borderRadius: 8, padding: 8, fontSize: 12, color: '#A97D24' }}>ⓘ {notice}</div>}
               {quote && !quote.valid && quote.message && (
-                <div style={{ marginTop: 8, background: 'var(--danger-bg,#FAD9D9)', border: '1px solid var(--danger-border,#F0BEBE)', borderRadius: 8, padding: 8, fontSize: 12.5, color: 'var(--danger,#c0392b)' }}>⚠ {quote.message}</div>
+                <div style={{ marginTop: 8, background: 'var(--danger-bg,#F9E8E4)', border: '1px solid var(--danger-border,#EFC7BD)', borderRadius: 8, padding: 8, fontSize: 12.5, color: 'var(--danger,#c25a43)' }}>⚠ {quote.message}</div>
               )}
               {selStart !== null && selEnd !== null && (
-                <div style={{ marginTop: 10, background: 'var(--teal-50, #eef6fa)', borderRadius: 10, padding: 12 }}>
+                <div style={{ marginTop: 10, background: 'var(--teal-50, #eef4fb)', borderRadius: 10, padding: 12 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                     <b>{minToTime(selStart)} ~ {minToTime(selEnd + 1)} · {selLen * 10}분</b>
                     <b style={{ color: 'var(--teal)', fontSize: 16 }}>{quote ? `${quote.credits.toLocaleString()} 크레딧` : '계산 중…'}</b>
@@ -218,9 +251,20 @@ function BookingForm({ teacher, onDone, onBack, initialMode, consultType, initia
           <SelectField label="과목" value={subject} onChange={(e) => setSubject(e.target.value)} options={SUBJECTS.map((s) => ({ value: s, label: s }))} />
           <SelectField label="진행 방식" value={mode} onChange={(e) => setMode(e.target.value)} options={supportedModes} />
           <p style={{ fontSize: 12, color: 'var(--muted)', margin: '-2px 0 8px' }}>이 선생님이 제공하는 방식: {supportedModes.map((m) => m.label).join(' · ')}</p>
-          {mode === 'offline' && <p style={{ fontSize: 12, color: 'var(--muted)', background: 'var(--fill,#f6f8fa)', borderRadius: 8, padding: 9, margin: '0 0 8px' }}>🏫 오프라인은 가능한 선생님·센터·시간이 제한되며 센터 상담실 점유료가 가산됩니다.</p>}
-          {mode === 'zoom' && <p style={{ fontSize: 12, color: '#92600a', background: '#FEF6E7', borderRadius: 8, padding: 9, margin: '0 0 8px' }}>🎥 줌은 센터 상담실 동시 이용 한도가 있어, 예약 시점에 자리가 없으면 다른 방식을 선택해야 할 수 있어요.</p>}
-          <p style={{ fontSize: 12, color: 'var(--teal)', background: 'var(--teal-50,#F0F7FA)', borderRadius: 8, padding: 9, margin: '0 0 8px' }}>📋 게시판(문항·일반) 질문은 Q&A 게시판에서 건당 신청해요.</p>
+          {/* 환경 인지 모드 매칭(O120) — 슬롯이 왜 없는지 **이유를 먼저** 말한다.
+              양측 가용시간의 환경(집·독서실·이동 중…)에서 계산된 결과이고, 환경은 죄가 아니므로 문구도 중립적으로. */}
+          {modeBlocked && (() => {
+            const okLabels = modeInfo!.consultModes.filter((m) => m.bookable).map((m) => MODE_LABEL_SHORT[m.mode] ?? m.mode);
+            return (
+              <p style={{ fontSize: 12.5, color: '#A97D24', background: '#FAF1E2', borderRadius: 8, padding: 9, margin: '0 0 8px' }}>
+                ⏱ 이 날짜에는 <b>{MODE_LABEL_SHORT[mode] ?? mode}</b>으로 진행할 수 없어요 — 두 분의 그 시간대 환경으로는 어려워요.
+                {okLabels.length > 0 ? <> 가능한 방식: <b>{okLabels.join(' · ')}</b>. 위에서 바꿔 보세요.</> : ' 다른 날짜를 골라 보세요.'}
+              </p>
+            );
+          })()}
+          {mode === 'offline' && <p style={{ fontSize: 12, color: 'var(--muted)', background: 'var(--fill,#f4f7fb)', borderRadius: 8, padding: 9, margin: '0 0 8px' }}>🏫 오프라인은 가능한 선생님·센터·시간이 제한되며 센터 상담실 점유료가 가산됩니다.</p>}
+          {mode === 'zoom' && <p style={{ fontSize: 12, color: '#A97D24', background: '#FAF1E2', borderRadius: 8, padding: 9, margin: '0 0 8px' }}>🎥 줌은 센터 상담실 동시 이용 한도가 있어, 예약 시점에 자리가 없으면 다른 방식을 선택해야 할 수 있어요.</p>}
+          <p style={{ fontSize: 12, color: 'var(--teal)', background: 'var(--teal-50,#EEF4FB)', borderRadius: 8, padding: 9, margin: '0 0 8px' }}>📋 게시판(문항·일반) 질문은 Q&A 게시판에서 건당 신청해요.</p>
           <TextareaField label="상담 내용" rows={3} value={content} onChange={(e) => setContent(e.target.value)} placeholder="예: 미적분 30번, 합성함수 미분 풀이가 막혀요." />
           <label className="label">문제 업로드</label>
           <input ref={fileRef} type="file" multiple accept="image/*,application/pdf,video/*" style={{ display: 'none' }} onChange={onFiles} />
@@ -234,7 +278,7 @@ function BookingForm({ teacher, onDone, onBack, initialMode, consultType, initia
           {msg && <p style={{ color: 'var(--chip-done)', fontSize: 13 }}>{msg}</p>}
           <ErrorText>{error}</ErrorText>
           <Button block onClick={book} disabled={selStart === null || (quote ? !quote.valid : false)}>예약하기 {quote && quote.valid ? `· ${quote.credits.toLocaleString()} 크레딧` : ''}</Button>
-          {quote && !quote.valid && <p style={{ color: '#92600a', fontSize: 12 }}>⚠ {quote.message || '이 시간대는 이용할 수 없어요.'}</p>}
+          {quote && !quote.valid && <p style={{ color: '#A97D24', fontSize: 12 }}>⚠ {quote.message || '이 시간대는 이용할 수 없어요.'}</p>}
         </Card>
       </div>
     </div>
@@ -264,7 +308,7 @@ function TeacherDetailView({ teacher, onBook, onBack }: { teacher: Teacher; onBo
       <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--teal)', cursor: 'pointer', fontWeight: 600, marginBottom: 8 }}>‹ 선생님 목록</button>
       <Card>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 56, height: 56, borderRadius: 14, background: 'var(--teal-100,#DCECF3)', color: 'var(--teal)', display: 'grid', placeItems: 'center', fontSize: 22, fontWeight: 800 }}>{teacher.name.slice(0, 1)}</div>
+          <div style={{ width: 56, height: 56, borderRadius: 14, background: 'var(--teal-100,#D7E4F2)', color: 'var(--teal)', display: 'grid', placeItems: 'center', fontSize: 22, fontWeight: 800 }}>{teacher.name.slice(0, 1)}</div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <b style={{ fontSize: 19 }}>{teacher.name}</b><GradeBadge grade={teacher.grade} />
@@ -355,17 +399,53 @@ export function StudentSearchPage() {
     } catch (e) { setError(e instanceof ApiError ? e.message : '추천 실패'); }
   }
 
-  useEffect(() => {
+  const [note, setNote] = useState('');
+  const [favIds, setFavIds] = useState<Set<string>>(new Set());
+  const [favOnly, setFavOnly] = useState(false);
+
+  // B2 서버 페이지네이션 — 검색어 디바운스 후 서버 질의, "더 보기"로 다음 페이지 누적(1000명 규모 대비).
+  const PAGE_SIZE = 30;
+  const [qs, setQs] = useState('');
+  useEffect(() => { const t = setTimeout(() => setQs(q.trim()), 300); return () => clearTimeout(t); }, [q]);
+  const [pageMeta, setPageMeta] = useState<{ page: number; total: number; totalPages: number } | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const fetchSeq = useRef(0);
+  async function fetchPage(page: number, replace: boolean) {
     const params = new URLSearchParams();
     if (category !== '전체') params.set('category', category);
     if (subjectFilter) params.set('subject', subjectFilter);
     if (consultType) params.set('consultType', consultType);
     if (modeFilter) params.set('mode', modeFilter);
     if (sort) params.set('sort', sort);
-    params.set('size', '100');
-    setTeachers(null);
-    api.get<{ data?: Teacher[] } | Teacher[]>(`/teachers?${params}`).then((r) => setTeachers(Array.isArray(r) ? r : (r.data ?? []))).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
-  }, [category, sort, subjectFilter, consultType, modeFilter]);
+    if (qs) params.set('q', qs);
+    if (favOnly) params.set('favOnly', 'true');
+    params.set('size', String(PAGE_SIZE));
+    params.set('page', String(page));
+    const seq = ++fetchSeq.current;
+    try {
+      const r = await api.get<{ data?: Teacher[]; meta?: { page: number; total: number; totalPages: number } } | Teacher[]>(`/teachers?${params}`);
+      if (seq !== fetchSeq.current) return; // 뒤늦게 도착한 이전 요청은 무시
+      const data = Array.isArray(r) ? r : (r.data ?? []);
+      setPageMeta(Array.isArray(r) ? null : (r.meta ?? null));
+      setTeachers((prev) => (replace ? data : [...(prev ?? []), ...data]));
+    } catch (e) { if (seq === fetchSeq.current) setError(e instanceof ApiError ? e.message : '조회 실패'); }
+  }
+  useEffect(() => {
+    setTeachers(null); setPageMeta(null);
+    void fetchPage(1, true);
+  }, [category, sort, subjectFilter, consultType, modeFilter, qs, favOnly]); // eslint-disable-line react-hooks/exhaustive-deps
+  // O95 — 유예 채팅 '이어서 상담 예약' CTA: ?teacher= 로 진입하면 해당 선생님 상세를 자동으로 연다.
+  const [pendingTeacher, setPendingTeacher] = useState<string | null>(() => new URLSearchParams(window.location.search).get('teacher'));
+  useEffect(() => {
+    if (!pendingTeacher || !teachers) return;
+    const t = teachers.find((x) => x.id === pendingTeacher);
+    if (t) { openDetail(t); setPendingTeacher(null); }
+  }, [pendingTeacher, teachers]); // eslint-disable-line react-hooks/exhaustive-deps
+  async function loadMore() {
+    if (!pageMeta || loadingMore) return;
+    setLoadingMore(true);
+    try { await fetchPage(pageMeta.page + 1, false); } finally { setLoadingMore(false); }
+  }
   // 뒤로가기: 목록↔상세↔예약을 브라우저 히스토리와 동기화(뒤로가기 시 이전 단계로).
   const pickedRef = useRef(picked); pickedRef.current = picked;
   const phaseRef = useRef(phase); phaseRef.current = phase;
@@ -385,13 +465,17 @@ export function StudentSearchPage() {
     api.get<CreditAccount>('/credits/account').then(setCredit).catch(() => {});
     api.get<{ id: string; name: string }[]>('/categories?kind=teacher').then(setCats).catch(() => {});
     api.get<(Teacher & { rank: number; score: number })[]>('/teachers/leaderboard').then(setBoard).catch(() => {});
+    api.get<{ fit: string[] }>('/me/teacher-lists').then((r) => setFavIds(new Set(r.fit ?? []))).catch(() => { /* 찜 목록 조회 실패 */ });
   }, []);
 
-  const [note, setNote] = useState('');
   async function fav(t: Teacher) {
     setNote('');
-    try { await api.post('/me/teacher-lists', { teacherId: t.id, type: 'fit' }); setNote(`${t.name} 선생님을 내 선생님(찜)에 추가했어요.`); }
-    catch (e) { setNote(e instanceof ApiError ? e.message : '실패'); }
+    const on = favIds.has(t.id);
+    try {
+      if (on) { await api.del(`/me/teacher-lists/${t.id}`); setNote(`${t.name} 선생님 찜을 해제했어요.`); }
+      else { await api.post('/me/teacher-lists', { teacherId: t.id, listKind: 'fit' }); setNote(`${t.name} 선생님을 내 선생님(찜)에 추가했어요.`); }
+      setFavIds((p) => { const n = new Set(p); if (on) n.delete(t.id); else n.add(t.id); return n; });
+    } catch (e) { setNote(e instanceof ApiError ? e.message : '실패'); }
   }
   async function block(t: Teacher) {
     setNote('');
@@ -409,7 +493,7 @@ export function StudentSearchPage() {
   if (picked && phase === 'book') return <BookingForm teacher={picked} initialMode={modeFilter ?? undefined} consultType={consultType ?? undefined} initialSubType={subType ?? undefined} onBack={() => window.history.back()} onDone={() => { setPicked(null); setPhase('detail'); }} />;
   if (picked) return <TeacherDetailView teacher={picked} onBook={openBook} onBack={() => window.history.back()} />;
 
-  const rows = (teachers ?? []).filter((t) => !q.trim() || t.name.toLowerCase().includes(q.toLowerCase()) || t.subjects.join(',').includes(q));
+  const rows = teachers ?? []; // B2: 검색어·찜 필터는 서버 질의로 처리(페이지네이션과 정합)
   return (
     <div>
       <PageHeader title="선생님 찾기" sub={credit ? `보유 크레딧 ${credit.total.toLocaleString()}` : '선생님을 고르고 상담을 신청하세요.'} />
@@ -417,9 +501,9 @@ export function StudentSearchPage() {
 
       {/* 외부학생 안내 배너 */}
       {extCtx?.external && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--chip-confirmed-bg,#FEF6E7)', border: '1px solid #F0DCAE', borderRadius: 10, padding: '9px 12px', marginBottom: 12 }}>
-          <span style={{ fontSize: 11, fontWeight: 800, color: '#92600a', background: '#F7E4BC', borderRadius: 6, padding: '3px 7px' }}>{extCtx.label}</span>
-          <span style={{ fontSize: 12.5, color: '#92600a', fontWeight: 600 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--chip-confirmed-bg,#FAF1E2)', border: '1px solid #EDDCB8', borderRadius: 10, padding: '9px 12px', marginBottom: 12 }}>
+          <span style={{ fontSize: 11, fontWeight: 800, color: '#A97D24', background: '#EDDCB8', borderRadius: 6, padding: '3px 7px' }}>{extCtx.label}</span>
+          <span style={{ fontSize: 12.5, color: '#A97D24', fontWeight: 600 }}>
             {extCtx.external.onlineOnly ? '온라인 상담 전용' : '온·오프라인 이용 가능'}
             {extCtx.external.surchargePct > 0 ? ` · 요금 +${extCtx.external.surchargePct}%` : ''}
             {extCtx.external.weeklyGrant ? ' · 주간 크레딧 지급' : ' · 주간 크레딧 미지급'}
@@ -429,7 +513,7 @@ export function StudentSearchPage() {
       )}
 
       {/* 상담 / 질문 토글 */}
-      <div style={{ display: 'inline-flex', background: 'var(--fill,#eef2f4)', borderRadius: 10, padding: 3, marginBottom: 12 }}>
+      <div style={{ display: 'inline-flex', background: 'var(--fill,#eef2f7)', borderRadius: 10, padding: 3, marginBottom: 12 }}>
         {(['상담', '질문'] as const).map((m) => (
           <button key={m} onClick={() => setMode(m)} style={{ border: 'none', cursor: 'pointer', padding: '7px 22px', borderRadius: 8, fontWeight: 700, fontSize: 13,
             background: mode === m ? '#fff' : 'transparent', color: mode === m ? 'var(--teal)' : 'var(--muted)', boxShadow: mode === m ? '0 1px 2px rgba(0,0,0,.08)' : 'none' }}>{m}</button>
@@ -450,7 +534,7 @@ export function StudentSearchPage() {
           <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 4 }}>
             {board.slice(0, 5).map((t) => (
               <button key={t.id} onClick={() => openDetail(t)} style={{ all: 'unset', cursor: 'pointer', flex: '0 0 auto' }}>
-                <div style={{ width: 150, background: t.rank <= 3 ? 'var(--teal-50,#F0F7FA)' : '#fff', border: '1px solid var(--line)', borderRadius: 12, padding: 12, textAlign: 'center' }}>
+                <div style={{ width: 150, background: t.rank <= 3 ? 'var(--teal-50,#EEF4FB)' : '#fff', border: '1px solid var(--line)', borderRadius: 12, padding: 12, textAlign: 'center' }}>
                   <div style={{ fontSize: 20 }}>{t.rank === 1 ? '🥇' : t.rank === 2 ? '🥈' : t.rank === 3 ? '🥉' : `#${t.rank}`}</div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 4 }}><b style={{ fontSize: 14 }}>{t.name}</b><GradeBadge grade={t.grade} /></div>
                   <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{t.subjects.join(',')} · ⭐ {t.rating ?? 0}</div>
@@ -461,7 +545,7 @@ export function StudentSearchPage() {
         </Card>
       )}
       {/* 상담 방식 먼저 고르기(선택) — 원하는 진행 방식으로 상담 가능한 선생님만 필터 */}
-      <Card style={{ marginBottom: 14, background: 'var(--teal-50,#F0F7FA)', borderColor: 'var(--teal-100,#DCECF3)' }}>
+      <Card style={{ marginBottom: 14, background: 'var(--teal-50,#EEF4FB)', borderColor: 'var(--teal-100,#D7E4F2)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
           <b style={{ fontSize: 14 }}>🎛️ 상담 방식 먼저 고르기</b>
           <span style={{ fontSize: 12, color: 'var(--muted)' }}>원하는 진행 방식을 정하면 그 방식으로 상담 가능한 선생님만 보여드려요.</span>
@@ -494,23 +578,26 @@ export function StudentSearchPage() {
             {SUBTYPES[consultType].map((s) => {
               const on = subType === s;
               return <button key={s} onClick={() => setSubType(on ? null : s)} style={{ cursor: 'pointer', padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700,
-                border: on ? '1px solid var(--teal)' : '1px solid var(--line)', background: on ? 'var(--teal-100,#DCECF3)' : 'var(--teal-50,#F0F7FA)', color: on ? 'var(--teal)' : 'var(--muted)' }}>{s}</button>;
+                border: on ? '1px solid var(--teal)' : '1px solid var(--line)', background: on ? 'var(--teal-100,#D7E4F2)' : 'var(--teal-50,#EEF4FB)', color: on ? 'var(--teal)' : 'var(--muted)' }}>{s}</button>;
             })}
           </div>
         </>
       )}
-      {consultType === '심리' && <p style={{ fontSize: 12, color: 'var(--teal)', background: 'var(--teal-50,#F0F7FA)', borderRadius: 8, padding: 9, marginBottom: 8 }}>💬 심리상담(LCA코칭·심리상담)은 현재 기숙 온/오프라인으로 운영돼요.</p>}
-      {subType === '유료상담' && <p style={{ fontSize: 12, color: '#92600A', background: 'var(--chip-confirmed-bg,#FEF6E7)', borderRadius: 8, padding: 9, marginBottom: 8 }}>💎 입시 유료상담은 별도 단가가 적용돼요.</p>}
+      {consultType === '심리' && <p style={{ fontSize: 12, color: 'var(--teal)', background: 'var(--teal-50,#EEF4FB)', borderRadius: 8, padding: 9, marginBottom: 8 }}>💬 심리상담(LCA코칭·심리상담)은 현재 기숙 온/오프라인으로 운영돼요.</p>}
+      {subType === '유료상담' && <p style={{ fontSize: 12, color: '#A97D24', background: 'var(--chip-confirmed-bg,#FAF1E2)', borderRadius: 8, padding: 9, marginBottom: 8 }}>💎 입시 유료상담은 별도 단가가 적용돼요.</p>}
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 12 }}>
         <div style={{ flex: '1 1 220px', minWidth: 180 }}><TextField label="검색" placeholder="이름·과목" value={q} onChange={(e) => setQ(e.target.value)} /></div>
         <div style={{ minWidth: 140 }}><SelectField label="카테고리" value={category} onChange={(e) => setCategory(e.target.value)} options={['전체', ...cats.map((c) => c.name)].map((c) => ({ value: c, label: c }))} /></div>
         <div style={{ minWidth: 160 }}><SelectField label="정렬" value={sort} onChange={(e) => setSort(e.target.value)} options={[{ value: 'grade', label: '기본(등급)' }, { value: 'rating', label: '만족도순' }, { value: 'consult', label: '상담횟수순' }, { value: 'question', label: '질문답변순' }, { value: 'offline', label: '오프라인 가능' }]} /></div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: favOnly ? '#A97D24' : 'var(--ink-soft,#5a6472)', cursor: 'pointer', padding: '9px 0' }}>
+          <input type="checkbox" checked={favOnly} onChange={(e) => setFavOnly(e.target.checked)} /> ⭐ 찜한 선생님만
+        </label>
       </div>
       {note && <p style={{ color: 'var(--chip-done)', fontSize: 13 }}>{note}</p>}
 
       {/* 니즈 기반 맞춤 추천 */}
-      <Card style={{ marginBottom: 14, background: 'var(--teal-50,#F0F7FA)', borderColor: 'var(--teal-100,#DCECF3)' }}>
+      <Card style={{ marginBottom: 14, background: 'var(--teal-50,#EEF4FB)', borderColor: 'var(--teal-100,#D7E4F2)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <b style={{ fontSize: 14 }}>✨ 맞춤 추천</b>
           <span style={{ fontSize: 12, color: 'var(--muted)' }}>필요한 점을 고르면 선생님 강점·평가로 매칭해 드려요.</span>
@@ -541,7 +628,7 @@ export function StudentSearchPage() {
         ))}
       </Card>
 
-      {teachers === null ? <SkeletonList rows={4} cols={2} /> : rows.length === 0 ? <Card><EmptyState>선생님이 없어요.</EmptyState></Card> : (
+      {teachers === null ? <SkeletonList rows={4} cols={2} /> : rows.length === 0 ? <Card><EmptyState>{favOnly ? '아직 찜한 선생님이 없어요 — 목록에서 ☆ 찜을 눌러 추가해 보세요.' : '선생님이 없어요.'}</EmptyState></Card> : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
           {rows.map((t) => (
             <Card key={t.id}>
@@ -566,12 +653,20 @@ export function StudentSearchPage() {
                 <div style={{ marginTop: 8 }}><Badge kind="confirmed">상세 보기 →</Badge></div>
               </button>
               <div style={{ display: 'flex', gap: 6, marginTop: 8, borderTop: '1px solid var(--line)', paddingTop: 8 }}>
-                <button type="button" onClick={() => fav(t)} style={actBtn}>☆ 찜</button>
+                <button type="button" onClick={() => fav(t)} style={favIds.has(t.id) ? { ...actBtn, color: '#CF9A3A', borderColor: '#CF9A3A' } : actBtn}>{favIds.has(t.id) ? '★ 찜됨' : '☆ 찜'}</button>
                 <button type="button" onClick={() => block(t)} style={actBtn}>🚫 차단</button>
                 <button type="button" onClick={() => report(t)} style={actBtn}>🚩 신고</button>
               </div>
             </Card>
           ))}
+        </div>
+      )}
+      {/* B2 더 보기 — 서버 페이지네이션(누적 로드) */}
+      {teachers !== null && pageMeta && teachers.length < pageMeta.total && (
+        <div style={{ textAlign: 'center', marginTop: 14 }}>
+          <Button variant="ghost" onClick={() => void loadMore()} disabled={loadingMore}>
+            {loadingMore ? '불러오는 중…' : `더 보기 (${teachers.length}/${pageMeta.total})`}
+          </Button>
         </div>
       )}
       </>

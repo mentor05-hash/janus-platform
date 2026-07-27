@@ -194,7 +194,7 @@ export function AdminAnalyticsPage() {
               {byType.map((t) => (
                 <div key={t.studentType} style={{ flex: '1 1 200px', minWidth: 180, border: '1px solid var(--line)', borderRadius: 10, padding: '10px 12px', background: 'var(--surface)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                    <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 999, color: '#fff', background: t.studentType === 'enrolled' ? 'var(--teal)' : '#B4690E' }}>{t.label}</span>
+                    <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 999, color: '#fff', background: t.studentType === 'enrolled' ? 'var(--teal)' : '#A97D24' }}>{t.label}</span>
                   </div>
                   <div style={{ fontSize: 20, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{t.done.toLocaleString()}<span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600 }}> 완료</span></div>
                   <div style={{ fontSize: 12, color: 'var(--muted)', fontVariantNumeric: 'tabular-nums' }}>기록 {t.notes.toLocaleString()} · 최종 {t.final.toLocaleString()} · 작성률 {t.recordRate}%</div>

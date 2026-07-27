@@ -1,22 +1,40 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import type { Notification } from '../api/types';
-import { PageHeader, Card, ErrorText, Spinner, EmptyState } from '../components/ui';
+import { PageHeader, Card, Button, ErrorText, Spinner, EmptyState } from '../components/ui';
 
 export function StudentNotificationsPage() {
   const [rows, setRows] = useState<Notification[] | null>(null);
   const [error, setError] = useState('');
-  useEffect(() => {
+
+  const load = useCallback(() => {
     api.get<Notification[]>('/notifications').then((r) => setRows(Array.isArray(r) ? r : [])).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
   }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const unread = (rows ?? []).filter((n) => !n.read_at).length;
+  async function readOne(n: Notification) {
+    if (n.read_at) return;
+    try { await api.patch(`/notifications/${n.id}/read`, {}); load(); } catch { /* 무시 */ }
+  }
+  async function readAll() {
+    try { await api.patch('/notifications/read-all', {}); load(); } catch { /* 무시 */ }
+  }
+
   return (
     <div>
-      <PageHeader title="알림" sub="예약·상담·크레딧 관련 알림입니다." />
+      <PageHeader title="알림" sub="예약·상담·크레딧·커뮤니티 관련 알림입니다." />
       {error && <ErrorText>{error}</ErrorText>}
+      {unread > 0 && (
+        <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 13, color: 'var(--muted)' }}>읽지 않은 알림 {unread}건</span>
+          <Button variant="ghost" size="sm" onClick={readAll}>모두 읽음</Button>
+        </div>
+      )}
       {rows === null ? <Spinner /> : rows.length === 0 ? <Card><EmptyState>알림이 없어요.</EmptyState></Card> : (
         <Card>
           {rows.map((n) => (
-            <div key={n.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--line)' }}>
+            <div key={n.id} onClick={() => readOne(n)} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--line)', cursor: n.read_at ? 'default' : 'pointer' }}>
               <span style={{ fontSize: 14, color: n.read_at ? 'var(--muted)' : 'var(--ink)' }}>
                 {!n.read_at && <span style={{ color: 'var(--teal)' }}>● </span>}
                 <b>{n.title ?? n.type ?? '알림'}</b>

@@ -10,6 +10,7 @@ import { CreditTxnType } from '../../config/enums';
 import { NotifyService } from '../notification/notify.service';
 import { consumeCredits, GrantLot } from './domain/credit-consume';
 import { planRefund, SpendSplit } from './domain/credit-refund';
+import { endOfWeekKst, endOfMonthKst } from './weekly-grant.service';
 
 export interface ConsumeOutcome {
   ok: boolean;
@@ -33,6 +34,64 @@ export class CreditService {
   private static readonly DEFAULT_INITIAL_GRANT = 2000;
 
   /**
+   * 계좌 프로비저닝(트랜잭션 내·멱등) — 없으면 계좌 + 초기 부여 lot + 원장을 함께 생성.
+   * 초기 부여는 '이번 주 조기지급' 성격이라 주간 cadence 만료를 사용(월요일 크론이 같은 expire_at
+   * 을 중복으로 보고 스킵 — weekly-grant 의 dup 검사와 정합). ON CONFLICT DO NOTHING 이라
+   * 동시 생성 경합에도 tx abort 없이 안전.
+   * P0#3: granted_balance 만 있고 lot 이 없어 소비 불가(phantom)하던 것 정정 — lot 을 반드시 생성.
+   * P0#4: 소비 경로(consumeWithin)가 진입 시 이걸 호출해 신규 학생 첫 소비 404 를 방지.
+   */
+  private async ensureAccountWithin(
+    tx: Prisma.TransactionClient,
+    studentId: string,
+    now = new Date(),
+  ) {
+    const sp = await tx.student_profile.findUnique({
+      where: { account_id: studentId },
+      select: {
+        membership_grade_id: true,
+        membership_grade: {
+          select: { weekly_credits: true, expire_policy: true },
+        },
+      },
+    });
+    const grant =
+      sp?.membership_grade?.weekly_credits ??
+      CreditService.DEFAULT_INITIAL_GRANT;
+    const expireAt =
+      sp?.membership_grade?.expire_policy === 'end_of_month'
+        ? endOfMonthKst(now)
+        : endOfWeekKst(now);
+    const inserted = await tx.$queryRaw<{ id: string }[]>`
+      INSERT INTO credit_account (id, student_id, purchased_balance, granted_balance, reserved_credits, grant_expire_at)
+      VALUES (gen_random_uuid(), ${studentId}::uuid, 0, ${grant}, 0, ${grant > 0 ? expireAt : null})
+      ON CONFLICT (student_id) DO NOTHING
+      RETURNING id`;
+    if (inserted.length === 0) return; // 이미 존재(경합 포함) — 중복 부여 방지
+    const acctId = inserted[0].id;
+    if (grant > 0) {
+      await tx.weekly_credit_grant.create({
+        data: {
+          account_id: acctId,
+          grade_id: sp?.membership_grade_id ?? null,
+          amount: grant,
+          remaining: grant,
+          expire_at: expireAt,
+        },
+      });
+      await tx.credit_transaction.create({
+        data: {
+          account_id: acctId,
+          type: CreditTxnType.WEEKLY_GRANT,
+          amount: grant,
+          balance: grant,
+          description: '초기 크레딧 부여',
+        },
+      });
+    }
+  }
+
+  /**
    * 크레딧 계좌 조회 — 없으면 생성하고 등급별 초기 크레딧을 부여한다.
    * (신규 가입·HR 등록 학생이 계좌 없이 404 → 무한 로딩 되는 문제 방지.)
    */
@@ -41,28 +100,12 @@ export class CreditService {
       where: { student_id: studentId },
     });
     if (existing) return existing;
-    // 등급의 주간부여량을 초기 크레딧으로(구독 미가입/등급 미상 시 폴백).
-    const sp = await this.prisma.student_profile.findUnique({
-      where: { account_id: studentId },
-      select: { membership_grade: { select: { weekly_credits: true } } },
+    await this.prisma.$transaction((tx) =>
+      this.ensureAccountWithin(tx, studentId),
+    );
+    return this.prisma.credit_account.findUnique({
+      where: { student_id: studentId },
     });
-    const grant = sp?.membership_grade?.weekly_credits ?? CreditService.DEFAULT_INITIAL_GRANT;
-    try {
-      return await this.prisma.$transaction(async (tx) => {
-        const acct = await tx.credit_account.create({
-          data: { student_id: studentId, purchased_balance: 0, granted_balance: grant, reserved_credits: 0 },
-        });
-        if (grant > 0) {
-          await tx.credit_transaction.create({
-            data: { account_id: acct.id, type: CreditTxnType.WEEKLY_GRANT, amount: grant, balance: grant, description: '초기 크레딧 부여' },
-          });
-        }
-        return acct;
-      });
-    } catch {
-      // 동시 생성 경합 등 — 재조회로 복구.
-      return this.prisma.credit_account.findUnique({ where: { student_id: studentId } });
-    }
   }
 
   async getAccount(studentId: string) {
@@ -209,6 +252,8 @@ export class CreditService {
     amount: number,
     ref: { refType: string; refId?: string; description?: string },
   ): Promise<ConsumeOutcome> {
+    // 신규 학생 계좌·초기부여 lot 보장(P0#3·#4) — 없으면 404 대신 자동 생성 후 진행.
+    await this.ensureAccountWithin(tx, studentId);
     const acct = await this.lockAccount(tx, studentId);
     const grants = await tx.weekly_credit_grant.findMany({
       where: { account_id: acct.id, remaining: { gt: 0 } },

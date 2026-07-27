@@ -12,7 +12,59 @@ type Consent = {
 };
 
 /** 약관·개인정보 — 동의 현황·재동의, 데이터 내보내기, 회원 탈퇴(인증). */
+/** 보호자 공유 동의(O105) — 성인 학생은 이 동의가 없으면 보호자가 내 산출물을 볼 수 없다. */
+type ShareConsents = {
+  scope: string;
+  isMinor: boolean;
+  guardians: Array<{ guardianId: string; guardianName: string | null; relation: string | null; granted: boolean; grantedAt: string | null; revokedAt: string | null }>;
+};
+
+/**
+ * 보호자 연결(승인 대기) — **공유 동의보다 앞선다**. 연결 행이 없으면 공유 동의 카드 자체가 뜨지 않으므로
+ * (guardians 목록이 연결에서 나온다) 승인 UI 가 없으면 O105 게이트 전체가 도달 불가였다.
+ */
+const LINK_STATUS: Record<string, string> = {
+  pending: '승인 대기 중', approved: '연결됨', rejected: '거절함', revoked: '연결 해제됨',
+};
+
+type GuardianLink = { id: string; status: string; relation: string | null; counterpartName: string; canRespond: boolean };
+
 export function LegalPage() {
+  const [links, setLinks] = useState<GuardianLink[] | null>(null);
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [linkErr, setLinkErr] = useState('');
+  /** 거절·해제 2단계 확인 — 모바일 LegalScreen 과 같은 동작(한쪽만 1클릭이면 웹에서만 오클릭으로 끊긴다). */
+  const [confirming, setConfirming] = useState<{ id: string; action: 'reject' | 'revoke' } | null>(null);
+  const loadLinks = () => api.get<GuardianLink[]>('/me/guardian-links').then((r) => setLinks(Array.isArray(r) ? r : [])).catch(() => setLinks([]));
+
+  async function respond(id: string, action: 'approve' | 'reject' | 'revoke') {
+    setLinkBusy(true); setLinkErr('');
+    try {
+      await api.patch(`/guardian/links/${id}/respond`, { action });
+      await loadLinks();
+      await loadShare(); // 승인하면 공유 동의 대상(보호자)이 생긴다 — 같은 화면에서 이어서 설정하게 한다
+    } catch (e) {
+      setLinkErr(e instanceof ApiError ? e.message : '응답 실패');
+    } finally { setLinkBusy(false); }
+  }
+
+  const [share, setShare] = useState<ShareConsents | null>(null);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareErr, setShareErr] = useState('');
+  const loadShare = () => api.get<ShareConsents>('/me/share-consents').then(setShare).catch(() => setShare(null));
+  useEffect(() => { loadShare(); loadLinks(); }, []);
+
+  async function toggleShare(guardianId: string, next: boolean) {
+    setShareBusy(true); setShareErr('');
+    try {
+      if (next) await api.post('/me/share-consents', { guardianId });
+      else await api.del(`/me/share-consents?guardianId=${encodeURIComponent(guardianId)}`);
+      await loadShare();
+    } catch (e) {
+      setShareErr(e instanceof ApiError ? e.message : '동의 변경 실패');
+    } finally { setShareBusy(false); }
+  }
+
   const { logout } = useAuth();
   const [consent, setConsent] = useState<Consent | null>(null);
   const [terms, setTerms] = useState(false);
@@ -193,6 +245,89 @@ export function LegalPage() {
           <p style={{ fontSize: 13, color: 'var(--muted)', margin: '0 0 10px' }}>보유 중인 내 정보(프로필·예약·크레딧·질문·후기)를 JSON으로 내려받습니다.</p>
           <Button variant="ghost" onClick={exportData}>JSON 내보내기</Button>
         </Card>
+
+        {/* 보호자 연결 — 공유 동의의 **선결조건**이라 위에 둔다(연결 승인 → 그 다음 공유 동의). */}
+        {links && links.length > 0 && (
+          <Card>
+            <h3 style={{ margin: '0 0 6px', fontSize: 15 }}>보호자 연결</h3>
+            <p style={{ fontSize: 13, color: 'var(--muted)', margin: '0 0 10px' }}>
+              보호자가 연결을 신청하면 여기에서 승인하거나 거절할 수 있어요. 승인해야 보호자 화면이 열리고,
+              <b> 무엇을 보여줄지는 아래 공유 동의에서 따로 정합니다</b>(연결 = 열람 허용이 아니에요).
+            </p>
+            <ErrorText>{linkErr}</ErrorText>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {links.map((l) => {
+                const pend = confirming?.id === l.id ? confirming.action : null;
+                return (
+                <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: '1px solid var(--line)' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14 }}><b>{l.counterpartName}</b>{l.relation ? <span style={{ color: 'var(--muted)' }}> · {l.relation}</span> : null}</div>
+                    {/* 숫자(7일·3회)는 API 의 RELINK_COOLDOWN_DAYS·RELINK_MAX_ATTEMPTS 와 짝이다 —
+                        바꾸면 모바일 LegalScreen·GuardianConsentPage 문구도 함께 고쳐야 한다(O124). */}
+                    <div style={{ fontSize: 12.5, color: 'var(--muted)' }}>
+                      {pend === 'revoke'
+                        ? '해제하면 보호자 화면이 바로 닫혀요. 이 보호자는 7일 뒤 다시 신청할 수 있고, 그때도 승인할지는 내가 정해요.'
+                        : pend === 'reject'
+                        ? '거절하면 이 보호자는 7일 뒤 다시 신청할 수 있어요(최대 3회, 관리자가 제한을 풀어 줄 수도 있어요). 그때도 승인할지는 내가 정해요. 정말 거절할까요?'
+                        : (LINK_STATUS[l.status] ?? l.status)}
+                    </div>
+                    {(l.status === 'rejected' || l.status === 'revoked') && !pend ? (
+                      <div style={{ fontSize: 12.5, color: 'var(--muted)' }}>보호자가 7일 뒤 다시 신청할 수 있어요. 더 빨리 연결하려면 관리자에게 문의해 주세요.</div>
+                    ) : null}
+                  </div>
+                  {pend ? (
+                    <>
+                      <Button size="sm" variant="ghost" onClick={() => setConfirming(null)} disabled={linkBusy}>취소</Button>
+                      <Button size="sm" onClick={() => { setConfirming(null); void respond(l.id, pend); }} disabled={linkBusy}>
+                        {pend === 'revoke' ? '해제 확정' : '거절 확정'}
+                      </Button>
+                    </>
+                  ) : l.canRespond ? (
+                    <>
+                      <Button size="sm" onClick={() => respond(l.id, 'approve')} disabled={linkBusy}>승인</Button>
+                      {/* 재신청은 열렸지만 7일을 기다려야 한다 — 오클릭 비용이 커서 해제와 같은 2단계를 쓴다. */}
+                      <Button size="sm" variant="ghost" onClick={() => setConfirming({ id: l.id, action: 'reject' })} disabled={linkBusy}>거절</Button>
+                    </>
+                  ) : l.status === 'approved' ? (
+                    <Button size="sm" variant="ghost" onClick={() => setConfirming({ id: l.id, action: 'revoke' })} disabled={linkBusy}>연결 해제</Button>
+                  ) : null}
+                </div>
+                );
+              })}
+            </div>
+          </Card>
+        )}
+
+        {/* 보호자 공유 동의(O105) — 성인 학생 전용 게이트. 미성년은 보호자 권한이라 토글이 열람 여부를 바꾸지 않는다. */}
+        {share && share.guardians.length > 0 && (
+          <Card>
+            <h3 style={{ margin: '0 0 6px', fontSize: 15 }}>보호자에게 내 리포트 공유</h3>
+            <p style={{ fontSize: 13, color: 'var(--muted)', margin: '0 0 10px' }}>
+              {share.isMinor
+                ? '미성년 회원은 보호자가 법정대리인 권한으로 열람할 수 있어요(보호자 본인확인·동의 완료 시). 아래 설정은 성인이 되면 적용됩니다.'
+                : '동의한 보호자만 내 격차 리포트 이력을 볼 수 있어요. 언제든 철회할 수 있고, 철회하면 바로 볼 수 없게 됩니다.'}
+            </p>
+            <ErrorText>{shareErr}</ErrorText>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {share.guardians.map((g) => (
+                <div key={g.guardianId} style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 8, borderBottom: '1px solid var(--line)', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 160 }}>
+                    <div style={{ fontSize: 14, color: 'var(--ink)' }}>
+                      <b>{g.guardianName ?? '보호자'}</b>{g.relation ? <span style={{ color: 'var(--muted)' }}> · {g.relation}</span> : null}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                      {g.granted ? `동의 중${g.grantedAt ? ` · ${g.grantedAt.slice(0, 10)}` : ''}` : '동의하지 않음'}
+                    </div>
+                  </div>
+                  <Badge kind={g.granted ? 'done' : 'soft'}>{g.granted ? '공유 중' : '비공개'}</Badge>
+                  <Button variant={g.granted ? 'ghost' : undefined} onClick={() => toggleShare(g.guardianId, !g.granted)} disabled={shareBusy}>
+                    {g.granted ? '철회' : '공유 동의'}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
 
         {/* 회원 탈퇴 */}
         <Card>

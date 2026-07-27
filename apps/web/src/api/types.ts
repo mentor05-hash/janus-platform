@@ -34,6 +34,10 @@ export interface Booking {
   content?: string | null;
   attachments?: { id: string; name: string; type?: string }[];
   meetingUrl?: string | null; // zoom 입장 URL(확정 시 발급)
+  reviewed?: boolean; // 완료 상담 후기 작성 여부(학생 뷰)
+  teacherAckAt?: string | null; // 선생님 상담 인지 확인 시각(자동확정 예약 증빙)
+  studentName?: string | null; // 상대방 표시용(선생님 뷰) — UUID 대신 이름
+  teacherName?: string | null; // 상대방 표시용(학생 뷰)
 }
 
 export interface Slot {
@@ -116,6 +120,8 @@ export interface HrTeacher {
   grade: string;
   category: string | null;
   centerName: string | null;
+  achievementsCount?: number;
+  targetAchievementsVerified?: boolean;
 }
 
 export interface HrStaff {
@@ -139,7 +145,8 @@ export interface Dashboard {
   gradeDistribution?: Record<string, number>;
   teacherCount?: number;
   trend?: { weeksAgo: number; applied: number; matched: number }[];
-  gradePayTable?: { grade: string; perCaseRate: number; hourlyRate: number; gradeAllowance: number }[];
+  /** 급여 기준 요약(O113 매출 배분 단일 모델) — 구 gradePayTable(건당·시급·등급수당)은 폐지 단가라 제거됐다. */
+  payBasis?: { model: string; sharePct: number; base: number; incentivePct: number; creditWonRatio: number; source: 'db' | 'default' };
 }
 
 export interface PricingPolicy {
@@ -344,4 +351,43 @@ export interface Material {
   size: number | null;
   createdAt: string;
   downloadUrl: string | null;
+}
+
+// ── 생기부 가드 관리자 콘솔(스텝3) ──
+export interface SrGuardToggle {
+  enabled: boolean;
+  source: 'manual' | 'scheduler' | 'default';
+  autoActivatedAt: string | null;
+  updatedBy: string | null;
+  updatedAt: string | null;
+  isDefault: boolean;
+  activationAt: string;
+}
+
+export interface SrGuardStats {
+  total: number;
+  byReason: { reason: string; count: number }[];
+  bySurface: { surface: string; count: number }[];
+  recent: {
+    id: string;
+    reason: string;
+    stage: string | null;
+    surface: string;
+    actorRole: string | null;
+    createdAt: string;
+  }[];
+}
+
+export interface SrGuardAppeal {
+  id: string;
+  reason: string;
+  surface: string | null;
+  note: string | null;
+  actorRole: string | null;
+  status: 'open' | 'reviewing' | 'resolved' | 'rejected';
+  resolution: string | null;
+  resolvedBy: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 }

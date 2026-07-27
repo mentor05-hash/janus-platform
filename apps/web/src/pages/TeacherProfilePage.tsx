@@ -14,12 +14,20 @@ type Profile = {
   intro: string | null;
   strengths: string[];
   modes?: string[];
+  qnaEscalation?: boolean;
+  qnaReceive?: boolean;
+  qnaSubjects?: string[];
   reRequestRate?: number | null;
   avgResponseMin?: number | null;
+  targetAchievements?: Array<{ tier?: string; univ?: string; dept?: string; year?: number }>;
+  targetAchievementsVerified?: boolean;
 };
+type Ach = { tier: string; univ: string; dept?: string; year?: number };
+const TIER_OPTIONS = ['최상위', '상위', '중상위', '중위', '중하위', '기초'];
 
 const STRENGTH_POOL = ['개념정리', '문제풀이', '내신대비', '수능대비', '오답관리', '동기부여', '기초탄탄', '심화학습', '입시전략', '멘탈관리'];
-const SUBJECTS = ['국어', '수학', '영어', '과학', '사회', '입시'];
+// P6 — 비교과(학습법·진로) 포함: 입시 컨설턴트·멘토가 담당 카테고리로 선택.
+const SUBJECTS = ['국어', '수학', '영어', '과학', '사회', '입시', '학습법', '진로'];
 const MODE_OPTIONS: { value: string; label: string; icon: string; desc: string }[] = [
   { value: 'zoom', label: '줌 화상', icon: '📹', desc: '얼굴 보며 화상 상담' },
   { value: 'chat', label: '실시간 채팅', icon: '💬', desc: '텍스트·이미지 실시간 대화' },
@@ -34,12 +42,18 @@ export function TeacherProfilePage() {
   const [subjects, setSubjects] = useState<string[]>([]);
   const [career, setCareer] = useState('');
   const [modes, setModes] = useState<string[]>([]);
+  const [qnaEsc, setQnaEsc] = useState(true); // Q&A 후 "이어서 상담" 제공 여부
+  const [qnaRecv, setQnaRecv] = useState(true); // F3 — Q&A 질문 수신 on/off
+  const [qnaSubs, setQnaSubs] = useState<string[]>([]); // F3 — 수신 과목 제한(빈=전체)
+  const [ach, setAch] = useState<Ach[]>([]); // 목표대학 합격 실적(자기신고)
+  const [achVerified, setAchVerified] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
 
   function hydrate(d: Profile) {
-    setP(d); setIntro(d.intro ?? ''); setStrengths(d.strengths ?? []); setSubjects(d.subjects ?? []); setCareer(d.career ?? ''); setModes(d.modes ?? []);
+    setP(d); setIntro(d.intro ?? ''); setStrengths(d.strengths ?? []); setSubjects(d.subjects ?? []); setCareer(d.career ?? ''); setModes(d.modes ?? []); setQnaEsc(d.qnaEscalation !== false); setQnaRecv(d.qnaReceive !== false); setQnaSubs(d.qnaSubjects ?? []);
+    setAch((d.targetAchievements ?? []).map((a) => ({ tier: a.tier ?? '', univ: a.univ ?? '', dept: a.dept, year: a.year }))); setAchVerified(d.targetAchievementsVerified === true);
   }
   useEffect(() => {
     api.get<Profile>('/teachers/me/profile').then(hydrate).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
@@ -50,7 +64,7 @@ export function TeacherProfilePage() {
   async function save() {
     setBusy(true); setMsg(''); setError('');
     try {
-      const d = await api.put<Profile>('/teachers/me/profile', { intro, strengths, subjects, career, modes });
+      const d = await api.put<Profile>('/teachers/me/profile', { intro, strengths, subjects, career, modes, qnaEscalation: qnaEsc, qnaReceive: qnaRecv, qnaSubjects: qnaSubs, targetAchievements: ach.filter((a) => a.tier && a.univ.trim()) });
       hydrate(d); setMsg('프로필이 저장되었습니다. 학생 검색·추천에 반영됩니다.');
     } catch (e) { setError(e instanceof ApiError ? e.message : '저장 실패'); } finally { setBusy(false); }
   }
@@ -89,7 +103,7 @@ export function TeacherProfilePage() {
             const on = modes.includes(m.value);
             return (
               <button key={m.value} type="button" onClick={() => toggle(modes, setModes, m.value)} style={{ cursor: 'pointer', textAlign: 'left', padding: '10px 12px', borderRadius: 10,
-                border: on ? '1px solid var(--teal)' : '1px solid var(--line)', background: on ? 'var(--teal-50,#F0F7FA)' : '#fff' }}>
+                border: on ? '1px solid var(--teal)' : '1px solid var(--line)', background: on ? 'var(--teal-50,#EEF4FB)' : '#fff' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ width: 18, height: 18, borderRadius: 5, border: on ? 'none' : '1.5px solid var(--line)', background: on ? 'var(--teal)' : '#fff', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 800 }}>{on ? '✓' : ''}</span>
                   <b style={{ fontSize: 14, color: on ? 'var(--teal)' : 'var(--ink)' }}>{m.icon} {m.label}</b>
@@ -99,7 +113,7 @@ export function TeacherProfilePage() {
             );
           })}
         </div>
-        {modes.length === 0 && <p style={{ fontSize: 12, color: 'var(--danger,#c0392b)', margin: '0 0 12px' }}>⚠ 방식을 하나도 선택하지 않으면 방식으로 검색하는 학생에게 노출되지 않아요.</p>}
+        {modes.length === 0 && <p style={{ fontSize: 12, color: 'var(--danger,#c25a43)', margin: '0 0 12px' }}>⚠ 방식을 하나도 선택하지 않으면 방식으로 검색하는 학생에게 노출되지 않아요.</p>}
 
         <label className="label">담당 과목</label>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
@@ -111,6 +125,55 @@ export function TeacherProfilePage() {
         </div>
 
         <TextField label="경력(선택)" value={career} onChange={(e) => setCareer(e.target.value)} placeholder="예: 대치 5년 · 강남대성 출강" />
+        {/* F3 — Q&A 수신 설정(기본 최소·개별맞춤 원칙): on/off + 과목 제한 */}
+        <label className="label" style={{ marginTop: 12 }}>Q&A 질문 수신</label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, cursor: 'pointer', marginBottom: 6 }}>
+          <input type="checkbox" checked={qnaRecv} onChange={(e) => setQnaRecv(e.target.checked)} />
+          새 질문을 받습니다 <span style={{ fontSize: 12, color: 'var(--muted)' }}>(끄면 학생 목록·자동배정에서 제외 — 시험기간·휴가용)</span>
+        </label>
+        {qnaRecv && (
+          <>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
+              {SUBJECTS.map((sub) => (
+                <button key={sub} type="button" onClick={() => setQnaSubs((p2) => (p2.includes(sub) ? p2.filter((x) => x !== sub) : [...p2, sub]))}
+                  style={{ fontSize: 12.5, borderRadius: 999, padding: '4px 12px', cursor: 'pointer', border: qnaSubs.includes(sub) ? '1px solid var(--teal)' : '1px solid var(--line)', background: qnaSubs.includes(sub) ? 'var(--teal-50,#E8F0F9)' : 'var(--surface)', color: qnaSubs.includes(sub) ? 'var(--teal)' : 'var(--muted)', fontWeight: 700 }}>
+                  {sub}
+                </button>
+              ))}
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 10px' }}>수신할 과목만 선택하세요 — 아무것도 선택하지 않으면 전 과목을 받습니다.</p>
+          </>
+        )}
+
+        {/* Q&A 후 이어서 상담 제공 여부 — 학생 질문 폼의 선생님 선별에 반영 */}
+        <label className="label" style={{ marginTop: 12 }}>Q&A 이어서 상담</label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, cursor: 'pointer', marginBottom: 4 }}>
+          <input type="checkbox" checked={qnaEsc} onChange={(e) => setQnaEsc(e.target.checked)} />
+          질문 답변 후 학생이 상담으로 이어가는 것(질문승격)을 받습니다
+        </label>
+        <p style={{ fontSize: 12, color: 'var(--muted)', margin: '0 0 8px' }}>끄면 학생 질문 화면에서 "이어서 상담 가능" 표시가 빠지고, 상담 이어가기 요청이 차단됩니다.</p>
+        {/* 목표대학 합격 실적(자기신고) — 진단 매칭 가중·카드 배지에 반영. 수정 시 재검증 필요. */}
+        <label className="label" style={{ marginTop: 12 }}>
+          목표대학 합격 실적{' '}
+          {achVerified
+            ? <span style={{ fontSize: 11, fontWeight: 800, color: '#1f7a52', background: '#e3f3ea', borderRadius: 5, padding: '1px 6px' }}>✓ 검증됨</span>
+            : ach.length > 0 && <span style={{ fontSize: 11, color: 'var(--muted)' }}>· 검증 대기(관리자 승인 후 배지)</span>}
+        </label>
+        <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>자기신고 실적입니다. 저장하면 검증 상태가 초기화되어 관리자 재승인이 필요합니다.</div>
+        {ach.map((a, i) => (
+          <div key={i} style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            <select value={a.tier} onChange={(e) => setAch((p2) => p2.map((x, j) => (j === i ? { ...x, tier: e.target.value } : x)))} className="input" style={{ width: 92 }}>
+              <option value="">라인</option>
+              {TIER_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <input className="input" placeholder="대학" value={a.univ} onChange={(e) => setAch((p2) => p2.map((x, j) => (j === i ? { ...x, univ: e.target.value } : x)))} style={{ width: 110 }} />
+            <input className="input" placeholder="학과(선택)" value={a.dept ?? ''} onChange={(e) => setAch((p2) => p2.map((x, j) => (j === i ? { ...x, dept: e.target.value } : x)))} style={{ width: 110 }} />
+            <input className="input" placeholder="연도" inputMode="numeric" value={a.year ?? ''} onChange={(e) => setAch((p2) => p2.map((x, j) => (j === i ? { ...x, year: Number(e.target.value) || undefined } : x)))} style={{ width: 72 }} />
+            <button type="button" onClick={() => setAch((p2) => p2.filter((_, j) => j !== i))} style={{ border: 'none', background: 'none', color: 'var(--danger,#dc2626)', cursor: 'pointer', fontSize: 13 }}>삭제</button>
+          </div>
+        ))}
+        <button type="button" onClick={() => setAch((p2) => [...p2, { tier: '', univ: '' }])} className="btn ghost sm" style={{ marginBottom: 4 }}>+ 실적 추가</button>
+
         <Button onClick={save} loading={busy} style={{ marginTop: 8 }}>프로필 저장</Button>
       </Card>
 

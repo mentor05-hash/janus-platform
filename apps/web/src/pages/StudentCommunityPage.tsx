@@ -74,7 +74,7 @@ export function StudentCommunityPage() {
                   <div key={r.id} style={{ borderTop: '1px solid var(--line-soft)', paddingTop: 10 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                       <b style={{ fontSize: 13, color: 'var(--ink)' }}>{r.teacherName} 선생님</b>
-                      <span style={{ fontSize: 13, color: '#e0a52e', fontWeight: 700 }}>⭐ {r.rating.toFixed(1)}</span>
+                      <span style={{ fontSize: 13, color: '#e3b45c', fontWeight: 700 }}>⭐ {r.rating.toFixed(1)}</span>
                       <span style={{ fontSize: 12, color: 'var(--caption)' }}>{fmtDate(r.createdAt)}</span>
                     </div>
                     <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.5 }}>“{r.text}”</div>

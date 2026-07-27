@@ -29,10 +29,15 @@ export class RoomsProvider {
 
   createRoom(payload: {
     externalRef: string; features: { chat: boolean; whiteboard: boolean; voice: boolean };
-    opensAt: string | null; closesAt: string | null; mode?: string;
+    opensAt: string | null; closesAt: string | null; mode?: string; metadata?: Record<string, unknown>;
     participants: Array<{ extUserId: string; displayName?: string; role?: string }>;
   }): Promise<CreateResult> {
     return this.post<CreateResult>('/api/rt/v1/rooms', payload);
+  }
+
+  /** 시간창·정책 메타 동기화 — 정책(유예일·무료 한도) 변경을 기존 룸에 반영. 실패는 호출자에서 비차단 처리. */
+  updateWindow(roomId: string, body: { opensAt?: string | null; closesAt?: string | null; metadata?: Record<string, unknown> }): Promise<{ ok: boolean }> {
+    return this.post<{ ok: boolean }>(`/api/rt/v1/rooms/${roomId}/window`, body);
   }
 
   async mintToken(roomId: string, participantId: string, ttlSec?: number): Promise<string> {

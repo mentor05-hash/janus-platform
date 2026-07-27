@@ -1,5 +1,8 @@
 # ── dependencies ──
 node_modules/
+
+# Claude Code 세션 워크트리(중첩 git 저장소 — 실수 커밋 방지)
+.claude/worktrees/
 .pnp
 .pnp.js
 
@@ -41,9 +44,8 @@ seed-restricted/
 janus-data/
 20_data/
 # 티어 빌드 산출 중 회원 이상(임베드 데이터 포함) — 무료판만 배포
-dist-tier/member/
-dist-tier/paid/
-dist-tier/consultant/
+dist-tier/
+scratch-disttier/
 # 저작권 데이터 파일 패턴(어디가·esteacher·고속 — 재배포 금지 조건)
 adiga_*.json
 esteacher_*.json
@@ -51,3 +53,8 @@ esteacher_*.json
 보정_calib_*.json
 *_INTERNAL.json
 admission-data.json
+# 배치표 목표컷(N29) — 실컷은 JANUS_DATA_DIR/placement-hub/ 에만. repo 내 어느 경로든 차단.
+# 예시 파일은 ops/placement/targets.example.json(합성) 하나만 허용.
+targets.json
+placement-hub/
+!ops/placement/targets.example.json

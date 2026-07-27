@@ -44,7 +44,7 @@ export function TeacherEvalPage() {
             </div>
           </div>
           <div style={{ fontSize: 18, fontWeight: 700, marginTop: 14 }}>
-            <span style={{ color: '#E0B53D' }}>★★★★★</span> {d.overall}
+            <span style={{ color: '#E3B45C' }}>★★★★★</span> {d.overall}
           </div>
         </div>
 
@@ -94,7 +94,7 @@ export function TeacherEvalPage() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: 13 }}>
                     <span style={{ color: 'var(--muted)' }}>익명 학생 </span>
-                    <span style={{ color: '#E0B53D' }}>{stars(r.rating)}</span>
+                    <span style={{ color: '#E3B45C' }}>{stars(r.rating)}</span>
                   </span>
                   <span style={{ fontSize: 12, color: 'var(--caption)' }}>{r.createdAt ? new Date(r.createdAt).toLocaleDateString('ko-KR') : ''}</span>
                 </div>

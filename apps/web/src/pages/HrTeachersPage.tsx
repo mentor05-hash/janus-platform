@@ -3,7 +3,7 @@ import { api, ApiError } from '../api/client';
 import type { HrTeacher } from '../api/types';
 import { PageHeader, Card, Button, Badge, GradeBadge, Spinner, ErrorText, EmptyState, Pager, TextField, SelectField } from '../components/ui';
 
-const SUBJECTS = ['국어', '수학', '영어', '과학', '사회', '입시'];
+const SUBJECTS = ['국어', '수학', '영어', '과학', '사회', '입시', '학습법', '진로'];
 const GRADES = ['S', 'A', 'B'];
 const CATEGORIES = ['교과 코치', '명문대 멘토', '입시 소장', '심리 코치'];
 const PAGE_SIZE = 20;
@@ -44,6 +44,14 @@ export function HrTeachersPage() {
   }, [page]);
   useEffect(() => { void load(1); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 목표대학 실적 검증 토글(관리자·HR) — 자기신고 내용 확인 후 승인/해제.
+  async function verifyToggle(t: HrTeacher) {
+    const next = !t.targetAchievementsVerified;
+    if (next && !window.confirm(`${t.name} 선생님의 목표대학 실적(${t.achievementsCount ?? 0}건)을 검증 승인할까요? 승인 시 추천 카드에 '✓실적검증' 배지가 표시됩니다.`)) return;
+    try { await api.patch(`/teachers/${t.id}/verify-achievements`, { verified: next }); await load(page); }
+    catch (e) { setMsg(e instanceof ApiError ? e.message : '검증 처리 실패'); }
+  }
+
   async function register() {
     setMsg(''); setError('');
     if (!f.loginId.trim() || !f.name.trim()) { setError('아이디·이름은 필수입니다.'); return; }
@@ -55,12 +63,12 @@ export function HrTeachersPage() {
     } catch (e) { setError(e instanceof ApiError ? e.message : '등록 실패'); }
   }
 
-  const th: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', background: 'var(--fill,#f6f8fa)' };
+  const th: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', background: 'var(--fill,#f4f7fb)' };
   const td: React.CSSProperties = { padding: '10px 12px', fontSize: 13, borderTop: '1px solid var(--line)' };
 
   return (
     <div>
-      <PageHeader title="선생님 등록 · 관리" sub="자격·급여 기준·직군 등록 → 예상급여(급여 화면)와 연동됩니다." />
+      <PageHeader title="선생님 등록 · 관리" sub="자격·과목·등급·직군 등록 (급여는 매출 배분 정책에서 산정 — 이 화면과 무관)" />
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         <input ref={excelRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={onExcel} />
         <Button onClick={() => excelRef.current?.click()}>📗 엑셀 일괄 등록</Button>
@@ -85,7 +93,7 @@ export function HrTeachersPage() {
         <Card title="선생님 목록" style={{ flex: '1 1 420px', minWidth: 340, padding: 0, overflow: 'hidden' }}>
           {rows === null ? <Spinner /> : rows.length === 0 ? <div style={{ padding: 16 }}><EmptyState>등록된 선생님이 없어요.</EmptyState></div> : (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead><tr><th style={th}>이름</th><th style={th}>과목</th><th style={th}>등급</th><th style={th}>직군</th><th style={th}>상태</th></tr></thead>
+              <thead><tr><th style={th}>이름</th><th style={th}>과목</th><th style={th}>등급</th><th style={th}>직군</th><th style={th}>상태</th><th style={th}>목표대학 실적</th></tr></thead>
               <tbody>
                 {rows.map((t) => (
                   <tr key={t.id}>
@@ -94,6 +102,18 @@ export function HrTeachersPage() {
                     <td style={td}><GradeBadge grade={t.grade} /></td>
                     <td style={td}>{t.category ?? '-'}</td>
                     <td style={td}><Badge kind={t.status === 'approved' ? 'done' : 'confirmed'}>{t.status === 'approved' ? '활성' : '대기'}</Badge></td>
+                    <td style={td}>
+                      {(t.achievementsCount ?? 0) === 0 ? (
+                        <span style={{ color: 'var(--muted)', fontSize: 12 }}>없음</span>
+                      ) : (
+                        <button type="button" onClick={() => void verifyToggle(t)}
+                          style={{ cursor: 'pointer', border: '1px solid var(--line)', borderRadius: 6, padding: '3px 9px', fontSize: 12, fontWeight: 700,
+                            background: t.targetAchievementsVerified ? '#e3f3ea' : 'var(--surface)', color: t.targetAchievementsVerified ? '#1f7a52' : 'var(--ink)' }}
+                          title={t.targetAchievementsVerified ? '검증 해제' : '검증 승인'}>
+                          {t.targetAchievementsVerified ? `✓ 검증됨 (${t.achievementsCount})` : `검증하기 (${t.achievementsCount})`}
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

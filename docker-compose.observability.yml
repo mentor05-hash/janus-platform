@@ -1,0 +1,52 @@
+# 관측성 스택 — 노출된 /metrics(api·rooms) 를 Prometheus 로 수집, Grafana 로 시각화.
+# 메인 스택 네트워크(janus-platform_default)에 조인하여 서비스명으로 스크레이프.
+# 사용:
+#   COMPOSE_PROJECT_NAME=janus-platform docker compose -f docker-compose.full.yml up -d
+#   docker compose -f docker-compose.observability.yml up -d
+#   → Prometheus http://localhost:9090 · Grafana http://localhost:3001 (admin/admin)
+services:
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    restart: unless-stopped
+    volumes:
+      - ./ops/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./ops/observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prom_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=15d'
+    ports:
+      - "9090:9090"
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    restart: unless-stopped
+    volumes:
+      - ./ops/observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9093:9093"
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./ops/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3001:3000"
+
+volumes:
+  prom_data:
+  grafana_data:
+
+# 메인 compose 가 만든 네트워크에 외부 참조로 조인(서비스명 DNS 해석).
+networks:
+  default:
+    name: janus-platform_default
+    external: true

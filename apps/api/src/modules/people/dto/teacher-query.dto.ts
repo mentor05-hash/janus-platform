@@ -31,6 +31,11 @@ export class TeacherQueryDto {
   @IsString()
   q?: string;
 
+  /** 찜한 선생님만(B2) — 'true'면 요청자의 fit 목록으로 한정(학생). */
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  favOnly?: string;
+
   /** 정렬: rating(만족도)·consult(상담수)·question(질문수)·offline(오프라인 가능)·grade(기본). */
   @IsOptional()
   @IsIn(['rating', 'consult', 'question', 'offline', 'grade'])

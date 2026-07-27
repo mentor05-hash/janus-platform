@@ -20,6 +20,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json --runInBand",
     "migration:apply": "prisma db execute --file migrations/0001_init.sql --schema prisma/schema.prisma",
     "migrate:all": "node scripts/apply-migrations.mjs",
+    "migrate:check": "node scripts/check-migrations.mjs",
     "prisma:pull": "prisma db pull",
     "prisma:generate": "prisma generate",
     "db:init": "npm run migrate:all && npm run prisma:generate",
@@ -32,7 +33,9 @@
     "seed:sim:credits": "prisma db execute --file prisma/seed-sim-credit-ledger.sql --schema prisma/schema.prisma",
     "seed:sim:notif": "prisma db execute --file prisma/seed-sim-notifications.sql --schema prisma/schema.prisma",
     "seed:sim:scores": "prisma db execute --file prisma/seed-sim-scores.sql --schema prisma/schema.prisma",
-    "erd": "node scripts/gen-erd.mjs > ../../docs/ERD.mmd"
+    "erd": "node scripts/gen-erd.mjs > ../../docs/ERD.mmd",
+    "build:seed": "tsc prisma/seed.ts --outDir dist-seed --module commonjs --target ES2020 --esModuleInterop --skipLibCheck",
+    "seed:prod": "node dist-seed/prisma/seed.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1078.0",

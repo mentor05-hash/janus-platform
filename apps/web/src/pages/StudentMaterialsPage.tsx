@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api, ApiError, tokens } from '../api/client';
 import type { Material } from '../api/types';
 import { PageHeader, Card, Button, Badge, ErrorText, Spinner, EmptyState, TextField, SelectField, Modal } from '../components/ui';
@@ -50,8 +51,12 @@ function Preview({ m, onClose }: { m: Material; onClose: () => void }) {
 export function StudentMaterialsPage() {
   const [rows, setRows] = useState<Material[] | null>(null);
   const [cats, setCats] = useState<Cat[]>([]);
+  const [params] = useSearchParams();
   const [category, setCategory] = useState('전체');
-  const [subject, setSubject] = useState('전체');
+  const [subject, setSubject] = useState(() => {
+    const s = params.get('subject');
+    return s && ['국어', '수학', '영어', '탐구'].includes(s) ? s : '전체';
+  });
   const [q, setQ] = useState('');
   const [preview, setPreview] = useState<Material | null>(null);
   const [error, setError] = useState('');

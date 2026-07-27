@@ -8,6 +8,8 @@ COPY package.json package-lock.json ./
 COPY apps/web/package.json apps/web/
 COPY packages/shared/package.json packages/shared/
 COPY packages/pricing/package.json packages/pricing/
+COPY packages/media-kit/package.json packages/media-kit/
+COPY packages/board-core/package.json packages/board-core/
 # macOS 에서 생성된 lock 은 linux/musl rollup 바이너리를 누락(npm optional-deps 버그).
 # lock 을 지우고 install 하면 컨테이너 플랫폼에 맞는 optional 을 새로 해석한다.
 RUN rm -f package-lock.json && npm install --no-audit --no-fund
@@ -16,6 +18,9 @@ COPY . .
 # 실서비스 빌드는 이 ARG 를 넘기지 않으면 자동으로 비활성(안전 기본값).
 ARG VITE_DEMO_MODE=""
 ENV VITE_DEMO_MODE=$VITE_DEMO_MODE
+# 상담 미디어 스택(O79 M1): livekit 지정 시 상담룸이 미디어킷(음성+화상). 미지정=기존 P2P.
+ARG VITE_MEDIA_CONSULT=""
+ENV VITE_MEDIA_CONSULT=$VITE_MEDIA_CONSULT
 RUN npm run build --workspace apps/web
 
 # ---------- runner (nginx) ----------

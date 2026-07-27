@@ -7,12 +7,14 @@ import { FilesService } from './files.service';
 import { LocalDiskStorageProvider } from './providers/local-disk-storage.provider';
 import { S3StorageProvider } from './providers/s3-storage.provider';
 import { STORAGE_PROVIDER } from './storage.types';
+import { SchoolRecordGuardModule } from '../guard/school-record-guard.module';
 
 /**
  * Storage 바운디드 컨텍스트 (CLAUDE.md §10).
  * StorageProvider 어댑터를 ENV STORAGE_PROVIDER 로 선택(local|s3, 기본 local).
  */
 @Module({
+  imports: [SchoolRecordGuardModule],
   controllers: [FilesController],
   providers: [
     FilesService,

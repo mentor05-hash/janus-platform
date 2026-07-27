@@ -49,6 +49,18 @@ export class BookingController {
     return this.booking.list(user, q.role, q.status);
   }
 
+  /** GET /bookings/attention — 사이드바 뱃지용: 수락 대기 신청 수(선생님) + 1시간 내 임박 상담. */
+  @Get('attention')
+  attention(@CurrentUser() user: AuthUser) {
+    return this.booking.attention(user);
+  }
+
+  /** POST /bookings/:id/ack — 선생님 상담 인지 확인(자동확정 예약의 "봤어요" 증빙). */
+  @Post(':id/ack')
+  ack(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.booking.ackByTeacher(user, id);
+  }
+
   /** GET /bookings/{id} — 단건(관계자만): 상담 요청 내용·첨부 포함. */
   @Get(':id')
   getOne(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {

@@ -13,6 +13,12 @@ export class NotificationController {
     return this.notifications.list(user.id);
   }
 
+  /** PATCH /notifications/read-all — 전체 읽음. */
+  @Patch('read-all')
+  readAll(@CurrentUser() user: AuthUser) {
+    return this.notifications.markAllRead(user.id);
+  }
+
   /** PATCH /notifications/{id}/read — 읽음 처리. */
   @Patch(':id/read')
   read(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {

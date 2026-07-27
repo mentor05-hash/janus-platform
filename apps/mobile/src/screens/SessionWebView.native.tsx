@@ -49,7 +49,9 @@ export function SessionWebView({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { WebView } = require('react-native-webview') as { WebView: ComponentType<any> };
   const uri = `${WEB_ORIGIN}/embed/session?booking=${encodeURIComponent(bookingId)}&kind=${kind}`;
-  const injected = `window.__ITALL_TOKEN=${JSON.stringify(token ?? '')};window.__ITALL_EMBED=true;true;`;
+  // 신규 __JANUS_* 주입. __ITALL_* 은 구 웹 빌드 하위호환용 동시 주입(양방향 안전).
+  const tk = JSON.stringify(token ?? '');
+  const injected = `window.__JANUS_TOKEN=${tk};window.__JANUS_EMBED=true;window.__ITALL_TOKEN=${tk};window.__ITALL_EMBED=true;true;`;
 
   return (
     <View style={{ flex: 1, backgroundColor: C.bg }}>

@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { api, Child, hasSession, loadTokens, Me, Teacher } from './src/api';
 import { backStack } from './src/webBack';
 import { registerPushToken } from './src/push';
 import { LoginScreen } from './src/screens/LoginScreen';
+import { HomeScreen } from './src/screens/HomeScreen';
+import { DiagnosticScreen } from './src/screens/DiagnosticScreen';
 import { SearchScreen } from './src/screens/SearchScreen';
+import { GlobalSearchScreen } from './src/screens/GlobalSearchScreen';
 import { TeacherDetailScreen } from './src/screens/TeacherDetailScreen';
 import { SlotsScreen } from './src/screens/SlotsScreen';
 import { BookingsScreen } from './src/screens/BookingsScreen';
@@ -14,15 +17,20 @@ import { MaterialsScreen } from './src/screens/MaterialsScreen';
 import { CommunityScreen } from './src/screens/CommunityScreen';
 import { MyScreen } from './src/screens/MyScreen';
 import { ClassroomScreen } from './src/screens/ClassroomScreen';
+import { AcademyFinderScreen } from './src/screens/AcademyFinderScreen';
 import { GuardianHome, GuardianConsult, GuardianPay, GuardianCharge, GuardianMembership } from './src/screens/GuardianScreens';
+import { GuardianLinkScreen } from './src/screens/GuardianLinkScreen';
 import { TeacherInbox, TeacherToday, TeacherSessions, TeacherRecords, TeacherMy } from './src/screens/TeacherScreens';
 import { ThemeProvider, useTheme, type Palette, SP } from './src/theme';
+import { AlertHost } from './src/lib/alertHost';
 import { APP_NAME } from './src/branding.generated';
 
 export default function App() {
   return (
     <ThemeProvider>
       <AppInner />
+      {/* 앱 내 알림 대화상자 — react-native-web 의 Alert 가 빈 함수라 웹 빌드에서 안내가 전부 무음이었다. */}
+      <AlertHost />
     </ThemeProvider>
   );
 }
@@ -40,6 +48,8 @@ function AppInner() {
   const [bookSub, setBookSub] = useState<string | undefined>(undefined); // 세부 유형(과목 등)
   const [children, setChildren] = useState<Child[]>([]);
   const [activeChild, setActiveChild] = useState<string | null>(null);
+  const [childState, setChildState] = useState<'loading' | 'ok' | 'error'>('loading');
+  const [searchOpen, setSearchOpen] = useState(false); // 전역 통합검색 오버레이(학생)
   const [exitHint, setExitHint] = useState(false); // 홈에서 '한 번 더 누르면 종료' 토스트
   const exitArmed = useRef(false);
   const exitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -72,14 +82,27 @@ function AppInner() {
     });
   }, []);
 
+  // N30 — 학생 로그인/복귀 시 첫 화면은 홈('h'). me 가 바뀔 때 1회만 보정(이후 탭 이동은 그대로).
   useEffect(() => {
-    if (me?.role === 'guardian') {
-      api.get<Child[]>('/guardian/children').then((cs) => {
-        setChildren(cs);
-        setActiveChild((prev) => prev ?? cs[0]?.studentId ?? null);
-      }).catch(() => {});
-    }
-  }, [me]);
+    if (me?.role === 'student') setTab('h');
+  }, [me?.id, me?.role]);
+
+  // 연결 신청 후에도 다시 부른다(승인 전이면 여전히 0명이 정상 — 그때는 신청 화면이 계속 열려 있다).
+  // 조회 **실패**를 '0명'과 같이 다루면 안 된다: 이미 연결된 학부모가 일시적 오류로 신청 폼으로 강등된다.
+  const loadChildren = useCallback(() => {
+    if (me?.role !== 'guardian') return;
+    api.get<Child[]>('/guardian/children').then((cs) => {
+      setChildren(cs);
+      setChildState('ok');
+      // 새 목록과 대조한다 — 계정을 바꾸거나 연결이 해제되면 이전 자녀를 계속 가리키게 된다.
+      setActiveChild((prev) => (prev && cs.some((c) => c.studentId === prev) ? prev : cs[0]?.studentId ?? null));
+    }).catch(() => setChildState('error'));
+  }, [me?.role]);
+  useEffect(() => {
+    // 계정이 바뀌면 이전 계정의 자녀를 먼저 지운다(fetch 완료 전까지 남으면 남의 자녀를 가리킨다).
+    setChildren([]); setActiveChild(null); setChildState(me?.role === 'guardian' ? 'loading' : 'ok');
+    loadChildren();
+  }, [me, loadChildren]);
 
   // 푸시 토큰 등록 — 네이티브는 expo-notifications 실 토큰, 웹은 데모 토큰.
   useEffect(() => {
@@ -93,7 +116,8 @@ function AppInner() {
     if (backStack.pop()) return true; // 하위 화면(자동매칭·기록·분류·시간변경 등) 닫기
     if (booking) { setBooking(false); return true; }
     if (teacher) { setTeacher(null); return true; }
-    if (tab !== 'a') { setTab(tabHist.current.pop() ?? 'a'); return true; } // 직전 탭으로 복귀(없으면 홈)
+    const homeTab = me?.role === 'student' ? 'h' : 'a'; // N30 — 학생 홈은 'h'
+    if (tab !== homeTab) { setTab(tabHist.current.pop() ?? homeTab); return true; } // 직전 탭으로 복귀(없으면 홈)
     // 홈 최상위: 첫 뒤로가기는 종료 안내 후 유지, 2초 내 다시 누르면 종료 허용.
     if (exitArmed.current) {
       exitArmed.current = false;
@@ -124,7 +148,7 @@ function AppInner() {
   if (!ready)
     return (
       <View style={styles.center}>
-        <ActivityIndicator color="#0E5C7C" />
+        <ActivityIndicator color="#2F6FB3" />
       </View>
     );
 
@@ -142,11 +166,17 @@ function AppInner() {
   const isGuardian = me.role === 'guardian';
   const isStudent = me.role === 'student';
   const isTeacher = me.role === 'teacher';
-  const tabs = isGuardian ? ['a', 'b', 'g', 'c', 'd'] : isTeacher ? ['ti', 'to', 'ts', 'tr', 'tm'] : ['a', 'b', 'r', 'e', 'c', 'f', 'd'];
+  // N30 — 학생 하단 탭 7→5(홈/질문/진단/일정/내정보). 탭에서 빠진 화면(a/r/e/f)은 홈 바로가기로 보존(기능 보존).
+  const tabs = isGuardian ? ['a', 'b', 'g', 'c', 'd'] : isTeacher ? ['ti', 'to', 'ts', 'tr', 'tm'] : ['h', 'c', 'dg', 'b', 'd'];
   const guardianLabel: Record<string, string> = { a: '홈', b: '상담', g: '멤버십', c: '결제', d: '충전' };
-  const studentLabel: Record<string, string> = { a: '선생님', b: '내 예약', r: '강의실', e: '자료실', c: 'Q&A', f: '커뮤니티', d: '마이' };
+  const studentLabel: Record<string, string> = { h: '홈', dg: '진단', a: '선생님 찾기', b: '일정', r: '강의실', e: '자료실', c: '질문', f: '커뮤니티', d: '내정보' };
   const teacherLabel: Record<string, string> = { ti: '인박스', to: '오늘', ts: '상담', tr: '기록', tm: '마이' };
+  // 시안(janus_app_v1) 하단 탭: 아이콘+라벨 — 도메인 아이콘 슬롯 규칙
+  const guardianIcon: Record<string, string> = { a: '⌂', b: '◇', g: '◈', c: '₩', d: '⊕' };
+  const studentIcon: Record<string, string> = { h: '⌂', dg: '◱', a: '◇', b: '▤', r: '▶', e: '▦', c: '✎', f: '◫', d: '◯' };
+  const teacherIcon: Record<string, string> = { ti: '✎', to: '▤', ts: '◇', tr: '▦', tm: '◯' };
   const tabLabel = (t: string) => (isGuardian ? guardianLabel[t] ?? '' : isTeacher ? teacherLabel[t] ?? '' : studentLabel[t] ?? '');
+  const tabIcon = (t: string) => (isGuardian ? guardianIcon[t] ?? '' : isTeacher ? teacherIcon[t] ?? '' : studentIcon[t] ?? '');
   // 선생님은 탭키가 다르므로 기본 진입 탭 보정('a' → 'ti')
   const tTab = isTeacher && !['ti', 'to', 'ts', 'tr', 'tm'].includes(tab) ? 'ti' : tab;
 
@@ -156,6 +186,11 @@ function AppInner() {
       <View style={styles.header}>
         <Text style={styles.brand}>{APP_NAME} · {isGuardian ? '학부모' : isTeacher ? '선생님' : '학생'}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+          {isStudent && (
+            <TouchableOpacity onPress={() => setSearchOpen(true)}>
+              <Text style={styles.logout}>🔍 검색</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity onPress={toggle}>
             <Text style={styles.logout}>{dark ? '☀️ 라이트' : '🌙 다크'}</Text>
           </TouchableOpacity>
@@ -171,12 +206,21 @@ function AppInner() {
       </View>
 
       <View style={styles.body}>
+        {searchOpen && isStudent && (
+          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20 }}>
+            <GlobalSearchScreen onClose={() => setSearchOpen(false)} goTab={(t) => { setTeacher(null); setBooking(false); goTab(t); }} />
+          </View>
+        )}
         {!isStudent && !isGuardian && !isTeacher && <Text style={styles.notice}>이 역할은 웹(apps/web)을 이용하세요.</Text>}
 
         {isTeacher && (tTab === 'ti' ? <TeacherInbox /> : tTab === 'to' ? <TeacherToday myId={me.id} /> : tTab === 'ts' ? <TeacherSessions myId={me.id} /> : tTab === 'tr' ? <TeacherRecords /> : <TeacherMy myId={me.id} />)}
 
         {isStudent &&
-          (tab === 'a' ? (
+          (tab === 'h' ? (
+            <HomeScreen name={me.name} goTab={goTab} />
+          ) : tab === 'dg' ? (
+            <DiagnosticScreen onGoQna={() => goTab('c')} />
+          ) : tab === 'a' ? (
             teacher ? (
               booking ? (
                 <SlotsScreen teacher={teacher} initialMode={bookMode} consultType={bookType} initialSubType={bookSub} onBack={() => setBooking(false)} />
@@ -188,6 +232,8 @@ function AppInner() {
             )
           ) : tab === 'b' ? (
             <BookingsScreen myId={me.id} />
+          ) : tab === 'ac' ? (
+            <AcademyFinderScreen />
           ) : tab === 'r' ? (
             <ClassroomScreen />
           ) : tab === 'e' ? (
@@ -197,14 +243,26 @@ function AppInner() {
           ) : tab === 'f' ? (
             <CommunityScreen />
           ) : (
-            <MyScreen />
+            <MyScreen goTab={goTab} />
           ))}
 
         {isGuardian && (
-          children.length === 0 ? (
-            <View style={{ padding: SP.xl }}><Text style={styles.notice}>연결된 자녀가 없어요. 학생 계정에서 보호자 연결을 승인하면 표시됩니다.</Text></View>
+          // 자녀가 0명이면 5탭 전부가 안내 한 줄이었고 **신청 화면이 없어** 학생에게 승인할 것도 생기지 않았다(교착).
+          // 유일한 탈출구이므로 안내 대신 신청 화면 자체를 띄운다.
+          // 단 '조회 실패'는 0명이 아니다 — 연결된 학부모를 신청 폼으로 강등시키면 안 된다.
+          childState === 'loading' ? (
+            <View style={styles.center}><ActivityIndicator color={C.teal} /></View>
+          ) : childState === 'error' ? (
+            <View style={{ padding: SP.xl }}>
+              <Text style={styles.notice}>자녀 목록을 불러오지 못했어요.</Text>
+              <TouchableOpacity onPress={loadChildren} style={{ marginTop: SP.md }}>
+                <Text style={{ color: C.teal, fontWeight: '700' }}>다시 시도</Text>
+              </TouchableOpacity>
+            </View>
+          ) : children.length === 0 ? (
+            <GuardianLinkScreen onLinked={loadChildren} />
           ) : tab === 'a' ? (
-            <GuardianHome children={children} activeId={activeChild} setActiveId={setActiveChild} goTab={goTab} />
+            <GuardianHome children={children} activeId={activeChild} setActiveId={setActiveChild} goTab={goTab} onLinked={loadChildren} />
           ) : tab === 'b' ? (
             <GuardianConsult children={children} activeId={activeChild} setActiveId={setActiveChild} />
           ) : tab === 'c' ? (
@@ -217,7 +275,8 @@ function AppInner() {
         )}
       </View>
 
-      {(isStudent || isGuardian || isTeacher) && (
+      {/* 학부모는 자녀가 있어야 탭이 의미를 갖는다 — 0명일 때 탭을 두면 하이라이트만 움직이고 화면은 그대로다(거짓 이동). */}
+      {(isStudent || isTeacher || (isGuardian && childState === 'ok' && children.length > 0)) && (
         <View style={styles.tabs}>
           {tabs.map((t) => (
             <TouchableOpacity
@@ -225,6 +284,7 @@ function AppInner() {
               style={[styles.tab, tTab === t && styles.tabActiveBox]}
               onPress={() => goTab(t)}
             >
+              <Text style={[styles.tabIcon, tTab === t && styles.tabIconActive]}>{tabIcon(t)}</Text>
               <Text style={[styles.tabLabel, tTab === t && styles.tabActive]}>{tabLabel(t)}</Text>
             </TouchableOpacity>
           ))}
@@ -243,16 +303,18 @@ function AppInner() {
 const makeStyles = (C: Palette) => StyleSheet.create({
   app: { flex: 1, backgroundColor: C.bg },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.bg },
-  header: { backgroundColor: C.teal, paddingHorizontal: SP.lg, paddingVertical: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  header: { backgroundColor: C.navy, paddingHorizontal: SP.lg, paddingVertical: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   brand: { color: '#FFFFFF', fontWeight: '800', fontSize: 16, letterSpacing: -0.3 },
-  logout: { color: '#cfe3ec', fontSize: 13, fontWeight: '600' },
+  logout: { color: '#cfe0f5', fontSize: 13, fontWeight: '600' },
   body: { flex: 1 },
   notice: { padding: SP.xl, color: C.muted },
   exitToast: { position: 'absolute', left: 0, right: 0, bottom: 76, alignItems: 'center' },
-  exitToastT: { backgroundColor: 'rgba(22,36,43,0.92)', color: '#fff', fontSize: 13, fontWeight: '700', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, overflow: 'hidden' },
+  exitToastT: { backgroundColor: 'rgba(13,22,38,0.92)', color: '#fff', fontSize: 13, fontWeight: '700', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, overflow: 'hidden' },
   tabs: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: C.line, backgroundColor: C.white, paddingBottom: 4 },
-  tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderTopWidth: 2, borderTopColor: 'transparent' },
-  tabActiveBox: { borderTopColor: C.teal },
-  tabLabel: { color: C.caption, fontWeight: '600', fontSize: 13 },
-  tabActive: { color: C.teal, fontWeight: '800' },
+  tab: { flex: 1, paddingVertical: 8, alignItems: 'center', borderTopWidth: 2, borderTopColor: 'transparent' },
+  tabActiveBox: { borderTopColor: C.blue },
+  tabIcon: { color: C.caption, fontSize: 16, lineHeight: 20 },
+  tabIconActive: { color: C.blue },
+  tabLabel: { color: C.caption, fontWeight: '600', fontSize: 12, marginTop: 1 },
+  tabActive: { color: C.blue, fontWeight: '800' },
 });

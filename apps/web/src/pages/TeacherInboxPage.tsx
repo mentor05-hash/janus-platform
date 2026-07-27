@@ -8,7 +8,7 @@ type Inbox = {
   counts: { requests: number; questions: number; unreadChats: number; notifications: number };
   requests: { bookingId: string; studentName: string; consultType: string | null; subType: string | null; mode: string; start: string | null }[];
   questions: { id: string; studentName: string; body: string; assigned: boolean; createdAt: string }[];
-  notifications: { id: string; type: string; title: string; body: string; readAt: string | null; createdAt: string }[];
+  notifications: { id: string; type: string; title: string; body: string; payload?: { bookingId?: string } | null; readAt: string | null; createdAt: string }[];
   unreadByBooking: Record<string, number>;
 };
 type Filter = 'all' | 'req' | 'q' | 'noti';
@@ -132,7 +132,12 @@ export function TeacherInboxPage() {
               <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 3 }}>{n.body}</div>
               <div style={{ fontSize: 11, color: 'var(--caption)', marginTop: 3 }}>{when(n.createdAt)}</div>
             </div>
-            <Button size="sm" variant="ghost" onClick={() => readNoti(n.id)}>읽음</Button>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {n.type === 'chat_message' && n.payload?.bookingId && (
+                <Link className="btn sm" to={`/app/bookings?chat=${n.payload.bookingId}`} onClick={() => void readNoti(n.id)}>💬 채팅 열기</Link>
+              )}
+              <Button size="sm" variant="ghost" onClick={() => readNoti(n.id)}>읽음</Button>
+            </div>
           </div>
         </Card>
       ))}

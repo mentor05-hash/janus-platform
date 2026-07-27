@@ -48,7 +48,7 @@ export function ForgotPasswordPage() {
         ) : (
           <>
             {devToken && (
-              <div style={{ background: 'var(--teal-50,#F0F7FA)', borderRadius: 8, padding: 9, fontSize: 12, color: 'var(--teal)', marginBottom: 8, wordBreak: 'break-all' }}>
+              <div style={{ background: 'var(--teal-50,#EEF4FB)', borderRadius: 8, padding: 9, fontSize: 12, color: 'var(--teal)', marginBottom: 8, wordBreak: 'break-all' }}>
                 데모: 발급 토큰이 자동 입력되었습니다. 실제 서비스는 이메일/SMS로 전송됩니다.
               </div>
             )}

@@ -18,9 +18,9 @@ export class PayrollController {
     return this.payroll.payslip(id, user, period);
   }
 
-  /** POST /teachers/{id}/payroll/pay — 지급완료 처리(관리자/HR). */
+  /** POST /teachers/{id}/payroll/pay — 지급완료 처리(관리자 전용 · N35→O127). */
   @Post(':id/payroll/pay')
-  @Roles('admin', 'hr')
+  @Roles('admin')
   pay(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthUser,
@@ -39,18 +39,20 @@ export class PayrollController {
     return this.payroll.revenueSharePayslip(id, user, period);
   }
 
-  /** GET /teachers/{id}/payroll — 예상급여(본인 또는 관리자/HR). */
+  /** GET /teachers/{id}/payroll — 예상급여(본인 또는 관리자). */
   @Get(':id/payroll')
   estimate(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthUser,
+    @Query('period') period?: string,
   ) {
-    return this.payroll.estimate(id, user);
+    // period 미지정이면 이번 달(payslip 과 동일 규약) — 응답의 `period` 필드로 어느 달인지 밝힌다.
+    return this.payroll.estimate(id, user, period);
   }
 
-  /** POST /teachers/{id}/payroll/settle — 확정 정산 기록(관리자/HR). */
+  /** POST /teachers/{id}/payroll/settle — 확정 정산 기록(관리자 전용 · N35→O127). */
   @Post(':id/payroll/settle')
-  @Roles('admin', 'hr')
+  @Roles('admin')
   settle(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: AuthUser,
@@ -63,23 +65,23 @@ export class PayrollController {
 export class PayrollAdminController {
   constructor(private readonly payroll: PayrollService) {}
 
-  /** GET /admin/payroll/report?period=YYYY-MM — 재무 정산 리포트(관리자/HR). */
+  /** GET /admin/payroll/report?period=YYYY-MM — 재무 정산 리포트(관리자 전용 · N35→O127). */
   @Get('report')
-  @Roles('admin', 'hr')
+  @Roles('admin')
   report(@CurrentUser() user: AuthUser, @Query('period') period?: string) {
     return this.payroll.financeReport(user, period);
   }
 
-  /** GET /admin/payroll/revenue-share?period= — 전임 매출배분(60%) 급여 요약(관리자/HR·센터 스코프). */
+  /** GET /admin/payroll/revenue-share?period= — 전임 매출배분(60%) 급여 요약(관리자 전용·센터 스코프). */
   @Get('revenue-share')
-  @Roles('admin', 'hr')
+  @Roles('admin')
   revenueShareList(@CurrentUser() user: AuthUser, @Query('period') period?: string) {
     return this.payroll.revenueShareList(user, period);
   }
 
   /** GET /admin/payroll/share-policy — 매출 배분율 조회. */
   @Get('share-policy')
-  @Roles('admin', 'hr')
+  @Roles('admin')
   getSharePolicy() {
     return this.payroll.getSharePolicy();
   }
@@ -93,7 +95,7 @@ export class PayrollAdminController {
 
   /** GET /admin/payroll/model — 급여 모델(배분/기본급보장/기본급+인센티브). */
   @Get('model')
-  @Roles('admin', 'hr')
+  @Roles('admin')
   getModel() {
     return this.payroll.getModelPolicy();
   }

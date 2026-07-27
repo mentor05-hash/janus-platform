@@ -3,6 +3,8 @@ import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TextInput, To
 import { api, ApiError, Booking } from '../api';
 import { useTheme, type Palette } from '../theme';
 import { useSessionHost, SessionHost } from './SessionHost';
+import { ChatInboxScreen } from './ChatInboxScreen';
+import { TeacherReportPanel } from './TeacherReportPanel';
 import { queueNote, flushNotes, queuedCount, onlineFlush } from '../offlineQueue';
 
 // ── 공통 ──
@@ -28,6 +30,7 @@ export function TeacherInbox() {
   const [msg, setMsg] = useState('');
   const [ansFor, setAnsFor] = useState<string | null>(null);
   const [ansText, setAnsText] = useState('');
+  const [chatsOpen, setChatsOpen] = useState(false); // 채팅 인박스 오버레이 — '새 메시지' 탭
 
   const load = useCallback(() => { api.get<Inbox>('/me/inbox').then((r) => setD(unwrap(r))).catch(() => setD(null)); }, []);
   useEffect(() => { load(); }, [load]);
@@ -47,6 +50,7 @@ export function TeacherInbox() {
     } catch (e) { setMsg(e instanceof ApiError ? e.message : '답변 실패'); } finally { setBusy(null); }
   }
 
+  if (chatsOpen) return <ChatInboxScreen onBack={() => { setChatsOpen(false); load(); }} />;
   if (!d) return <Center C={C} />;
   const show = (f: Filter) => filter === 'all' || filter === f;
   const chips: { k: Filter; label: string; n?: number }[] = [
@@ -63,7 +67,9 @@ export function TeacherInbox() {
       <View style={s.summary}>
         <Sum label="대기 상담" n={d.counts.requests} C={C} />
         <Sum label="답변 대기" n={d.counts.questions} C={C} />
-        <Sum label="새 메시지" n={d.counts.unreadChats} C={C} accent />
+        <TouchableOpacity style={{ flex: 1 }} activeOpacity={0.7} onPress={() => setChatsOpen(true)}>
+          <Sum label="새 메시지 ›" n={d.counts.unreadChats} C={C} accent />
+        </TouchableOpacity>
       </View>
       <View style={s.chips}>
         {chips.map((c) => (
@@ -253,8 +259,8 @@ export function TeacherRecords() {
       {mode === 'booking' ? (
         targets.length === 0 ? <Text style={s.empty}>기록할 상담이 없어요.</Text> : targets.map((b) => (
           <TouchableOpacity key={b.id} style={[s.card, detail?.kind === 'edit' && detail.booking.id === b.id && s.cardSel]} onPress={() => setDetail({ kind: 'edit', booking: b })}>
-            <View style={s.row}><Text style={s.title}>{b.consultType ?? '상담'} · {modeLabel(b.mode)}</Text><Text style={s.time}>{KST(b.start)}</Text></View>
-            <Text style={s.body}>{statusLabel(b.status)} · 기록 {b.status === 'done' ? '완료' : '작성/수정'} ›</Text>
+            <View style={s.row}><Text style={s.title}>{b.studentName ?? `학생 ${b.studentId.slice(0, 6)}`} · {b.consultType ?? '상담'}</Text><Text style={s.time}>{KST(b.start)}</Text></View>
+            <Text style={s.body}>{modeLabel(b.mode)} · {statusLabel(b.status)} · 기록 {b.status === 'done' ? '완료' : '작성/수정'} ›</Text>
           </TouchableOpacity>
         ))
       ) : (
@@ -360,6 +366,8 @@ function NoteEditor({ booking, onClose, embedded }: { booking: Booking; onClose:
         <TouchableOpacity disabled={busy} style={[s.btn, s.btnG]} onPress={() => save('draft')}><Text style={s.btnGT}>임시저장</Text></TouchableOpacity>
         <TouchableOpacity disabled={busy} style={[s.btn, s.btnP]} onPress={() => save('final')}><Text style={s.btnPT}>최종 저장 → 완료</Text></TouchableOpacity>
       </View>
+      {/* 상담 기록을 원천으로 학생·학부모 2뷰 리포트 생성·검수·발송(웹 파리티) */}
+      <TeacherReportPanel bookingId={booking.id} />
     </ScrollView>
   );
 }
@@ -394,7 +402,7 @@ export function TeacherToday({ myId }: { myId: string }) {
       <Text style={s.h1}>오늘</Text>
       <View style={s.seg}>
         {WORK.map((w) => (
-          <TouchableOpacity key={w.k} style={[s.segItem, work === w.k && (w.k === 'rest' ? { backgroundColor: '#F3B34D' } : w.k === 'off' ? { backgroundColor: C.line } : s.segOn)]} onPress={() => setStatus(w.k)}>
+          <TouchableOpacity key={w.k} style={[s.segItem, work === w.k && (w.k === 'rest' ? { backgroundColor: '#CF9A3A' } : w.k === 'off' ? { backgroundColor: C.line } : s.segOn)]} onPress={() => setStatus(w.k)}>
             <Text style={[s.segT, work === w.k && (w.k === 'on' ? s.segTOn : { color: w.k === 'rest' ? '#5A3A00' : C.ink })]}>{w.label}</Text>
           </TouchableOpacity>
         ))}

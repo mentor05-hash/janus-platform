@@ -37,4 +37,13 @@ export class NotificationService {
     }
     return { id, read: true };
   }
+
+  /** 내 알림 전체 읽음 처리. */
+  async markAllRead(recipientId: string) {
+    const upd = await this.prisma.notification.updateMany({
+      where: { recipient_id: recipientId, read_at: null },
+      data: { read_at: new Date() },
+    });
+    return { read: upd.count };
+  }
 }

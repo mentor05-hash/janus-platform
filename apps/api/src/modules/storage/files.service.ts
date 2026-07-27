@@ -16,6 +16,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccountRole } from '../../config/enums';
 import { STORAGE_PROVIDER } from './storage.types';
 import type { StorageProvider, UploadedFileLike } from './storage.types';
+import { SchoolRecordGuardService } from '../guard/school-record-guard.service';
 
 /**
  * 파일 업로드/다운로드 (StorageProvider 위임 + stored_file 소유권 기록).
@@ -26,6 +27,7 @@ export class FilesService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(STORAGE_PROVIDER) private readonly storage: StorageProvider,
+    private readonly guard: SchoolRecordGuardService,
   ) {}
 
   /** 이 선생님의 예약 중 해당 파일을 첨부로 가진 건이 있는지(jsonb 포함 검사). */
@@ -47,9 +49,43 @@ export class FilesService {
     return q.length > 0;
   }
 
-  async upload(ownerId: string, file: UploadedFileLike) {
+  /** 참여 관계 기반 열람(역할 무관) — 상대방이 올린 파일이라도 같은 맥락의 참여자면 허용.
+   *  ① 예약 채팅 이미지/파일: 그 예약의 참여자 ② Q&A 답변 첨부(필기 풀이): 질문 작성 학생
+   *  ③ 화이트보드 스냅샷 배경: 그 예약의 참여자. (P4에서 표면화 — 선생님 업로드가 학생에게 403이던 갭) */
+  private async participantCanAccess(userId: string, fileId: string): Promise<boolean> {
+    const chat = await this.prisma.chat_message.findFirst({
+      // 삭제(회수)된 메시지의 첨부는 상대에게 다시 열지 않는다(소유자는 위의 owner 검사로 통과).
+      where: { image_file_id: fileId, deleted_at: null, booking: { OR: [{ student_id: userId }, { teacher_id: userId }] } },
+      select: { id: true },
+    });
+    if (chat) return true;
+    const match = `[{"id":"${fileId}"}]`;
+    const ans = await this.prisma.$queryRaw<{ ok: number }[]>`
+      SELECT 1 AS ok FROM qna_answer a JOIN qna_post p ON p.id = a.post_id
+      WHERE p.student_id = ${userId}::uuid AND a.attachments @> ${match}::jsonb
+      LIMIT 1`;
+    if (ans.length > 0) return true;
+    const wb = await this.prisma.whiteboard_snapshot.findFirst({
+      where: { background_file_id: fileId, booking: { OR: [{ student_id: userId }, { teacher_id: userId }] } },
+      select: { id: true },
+    });
+    return !!wb;
+  }
+
+  async upload(
+    ownerId: string,
+    file: UploadedFileLike,
+    opts?: { surface?: string; actorRole?: string },
+  ) {
     if (!file?.buffer?.length)
       throw new BadRequestException('업로드할 파일이 없습니다.');
+    // 생기부 가드(지시서 §6 스텝2) — 저장 전 판정. 감지 시 예외(스토리지·DB 미기록).
+    // surface/actor 는 차단 통계(스텝3)용 메타. 미지정 시 표면='upload', 행위자=소유자.
+    await this.guard.assertUploadAllowed(file, {
+      surface: opts?.surface ?? 'upload',
+      actorId: ownerId,
+      actorRole: opts?.actorRole,
+    });
     const key = `uploads/${randomUUID()}`;
     await this.storage.put({
       key,
@@ -119,6 +155,9 @@ export class FilesService {
     if (!isPdf) throw new BadRequestException('PDF 파일이 아닙니다.');
     if (file.buffer.length > 40 * 1024 * 1024) throw new BadRequestException('PDF 가 너무 큽니다(40MB 초과).');
 
+    // 생기부 가드(지시서 §6 스텝2) — PDF 텍스트 판정. 감지 시 저장·렌더 전 예외.
+    await this.guard.assertUploadAllowed(file);
+
     // 원본 PDF 저장(페이지 넘김 시 재렌더용)
     const pdfKey = `uploads/${randomUUID()}`;
     await this.storage.put({ key: pdfKey, data: file.buffer, contentType: 'application/pdf' });
@@ -152,7 +191,9 @@ export class FilesService {
       row.owner_id === user.id ||
       user.role === AccountRole.ADMIN ||
       // 학생이 예약에 첨부한 문제 파일 → 그 예약의 담당 선생님은 열람 가능(§5-10)
-      (user.role === AccountRole.TEACHER && (await this.teacherOwnsAttachment(user.id, id)));
+      (user.role === AccountRole.TEACHER && (await this.teacherOwnsAttachment(user.id, id))) ||
+      // 참여 관계 열람 — 채팅 이미지·Q&A 답변 첨부·보드 배경(상대가 올린 파일)
+      (await this.participantCanAccess(user.id, id));
     if (!allowed) {
       throw new ForbiddenException('이 파일에 접근할 권한이 없습니다.');
     }

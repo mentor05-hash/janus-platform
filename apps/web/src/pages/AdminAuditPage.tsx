@@ -16,6 +16,8 @@ const GROUPS: { key: string; label: string }[] = [
   { key: 'feature', label: '기능토글' },
   { key: 'payroll', label: '급여' },
   { key: 'org', label: '조직' },
+  // 보호자 연결 강제 복구(O125) — 칩이 없으면 '전체' 200건 안에 묻힌다.
+  { key: 'guardian', label: '보호자 연결' },
 ];
 const kindOf = (a: string): 'new' | 'confirmed' | 'done' | 'soft' =>
   a.startsWith('payroll') ? 'confirmed' : a.startsWith('org') ? 'done' : a.startsWith('pricing') || a.startsWith('feature') ? 'new' : 'soft';
@@ -51,7 +53,7 @@ export function AdminAuditPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead><tr>
               {['시각', '조작', '요약', '수행자'].map((h) => (
-                <th key={h} style={{ textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', background: 'var(--fill,#f6f8fa)' }}>{h}</th>
+                <th key={h} style={{ textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', background: 'var(--fill,#f4f7fb)' }}>{h}</th>
               ))}
             </tr></thead>
             <tbody>

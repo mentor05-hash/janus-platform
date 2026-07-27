@@ -1,0 +1,118 @@
+# 배치표 허브 운영 가이드
+
+> 원칙(CLAUDE.md §4): 배치표·격차 리포트 HTML 은 **어디가 등 저작권 데이터가 포함**되므로
+> 이 repo 에 절대 커밋하지 않는다. 파일은 로컬 데이터 디렉토리에 두고 **런타임 서빙**만 한다.
+
+## 1. 배치 방법
+
+1. `JANUS_DATA_DIR/placement-hub/` 폴더에 배치표 HTML(영문 파일명)을 넣는다.
+2. `manifest.example.json` 을 `JANUS_DATA_DIR/placement-hub/manifest.json` 으로 복사해 목록을 맞춘다.
+   - manifest 는 **허용목록**이다 — 목록에 없는 파일은 어떤 경로로도 서빙되지 않는다.
+3. **docker 실행 시(권장)** — full 스택은 호스트 데이터 폴더를 컨테이너에 읽기전용 마운트한다.
+   `JANUS_DATA_DIR_HOST` 에 **placement-hub 를 담은 상위 폴더**(예: `20_data`) 경로를 준다:
+   ```
+   JANUS_DATA_DIR_HOST=/절대경로/janus/20_data \
+     docker compose -f docker-compose.full.yml up -d --build api web
+   ```
+   컨테이너 안에선 `JANUS_DATA_DIR=/data/janus` 로 고정(compose 에 내장) → `/data/janus/placement-hub/` 를 읽는다.
+   미설정 시 `./janus-data`(gitignore) 로 폴백 → 없으면 빈 폴더 → 허브는 '준비 중'(+계산기 탭만).
+   **로컬 node 실행 시**는 `.env` 의 `JANUS_DATA_DIR=` 를 실제 경로로 두면 된다.
+4. 확인: `GET /api/v1/placement-hub/list` → `available:true` → 웹 `/placement/hub` 에 탭으로 나타난다.
+
+> ⚠ 이전에 `docker-compose.full.yml up` 만 하면 허브가 계속 '준비 중' 이던 이유 = compose 에 데이터 마운트가 없었기 때문(수정됨). 이제 `JANUS_DATA_DIR_HOST` 만 주면 된다. `-f docker-compose.full.yml` 은 `docker-compose.override.yml` 을 자동 병합하지 않으므로 setup-demo-hub.sh 의 override 대신 위 방식을 쓴다.
+
+## 2. 파일 생성(야누스판)
+
+- 마스터 → 배포판 생성은 `build_janus_edition_v2.py` (원 작업 위치: 배치표 작업폴더 — 마스터·로고 SVG 와 같은 폴더에서 실행).
+- 기능 수정은 항상 **마스터**에만 하고 이 스크립트로 재생성한다(배포판 직접 수정 금지).
+- 산출물 파일명은 영문으로 바꿔 `placement-hub/` 에 배치(예: `jeongsi-2027-v25.html`).
+
+## 2-1. 티어 빌드 파이프라인 (C4 — dist-tier 4종, 무료판만 공개)
+
+마스터 1개 → 무료/회원/유료/컨설턴트 4종 산출. **저작권 데이터는 repo 밖**(마스터도 `JANUS_DATA_DIR` 로컬), 파이프라인 **코드만** repo 에 있다(C6).
+
+- **빌드**: `python3 ops/placement/tier_build.py --src <마스터.html> --all --out dist-tier`
+  - `--tier free` 로 무료판만도 가능. 산출은 `dist-tier/{tier}/` (전부 gitignore — 무료판은 janus-public `/baechi/` 로 배포, repo 커밋 금지).
+- **티어별 검증**: `python3 ops/placement/tier_verify.py dist-tier/<tier> --tier <tier>`
+  - `tiers.config.json`의 `verify.tiers[tier].forbidden` 검출 시 **비-0 종료**. 워터마크·티어 플래그 존재도 확인.
+  - **무료판**(`--tier free`): 저작권 원천·컷 + 상위(회원/유료/컨설턴트) 전용 **전부 부재** → 공개 배포 가능(W2 D1 ✅기준 자동화, janus-public `/baechi/`).
+  - **회원판**(`--tier member`): 상위(유료/컨설턴트) 전용만 부재 — **회원 데이터는 정상 보유**. 회원판은 **공개 배포 대상이 아님**(무료 기준으로 검증하면 실패=정상). `JANUS_DATA_DIR/placement-hub/` 에 두고 **허브 티켓 게이트(C2·회원 티어)** 뒤에서만 서빙한다.
+  - 합성 픽스처 4종 전부 자기 티어 검증 통과 + 회원판을 free 기준으로 보면 실패(공개불가 확인) — E2E 실증됨.
+- **파이프라인이 하는 일**: ①티어 게이트 영역 마스킹(마스터가 `<!--JANUS-TIER:member-->…<!--/JANUS-TIER-->` 로 감싼 상위-티어 데이터를 하위 판에서 물리 제거) ②지정 페이로드 제거(`tiers.config.json`의 `strip_assignments` — 센티넬 없는 기존 마스터용 폴백) ③FLAGS 주입(`window.__JANUS_FLAGS` — 마스터 JS 가 전체표·필터·고급·수치노출 게이팅) ④워터마크+면책 배너 전 화면 ⑤무료판 접속 로그 비콘(page `baechi`, C3).
+- **마스터 준비(권장)**: 상위-티어 전용 데이터/UI 를 `<!--JANUS-TIER:LEVEL-->…<!--/JANUS-TIER-->`(LEVEL=member|paid|consultant)로 감싸 두면 티어 분리가 깔끔하다. 대형 데이터 배열은 `const __JANUS_CUTS__=…`처럼 이름을 `strip_assignments`에 등록하면 무료판에서 값이 `[]`/`{}`로 비워진다.
+- **합성 테스트**: `ops/placement/fixtures/master_sample.html`(가짜 데이터·저작권 없음)로 빌드→검증 E2E 가 통과한다(무료판 통과·회원판은 데이터 보유로 검증 실패=공개 불가 확인). 실제 마스터는 이 픽스처 자리에 로컬 경로만 바꿔 물린다.
+
+## 2-2. 격차 리포트 목표컷 실연동 (N29)
+
+웹 `/placement/gap`(격차 리포트)이 목표 학과의 지원가능선(70%컷)을 **수동 입력 대신 검색**으로 채우게 하려면:
+
+1. `targets.example.json` 을 `JANUS_DATA_DIR/placement-hub/targets.json` 으로 복사.
+2. `targets[].cutNb`(전국누백 %)를 배치표 지원가능선으로 채운다(저작권 데이터 → repo 무반입, 로컬만).
+3. 확인: 회원+ 로그인 상태에서 `GET /api/v1/placement-hub/targets?q=서울대` → 격차 페이지 검색창에 후보가 뜬다. 선택 시 대학·학과·컷이 자동 입력된다.
+
+파일이 없으면(개발·CI) 격차 페이지는 **수동 입력 폴백**으로 동작한다. 컷 수치는 회원 티어 게이트 뒤에서만 검색된다(비로그인·free 는 빈 결과).
+
+## 3. 티어 게이트 (접합계약 C2 — 토큰 없으면 무료판만)
+
+- `tier: free`(또는 미지정)만 비로그인 공개. `member|paid|consultant` 는 로그인 사용자가
+  `POST /placement-hub/ticket {slug}` 로 일회성 티켓(2분 TTL)을 받아 `file/:slug?t=티켓` 으로만 열람된다
+  (iframe 은 Authorization 헤더를 못 실으므로 티켓 방식).
+- 웹 허브(`/placement/hub`)는 비로그인 상태에서 회원급 탭에 잠금 패널을 띄운다. `?season=0` → 카이로스 탭 숨김.
+- W3 SSO(`janus:sso`, 서비스 id `baechipyo`) 결합 시 티켓 발급을 티어별 권한으로 확장한다.
+- **유료 배치표 상품(O74)**: `tier: paid` 표는 tierForRole≥paid(admin/hr) **또는** 상품 권한(`service_entitlement`)이 덮으면 티켓 발급.
+  전체 배치표(`baechipyo-full`)=모든 kind, 정시 정밀배치표(`baechipyo-jeongsi`)=`kind: jeongsi`만. 그래서 **정시 정밀표는 manifest 에서 `kind: "jeongsi"` 로 표기**해야 정시 상품이 열 수 있다.
+  권한 부여는 `POST /admin/entitlements {accountId, productKey, expiresAt}`(일회성 기간제) — 결제 훅은 후속(성공 콜백이 동일 grant() 호출).
+- 공개 배포 전 점검표(실행계획서 W2 D6): 무료판 외 파일은 공개 환경에 배치하지 않는다.
+- 접합계약 전문·재통합 게이트: `docs/30_features/야누스_배치표_핸드오프_2026-07-14.md` (C1~C6 — 위반 금지).
+
+## 3-1. 공개 상업화 방어(O76 — 유출 억지·귀속·원천차단)
+
+유료(비무료) 표 서빙에 자동 적용:
+- **1회용 티켓**: `?t=` 티켓은 1회 사용 후 소멸(재열람=재발급). 유출된 URL 재사용 차단.
+- **per-user 워터마크**: 서버가 서빙 직전 열람자(이름·loginId·시각 KST)를 가시 오버레이(대각 타일)로,
+  지문 토큰(`<!--jns-fp:base64url(loginId|accountId|ts)-->` 2곳 + `#jns-wm[data-fp]`)을 비가시로 주입.
+  유출본에서 `jns-fp` grep → base64url 디코드로 계정·시각 귀속. ⚠ 조작 제거 가능(억지·귀속 장치) —
+  대량 유출 **원천차단**은 아래 thin-slice 가 담당.
+- **일일 상한**: 계정당 유료 파일 티켓 40회/일 · slice 600행/일. 초과 시 `HUB_DAILY_CAP`(감사 로그 기록).
+- **감사 로그**: 티켓 발급(hub.ticket)·유료 서빙(hub.file)·상한 초과(hub.cap.*) 전건 audit_log.
+
+**thin-slice (공개 상업화 기본 경로 — 전체 파일 대신 조회 행만)**
+- `GET /placement-hub/slice/:slug?q=&limit=` — 게이트는 티켓과 동일(티어 또는 상품 권한).
+  요청당 최대 30행·검색어 2자+(전량 훑기 방지)·계정당 600행/일.
+- 데이터: `JANUS_DATA_DIR/placement-hub/slices/<slug>.json` = `{ "rows": [ {...행 객체} ] }`
+  (데이터 트랙이 마스터에서 생성 — 문자열 필드가 검색 대상. 예: univ·dept·track).
+- slice 파일 미배치면 `available:false` → 웹은 기존 전체 HTML(티켓+워터마크) 경로 폴백.
+- **원칙**: 전체 HTML 서빙은 내부·소수 신뢰 사용자용. 공개 상업 서비스는 slice 배치 후 그 경로로.
+
+## 3-2. 투트랙·3버전 원천 정책 (O77 — 외부 유료 공개는 V3만)
+
+- **V1**(아우구르 전·고속+어디가 병합) · **V2**(아우구르 적용 현행) = `"audience": "internal"` —
+  관리자(consultant)만 열람. **상품 권한(entitlement)으로도 열리지 않고**, 학생·유료회원에겐 탭 자체 숨김.
+- **V3**(청정 빌드: 어디가 원본 직수집 + 평가원·교육청 공식 + 아우구르, **고속 무입력**) = 외부 유료 공개 유일본.
+- 고속 데이터 = 파이프라인 입력 금지, **내부 벤치마크 전용**(V3 vs 고속 비교 — 내부 문서).
+- 반출 게이트: `python3 ops/placement/check_clean_build.py <DATA_DIR>/placement-hub`
+  — audience!=internal 표 + slices/*.json 에 고속 마커 0건이어야 통과(비-0 종료=반출 불가). fail-closed.
+- 필드별 원천 태깅·V3 체크리스트: `ops/placement/data-lineage-matrix.md` (데이터트랙이 채움).
+
+## 3-1. 카이로스·알레아 계산기 (배치표와 분리 — repo 서빙)
+
+카이로스·알레아는 **저작권 데이터가 없는 자체완결 코드**라 배치표(JANUS_DATA_DIR)와 달리 **repo 에 편입**한다.
+
+- 위치: `apps/web/public/calc/{kairos,alea}.html` (같은 출처 정적 자산).
+- 라우트: 독립 `/kairos`·`/alea`(전체 화면) + 배치표 허브 탭에 자동 편입('유료' 배지).
+- **manifest 에 넣지 말 것** — 허브가 repo 계산기 탭을 우선하며, 같은 slug 가 manifest 에도 있으면 데이터측을 제거(중복 방지).
+- 게이트(C2): `sso_service` 레지스트리(`kairos`·`alea`, `min_tier=paid` — 0064)가 단일 노브.
+  로그인 시 웹이 `GET /sso/entitlements` → `localStorage.janus_sso={tier,services}` 세팅 → 계산기가 읽어 잠금 해제.
+  회원(=member)은 free 티저(블러), 유료(paid)+ 는 전체. 유료 티어 도입 전에는 admin/hr(consultant)만 전체.
+- 계측(C3)·근거(C5): 계산기가 `janus:track`·`janus_report` 를 dispatch → 호스트가 funnel 계측/근거 수집으로 브리지.
+
+## 3-2. 배치표 버전(정시 v26 · 수시 v6) 반입
+
+- 마스터에서 `build_janus_edition_v2.py`(또는 티어 파이프라인 `tier_build.py`)로 배포판 생성 → 영문 파일명으로 `JANUS_DATA_DIR/placement-hub/` 배치(예: `jeongsi-2027-v26.html`, `susi-v6.html`).
+- `manifest.example.json`(이미 v26·v6 반영)을 복사해 목록을 맞춘다. 저작권 데이터·마스터는 **repo 무반입**(C6).
+- 성능/배포 계층(맥북=빌드 / Cloudflare=서비스)은 `docs/30_features/야누스_마감스파이크_성능설계서_*` 참조.
+
+## 4. 관련 문서
+
+- 이론서(컨설턴트 교육용): `docs/30_features/야누스_정시배치표_이론서_컨설턴트교육용_2026-07-13.html`
+- 예측선 방법론(대외 설명 논리): `docs/30_features/아우구르_예측선_방법론선언_2026-07-14.md`

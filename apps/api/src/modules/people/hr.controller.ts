@@ -112,6 +112,12 @@ export class HrController {
       data: { status: AccountStatus.APPROVED },
       select: { id: true, status: true },
     });
+    // 자가가입(signup) 계정은 프로필이 없어 학생 기능(FK)에서 500 — 승인 시 보장(bulk/excel 경로와 동형).
+    await this.prisma.student_profile.upsert({
+      where: { account_id: id },
+      update: {},
+      create: { account_id: id, center_id: target.center_id ?? null },
+    });
     await this.notify.notify(id, 'account_approved', {});
     return updated;
   }
@@ -366,6 +372,8 @@ export class HrController {
           subjects: true,
           grade: true,
           teacher_category: true,
+          target_achievements: true,
+          target_achievements_verified: true,
           account: { select: { name: true, status: true } },
           center: { select: { name: true } },
         },
@@ -383,6 +391,8 @@ export class HrController {
         grade: t.grade,
         category: t.teacher_category,
         centerName: t.center?.name ?? null,
+        achievementsCount: Array.isArray(t.target_achievements) ? t.target_achievements.length : 0,
+        targetAchievementsVerified: t.target_achievements_verified === true,
       })),
       meta: buildPageMeta(total, q.page, q.size),
     };

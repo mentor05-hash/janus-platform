@@ -281,7 +281,30 @@ export class ConsultationService {
       return;
     }
     if (user.role === AccountRole.STUDENT && user.id === studentId) return;
-    if (user.role === AccountRole.TEACHER) return; // 행 자체를 teacher_id 로 제한(listForStudent)
+    if (user.role === AccountRole.TEACHER) {
+      // 소속 센터 학생만(센터 없으면 담당 예약 이력이 있는 학생만) — teacherStudents 와 동일 경계.
+      // 이 스코프 검사가 없으면 listForStudent 의 save_state=FINAL 분기가 전 센터 학생 기록을 노출(BOLA).
+      const teacher = await this.prisma.teacher_profile.findUnique({
+        where: { account_id: user.id },
+        select: { center_id: true },
+      });
+      if (teacher?.center_id) {
+        const sp = await this.prisma.student_profile.findUnique({
+          where: { account_id: studentId },
+          select: { center_id: true },
+        });
+        if (sp?.center_id !== teacher.center_id)
+          throw new ForbiddenException('다른 센터 학생은 열람할 수 없습니다.');
+      } else {
+        const seen = await this.prisma.booking.findFirst({
+          where: { teacher_id: user.id, student_id: studentId },
+          select: { id: true },
+        });
+        if (!seen)
+          throw new ForbiddenException('담당 이력이 없는 학생은 열람할 수 없습니다.');
+      }
+      return;
+    }
     if (user.role === AccountRole.GUARDIAN) {
       await this.assertGuardianLink(user.id, studentId);
       return;

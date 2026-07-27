@@ -1,3 +1,4 @@
+import 'dotenv/config'; // WS 게이트웨이 cors 데코레이터가 import 시점에 CORS_ORIGINS·NODE_ENV 를 읽음 — 제거 금지.
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';

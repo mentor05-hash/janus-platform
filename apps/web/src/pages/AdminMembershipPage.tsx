@@ -108,7 +108,7 @@ export function AdminMembershipPage() {
         <Card style={{ padding: 0, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ background: 'var(--fill,#f6f8fa)', textAlign: 'left' }}>
+              <tr style={{ background: 'var(--fill,#f4f7fb)', textAlign: 'left' }}>
                 <th style={th}>등급</th><th style={th}>티어</th><th style={th}>주간 부여 크레딧</th><th style={th}>소멸 정책</th><th style={th}>활성</th><th style={th} />
               </tr>
             </thead>
@@ -124,7 +124,7 @@ export function AdminMembershipPage() {
                   <td style={td}>{expireLabel(g.expire_policy)}</td>
                   <td style={td}>
                     <button onClick={() => saveGrade(g, { active: !(g.active ?? true) })}
-                      style={{ cursor: 'pointer', border: 'none', borderRadius: 7, padding: '3px 10px', fontSize: 12, fontWeight: 700, background: (g.active ?? true) ? 'var(--chip-done-bg,#ECF8EF)' : 'var(--fill,#f1f5f7)', color: (g.active ?? true) ? 'var(--chip-done,#15803D)' : 'var(--muted)' }}>
+                      style={{ cursor: 'pointer', border: 'none', borderRadius: 7, padding: '3px 10px', fontSize: 12, fontWeight: 700, background: (g.active ?? true) ? 'var(--chip-done-bg,#E7F3ED)' : 'var(--fill,#f1f5f7)', color: (g.active ?? true) ? 'var(--chip-done,#2A8A5F)' : 'var(--muted)' }}>
                       {(g.active ?? true) ? 'ON' : 'OFF'}
                     </button>
                   </td>
@@ -158,7 +158,7 @@ export function AdminMembershipPage() {
         <Card style={{ padding: 0, overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ background: 'var(--fill,#f6f8fa)', textAlign: 'left' }}>
+              <tr style={{ background: 'var(--fill,#f4f7fb)', textAlign: 'left' }}>
                 <th style={th}>플랜</th><th style={th}>가격</th><th style={th}>결제주기</th><th style={th}>납부자</th><th style={th}>연결 등급</th>
               </tr>
             </thead>

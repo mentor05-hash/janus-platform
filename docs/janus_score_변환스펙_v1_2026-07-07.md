@@ -75,4 +75,18 @@ OCR로 성적 입력 → `GET /scores/janus-score` 응답 확인 → 배치표 U
 ## 7. 결정 기록
 
 - O43(2026-07-07): janus_score 규약은 **v22 키를 정본으로 동결**(키 이름 변경 금지 — 기존 배치표 호환), 플랫폼이 규약에 맞춰 export. period·mode·근거 배지 확장 필드는 추가만 허용(하위호환).
-- 미확정: `gye` 실값·3모드 정확 명칭 — **배치표_DDD_v2 반입 후 c항 감사에서 확정**(본 문서 v1.1로 갱신).
+- 미확정: ~~`gye` 실값·3모드 정확 명칭~~ → **v1.1 에서 확정(아래)**.
+
+---
+
+## 8. v1.1 확정 (2026-07-13 — 핸드오프 접합계약 C1 기준)
+
+- **`gye` 실값 = `이과` | `문과`** (배치표 핸드오프 2026-07-14 §C1·v25 커버 스크립트 실측 — `ga`/`na` 아님).
+- **모드 확정**: `nb` = **전국 누백 단일값**(과목 백분위 아님). 계약상 택1 = 표점 4종(`kor/mat/tam1/tam2`, 0~200) 또는 `nb`(0<nb<100).
+  과목 백분위 모드(subj)는 배치표 자체 입력 UI 에만 존재 — export 규약 밖.
+- **구현(W1 D4 완료)**: `GET /api/v1/scores/janus-score`(student 본인·guardian ?studentId=) →
+  `apps/api/src/modules/scores/domain/janus-score.ts`(순수 변환+검증, spec 8케이스) · 허브(/placement/hub)가
+  `localStorage.janus_score` 저장 + `janus:score` 이벤트 발화(키·이벤트명 동결).
+- **모드 판정 구현**: `placement.nb` 있으면 nb 우선, 없으면 표점 4종 완비 시 std, 둘 다 불가 → 404 `NO_SCORE`(수동 입력 폴백).
+  ⚠ `score_item.score` 는 정시 규약상 **표점으로 간주** — 원점수 운용 데이터는 `placement.nb` 를 채워 nb 모드로 내보낼 것.
+- E2E 실측(2026-07-13): OCR 시딩 리포트 → std 응답 `{gye:이과,kor:131,mat:135,tam1:65,tam2:64,eng:1,han:2}` → placement.nb 갱신 → nb 응답 `{nb:1.53}` → 비로그인 401.

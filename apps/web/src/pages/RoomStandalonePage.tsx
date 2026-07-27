@@ -40,7 +40,7 @@ export function RoomStandalonePage() {
   }, [url, token]);
 
   if (!session) {
-    return <div style={{ padding: 32, fontFamily: 'system-ui, sans-serif', color: '#16242b' }}>url · token 파라미터가 필요합니다. 예: <code>/room?url=…&token=…&kind=chat</code></div>;
+    return <div style={{ padding: 32, fontFamily: 'system-ui, sans-serif', color: '#1e3550' }}>url · token 파라미터가 필요합니다. 예: <code>/room?url=…&token=…&kind=chat</code></div>;
   }
   const close = () => { /* 독립 페이지 — 닫기는 브라우저 탭 닫기로 */ };
   return kind === 'whiteboard'

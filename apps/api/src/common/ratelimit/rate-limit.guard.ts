@@ -25,6 +25,9 @@ export class RateLimitGuard implements CanActivate {
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
+    // E2E 스위트 전용 우회 — 명시적 ENV 로만(배포 compose 미설정 = 항상 시행).
+    // run-all-e2e 는 짧은 시간에 로그인 수십 회를 수행해 로그인 한도(10/분)에 걸린다.
+    if (process.env.RATE_LIMIT_DISABLED === 'true') return true;
     const opts = this.reflector.getAllAndOverride<RateLimitOptions>(
       RATE_LIMIT_KEY,
       [ctx.getHandler(), ctx.getClass()],

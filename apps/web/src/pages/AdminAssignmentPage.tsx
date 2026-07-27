@@ -88,7 +88,7 @@ export function AdminAssignmentPage() {
     { key: 'net', header: '실수령', align: 'right', render: (r) => w(r.net) },
     { key: 'totalCost', header: '회사총부담(전임)', align: 'right', render: (r) => <b>{w(r.totalCost)}</b> },
     { key: 'freelancerCost', header: '프리랜서 부담', align: 'right', render: (r) => w(r.freelancerCost) },
-    { key: 'premium', header: '전임 추가비용', align: 'right', render: (r) => <span style={{ color: '#C0392B' }}>+{w(r.premium)}</span> },
+    { key: 'premium', header: '전임 추가비용', align: 'right', render: (r) => <span style={{ color: '#C25A43' }}>+{w(r.premium)}</span> },
   ];
 
   return (
@@ -135,7 +135,7 @@ export function AdminAssignmentPage() {
       )}
 
       {pay && (
-        <SectionCard title={`전임 급여 · ${pay.period}`} desc="완료·확정 세션 매출 기반. 4대보험(2025)+퇴직금 반영. 크레딧=원 가정.">
+        <SectionCard title={`전임 급여 · ${pay.period}`} desc="완료·확정 세션 매출 기반. 4대보험(2025)+퇴직금 반영. 1크레딧 = 0.5원 환산 적용.">
           {/* 급여 모델 선택 */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
             <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--ink)' }}>급여 모델</span>
@@ -178,7 +178,7 @@ export function AdminAssignmentPage() {
           <div className="scroll" style={{ overflowX: 'auto' }}>
             <Table columns={payCols} rows={pay.rows} rowKey={(r) => r.teacherId} empty="전임 실적이 없습니다." />
           </div>
-          <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 10 }}>세전 = 매출 × {pay.sharePct}%. 실수령 = 세전 − 근로자 4대보험·소득세. <b>회사 총부담 = 세전 + 사업주 4대보험(≈10.35%) + 퇴직금 적립(8.33%)</b>. 같은 배분액을 프리랜서(사업소득 3.3%)로 지급하면 회사부담은 세전과 동일(추가부담 0). 크레딧↔현금 비율(O1)이 1:1이 아니면 비례 조정.</p>
+          <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 10 }}>세전 = 매출 × {pay.sharePct}%. 실수령 = 세전 − 근로자 4대보험·소득세. <b>회사 총부담 = 세전 + 사업주 4대보험(≈10.35%) + 퇴직금 적립(8.33%)</b>. 같은 배분액을 프리랜서(사업소득 3.3%)로 지급하면 회사부담은 세전과 동일(추가부담 0).</p>
         </SectionCard>
       )}
     </>

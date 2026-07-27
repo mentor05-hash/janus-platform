@@ -1,7 +1,10 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
+import { roleHome } from '../auth/roleHome';
 import { Button, ErrorText, TextField, TextareaField, SelectField } from '../components/ui';
+import { track } from '../utils/track';
 
 // 대입 컨설팅 상담 신청 폼 — POST /consulting/applications 연결(설계안 랜딩 폼 실동작).
 const GRADES = [
@@ -31,6 +34,9 @@ interface CreatedApplication {
 }
 
 export function ConsultingApplyPage() {
+  const { user } = useAuth();
+  useEffect(() => track('consult', 'view'), []); // 계측 왕복 종점(C3) — baechi→consult 전환 측정
+
   const [f, setF] = useState({
     applicantName: '',
     applicantPhone: '',
@@ -80,7 +86,21 @@ export function ConsultingApplyPage() {
             <div>상품: <b>{done.package}</b>{done.priceWon != null && <> · {done.priceWon.toLocaleString()}원</>}</div>
             <div>상태: <b>{done.status}</b></div>
           </div>
-          <Link to="/login"><Button block>확인</Button></Link>
+          <div style={{ fontSize: 12.5, color: 'var(--muted)', lineHeight: 1.6, marginBottom: 14, textAlign: 'left' }}>
+            <b style={{ color: 'var(--ink-body)' }}>다음 단계</b><br />
+            ① 담당 컨설턴트 배정 → ② 유선/알림 연락 → ③ 상담 일정 확정. 진행 상황은 {user ? '내 예약·상담' : '로그인 후'}에서 확인할 수 있어요.
+          </div>
+          {user ? (
+            <div style={{ display: 'grid', gap: 8 }}>
+              <Link to="/student/bookings"><Button block>내 예약·상담 보기</Button></Link>
+              <Link to={roleHome(user.role)} style={{ fontSize: 13, color: 'var(--muted)', textDecoration: 'none' }}>내 관문으로 →</Link>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: 8 }}>
+              <Link to="/login"><Button block>로그인하고 진행 확인</Button></Link>
+              <Link to="/" style={{ fontSize: 13, color: 'var(--muted)', textDecoration: 'none' }}>홈으로 →</Link>
+            </div>
+          )}
         </div>
       </div>
     );

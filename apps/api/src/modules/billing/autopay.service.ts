@@ -37,7 +37,10 @@ export class AutopayService {
   /** 도래한 구독을 청구. 반환: {charged, failed}. now 주입 가능(테스트). */
   async runDue(now = new Date()): Promise<{ charged: number; failed: number }> {
     const due = await this.prisma.student_subscription.findMany({
-      where: { status: 'active', next_billing_at: { not: null, lte: now } },
+      where: {
+        status: { in: ['active', 'pending'] }, // pending = 미결제 신규 구독(첫 청구로 활성화)
+        next_billing_at: { not: null, lte: now },
+      },
       include: { subscription_plan: true },
     });
     let charged = 0;
@@ -54,7 +57,7 @@ export class AutopayService {
       const claim = await this.prisma.student_subscription.updateMany({
         where: {
           id: sub.id,
-          status: 'active',
+          status: { in: ['active', 'pending'] },
           next_billing_at: { not: null, lte: now },
         },
         data: { next_billing_at: nextAt },
@@ -93,6 +96,31 @@ export class AutopayService {
           },
         });
         charged++;
+        // P0#5 pending 게이팅: 첫 결제 성공 시 구독 활성화 — 이때만 등급·티어·주간부여 부여.
+        if (sub.status === 'pending') {
+          await this.prisma.$transaction(async (tx) => {
+            await tx.student_subscription.update({
+              where: { id: sub.id },
+              data: { status: 'active' },
+            });
+            // 결제 완료된 새 구독으로 교체 — 기존 활성 구독 비활성화.
+            await tx.student_subscription.updateMany({
+              where: {
+                student_id: sub.student_id,
+                status: 'active',
+                id: { not: sub.id },
+              },
+              data: { status: 'inactive' },
+            });
+            await tx.student_profile.update({
+              where: { account_id: sub.student_id },
+              data: {
+                membership_grade_id: plan.grade_id,
+                active_subscription_id: sub.id,
+              },
+            });
+          });
+        }
       } else {
         // 실패 → 선점 롤백(다음 실행에서 재시도) + 실패 결제 기록
         await this.prisma.student_subscription.updateMany({

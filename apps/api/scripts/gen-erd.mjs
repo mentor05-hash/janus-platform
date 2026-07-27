@@ -3,7 +3,7 @@
 // 사용: DATABASE_URL=... node scripts/gen-erd.mjs > ../../docs/ERD.mmd
 import pg from 'pg';
 
-const url = process.env.DATABASE_URL || 'postgresql://itall:itall_local_pw@localhost:5432/itall';
+const url = process.env.DATABASE_URL || 'postgresql://janus:janus_local_pw@localhost:5432/janus';
 const c = new pg.Client({ connectionString: url });
 await c.connect();
 

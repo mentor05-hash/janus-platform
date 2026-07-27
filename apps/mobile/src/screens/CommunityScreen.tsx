@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { io, type Socket } from 'socket.io-client';
 import { api, ApiError } from '../api';
 import { R, SP, useTheme, useUI, type Palette } from '../theme';
 
@@ -16,10 +17,27 @@ export function CommunityScreen() {
   const styles = useMemo(() => makeStyles(C), [C]);
   const [feed, setFeed] = useState<Feed | null>(null);
   const [error, setError] = useState('');
+  const load = () => api.get<Feed>('/community/feed').then(setFeed).catch((e) => setError(e instanceof ApiError ? e.message : '커뮤니티 조회 실패'));
+  const loadRef = useRef(load);
+  loadRef.current = load;
 
+  useEffect(() => { load(); }, []);
+
+  // 실시간 — 표시된 질문 방을 구독해 다른 사용자의 답변·채택 시 피드 갱신.
+  const qIds = (feed?.questions ?? []).map((q) => q.id).join(',');
   useEffect(() => {
-    api.get<Feed>('/community/feed').then(setFeed).catch((e) => setError(e instanceof ApiError ? e.message : '커뮤니티 조회 실패'));
-  }, []);
+    const ids = qIds ? qIds.split(',') : [];
+    if (!ids.length) return;
+    const token = (typeof localStorage !== 'undefined' ? localStorage.getItem('mp_access') : '') ?? '';
+    if (!token) return;
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const s: Socket = io(origin, { path: '/api/v1/socket.io', auth: { token }, transports: ['websocket'] });
+    const onUpdate = () => loadRef.current();
+    s.on('connect', () => { for (const id of ids) s.emit('community:join', { postId: id }); });
+    s.on('community:answer', onUpdate);
+    s.on('community:accepted', onUpdate);
+    return () => { for (const id of ids) s.emit('community:leave', { postId: id }); s.disconnect(); };
+  }, [qIds]);
 
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
@@ -92,5 +110,5 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   rank: { fontSize: 15, fontWeight: '800', color: C.teal, width: 30 },
   mTitle: { fontSize: 14, fontWeight: '700', color: C.ink },
   rTeacher: { fontSize: 13, fontWeight: '800', color: C.ink },
-  star: { fontSize: 13, fontWeight: '700', color: '#E0A52E' },
+  star: { fontSize: 13, fontWeight: '700', color: '#E3B45C' },
 });

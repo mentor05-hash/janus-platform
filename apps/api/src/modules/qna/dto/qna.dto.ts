@@ -38,7 +38,10 @@ export class CreateQuestionDto {
   attachments?: QnaAttachmentDto[];
 }
 
-/** POST /qna/posts/{id}/answers — 답변(교사). */
+/** POST /qna/posts/{id}/answers — 답변(교사). 첨부 = 화이트보드 풀이 PNG 등(P4, 최대 3장). */
 export class CreateAnswerDto {
   @IsString() @IsNotEmpty() body!: string;
+
+  @IsOptional() @IsArray() @ArrayMaxSize(3) @ValidateNested({ each: true }) @Type(() => QnaAttachmentDto)
+  attachments?: QnaAttachmentDto[];
 }

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, Booking, Note, Teacher } from '../api';
 import { R, SP, useTheme, useUI, type Palette } from '../theme';
+import { showAlert } from '../lib/alertHost';
 import { useWebBack } from '../webBack';
 import { RescheduleScreen } from './RescheduleScreen';
 import { SessionChatScreen } from './SessionChatScreen';
@@ -42,7 +43,7 @@ function ReviewBox({ id }: { id: string }) {
           <Text style={{ width: 52, fontSize: 13, color: C.muted }}>{label}</Text>
           {[1, 2, 3, 4, 5].map((n) => (
             <TouchableOpacity key={n} onPress={() => setR((p) => ({ ...p, [k]: n }))}>
-              <Text style={{ fontSize: 20, color: n <= (r[k] as number) ? '#F5A623' : C.line }}>★</Text>
+              <Text style={{ fontSize: 20, color: n <= (r[k] as number) ? '#CF9A3A' : C.line }}>★</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -166,7 +167,7 @@ export function BookingsScreen({ myId }: { myId?: string }) {
     finally { setBusy(null); }
   }
   function confirmNoshow(id: string) {
-    Alert.alert('미진행 신고', '이 상담이 실제로 진행되지 않았나요? 관리자에게 신고됩니다.', [
+    showAlert('미진행 신고', '이 상담이 실제로 진행되지 않았나요? 관리자에게 신고됩니다.', [
       { text: '취소', style: 'cancel' },
       { text: '신고', style: 'destructive', onPress: () => reportNoshow(id) },
     ]);
@@ -219,12 +220,13 @@ export function BookingsScreen({ myId }: { myId?: string }) {
       ) : (
         shown.map((b) => {
           const st = STATUS[b.status] ?? { label: b.status, bg: C.mutedChipBg, fg: C.mutedChip };
+          const isToday = !!b.start && new Date(b.start).toDateString() === new Date().toDateString() && ['new', 'confirmed'].includes(b.status);
           return (
-            <View key={b.id} style={[ui.card, { marginBottom: 8 }]}>
+            <View key={b.id} style={[ui.card, { marginBottom: 8 }, isToday && { borderWidth: 2, borderColor: C.teal, backgroundColor: C.teal50 }]}>
               <TouchableOpacity onPress={() => setOpen(open === b.id ? null : b.id)} activeOpacity={0.7}>
                 <View style={styles.row}>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.name}>{tName(b.teacherId)}{b.direction === 'reverse' ? ' · 역상담' : ''}</Text>
+                    <Text style={styles.name}>{isToday ? '📅 오늘 · ' : ''}{tName(b.teacherId)}{b.direction === 'reverse' ? ' · 역상담' : ''}</Text>
                     <Text style={styles.sub}>{KST(b.start)} · {b.consultType ?? ''} · {b.mode} · {b.chargedCredits.toLocaleString()}크레딧</Text>
                   </View>
                   <View style={[styles.chip, { backgroundColor: st.bg }]}><Text style={[styles.chipT, { color: st.fg }]}>{st.label}</Text></View>

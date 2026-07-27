@@ -1,5 +1,5 @@
 {
-  "name": "itall-mentoring",
+  "name": "janus-platform",
   "version": "0.0.1",
   "private": true,
   "description": "1:1 멘토링 플랫폼 — 모노레포 루트",
@@ -19,7 +19,8 @@
     "api:build": "npm run build --workspace apps/api",
     "api:seed": "npm run seed --workspace apps/api",
     "gen:types": "openapi-typescript ./openapi.yaml -o ./packages/shared/src/api-types.ts",
-    "gen:marketing": "node scripts/gen-marketing.mjs"
+    "gen:marketing": "node scripts/gen-marketing.mjs",
+    "hooks:setup": "bash scripts/setup-hooks.sh"
   },
   "devDependencies": {
     "openapi-typescript": "^7.4.0"

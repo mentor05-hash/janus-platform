@@ -2,7 +2,7 @@
 # dist 는 사전 빌드(레포 루트에서):
 #   cd apps/mobile && EXPO_PUBLIC_API_BASE=/api/v1 npx expo export -p web
 # 그 뒤 도커 빌드(컨텍스트=레포 루트):
-#   docker build -f apps/mobile/Dockerfile.web -t itall-mobile .
+#   docker build -f apps/mobile/Dockerfile.web -t janus-mobile .
 #
 # (도커 내부에서 expo export 를 돌리지 않는 이유: metro/expo 알파인 빌드가 느리고 불안정.
 #  사전 빌드 산출물(dist)을 그대로 nginx 로 서빙하는 편이 재현성·속도 모두 우수.)

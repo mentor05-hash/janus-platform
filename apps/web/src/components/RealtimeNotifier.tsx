@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useT } from '../i18n';
 
@@ -9,23 +10,33 @@ const LABEL: Record<string, string> = {
   booking_rejected: '예약이 거절되었어요.',
   booking_cancelled: '예약이 취소되었어요.',
   booking_reminder: '곧 상담이 시작돼요.',
+  booking_request_reminder: '⏰ 수락 대기 중인 상담 신청이 있어요.',
+  booking_request_escalated: '미응답 상담 신청이 있습니다(24시간 경과).',
   booking_new: '새 상담 신청이 들어왔어요.',
   note_shared: '상담 기록이 공유되었어요.',
+  consult_report: '상담 요약 리포트가 도착했어요 📋',
   reverse_proposed: '역상담 제안이 도착했어요.',
   reverse_accepted: '역상담 제안이 수락되었어요.',
   qna_answered: '질문에 답변이 달렸어요.',
+  qna_claimed: '선생님이 내 질문을 확인하고 있어요 👀',
   qna_assigned: '새 질문이 배정되었어요.',
+  qna_community_answer: '내 커뮤니티 질문에 새 답변이 달렸어요.',
+  qna_community_accepted: '내 커뮤니티 답변이 채택됐어요! 🎉',
+  qna_league_promoted: '리그 승급 🏅 축하해요!',
   payment_requested: '결제 요청이 도착했어요.',
   announcement: '새 공지가 있어요.',
   announcement_reminder: '예약 공지 발송 예정이에요.',
   score_uploaded: '성적이 업데이트되었어요.',
+  chat_message: '새 채팅 메시지가 도착했어요 💬',
+  qna_pool_new: '새 공개질문이 도착했어요.',
 };
 
-type Toast = { id: number; text: string };
+type Toast = { id: number; text: string; type?: string; bookingId?: string };
 
 /** 로그인 사용자용 전역 실시간 알림 수신기. notif:new 이벤트를 토스트로 표시. */
 export function RealtimeNotifier() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const t = useT();
   const [toasts, setToasts] = useState<Toast[]>([]);
   const seq = useRef(0);
@@ -36,10 +47,13 @@ export function RealtimeNotifier() {
     if (!token) return;
     const s: Socket = io(window.location.origin, { path: '/api/v1/socket.io', auth: { token }, transports: ['websocket'] });
     s.on('notif:new', (n: { type: string; payload?: Record<string, unknown>; title?: string; body?: string }) => {
+      // 화면 자동 갱신 훅 — 열려 있는 페이지(Q&A 등)가 이 이벤트를 듣고 목록을 다시 불러온다(새로고침 불필요).
+      try { window.dispatchEvent(new CustomEvent('janus:notif', { detail: { type: n.type, payload: n.payload } })); } catch { /* 무시 */ }
       // 서버 템플릿 렌더(body) 우선, 없으면 클라이언트 폴백.
       const text = n?.body || (typeof n?.payload?.message === 'string' && n.payload.message) || LABEL[n?.type] || t('notif.new');
       const id = ++seq.current;
-      setToasts((p) => [...p, { id, text }]);
+      const bookingId = typeof n?.payload?.bookingId === 'string' ? n.payload.bookingId : undefined;
+      setToasts((p) => [...p, { id, text, type: n?.type, bookingId }]);
       // 배지 갱신용 커스텀 이벤트(알림 페이지·레이아웃이 구독 가능)
       window.dispatchEvent(new CustomEvent('mp:notif', { detail: n }));
       setTimeout(() => setToasts((p) => p.filter((x) => x.id !== id)), 5000);
@@ -54,7 +68,14 @@ export function RealtimeNotifier() {
         <button
           type="button"
           key={toast.id}
-          onClick={() => setToasts((p) => p.filter((x) => x.id !== toast.id))}
+          onClick={() => {
+            setToasts((p) => p.filter((x) => x.id !== toast.id));
+            // 채팅 알림 → 해당 예약 채팅방으로 직행(역할별 예약 화면)
+            if (toast.type === 'chat_message' && toast.bookingId) {
+              const base = user.role === 'teacher' ? '/app/bookings' : '/student/bookings';
+              navigate(`${base}?chat=${toast.bookingId}`);
+            }
+          }}
           style={{ textAlign: 'left', border: 'none', background: 'var(--teal)', color: '#fff', borderRadius: 10, padding: '12px 14px', fontSize: 13.5, boxShadow: '0 6px 20px rgba(8,16,20,0.25)', cursor: 'pointer', display: 'flex', gap: 8, alignItems: 'center' }}
         >
           <span aria-hidden="true" style={{ fontSize: 16 }}>🔔</span>

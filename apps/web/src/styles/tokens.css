@@ -1,90 +1,113 @@
-/* 디자인 토큰 — hi-fi 핸드오프(Itall Foundations) 기준 정밀 반영 */
+/* 디자인 토큰 — 야누스(Janus) 디자인 시스템 (시안 번들 2026-07-13 추출)
+ * 단일 소스: packages/brand/tokens.css (--j-*) — 아래 레거시 별칭(--teal 등)은 하위호환용.
+ * CTA 위계: 골드 채움=핵심 전환(화면당 1개) · 블루 채움=주요 액션 · 회색 아웃라인=탐색 보조 */
+@import '../../../../packages/brand/tokens.css';
+
 :root {
-  /* 브랜드 teal 스케일 */
-  --teal: #0e5c7c;        /* PRIMARY (teal-700) */
-  --teal-900: #0a4a64;    /* 진한 강조·그라데이션 끝·primary hover */
-  --teal-600: #0a4a64;    /* (하위호환 별칭) */
-  --teal-500: #1a7fa8;    /* 보조 강조 */
-  --teal-300: #6fb3ce;    /* 차트 보조 */
-  --teal-100: #dcecf3;    /* 아바타·칩 보더 */
-  --teal-50: #f0f7fa;     /* 칩·강조영역 bg·secondary hover */
+  /* 레거시 브랜드 별칭 — 값은 야누스 블루 스케일(주입: main.tsx가 branding.generated 색으로 덮어씀) */
+  --teal: #2f6fb3;        /* PRIMARY = 야누스 블루 */
+  --teal-900: #24405f;    /* 진한 강조·primary hover = 네이비 */
+  --teal-600: #24405f;    /* (하위호환 별칭) */
+  --teal-500: #4d93da;    /* 보조 강조 */
+  --teal-300: #8fb8de;    /* 차트 보조 */
+  --teal-100: #d7e4f2;    /* 아바타·칩 보더 */
+  --teal-50: #eef4fb;     /* 칩·강조영역 bg·secondary hover */
 
-  /* 뉴트럴 / 잉크 */
-  --ink: #16242b;         /* 기본 텍스트(타이틀) */
-  --ink-body: #374151;    /* 본문·입력 텍스트 */
-  --muted: #52656d;       /* 보조 텍스트·라벨 */
-  --caption: #94a3ab;     /* 캡션·placeholder·meta */
-  --line: #e7ecef;        /* 카드 보더·구분선 */
-  --line-soft: #eef2f4;   /* 카드 내부 구분선 */
-  --input-border: #cbd5da;/* 입력 보더(카드보다 진하게) */
-  --bg: #f2f4f6;          /* 페이지 배경 */
-  --surface: #fff;        /* 카드·입력·표면(다크에서 반전) */
-  --surface-2: #f6f8fa;   /* 카드 내부·연한 표면 */
-  --fill-50: #f6f8fa;     /* 테이블 헤더·카드 내부 fill */
-  --fill: #f6f8fa;        /* (인라인 var(--fill) 대응) */
+  /* 뉴트럴 / 잉크 (시안: ink #1e3550 · ink2 #52627a · ink3 #8695a8) */
+  --ink: var(--j-ink);          /* 기본 텍스트(타이틀) */
+  --ink-body: var(--j-ink2);    /* 본문·입력 텍스트 */
+  --muted: var(--j-ink3);       /* 보조 텍스트·라벨 */
+  --caption: var(--j-arrow-muted); /* 캡션·placeholder·meta */
+  --line: var(--j-hair);        /* 카드 보더·구분선 */
+  --line-soft: var(--j-hair2);  /* 카드 내부 구분선 */
+  --input-border: #c6d1e0;      /* 입력 보더(카드보다 진하게) */
+  --bg: var(--j-page);          /* 페이지 배경 */
+  --surface: var(--j-surface);  /* 카드·입력·표면(다크에서 반전) */
+  --surface-2: var(--j-surface2); /* 카드 내부·연한 표면 */
+  --fill-50: var(--j-surface2); /* 테이블 헤더·카드 내부 fill */
+  --fill: var(--j-surface2);    /* (인라인 var(--fill) 대응) */
   --white: #fff;
-  --admin-navy: #0e2a38;  /* 관리자 사이드바 bg */
+  --admin-navy: var(--j-chrome); /* 관리자 사이드바 bg(다크 크롬) */
 
-  /* 상태칩: 텍스트색 + soft 배경 + 점 */
-  --chip-new: #2563eb;        --chip-new-bg: #eff4fe;
-  --chip-confirmed: #b86c04;  --chip-confirmed-dot: #d97706;  --chip-confirmed-bg: #fef6e7;
-  --chip-done: #15803d;       --chip-done-dot: #16a34a;        --chip-done-bg: #ecf8ef;
-  --chip-muted: #52656d;      --chip-muted-dot: #94a3ab;       --chip-muted-bg: #f1f5f7;
-  --chip-danger: #dc2626;     --chip-danger-bg: #fef2f2;       --chip-danger-border: #f0c6c6;
+  /* 브랜드 직통 별칭 */
+  --navy: var(--j-navy);
+  --blue: var(--j-blue);
+  --gold: var(--j-gold);
+  --gold-ink: var(--j-gold-ink);
+  --silver: var(--j-silver);
+  --blue-soft: var(--j-blue-soft);
+  --gold-soft: var(--j-gold-soft);
 
-  /* 등급: S 금색 그라데이션 / A teal / B 그레이 */
-  --grade-s: linear-gradient(135deg, #e0b53d, #c99a2e);
-  --grade-a: var(--teal);
-  --grade-b: #64748b;
+  /* 상태칩: 텍스트색 + soft 배경 + 점 (야누스 차분한 채도) */
+  --chip-new: var(--j-blue);        --chip-new-bg: var(--j-blue-soft);
+  --chip-confirmed: var(--j-gold-ink); --chip-confirmed-dot: var(--j-gold); --chip-confirmed-bg: var(--j-gold-soft);
+  --chip-done: var(--j-stable);     --chip-done-dot: var(--j-stable);      --chip-done-bg: var(--j-stable-soft);
+  --chip-muted: var(--j-ink2);      --chip-muted-dot: var(--j-ink3);       --chip-muted-bg: var(--j-hair2);
+  --chip-danger: var(--j-high);     --chip-danger-bg: var(--j-high-soft);  --chip-danger-border: #efc7bd;
+  --danger: var(--j-high);          /* 위험·약점·경고 강조(다크 대응 토큰) */
 
-  /* 그림자(플랫) */
-  --shadow-card: 0 1px 3px rgba(16, 36, 43, 0.04);
-  --shadow-btn: 0 1px 2px rgba(14, 92, 124, 0.25);
+  /* 등급: S 골드 그라데이션 / A 블루 / B 실버그레이 */
+  --grade-s: linear-gradient(135deg, #e3b862, #cc963a);
+  --grade-a: var(--j-blue);
+  --grade-b: #8496ab;
+
+  /* 그림자(플랫 — 시안은 hair 보더 중심) */
+  --shadow-card: 0 1px 3px rgba(20, 45, 80, 0.04);
+  --shadow-btn: 0 1px 2px rgba(47, 111, 179, 0.25);
 }
 
-/* ── 다크 모드 ── 브랜드 teal·상태색은 유지, 표면/텍스트/라인만 반전 */
+/* ── 다크 모드 ── 표면/텍스트/라인 반전(--j-* 는 brand tokens.css 다크 블록이 담당) */
 :root[data-theme='dark'] {
-  --ink: #eef2f4;
-  --ink-body: #d3dbe0;
-  --muted: #9fb0b8;
-  --caption: #7c8b93;
-  --line: #26333a;
-  --line-soft: #202b31;
-  --input-border: #33434b;
-  --bg: #0f181c;
-  --surface: #17242a;
-  --surface-2: #1d2c33;
-  --fill-50: #1d2c33;
-  --fill: #1d2c33;
-  --white: #17242a;
-  --admin-navy: #0a1418;
-  --teal-50: #123138;
-  --teal-100: #16414a;
-  --chip-new-bg: #14263f;
-  --chip-confirmed-bg: #2e2410;
-  --chip-done-bg: #12281a;
-  --chip-muted-bg: #202b31;
-  --chip-danger-bg: #2e1618;
+  --teal: #4d93da;
+  --teal-900: #6ba8e3;
+  --teal-600: #6ba8e3;
+  --teal-500: #4d93da;
+  --teal-300: #3a6ea8;
+  --teal-100: #1c3a5c;
+  --teal-50: #14273f;
+  --ink: var(--j-ink);
+  --ink-body: var(--j-ink2);
+  --muted: var(--j-ink3);
+  --caption: var(--j-ink3);
+  --line: var(--j-hair);
+  --line-soft: #182a41;
+  --input-border: #2c4159;
+  --bg: var(--j-page);
+  --surface: var(--j-surface);
+  --surface-2: var(--j-surface2);
+  --fill-50: var(--j-surface2);
+  --fill: var(--j-surface2);
+  --white: var(--j-surface);
+  --admin-navy: #091120;
+  --chip-danger-border: #5c3a33;
+  --danger: #f0736b; /* 다크: 밝은 적색(대비 확보) */
+  --grade-b: #8496ab;
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
 body {
-  font-family: 'Pretendard', -apple-system, system-ui, sans-serif;
+  font-family: var(--j-font-sans);
   color: var(--ink-body);
   background: var(--bg);
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
+  line-height: 1.6;
 }
 button { font-family: inherit; cursor: pointer; }
-a { color: var(--teal); }
+a { color: var(--blue); }
+a:hover { color: var(--gold-ink); }
+
+/* 수치·데이터 서체 */
+.mono { font-family: var(--j-font-mono); }
 
 /* ── 상태칩(soft pill + 점) ── */
 .chip {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 5px 11px; border-radius: 999px;
-  font-size: 12px; font-weight: 600; line-height: 1;
+  font-size: 12px; font-weight: 700; line-height: 1;
+  white-space: nowrap;
 }
 .chip::before {
   content: ''; width: 6px; height: 6px; border-radius: 50%;
@@ -102,27 +125,54 @@ a { color: var(--teal); }
   background: var(--chip-muted-dot);
 }
 
-/* ── 버튼 ── */
+/* 신호등 4구간 칩 (배치 추천: 안정/적정/소신/상향) */
+.chip.sig-stable { color: var(--j-stable); background: var(--j-stable-soft); }
+.chip.sig-fit    { color: var(--j-fit);    background: var(--j-fit-soft); }
+.chip.sig-reach  { color: var(--j-reach);  background: var(--j-reach-soft); }
+.chip.sig-high   { color: var(--j-high);   background: var(--j-high-soft); }
+
+/* AI 투명성 라벨 (✦ 초안 / ✦✎ 보완 / ✓ 선생님) — 점 없음, 아이콘은 텍스트로 */
+.chip.ai-draft, .chip.ai-aug, .chip.ai-human { padding: 4px 10px; }
+.chip.ai-draft::before, .chip.ai-aug::before, .chip.ai-human::before { display: none; }
+.chip.ai-draft { color: var(--j-ai);    background: var(--j-ai-soft); }
+.chip.ai-aug   { color: var(--j-aug);   background: var(--j-aug-soft); }
+.chip.ai-human { color: var(--j-human); background: var(--j-human-soft); }
+
+/* ── 버튼 (CTA 위계) ── */
 .btn {
-  padding: 11px 20px; border: none; background: var(--teal);
-  color: #fff; border-radius: 9px; font-weight: 600; font-size: 14px;
+  padding: 11px 20px; border: none; background: var(--blue);
+  color: #fff; border-radius: 9px; font-weight: 700; font-size: 14px;
   box-shadow: var(--shadow-btn); transition: background 0.12s;
+  white-space: nowrap;
 }
-.btn:hover:not(:disabled) { background: var(--teal-900); }
+.btn:hover:not(:disabled) { background: var(--navy); }
+/* 골드 채움 — 그 화면의 "다음 문"(핵심 전환), 화면당 1개만 */
+.btn.gold {
+  background: var(--gold); color: #fff;
+  box-shadow: 0 1px 2px rgba(207, 154, 58, 0.35);
+}
+.btn.gold:hover:not(:disabled) { background: var(--gold-ink); }
+/* 회색 아웃라인 — 탐색형 보조 */
 .btn.ghost {
-  background: var(--surface); color: var(--teal);
-  border: 1px solid var(--teal); box-shadow: none;
+  background: var(--j-ghost-bg); color: var(--ink-body);
+  border: 1px solid var(--j-ghost-border); box-shadow: none;
 }
-.btn.ghost:hover:not(:disabled) { background: var(--teal-50); }
+.btn.ghost:hover:not(:disabled) { background: var(--line-soft); color: var(--ink); }
+/* 블루 아웃라인 — 기존 호환(주요 액션 보조형) */
+.btn.outline {
+  background: var(--surface); color: var(--blue);
+  border: 1px solid var(--blue); box-shadow: none;
+}
+.btn.outline:hover:not(:disabled) { background: var(--teal-50); }
 .btn.danger {
   background: var(--surface); color: var(--chip-danger);
   border: 1px solid var(--chip-danger-border); box-shadow: none;
 }
 .btn.danger:hover:not(:disabled) { background: var(--chip-danger-bg); }
 .btn.sm { padding: 7px 14px; font-size: 12px; border-radius: 7px; }
-.btn:disabled { background: #e2e8eb; color: var(--caption); box-shadow: none; cursor: not-allowed; }
+.btn:disabled { background: var(--j-hair); color: var(--caption); box-shadow: none; cursor: not-allowed; }
 
-/* ── 카드 ── */
+/* ── 카드 (시안: radius 14 + hair 보더, 플랫) ── */
 .card {
   background: var(--surface); border: 1px solid var(--line);
   border-radius: 14px; padding: 18px; box-shadow: var(--shadow-card);
@@ -133,7 +183,7 @@ a { color: var(--teal); }
   width: 100%; padding: 11px 12px; border: 1px solid var(--input-border);
   border-radius: 9px; font-size: 14px; color: var(--ink); background: var(--surface);
 }
-.input:focus, .textarea:focus { border-color: var(--teal); outline: none; }
+.input:focus, .textarea:focus { border-color: var(--blue); outline: none; }
 /* 버튼(.btn.sm)과 높이·서체를 맞춘 콤팩트 입력(근무시간 드롭다운·날짜 등) */
 .input.compact { height: 32px; padding: 0 10px; font-size: 12px; font-weight: 600; line-height: 1.1; border-radius: 7px; box-sizing: border-box; }
 .label { font-size: 13px; font-weight: 500; color: var(--ink-body); margin-bottom: 6px; display: block; }

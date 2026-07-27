@@ -11,7 +11,7 @@ type JoinResp = { url: string; token: string; role: string; roomId: string };
 const STATUS: Record<string, { label: string; bg: string; fg: string }> = {
   scheduled: { label: '예정', bg: '#EAF0F3', fg: '#5C6E75' },
   live: { label: '진행 중', bg: '#FDEBD8', fg: '#B5651D' },
-  ended: { label: '종료', bg: '#E9EDF0', fg: '#8B9BA3' },
+  ended: { label: '종료', bg: '#E9EDF0', fg: '#8695A8' },
   canceled: { label: '취소', bg: '#F6E5E5', fg: '#C0403A' },
 };
 
@@ -86,7 +86,7 @@ export function ClassroomScreen() {
         </View>
       ) : (
         rows.map((r) => {
-          const st = STATUS[r.status] ?? { label: r.status, bg: '#E9EDF0', fg: '#8B9BA3' };
+          const st = STATUS[r.status] ?? { label: r.status, bg: '#E9EDF0', fg: '#8695A8' };
           const canEnter = r.status === 'live' && !!r.roomId;
           return (
             <View key={r.id} style={styles.card}>

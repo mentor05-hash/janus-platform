@@ -47,12 +47,22 @@ export class PeopleService {
       : q.mode
         ? { modes: { has: q.mode } }
         : {};
+    // B2: 찜한 선생님만 — 요청자의 fit 목록으로 한정(대규모 목록 대비 서버 필터).
+    let favFilter: { account_id: { in: string[] } } | Record<string, never> = {};
+    if (q.favOnly === 'true' && viewer?.id) {
+      const favs = await this.prisma.teacher_list_entry.findMany({
+        where: { student_id: viewer.id, list_kind: 'fit' },
+        select: { teacher_id: true },
+      });
+      favFilter = { account_id: { in: favs.map((f) => f.teacher_id) } };
+    }
     const where = {
       ...(q.grade ? { grade: q.grade } : {}),
       ...(q.category ? { teacher_category: q.category } : {}),
       ...(q.subject ? { subjects: { has: q.subject } } : {}),
       ...(q.consultType ? { consult_types: { has: q.consultType } } : {}),
       ...modeFilter,
+      ...favFilter,
     };
     // 랭킹 가중치(§5-7): 등급 우선, 동급은 유효평점(평점 − 취소누적×가중치) 내림차순.
     // 계산 정렬이라 전체 후보를 가져와 JS 정렬 후 페이지네이션(센터 규모상 소량).
@@ -129,7 +139,20 @@ export class PeopleService {
       reRequestRate: t.re_request_rate == null ? null : Number(t.re_request_rate),
       avgResponseMin: t.avg_response_min ?? null,
       workStatus: t.work_status ?? 'on',
+      qnaEscalation: t.qna_escalation,
+      qnaReceive: t.qna_receive,
+      qnaSubjects: t.qna_subjects ?? [],
+      targetAchievements: Array.isArray(t.target_achievements) ? t.target_achievements : [],
+      targetAchievementsVerified: t.target_achievements_verified === true,
     };
+  }
+
+  /** 관리자·HR — 상담사 목표대학 실적 검증 배지 토글. 자기신고 내용 확인 후 승인. */
+  async setAchievementsVerified(teacherId: string, verified: boolean) {
+    const t = await this.prisma.teacher_profile.findUnique({ where: { account_id: teacherId }, select: { account_id: true } });
+    if (!t) throw new NotFoundException('선생님 프로필이 없습니다.');
+    await this.prisma.teacher_profile.update({ where: { account_id: teacherId }, data: { target_achievements_verified: verified } });
+    return { ok: true, verified };
   }
 
   /** 근무 상태 변경(선생님 본인) — on(근무중)/rest(휴게중)/off(퇴근). */
@@ -180,6 +203,10 @@ export class PeopleService {
       career?: string;
       category?: string;
       modes?: string[];
+      qnaEscalation?: boolean;
+      qnaReceive?: boolean;
+      qnaSubjects?: string[];
+      targetAchievements?: Array<{ tier?: string; univ?: string; dept?: string; year?: number }>;
     },
   ) {
     const t = await this.prisma.teacher_profile.findUnique({
@@ -190,6 +217,14 @@ export class PeopleService {
     const normModes = dto.modes
       ? [...new Set(dto.modes.filter((m) => ['zoom', 'chat', 'hand', 'offline'].includes(m)))]
       : undefined;
+    // 목표대학 실적 정규화 — 허용 tier·문자열만, 최대 10건. 자기신고 변경 시 검증 배지 초기화(재검증 필요).
+    const TIERS = ['최상위', '상위', '중상위', '중위', '중하위', '기초'];
+    const normAch = dto.targetAchievements !== undefined
+      ? dto.targetAchievements
+          .filter((a) => a && typeof a === 'object' && TIERS.includes(String(a.tier)))
+          .slice(0, 10)
+          .map((a) => ({ tier: String(a.tier), univ: String(a.univ ?? '').slice(0, 40), dept: a.dept ? String(a.dept).slice(0, 40) : undefined, year: Number.isFinite(a.year) ? Number(a.year) : undefined }))
+      : undefined;
     const updated = await this.prisma.teacher_profile.update({
       where: { account_id: teacherId },
       data: {
@@ -199,6 +234,10 @@ export class PeopleService {
         ...(dto.career !== undefined ? { career: dto.career } : {}),
         ...(dto.category !== undefined ? { teacher_category: dto.category } : {}),
         ...(normModes !== undefined ? { modes: normModes } : {}),
+        ...(dto.qnaEscalation !== undefined ? { qna_escalation: dto.qnaEscalation } : {}),
+        ...(dto.qnaReceive !== undefined ? { qna_receive: dto.qnaReceive } : {}),
+        ...(dto.qnaSubjects !== undefined ? { qna_subjects: dto.qnaSubjects } : {}),
+        ...(normAch !== undefined ? { target_achievements: normAch, target_achievements_verified: false } : {}),
       },
       include: { account: { select: { name: true, center_id: true } } },
     });
@@ -206,6 +245,9 @@ export class PeopleService {
       ...this.toTeacherCard(updated),
       intro: updated.intro ?? null,
       strengths: updated.strengths ?? [],
+      qnaEscalation: updated.qna_escalation,
+      qnaReceive: updated.qna_receive,
+      qnaSubjects: updated.qna_subjects ?? [],
     };
   }
 
@@ -270,6 +312,8 @@ export class PeopleService {
     total_consult: number | null;
     teacher_category: string | null;
     modes?: string[];
+    target_achievements?: unknown;
+    target_achievements_verified?: boolean;
     account: { name: string; center_id: string | null };
   }) {
     return {
@@ -284,6 +328,8 @@ export class PeopleService {
       rating: t.rating == null ? null : Number(t.rating),
       totalConsult: t.total_consult ?? 0,
       modes: t.modes ?? [],
+      achievementsCount: Array.isArray(t.target_achievements) ? t.target_achievements.length : 0,
+      targetAchievementsVerified: t.target_achievements_verified === true,
     };
   }
 }

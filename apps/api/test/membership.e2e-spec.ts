@@ -37,6 +37,10 @@ describe('2.3 구독·등급·주간부여 통합', () => {
   let weeklyGrant: WeeklyGrantService;
   let credit: CreditService;
 
+  /** 등급 id — seed 정본(membership_grade). 본문에 uuid 를 반복해 박지 않는다. */
+  const GRADE_STD = '00000000-0000-4000-8000-0000000000f2';
+  const GRADE_PREM = '00000000-0000-4000-8000-0000000000f3';
+
   const NOW = new Date('2026-06-01T00:00:00Z');
   const FUTURE = new Date('2999-01-01T00:00:00Z');
 
@@ -89,17 +93,24 @@ describe('2.3 구독·등급·주간부여 통합', () => {
     const spA = await prisma.student_profile.findUnique({
       where: { account_id: STU_A },
     });
-    expect(spA!.membership_grade_id).toBe(
-      '00000000-0000-4000-8000-0000000000f2',
-    );
+    expect(spA!.membership_grade_id).toBe(GRADE_STD);
 
     // 주간 부여(단일 학생 스코프)
     await weeklyGrant.runGrant(NOW, STU_A);
     await weeklyGrant.runGrant(NOW, STU_B);
     const aGranted = (await credit.getAccount(STU_A)).grantedBalance;
     const bGranted = (await credit.getAccount(STU_B)).grantedBalance;
-    expect(aGranted).toBe(30_000); // Standard
-    expect(bGranted).toBe(60_000); // Premium — 차등
+    // 지급량은 **membership_grade 레코드에서 도출**한다. 절대값 하드코딩(옛 30k/60k)은 유닛 이코노믹스가
+    // 바뀔 때마다 깨졌다 — 실제로 Premium 이 '주간 60k' → '월간 풀 210k' 로 바뀌면서 이 단정이 실패했다.
+    // 스펙이 지켜야 할 계약은 금액 그 자체가 아니라 **'등급 설정대로 부여되고 상위가 더 많다'** 다.
+    const [gStd, gPrem] = await Promise.all([
+      prisma.membership_grade.findUniqueOrThrow({ where: { id: GRADE_STD }, select: { weekly_credits: true } }),
+      prisma.membership_grade.findUniqueOrThrow({ where: { id: GRADE_PREM }, select: { weekly_credits: true } }),
+    ]);
+    expect(aGranted).toBe(gStd.weekly_credits); // Standard — 설정대로
+    expect(bGranted).toBe(gPrem.weekly_credits); // Premium — 설정대로
+    expect(gPrem.weekly_credits).toBeGreaterThan(gStd.weekly_credits); // 등급 차등이 설정 자체에 있어야 한다
+    expect(gStd.weekly_credits).toBeGreaterThan(0); // 둘 다 0 이면 위 두 단정이 공허해진다
     expect(bGranted).toBeGreaterThan(aGranted);
 
     // 소멸(이월 없음)

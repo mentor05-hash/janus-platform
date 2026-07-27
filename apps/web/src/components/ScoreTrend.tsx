@@ -1,7 +1,7 @@
 import { Badge, EmptyState } from './ui';
 
 export type Placement = { tier?: string; line?: string; universities?: string[]; departments?: string[]; source?: string; memo?: string; avg?: number } | null;
-export type TrendPoint = { period: string; examType: string | null; avg: number | null; subjects: { subject: string; score: number | null }[]; placement: Placement };
+export type TrendPoint = { period: string; examType: string | null; avg: number | null; nb?: number | null; subjects: { subject: string; score: number | null }[]; placement: Placement };
 export type Trend = { student: { name?: string; loginId?: string }; points: TrendPoint[]; goal?: { tier?: string | null; avg?: number | null } };
 
 export const TIER_KIND: Record<string, 'done' | 'confirmed' | 'new' | 'soft'> = { 최상위: 'done', 상위: 'done', 중상위: 'confirmed', 중위: 'new', 중하위: 'soft', 기초: 'soft' };
@@ -10,11 +10,20 @@ export const TIER_KIND: Record<string, 'done' | 'confirmed' | 'new' | 'soft'> = 
 export function ScoreTrend({ trend, showPlacement = true }: { trend: Trend; showPlacement?: boolean }) {
   const pts = trend.points;
   if (!pts.length) return <EmptyState>성적 기록이 없어요.</EmptyState>;
+  // 지표 선택: 과목별 표점 평균이 하나라도 있으면 표점(40~100), 전무하면 누백(0~100)으로 자동 전환.
+  const useNb = pts.every((p) => p.avg == null) && pts.some((p) => p.nb != null);
+  const metric = (p: TrendPoint) => (useNb ? p.nb ?? null : p.avg);
+  const metricLabel = useNb ? '누백(전국 백분위)' : '표점 평균';
+  if (!pts.some((p) => metric(p) != null)) {
+    return <EmptyState>표점 또는 누백을 입력하면 회차별 추이가 그려져요. (성적진단에서 입력)</EmptyState>;
+  }
+  const [lo, hi] = useNb ? [0, 100] : [40, 100];
+  const grid = useNb ? [0, 25, 50, 75, 100] : [40, 60, 80, 100];
   const W = Math.max(360, pts.length * 150), H = 180, PAD = 34;
   const xs = (i: number) => PAD + (pts.length === 1 ? (W - 2 * PAD) / 2 : (i * (W - 2 * PAD)) / (pts.length - 1));
-  const ys = (v: number) => H - PAD - ((v - 40) / 60) * (H - 2 * PAD);
-  const line = pts.map((p, i) => `${xs(i)},${ys(p.avg ?? 40)}`).join(' ');
-  const goalAvg = trend.goal?.avg ?? null;
+  const ys = (v: number) => H - PAD - ((v - lo) / (hi - lo)) * (H - 2 * PAD);
+  const line = pts.map((p, i) => `${xs(i)},${ys(metric(p) ?? lo)}`).join(' ');
+  const goalAvg = useNb ? null : (trend.goal?.avg ?? null); // 목표선은 표점 기준 — 누백 모드에선 숨김
   const lastAvg = pts[pts.length - 1]?.avg ?? null;
   const subjects = Array.from(new Set(pts.flatMap((p) => p.subjects.map((s) => s.subject))));
   const scoreAt = (pt: TrendPoint, subj: string) => pt.subjects.find((s) => s.subject === subj)?.score ?? null;
@@ -27,20 +36,24 @@ export function ScoreTrend({ trend, showPlacement = true }: { trend: Trend; show
           {goalAvg != null && lastAvg != null && <span style={{ fontWeight: 700, color: lastAvg >= goalAvg ? 'var(--chip-done)' : 'var(--chip-confirmed)' }}> · {lastAvg >= goalAvg ? '목표 달성' : `목표까지 +${Math.round((goalAvg - lastAvg) * 10) / 10}`}</span>}
         </div>
       )}
+      <div style={{ fontSize: 11.5, color: 'var(--caption)', marginBottom: 4 }}>지표: <b style={{ color: 'var(--muted)' }}>{metricLabel}</b></div>
       <div style={{ overflowX: 'auto' }}>
         <svg width={W} height={H} style={{ display: 'block' }}>
-          {[40, 60, 80, 100].map((g) => (
+          {grid.map((g) => (
             <g key={g}><line x1={PAD} x2={W - PAD} y1={ys(g)} y2={ys(g)} stroke="var(--line)" /><text x={4} y={ys(g) + 4} fontSize="10" fill="var(--caption)">{g}</text></g>
           ))}
           {goalAvg != null && <line x1={PAD} x2={W - PAD} y1={ys(goalAvg)} y2={ys(goalAvg)} stroke="var(--chip-confirmed)" strokeDasharray="4 3" />}
           <polyline points={line} fill="none" stroke="var(--teal)" strokeWidth={2.5} />
-          {pts.map((p, i) => (
-            <g key={i}>
-              <circle cx={xs(i)} cy={ys(p.avg ?? 40)} r={5} fill="var(--teal)" />
-              <text x={xs(i)} y={ys(p.avg ?? 40) - 10} fontSize="12" fontWeight="700" fill="var(--ink)" textAnchor="middle">{p.avg ?? '-'}</text>
-              <text x={xs(i)} y={H - 10} fontSize="10" fill="var(--muted)" textAnchor="middle">{p.examType ?? p.period.slice(-4)}</text>
-            </g>
-          ))}
+          {pts.map((p, i) => {
+            const v = metric(p);
+            return (
+              <g key={i}>
+                <circle cx={xs(i)} cy={ys(v ?? lo)} r={5} fill="var(--teal)" />
+                <text x={xs(i)} y={ys(v ?? lo) - 10} fontSize="12" fontWeight="700" fill="var(--ink)" textAnchor="middle">{v ?? '-'}{useNb && v != null ? '%' : ''}</text>
+                <text x={xs(i)} y={H - 10} fontSize="10" fill="var(--muted)" textAnchor="middle">{p.examType ?? p.period.slice(-4)}</text>
+              </g>
+            );
+          })}
         </svg>
       </div>
       {/* 과목별 추이 */}

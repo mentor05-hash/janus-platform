@@ -89,6 +89,39 @@ interface Tokens {
   refreshToken: string;
 }
 
+/** 401 → refresh 1회 시도(바이너리·업로드 경로 공용 — request() 와 동일 정책). */
+// refresh 는 서버측 회전(구 토큰 무효화) — 동시 갱신 경합 시 자기 로그아웃 방지(single-flight).
+let refreshInflight: Promise<boolean> | null = null;
+async function tryRefresh(): Promise<boolean> {
+  if (!refreshInflight) refreshInflight = doRefresh().finally(() => { refreshInflight = null; });
+  return refreshInflight;
+}
+async function doRefresh(): Promise<boolean> {
+  const rt = refreshToken;
+  if (!rt) return false;
+  try {
+    const d = await raw<Tokens>('POST', '/auth/refresh', { refreshToken: rt }, false);
+    await setTokens(d.accessToken, d.refreshToken);
+    return true;
+  } catch {
+    if (refreshToken && refreshToken !== rt) return true; // 이미 다른 경로가 갱신함
+    await clearTokens();
+    return false;
+  }
+}
+
+/** 인증 fetch(이미지·다운로드·업로드) — 만료 토큰이면 갱신 후 1회 재시도. */
+async function authedFetch(url: string, init?: { method?: string; body?: BodyInit }): Promise<Response> {
+  const go = () => {
+    const headers: Record<string, string> = {};
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+    return fetch(url, { ...init, headers });
+  };
+  let res = await go();
+  if (res.status === 401 && (await tryRefresh())) res = await go();
+  return res;
+}
+
 export const api = {
   get: <T>(p: string) => request<T>('GET', p),
   post: <T>(p: string, b?: unknown) => request<T>('POST', p, b),
@@ -103,9 +136,7 @@ export const api = {
   logout: clearTokens,
   /** 웹(expo-web) 임의 경로 다운로드(인증 헤더 포함). 예: /files/:id, /materials/:id/download */
   downloadWebPath: async (path: string, name: string) => {
-    const headers: Record<string, string> = {};
-    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-    const res = await fetch(BASE + path, { headers });
+    const res = await authedFetch(BASE + path);
     if (!res.ok) throw new ApiError('ERROR', '다운로드 실패', res.status);
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
@@ -117,9 +148,7 @@ export const api = {
   downloadWeb: async (id: string, name: string) => api.downloadWebPath('/files/' + id, name),
   /** 인증 헤더로 파일을 받아 object URL 반환(이미지 인라인 표시용, expo-web). */
   fileBlobUrl: async (id: string): Promise<string> => {
-    const headers: Record<string, string> = {};
-    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-    const res = await fetch(BASE + '/files/' + id, { headers });
+    const res = await authedFetch(BASE + '/files/' + id);
     if (!res.ok) throw new ApiError('ERROR', '이미지 로드 실패', res.status);
     return URL.createObjectURL(await res.blob());
   },
@@ -127,9 +156,7 @@ export const api = {
   uploadWeb: async (file: Blob, name: string, path = '/files') => {
     const form = new FormData();
     form.append('file', file, name);
-    const headers: Record<string, string> = {};
-    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-    const res = await fetch(BASE + path, { method: 'POST', headers, body: form });
+    const res = await authedFetch(BASE + path, { method: 'POST', body: form });
     const text = await res.text();
     const j = text ? JSON.parse(text) : {};
     if (!res.ok) throw new ApiError(j?.error?.code ?? 'ERROR', j?.error?.message ?? '업로드 실패', res.status);
@@ -157,6 +184,8 @@ export interface Booking {
   content?: string | null;
   attachments?: Attachment[];
   meetingUrl?: string | null; // zoom 입장 URL(확정 시 발급)
+  studentName?: string | null; // 상대방 표시용(선생님 뷰) — UUID 대신 이름
+  teacherName?: string | null; // 상대방 표시용(학생 뷰)
 }
 export interface Me {
   id: string;

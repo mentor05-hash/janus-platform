@@ -15,8 +15,8 @@ export interface MediaTokenResult {
 export interface MediaProvider {
   /** 접속 토큰 — 선생님=publisher(송출), 학생=subscriber(수신). */
   issueToken(roomRef: string, identity: string, role: MediaRole, displayName?: string): Promise<MediaTokenResult>;
-  /** 서버측 녹화 시작(SFU egress). 반환 recordingRef 로 종료. */
-  startRecording(roomRef: string): Promise<{ provider: string; recordingRef: string }>;
+  /** 서버측 녹화 시작(SFU egress). 반환 recordingRef 로 종료. opts.pathPrefix 로 저장 경로 분기(기본 lectures). */
+  startRecording(roomRef: string, opts?: { pathPrefix?: string }): Promise<{ provider: string; recordingRef: string }>;
   /** 녹화 종료 → 산출물 URL(가능 시). */
   stopRecording(roomRef: string, recordingRef: string): Promise<{ url: string | null; durationSec?: number }>;
   /** 룸 종료(미디어 정리). */

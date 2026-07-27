@@ -42,9 +42,27 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
 import { RoomsBridgeModule } from './modules/rooms-bridge/rooms-bridge.module';
 import { InboxModule } from './modules/inbox/inbox.module';
 import { AssignmentModule } from './modules/assignment/assignment.module';
+import { GatewayModule } from './modules/gateway/gateway.module';
+import { PlacementHubModule } from './modules/placement-hub/placement-hub.module';
+import { FunnelModule } from './modules/funnel/funnel.module';
+import { SsoModule } from './modules/sso/sso.module';
+import { EntitlementModule } from './modules/entitlement/entitlement.module';
+import { GuardianReportModule } from './modules/guardian-report/guardian-report.module';
+import { GuardianConsentModule } from './modules/guardian-consent/guardian-consent.module';
+import { DiagnosticModule } from './modules/diagnostic/diagnostic.module';
+import { CurriculumModule } from './modules/curriculum/curriculum.module';
+import { LectureModule } from './modules/lecture/lecture.module';
+import { AdminStatsModule } from './modules/admin-stats/admin-stats.module';
+import { AcademicModule } from './modules/academic/academic.module';
+import { TasksModule } from './modules/tasks/tasks.module';
+import { GuardianPlanModule } from './modules/guardian-plan/guardian-plan.module';
+import { SearchModule } from './modules/search/search.module';
+import { AcademyFinderModule } from './modules/academy-finder/academy-finder.module';
+import { QuotaModule } from './common/quota/quota.module';
 
 @Module({
   imports: [
+    QuotaModule, // 유료 AI·SFU 일 사용량 조회(상한은 각 어댑터가 강제)
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnv,
@@ -85,6 +103,22 @@ import { AssignmentModule } from './modules/assignment/assignment.module';
     RoomsBridgeModule,
     InboxModule,
     AssignmentModule,
+    GatewayModule, // 관문 홈 LLM 훅(W2 D5) — 공개 해석 엔드포인트
+    PlacementHubModule, // 배치표 허브 — JANUS_DATA_DIR 런타임 서빙(데이터 무반입)
+    FunnelModule, // 간이 전환 계측(W3·C3) — baechi→consult-reserve 전환율
+    SsoModule, // 크로스서비스 SSO(O42·W3) — HS256+epoch·레지스트리·verify 위임
+    EntitlementModule, // 상품 권한(유료 배치표·계산기) — role 티어와 별개 서비스 해제(일회성 기간제)
+    GuardianReportModule, // 학부모 주간 통합 리포트(W8) — 자녀 성적·출석·상담·Q&A 요약
+    GuardianConsentModule, // 본부 결정 ① 학부모 동의·본인확인 — 미성년 데이터 전달 게이트
+    DiagnosticModule, // 수준진단(진단 관문) — 문항 풀이→채점→약점→처방(문제은행 데모+후속 kice)
+    CurriculumModule, // 주간 학습 플랜 — 진단 약점+성적 → 우선순위 처방 카드
+    LectureModule, // 강좌 v1 — 카탈로그·수강신청(데모 강좌+후속 교사 등록)
+    SearchModule, // 전역 통합검색 — 강좌·자료·커뮤니티·선생님
+    AcademyFinderModule, // 학원찾기 v2 — 통학·성적대 기반 학원 탐색(세션1: 스키마·공공적재·provenance)
+    AdminStatsModule, // 관리자 통계 대시보드 — 진단·강좌·커뮤니티 지표
+    AcademicModule, // 학사일정 — 수능·모의고사·신청기간 캘린더 + D-7/D-1/당일 리마인더(9e2elr salvage ⑤-1)
+    GuardianPlanModule, // 학부모 계획 트랙 — 자기 공간 계획 + 학생 제안(수락/거절). 연령 게이트 O105 재사용(O106)
+    TasksModule, // 맞춤 할 일 — 격차·학사일정 자동 제안 + 수동, D-1/당일 마감 리마인더(9e2elr salvage ⑤-2)
   ],
   providers: [
     // 전역 가드: rate limit(§10) → 인증 → 인가 순. @Public() 은 인증 통과, @Roles() 로 역할 제한.

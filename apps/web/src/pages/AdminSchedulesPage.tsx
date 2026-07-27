@@ -91,7 +91,7 @@ export function AdminSchedulesPage() {
             {busy ? '적용 중…' : '⬆ 엑셀 업로드'}<input type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={onFile} disabled={busy} />
           </label>
         </div>
-        <div style={{ fontSize: 12, color: 'var(--muted)', background: 'var(--fill,#f6f8fa)', borderRadius: 8, padding: 10, fontFamily: 'monospace', whiteSpace: 'pre', overflowX: 'auto', marginTop: 12 }}>
+        <div style={{ fontSize: 12, color: 'var(--muted)', background: 'var(--fill,#f4f7fb)', borderRadius: 8, padding: 10, fontFamily: 'monospace', whiteSpace: 'pre', overflowX: 'auto', marginTop: 12 }}>
 {`아이디,주,요일,시작,종료,설명
 simt01,기본,월,09:00,18:00,종일
 simt01,기본,화,09:00,12:00,오전(분할)

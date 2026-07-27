@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, Attachment, Quote, Slot, Teacher } from '../api';
 import { R, SP, useTheme, useUI, type Palette } from '../theme';
+import { showAlert } from '../lib/alertHost';
 
 const today = () => new Date().toISOString().slice(0, 10);
 const DURATION = 3; // 기본 30분 (10분 슬롯 3칸)
@@ -12,11 +13,11 @@ const minToTime = (idx: number) => `${String(Math.floor((idx * 10) / 60)).padSta
 
 // 슬롯 상태별 표시(학생 관점). avail 만 신청 가능, 나머지는 안내용.
 const SLOT_UI: Record<Slot['status'], { label: string; bg: string; fg: string; bd: string }> = {
-  avail: { label: '가능', bg: '#E3F4EA', fg: '#15803D', bd: '#B7E0C6' },
-  booked: { label: '예약', bg: '#EAF0FC', fg: '#2563EB', bd: '#C7D8F6' },
-  rest: { label: '휴게', bg: '#EEF1F3', fg: '#8B9BA3', bd: '#E0E5E8' },
-  off: { label: '근무외', bg: '#F4F6F8', fg: '#B6C0C6', bd: '#EAEEF0' },
-  blocked: { label: '차단', bg: '#FBE7E7', fg: '#C92A2A', bd: '#F1C9C9' },
+  avail: { label: '가능', bg: '#E7F3ED', fg: '#2A8A5F', bd: '#BFE0D0' },
+  booked: { label: '예약', bg: '#E8F0F9', fg: '#2F6FB3', bd: '#C4D8EE' },
+  rest: { label: '휴게', bg: '#EEF1F3', fg: '#8695A8', bd: '#E0E5E8' },
+  off: { label: '근무외', bg: '#F0F4FA', fg: '#B6C0C6', bd: '#E8EDF5' },
+  blocked: { label: '차단', bg: '#F9E8E4', fg: '#C25A43', bd: '#EFC7BD' },
 };
 
 const SUBJECTS = ['국어', '수학', '영어', '탐구'];
@@ -41,11 +42,24 @@ export function SlotsScreen({ teacher, onBack, initialMode, consultType, initial
       .then((pol) => { const min = pol?.[ctype]; if (min && min > 0) setDefaultSlots(Math.max(MIN_LEN, Math.round(min / 10))); })
       .catch(() => { /* 정책 없으면 기본 30분 */ });
   }, [ctype]);
+  const [faved, setFaved] = useState(false);
+  useEffect(() => {
+    api.get<{ fit: string[] }>('/me/teacher-lists').then((r) => setFaved((r.fit ?? []).includes(teacher.id))).catch(() => { /* 찜 목록 조회 실패 */ });
+  }, [teacher.id]);
+  async function toggleFav() {
+    try {
+      if (faved) { await api.del(`/me/teacher-lists/${teacher.id}`); showAlert('찜 해제', '내 선생님(찜)에서 제거했어요.'); }
+      else { await api.post('/me/teacher-lists', { teacherId: teacher.id, listKind: 'fit' }); showAlert('찜', '내 선생님(찜)에 추가했어요.'); }
+      setFaved(!faved);
+    } catch (e) { showAlert('실패', e instanceof ApiError ? e.message : '오류'); }
+  }
   // 선생님이 제공하는 방식만 노출(방식 먼저 선택 흐름). 비어 있으면 전체.
   const modeList = teacher.modes?.length ? MODES.filter((m) => teacher.modes!.includes(m.mode)) : MODES;
   const modeVals = modeList.map((m) => m.mode);
   const [date, setDate] = useState(today());
   const [slots, setSlots] = useState<Slot[]>([]);
+  /** 환경 인지 상담 모드(O120) — 슬롯이 비었을 때 **이유를 말해주기 위해** 함께 조회한다. */
+  const [modeInfo, setModeInfo] = useState<{ hasWindows: boolean; availableModes: string[]; consultModes: { mode: string; bookable: boolean }[] } | null>(null);
   // 선택 범위: selStart..selEnd(둘 다 포함, 10분 인덱스). null = 미선택
   const [selStart, setSelStart] = useState<number | null>(null);
   const [selEnd, setSelEnd] = useState<number | null>(null);
@@ -58,6 +72,12 @@ export function SlotsScreen({ teacher, onBack, initialMode, consultType, initial
   const [quote, setQuote] = useState<Quote | null>(null);
   const [error, setError] = useState('');
 
+  /**
+   * 고른 방식이 이 날짜에 불가능한가 — 빈 목록 문구와 안내 배너가 같은 판단을 써야 서로 어긋나지 않는다.
+   * 근무 자체가 없는 날은 제외한다: 그건 '방식' 문제가 아니라 '날짜' 문제라, 방식을 바꾸라고 하면 헛걸음이 된다.
+   */
+  const modeBlocked = !!modeInfo?.hasWindows && modeInfo.consultModes.some((m) => m.mode === mode && !m.bookable);
+
   function resetSel() {
     setSelStart(null);
     setSelEnd(null);
@@ -67,16 +87,22 @@ export function SlotsScreen({ teacher, onBack, initialMode, consultType, initial
 
   /** 슬롯 최신화(다른 학생 예약 반영). */
   function loadSlots() {
+    // mode 를 넘기면 그 방식이 불가능한 날은 빈 배열이 온다(예약 단계에서 거른다 — 입장 후 알면 늦다).
     api
-      .get<Slot[]>(`/teachers/${teacher.id}/slots?date=${date}`)
+      .get<Slot[]>(`/teachers/${teacher.id}/slots?date=${date}&mode=${encodeURIComponent(mode)}`)
       .then(setSlots)
       .catch((e) => setError(e instanceof ApiError ? e.message : '슬롯 조회 실패'));
+    api
+      .get<NonNullable<typeof modeInfo>>(`/teachers/${teacher.id}/consult-modes?date=${date}`)
+      .then(setModeInfo)
+      .catch(() => setModeInfo(null)); // 안내용 — 실패해도 예약 흐름을 막지 않는다
   }
   useEffect(() => {
     resetSel();
     loadSlots();
+    // mode 도 의존성이다 — 빠지면 방식을 바꿔도 이전 슬롯이 남아 예약을 시도하게 된다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [teacher.id, date]);
+  }, [teacher.id, date, mode]);
 
   // 범위·방식 선택 시 재견적
   useEffect(() => {
@@ -91,7 +117,7 @@ export function SlotsScreen({ teacher, onBack, initialMode, consultType, initial
   // 문제 파일 첨부(웹: 브라우저 파일창 → /files 업로드 → id 연결)
   function pickFiles() {
     if (typeof document === 'undefined') {
-      Alert.alert('안내', '파일 첨부는 웹에서 지원됩니다. (앱은 추후 지원)');
+      showAlert('안내', '파일 첨부는 웹에서 지원됩니다. (앱은 추후 지원)');
       return;
     }
     const input = document.createElement('input');
@@ -108,7 +134,7 @@ export function SlotsScreen({ teacher, onBack, initialMode, consultType, initial
           setAttachments((prev) => [...prev, { id: r.id, name: r.filename, type: r.contentType }]);
         }
       } catch (e) {
-        Alert.alert('업로드 실패', e instanceof ApiError ? e.message : '오류가 발생했어요.');
+        showAlert('업로드 실패', e instanceof ApiError ? e.message : '오류가 발생했어요.');
       } finally {
         setUploading(false);
       }
@@ -120,22 +146,22 @@ export function SlotsScreen({ teacher, onBack, initialMode, consultType, initial
     if (selStart === null || selEnd === null) return;
     try {
       await api.post('/bookings', { teacherId: teacher.id, date, consultType: ctype, subType: subject, mode, slotStart: selStart, slotEnd: selEnd + 1, content, attachments });
-      Alert.alert('예약 완료', '상담이 신청되었습니다.');
+      showAlert('예약 완료', '상담이 신청되었습니다.');
       onBack();
     } catch (e) {
       if (e instanceof ApiError && e.status === 409 && /줌.*초과/.test(e.message)) {
-        Alert.alert('줌 상담실 만석', '지금은 줌 상담실이 가득 찼어요. 채팅·필기·오프라인 등 다른 방식을 선택해 주세요.');
+        showAlert('줌 상담실 만석', '지금은 줌 상담실이 가득 찼어요. 채팅·필기·오프라인 등 다른 방식을 선택해 주세요.');
         return;
       }
       if (e instanceof ApiError && e.status === 409) {
         // 다른 학생이 먼저 예약함 등 슬롯 충돌 → 선택 해제 + 슬롯 새로고침.
-        Alert.alert('예약할 수 없어요', e.message);
+        showAlert('예약할 수 없어요', e.message);
         resetSel();
         loadSlots();
         return;
       }
       const msg = e instanceof ApiError ? e.message : '예약 실패';
-      Alert.alert(e instanceof ApiError && e.status === 402 ? '크레딧 부족' : '예약 실패', msg);
+      showAlert(e instanceof ApiError && e.status === 402 ? '크레딧 부족' : '예약 실패', msg);
     }
   }
 
@@ -217,13 +243,13 @@ export function SlotsScreen({ teacher, onBack, initialMode, consultType, initial
 
       {/* 선생님 액션: 찜·차단·신고 */}
       <View style={styles.actRow}>
-        <TouchableOpacity style={styles.actBtn} onPress={async () => { try { await api.post('/me/teacher-lists', { teacherId: teacher.id, type: 'fit' }); Alert.alert('찜', '내 선생님(찜)에 추가했어요.'); } catch (e) { Alert.alert('실패', e instanceof ApiError ? e.message : '오류'); } }}>
-          <Text style={styles.actT}>☆ 찜</Text>
+        <TouchableOpacity style={styles.actBtn} onPress={() => void toggleFav()}>
+          <Text style={[styles.actT, faved && { color: '#CF9A3A' }]}>{faved ? '★ 찜됨' : '☆ 찜'}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actBtn} onPress={async () => { try { await api.post('/teacher-blocks', { teacherId: teacher.id }); Alert.alert('차단', '차단했어요.'); } catch (e) { Alert.alert('실패', e instanceof ApiError ? e.message : '오류'); } }}>
+        <TouchableOpacity style={styles.actBtn} onPress={async () => { try { await api.post('/teacher-blocks', { teacherId: teacher.id }); showAlert('차단', '차단했어요.'); } catch (e) { showAlert('실패', e instanceof ApiError ? e.message : '오류'); } }}>
           <Text style={styles.actT}>🚫 차단</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actBtn} onPress={() => { const reason = typeof prompt !== 'undefined' ? prompt('신고 사유') : '부적절'; if (reason) api.post('/reports', { targetType: 'teacher', targetId: teacher.id, reason }).then(() => Alert.alert('신고', '접수되었습니다.')).catch((e) => Alert.alert('실패', e instanceof ApiError ? e.message : '오류')); }}>
+        <TouchableOpacity style={styles.actBtn} onPress={() => { const reason = typeof prompt !== 'undefined' ? prompt('신고 사유') : '부적절'; if (reason) api.post('/reports', { targetType: 'teacher', targetId: teacher.id, reason }).then(() => showAlert('신고', '접수되었습니다.')).catch((e) => showAlert('실패', e instanceof ApiError ? e.message : '오류')); }}>
           <Text style={styles.actT}>🚩 신고</Text>
         </TouchableOpacity>
       </View>
@@ -272,6 +298,16 @@ export function SlotsScreen({ teacher, onBack, initialMode, consultType, initial
           );
         })}
       </View>
+      {/* 환경 인지 모드 매칭(O120) — 슬롯이 왜 없는지 이유를 먼저 말한다. 환경은 죄가 아니므로 문구는 중립적으로. */}
+      {modeBlocked && modeInfo && (
+        <Text style={styles.modeNoteZoom}>
+          ⏱ 이 날짜에는 {MODES.find((m) => m.mode === mode)?.label ?? mode}으로 진행할 수 없어요 — 두 분의 그 시간대 환경으로는 어려워요.
+          {(() => {
+            const ok = modeInfo.consultModes.filter((m) => m.bookable).map((m) => MODES.find((x) => x.mode === m.mode)?.label ?? m.mode);
+            return ok.length ? ` 가능한 방식: ${ok.join(' · ')}. 위에서 바꿔 보세요.` : ' 다른 날짜를 골라 보세요.';
+          })()}
+        </Text>
+      )}
       {mode === 'offline' && <Text style={styles.modeNote}>🏫 오프라인은 가능한 선생님·센터·시간이 제한돼요. 센터 상담실 점유료가 가산됩니다.</Text>}
       {mode === 'zoom' && <Text style={styles.modeNoteZoom}>🎥 줌은 센터 상담실 동시 이용 한도가 있어, 예약 시점에 자리가 없으면 다른 방식을 선택해야 할 수 있어요.</Text>}
       <Text style={styles.modeNoteBoard}>📋 게시판(문항·일반) 질문은 Q&A 탭에서 건당 신청해요.</Text>
@@ -284,7 +320,7 @@ export function SlotsScreen({ teacher, onBack, initialMode, consultType, initial
           const we = d.dow === 0 || d.dow === 6;
           return (
             <TouchableOpacity key={d.iso} style={[styles.dateChip, on && styles.dateChipOn]} onPress={() => setDate(d.iso)}>
-              <Text style={[styles.dateWd, on && styles.dateOnT, we && !on && { color: d.dow === 0 ? '#DC2626' : '#2563EB' }]}>{d.wd}</Text>
+              <Text style={[styles.dateWd, on && styles.dateOnT, we && !on && { color: d.dow === 0 ? '#D06B52' : '#2F6FB3' }]}>{d.wd}</Text>
               <Text style={[styles.dateMd, on && styles.dateOnT]}>{d.md}</Text>
             </TouchableOpacity>
           );
@@ -294,7 +330,13 @@ export function SlotsScreen({ teacher, onBack, initialMode, consultType, initial
       {/* 시간 — 시간대별 컴팩트 표(선생님 근무·체류 반영) */}
       <Text style={styles.sec}>시간 (가능 시간만 · {ctype} 기본 {defaultSlots * 10}분)</Text>
       {slots.length === 0 ? (
-        <Text style={ui.sub}>이 날짜에는 선생님 근무 시간이 없어요. 다른 날짜를 선택해 주세요.</Text>
+        // 빈 이유가 둘이다 — 근무가 없거나, 근무는 있는데 **고른 방식이 그 시간대에 불가능**하거나.
+        // 후자에 "근무 시간이 없어요"를 띄우면 거짓말이 된다(다른 날짜를 뒤지게 만든다).
+        <Text style={ui.sub}>
+          {modeBlocked
+            ? `이 날짜엔 ${MODES.find((m) => m.mode === mode)?.label ?? mode}으로 잡을 수 있는 시간이 없어요. 위에서 다른 방식을 골라 보세요.`
+            : '이 날짜에는 선생님 근무 시간이 없어요. 다른 날짜를 선택해 주세요.'}
+        </Text>
       ) : (
         <>
           <View style={{ gap: 4 }}>
@@ -378,8 +420,8 @@ export function SlotsScreen({ teacher, onBack, initialMode, consultType, initial
       {quote && (
         <>
           {!quote.valid && (
-            <View style={[styles.warn, { backgroundColor: '#fff9ed', borderColor: '#f0dcae' }]}>
-              <Text style={{ color: '#92600a', fontWeight: '700', fontSize: 13 }}>⚠ {quote.message || '이 시간대는 이용할 수 없어요.'}</Text>
+            <View style={[styles.warn, { backgroundColor: '#fff9ed', borderColor: '#eddcb8' }]}>
+              <Text style={{ color: '#A97D24', fontWeight: '700', fontSize: 13 }}>⚠ {quote.message || '이 시간대는 이용할 수 없어요.'}</Text>
             </View>
           )}
           <View style={styles.payRow}>
@@ -436,8 +478,8 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   cellEdge: { borderColor: '#fff', borderWidth: 2 },
   cellT: { fontSize: 11, fontWeight: '700' },
   edgeMark: { color: '#fff', fontSize: 9, marginTop: -1, fontWeight: '800' },
-  notice: { marginTop: 8, backgroundColor: '#FEF6E7', borderColor: '#F0DCAE', borderWidth: 1, borderRadius: 9, padding: 9 },
-  noticeT: { color: '#92600a', fontSize: 12, fontWeight: '600', lineHeight: 17 },
+  notice: { marginTop: 8, backgroundColor: '#FAF1E2', borderColor: '#EDDCB8', borderWidth: 1, borderRadius: 9, padding: 9 },
+  noticeT: { color: '#A97D24', fontSize: 12, fontWeight: '600', lineHeight: 17 },
   selBar: { marginTop: 10, backgroundColor: C.teal50, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 12 },
   selTop: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   selTime: { color: C.ink, fontWeight: '800', fontSize: 14 },

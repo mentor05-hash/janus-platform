@@ -1,0 +1,29 @@
+#!/usr/bin/env sh
+# janus-platform pre-commit — gitleaks 시크릿·금지 파일 스캔 (실행계획서 §1-3 강제 장치)
+# 활성화: bash scripts/setup-hooks.sh  (git config core.hooksPath .githooks)
+
+ROOT="$(git rev-parse --show-toplevel)"
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "" >&2
+  echo "✖ [pre-commit] gitleaks 미설치 — 커밋을 차단합니다 (§1-3 fail-closed)." >&2
+  echo "  설치:  brew install gitleaks   (macOS)" >&2
+  echo "         sudo apt-get install gitleaks   (Ubuntu 24.04+)" >&2
+  echo "  긴급 우회(비권장·사유 기록 필수): git commit --no-verify" >&2
+  exit 1
+fi
+
+# --verbose 금지: gitleaks 8.16의 path-only 룰 finding 출력 panic 회피 (차단 자체는 동일)
+gitleaks protect --staged --redact --config "$ROOT/.gitleaks.toml"
+STATUS=$?
+
+if [ $STATUS -ne 0 ]; then
+  echo "" >&2
+  echo "✖ [pre-commit] gitleaks가 시크릿 또는 금지 파일(§1-2)을 감지 — 커밋 차단." >&2
+  echo "  · 시크릿이면: 해당 값 제거 후 재커밋, 이미 노출된 키는 즉시 회전." >&2
+  echo "  · 저작권 데이터 파일이면: repo 밖 janus-data(로컬 전용)로 이동, 경로는 JANUS_DATA_DIR ENV 참조." >&2
+  echo "  · 오탐이면: .gitleaks.toml allowlist에 사유와 함께 추가." >&2
+  exit 1
+fi
+
+exit 0

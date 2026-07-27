@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import type { Booking, ConsultationNote, Slot, Teacher } from '../api/types';
@@ -67,14 +68,14 @@ function RescheduleBox({ booking, onDone }: { booking: Booking; onDone: () => vo
                   const inSel = selStart !== null && selValid && s.index >= selStart && s.index < selStart + duration;
                   return <button key={s.index} disabled={s.status !== 'avail'} onClick={() => setSelStart(s.index)}
                     style={{ width: 48, padding: '4px 0', fontSize: 11, borderRadius: 6, border: 'none', cursor: s.status === 'avail' ? 'pointer' : 'default',
-                      background: inSel ? 'var(--teal)' : s.status === 'avail' ? '#CDEBDD' : '#EEF1F3', color: inSel ? '#fff' : 'var(--ink)' }}>{s.time}</button>;
+                      background: inSel ? 'var(--teal)' : s.status === 'avail' ? '#CFE7DA' : '#EEF1F3', color: inSel ? '#fff' : 'var(--ink)' }}>{s.time}</button>;
                 })}
               </div>
             </div>
           ))}
         </div>
       )}
-      {selStart !== null && !selValid && <p style={{ fontSize: 12, color: '#92600a', marginTop: 6 }}>이 시작 시간부터 {duration * 10}분 연속으로 비어있지 않아요.</p>}
+      {selStart !== null && !selValid && <p style={{ fontSize: 12, color: '#A97D24', marginTop: 6 }}>이 시작 시간부터 {duration * 10}분 연속으로 비어있지 않아요.</p>}
       {err && <ErrorText>{err}</ErrorText>}
       <Button size="sm" disabled={!selValid || busy} onClick={submit} style={{ marginTop: 8 }}>이 시간으로 변경</Button>
     </div>
@@ -86,7 +87,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 const badgeKind = (s: string) => (['new', 'confirmed', 'done', 'cancelled', 'rejected', 'noshow'].includes(s) ? s : 'soft') as 'new';
 
-function ReviewBox({ bookingId }: { bookingId: string }) {
+function ReviewBox({ bookingId, alreadyReviewed }: { bookingId: string; alreadyReviewed?: boolean }) {
   const [r, setR] = useState({ ratingAttitude: 5, ratingContent: 5, ratingSkill: 5, ratingAgain: 5, text: '' });
   const [done, setDone] = useState(false);
   const [err, setErr] = useState('');
@@ -96,6 +97,7 @@ function ReviewBox({ bookingId }: { bookingId: string }) {
     try { await api.post(`/bookings/${bookingId}/review`, r); setDone(true); }
     catch (e) { setErr(e instanceof ApiError ? e.message : '후기 등록 실패'); }
   }
+  if (alreadyReviewed && !done) return <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 8 }}>✓ 이미 후기를 남긴 상담입니다. 선생님 평점에 반영되었어요.</p>;
   if (done) return <p style={{ color: 'var(--chip-done)', fontSize: 13, marginTop: 8 }}>후기가 등록되었습니다. 감사합니다!</p>;
   return (
     <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--line)' }}>
@@ -105,7 +107,7 @@ function ReviewBox({ bookingId }: { bookingId: string }) {
           <span style={{ width: 56, fontSize: 13, color: 'var(--muted)' }}>{label}</span>
           {[1, 2, 3, 4, 5].map((n) => (
             <button key={n} type="button" onClick={() => setR((p) => ({ ...p, [k]: n }))}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: n <= (r[k] as number) ? '#F5A623' : 'var(--line)' }}>★</button>
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: n <= (r[k] as number) ? '#CF9A3A' : 'var(--line)' }}>★</button>
           ))}
         </div>
       ))}
@@ -155,7 +157,7 @@ function Detail({ bookingId, status }: { bookingId: string; status: string }) {
       ) : (
         <div style={{ fontSize: 13, color: 'var(--muted)' }}>아직 공개된 상담 기록이 없어요(완료 후 열람 가능).</div>
       )}
-      {status === 'done' && <ReviewBox bookingId={bookingId} />}
+      {status === 'done' && <ReviewBox bookingId={bookingId} alreadyReviewed={b?.reviewed} />}
     </div>
   );
 }
@@ -174,10 +176,24 @@ export function StudentBookingsPage() {
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
 
+  const [unread, setUnread] = useState<Record<string, number>>({}); // 예약별 미확인 채팅 수
+  function loadUnread() { api.get<Record<string, number>>('/chat/unread').then(setUnread).catch(() => { /* 무시 */ }); }
   function load() {
     api.get<Booking[]>('/bookings?role=student').then(setBookings).catch((e) => setError(e instanceof ApiError ? e.message : '조회 실패'));
     api.get<{ chat: boolean; whiteboard: boolean }>('/realtime/features').then((f) => { setChatOn(!!f.chat); setWbOn(!!f.whiteboard); }).catch(() => {});
+    loadUnread();
   }
+  // 알림 '채팅 열기' 딥링크(?chat=) + 새 채팅 알림 시 배지 갱신.
+  const loc = useLocation();
+  useEffect(() => {
+    const cid = new URLSearchParams(loc.search).get('chat');
+    if (cid) setChatId(cid);
+  }, [loc.search]);
+  useEffect(() => {
+    const h = (e: Event) => { if ((e as CustomEvent<{ type?: string }>).detail?.type === 'chat_message') loadUnread(); };
+    window.addEventListener('janus:notif', h);
+    return () => window.removeEventListener('janus:notif', h);
+  }, []);
   useEffect(() => {
     load();
     api.get<{ data?: Teacher[] } | Teacher[]>('/teachers').then((r) => {
@@ -256,21 +272,34 @@ export function StudentBookingsPage() {
       {bookings === null ? <Spinner /> : mine.length === 0 ? (
         <Card><EmptyState>예약 내역이 없어요.</EmptyState></Card>
       ) : (
-        mine.map((b) => (
-          <Card key={b.id} style={{ marginBottom: 8 }}>
+        mine.map((b) => {
+          const isToday = !!b.start && new Date(b.start).toDateString() === new Date().toDateString() && ['new', 'confirmed'].includes(b.status);
+          return (
+          <Card key={b.id} style={{ marginBottom: 8, ...(isToday ? { border: '2px solid var(--teal)', background: 'var(--teal-50,#EEF4FB)' } : {}) }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <div>
+                {isToday && <Badge kind="confirmed">📅 오늘</Badge>}{' '}
                 <b>{tName(b.teacherId)}</b>
                 {b.direction === 'reverse' && <Badge kind="soft">역상담</Badge>}
                 <div style={{ fontSize: 13, color: 'var(--muted)' }}>{KST(b.start)} · {b.consultType ?? ''} · {b.mode} · {b.chargedCredits.toLocaleString()}크레딧</div>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <Badge kind={badgeKind(b.status)}>{STATUS_LABEL[b.status] ?? b.status}</Badge>
+                {/* 선생님 인지 확인(ack) — 자동확정 예약에서 "선생님이 봤는지"를 학생에게 노출 */}
+                {b.status === 'confirmed' && (b.teacherAckAt
+                  ? <Badge kind="done">선생님 확인 ✓</Badge>
+                  : <Badge kind="soft">선생님 확인 대기</Badge>)}
                 {UPCOMING.has(b.status) && <Button variant="ghost" size="sm" disabled={busy === b.id} onClick={() => setRescheduling(rescheduling === b.id ? null : b.id)}>시간 변경</Button>}
                 {UPCOMING.has(b.status) && <Button variant="ghost" size="sm" disabled={busy === b.id} onClick={() => cancel(b.id)} style={{ color: 'var(--danger)' }}>예약 취소</Button>}
                 {b.status === 'done' && <Button variant="ghost" size="sm" disabled={busy === b.id} onClick={() => reportNoshow(b.id)} style={{ color: 'var(--danger)' }}>미진행 신고</Button>}
                 {b.mode === 'zoom' && b.meetingUrl && b.status !== 'new' && <Button size="sm" onClick={() => window.open(b.meetingUrl!, '_blank', 'noopener')}>🎥 줌 입장</Button>}
-                {chatOn && <Button variant="ghost" size="sm" onClick={() => setChatId(b.id)}>💬 채팅</Button>}
+                {chatOn && (
+                  <Button variant="ghost" size="sm" onClick={() => setChatId(b.id)} style={{ position: 'relative' }}>
+                    💬 채팅{(unread[b.id] ?? 0) > 0 && (
+                      <span style={{ position: 'absolute', top: -6, right: -6, minWidth: 16, height: 16, padding: '0 4px', borderRadius: 999, background: 'var(--danger,#dc2626)', color: '#fff', fontSize: 10, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{unread[b.id]! > 99 ? '99+' : unread[b.id]}</span>
+                    )}
+                  </Button>
+                )}
                 {wbOn && b.status !== 'new' && <Button variant="ghost" size="sm" onClick={() => setWbId(b.id)}>🖊 화이트보드</Button>}
                 <Button variant="ghost" size="sm" onClick={() => setOpen(open === b.id ? null : b.id)}>{open === b.id ? '접기' : '상세'}</Button>
               </div>
@@ -278,9 +307,10 @@ export function StudentBookingsPage() {
             {rescheduling === b.id && <RescheduleBox booking={b} onDone={() => { setRescheduling(null); setMsg('시간이 변경되었습니다. 선생님 재확인 후 확정됩니다.'); load(); }} />}
             {open === b.id && <Detail bookingId={b.id} status={b.status} />}
           </Card>
-        ))
+          );
+        })
       )}
-      {chatId && user && <SessionChatPanel bookingId={chatId} myId={user.id} title="상담 채팅" onClose={() => setChatId(null)} />}
+      {chatId && user && <SessionChatPanel bookingId={chatId} myId={user.id} title="상담 채팅" onClose={() => { setChatId(null); loadUnread(); }} />}
       {wbId && <SessionWhiteboardPanel bookingId={wbId} title="공유 화이트보드" onClose={() => setWbId(null)} />}
     </div>
   );

@@ -36,9 +36,11 @@ export class RealtimeService {
   private async isPremiumStudent(studentId: string): Promise<boolean> {
     const sp = await this.prisma.student_profile.findUnique({
       where: { account_id: studentId },
-      select: { membership_grade: { select: { name: true } } },
+      select: { membership_grade: { select: { name: true, tier: true } } },
     });
-    return /premium|프리미엄/i.test(sp?.membership_grade?.name ?? '');
+    const g = sp?.membership_grade;
+    // 티어 기준(Premium=3 이상 — VIP 포함). 이름 매칭은 커스텀 등급명 폴백.
+    return (g?.tier ?? 0) >= 3 || /premium|프리미엄/i.test(g?.name ?? '');
   }
 
   /** 이 사용자에게 각 기능이 열려 있는지(예약 참여자 기준). */
@@ -64,26 +66,61 @@ export class RealtimeService {
     if (f.notif === 'all') return true;
     const sp = await this.prisma.student_profile.findUnique({
       where: { account_id: recipientId },
-      select: { membership_grade: { select: { name: true } } },
+      select: { membership_grade: { select: { name: true, tier: true } } },
     });
     if (!sp) return true; // 학생 프로필 없음 = 직원/보호자
-    return /premium|프리미엄/i.test(sp.membership_grade?.name ?? '');
+    // 티어 기준(Premium=3 이상 — VIP 포함) + 커스텀 등급명 폴백(isPremiumStudent 와 동일 규칙).
+    return (sp.membership_grade?.tier ?? 0) >= 3 || /premium|프리미엄/i.test(sp.membership_grade?.name ?? '');
   }
 
   // 라이브 세션(줌·오프라인·필기·보드)은 예약 시간대에만 실시간 상호작용 허용.
-  // 채팅형 상담(mode='chat')은 무제한 유지. 창 = [시작−5분, 종료+5분].
+  // 채팅형 상담(mode='chat')은 O88(b) 상시 개방 — 단, 종료 후 유예일(기본 3일)이 지나면 읽기 전용(O88 보강·O94).
   private static readonly PRE_MS = 5 * 60 * 1000;
   private static readonly POST_MS = 5 * 60 * 1000;
+  // 채팅형 유예 정책 — system_setting 'chat_session' {lockAfterDays, postFreeMsgs}.
+  // lockAfterDays: 종료 후 읽기 전용까지의 유예(0=무기한). postFreeMsgs: 유예 중 학생 무료 발신 한도(O95 A안, 0=무제한).
+  private static readonly CHAT_LOCK_DAYS_DEFAULT = 3;
+  private static readonly POST_FREE_MSGS_DEFAULT = 5;
+  private chatLockDays = RealtimeService.CHAT_LOCK_DAYS_DEFAULT;
+  private postFreeMsgs = RealtimeService.POST_FREE_MSGS_DEFAULT;
+  private chatLockLoadedAt = 0;
+  private refreshChatLockDays() {
+    if (Date.now() - this.chatLockLoadedAt < 60_000) return; // 1분 캐시 — 조회 폭주 방지
+    this.chatLockLoadedAt = Date.now();
+    void this.prisma.system_setting.findUnique({ where: { key: 'chat_session' } })
+      .then((row) => {
+        const v = row?.value as { lockAfterDays?: number; postFreeMsgs?: number } | null;
+        this.chatLockDays = typeof v?.lockAfterDays === 'number' && v.lockAfterDays >= 0 ? v.lockAfterDays : RealtimeService.CHAT_LOCK_DAYS_DEFAULT;
+        this.postFreeMsgs = typeof v?.postFreeMsgs === 'number' && v.postFreeMsgs >= 0 ? v.postFreeMsgs : RealtimeService.POST_FREE_MSGS_DEFAULT;
+      })
+      .catch(() => { /* 설정 조회 실패 — 기본값 유지 */ });
+  }
+  get postFreeLimit(): number { this.refreshChatLockDays(); return this.postFreeMsgs; }
 
-  /** 세션 시간창 계산. restricted=false 면 상시 개방(채팅형·시간미정). */
+  /** 종료 후 학생 발신 수(O95 게이트) — 시스템·삭제 제외. */
+  async countPostEndStudentMsgs(b: { id?: string; student_id?: string | null; end_at: Date | null }, bookingId: string): Promise<number> {
+    if (!b.end_at || !b.student_id) return 0;
+    return this.prisma.chat_message.count({
+      where: { booking_id: bookingId, sender_id: b.student_id, created_at: { gt: b.end_at }, deleted_at: null, kind: { not: 'system' } },
+    });
+  }
+
+  /** 세션 시간창 계산. restricted=false 면 상시 개방(시간미정 채팅형 등). */
   sessionWindow(b: { mode: string | null; start_at: Date | null; end_at: Date | null }): {
     restricted: boolean; state: 'before' | 'open' | 'closed'; opensAt: Date | null; closesAt: Date | null;
   } {
-    const restricted = b.mode !== 'chat' && !!b.start_at && !!b.end_at;
+    const now = Date.now();
+    if (b.mode === 'chat') {
+      // 채팅형: 시작 전에도 열려 있고(안내·사전 질문 허용), 종료 + 유예일 후에만 읽기 전용.
+      this.refreshChatLockDays();
+      if (!b.end_at || this.chatLockDays === 0) return { restricted: false, state: 'open', opensAt: null, closesAt: null };
+      const closesAt = new Date(b.end_at.getTime() + this.chatLockDays * 86_400_000);
+      return { restricted: true, state: now > closesAt.getTime() ? 'closed' : 'open', opensAt: null, closesAt };
+    }
+    const restricted = !!b.start_at && !!b.end_at;
     if (!restricted) return { restricted: false, state: 'open', opensAt: null, closesAt: null };
     const opensAt = new Date(b.start_at!.getTime() - RealtimeService.PRE_MS);
     const closesAt = new Date(b.end_at!.getTime() + RealtimeService.POST_MS);
-    const now = Date.now();
     const state = now < opensAt.getTime() ? 'before' : now > closesAt.getTime() ? 'closed' : 'open';
     return { restricted: true, state, opensAt, closesAt };
   }
@@ -94,10 +131,10 @@ export class RealtimeService {
     return !w.restricted || w.state === 'open';
   }
 
-  /** 클라이언트 전달용(ISO). */
+  /** 클라이언트 전달용(ISO). mode 는 도구 노출 게이팅(음성/화상=zoom 전용, O89)에 사용. */
   sessionInfo(b: { mode: string | null; start_at: Date | null; end_at: Date | null }) {
     const w = this.sessionWindow(b);
-    return { restricted: w.restricted, state: w.state, opensAt: w.opensAt?.toISOString() ?? null, closesAt: w.closesAt?.toISOString() ?? null };
+    return { restricted: w.restricted, state: w.state, opensAt: w.opensAt?.toISOString() ?? null, closesAt: w.closesAt?.toISOString() ?? null, mode: b.mode ?? null };
   }
 
   /** 예약 참여자(학생/담당 선생님)만 방 접근. 반환: 예약 + 상대 정보. */
@@ -111,6 +148,33 @@ export class RealtimeService {
       user.role === AccountRole.ADMIN || user.role === AccountRole.HR;
     if (!isParticipant) throw new ForbiddenException('이 상담의 참여자가 아닙니다.');
     return b;
+  }
+
+  // 부재중 채팅 알림 스로틀 — 예약·수신자당 10분에 1건(원장 폭주 방지). 키: bookingId:recipientId
+  private readonly chatNotifiedAt = new Map<string, number>();
+  private static readonly CHAT_NOTIFY_GAP_MS = 10 * 60 * 1000;
+
+  /** 방에 없는 상대에게 새 채팅 알림 원장 기록(스로틀) — 알림 목록·뱃지에서 확인용. 반환: 기록 여부. */
+  async recordChatUnread(bookingId: string, recipientId: string): Promise<boolean> {
+    const key = `${bookingId}:${recipientId}`;
+    const last = this.chatNotifiedAt.get(key) ?? 0;
+    if (Date.now() - last < RealtimeService.CHAT_NOTIFY_GAP_MS) return false;
+    this.chatNotifiedAt.set(key, Date.now());
+    try {
+      await this.prisma.notification.create({
+        data: { recipient_id: recipientId, type: 'chat_message', channels: ['app'], payload: { bookingId } as object },
+      });
+      return true;
+    } catch { return false; }
+  }
+
+  /** 선생님 상담 인지 자동 스탬프 — 채팅·보드 입장 = 인지(ack). 최초 1회만 true 반환. */
+  async stampTeacherAck(bookingId: string, teacherId: string): Promise<boolean> {
+    const r = await this.prisma.booking.updateMany({
+      where: { id: bookingId, teacher_id: teacherId, teacher_ack_at: null },
+      data: { teacher_ack_at: new Date() },
+    });
+    return r.count > 0;
   }
 
   async history(user: AuthUser, bookingId: string) {
@@ -135,10 +199,33 @@ export class RealtimeService {
     return this.shape(m, senderId, orig);
   }
 
+  /** 메시지 삭제(회수) — 본인 발신만, soft delete(원문 보존: C1 직거래 감사·분쟁 대응). */
+  async deleteMessage(userId: string, bookingId: string, messageId: string): Promise<boolean> {
+    const r = await this.prisma.chat_message.updateMany({
+      where: { id: messageId, booking_id: bookingId, sender_id: userId, deleted_at: null },
+      data: { deleted_at: new Date() },
+    });
+    return r.count > 0;
+  }
+
+  /** 시스템 메시지(세션·녹음 안내) — sender 없음, kind='system'. 중앙 회색 칩으로 표시. */
+  async saveSystemMessage(bookingId: string, body: string) {
+    const m = await this.prisma.chat_message.create({
+      data: { booking_id: bookingId, sender_id: null, kind: 'system', body },
+    });
+    return this.shape(m, '');
+  }
+
+  /** 같은 본문의 시스템 메시지가 이미 있는지(세션 종료 안내 등 중복 방지). */
+  async hasSystemMessage(bookingId: string, body: string): Promise<boolean> {
+    const m = await this.prisma.chat_message.findFirst({ where: { booking_id: bookingId, kind: 'system', body } });
+    return !!m;
+  }
+
   /** 이모지 반응 토글(같은 예약의 메시지만). 반환: 갱신된 reactions. */
   async toggleReaction(userId: string, bookingId: string, messageId: string, emoji: string) {
     const m = await this.prisma.chat_message.findFirst({ where: { id: messageId, booking_id: bookingId } });
-    if (!m) return null;
+    if (!m || m.deleted_at) return null;
     const reactions: Record<string, string[]> = { ...((m.reactions as Record<string, string[]>) ?? {}) };
     const arr = new Set(reactions[emoji] ?? []);
     if (arr.has(userId)) arr.delete(userId); else arr.add(userId);
@@ -148,17 +235,40 @@ export class RealtimeService {
   }
 
   private shape(
-    m: { id: string; sender_id: string | null; kind: string; body: string | null; image_file_id: string | null; reply_to_id?: string | null; reactions?: unknown; created_at: Date; read_at?: Date | null },
+    m: { id: string; sender_id: string | null; kind: string; body: string | null; image_file_id: string | null; reply_to_id?: string | null; reactions?: unknown; created_at: Date; read_at?: Date | null; deleted_at?: Date | null },
     viewerId: string,
-    orig?: { id: string; sender_id: string | null; kind: string; body: string | null } | null,
+    orig?: { id: string; sender_id: string | null; kind: string; body: string | null; deleted_at?: Date | null } | null,
   ) {
+    // 삭제(회수)된 메시지는 내용을 내려보내지 않는다 — kind='deleted' 묘비만.
+    if (m.deleted_at) {
+      return {
+        id: m.id, senderId: m.sender_id, mine: m.sender_id === viewerId, kind: 'deleted', body: null,
+        imageFileId: null, createdAt: m.created_at, readAt: m.read_at ?? null,
+        reactions: {} as Record<string, string[]>, replyToId: null, replyTo: null,
+      };
+    }
     return {
       id: m.id, senderId: m.sender_id, mine: m.sender_id === viewerId, kind: m.kind, body: m.body,
       imageFileId: m.image_file_id, createdAt: m.created_at, readAt: m.read_at ?? null,
       reactions: (m.reactions as Record<string, string[]>) ?? {},
       replyToId: m.reply_to_id ?? null,
-      replyTo: orig ? { id: orig.id, senderId: orig.sender_id, kind: orig.kind, body: orig.body ? orig.body.slice(0, 80) : null } : null,
+      replyTo: orig && !orig.deleted_at ? { id: orig.id, senderId: orig.sender_id, kind: orig.kind, body: orig.body ? orig.body.slice(0, 80) : null } : null,
     };
+  }
+
+  /** C1 직거래·연락처 감지 기록 — audit_log 재사용(action='moderation_flag'). 실패해도 본 작업 비차단. */
+  async flagModeration(actor: AuthUser, context: string, refId: string, kinds: string[], text: string) {
+    try {
+      await this.prisma.audit_log.create({
+        data: {
+          actor_id: actor.id, actor_role: actor.role,
+          action: 'moderation_flag', target_type: context, target_id: refId,
+          summary: text.slice(0, 120),
+          meta: { kinds } as object,
+          center_id: actor.centerId ?? null,
+        },
+      });
+    } catch { /* 기록 실패는 삼킨다 */ }
   }
 
   /** 이 사용자가 방을 열람 → 상대가 보낸 미확인 메시지를 읽음 처리. 반환: 처리 건수 + 시각. */
@@ -172,6 +282,42 @@ export class RealtimeService {
     return { count: r.count, at, readerId: user.id };
   }
 
+  /** 채팅 인박스 — 대화가 있는 내 예약을 최신 메시지순으로(상대·미리보기·미읽음). 카톡형 목록. */
+  async chatInbox(user: AuthUser) {
+    const rows = await this.prisma.$queryRaw<Array<{
+      booking_id: string; kind: string; body: string | null; sender_id: string | null; last_at: Date;
+      student_id: string | null; teacher_id: string | null; mode: string | null; status: string | null; start_at: Date | null;
+    }>>`
+      SELECT DISTINCT ON (cm.booking_id)
+        cm.booking_id, cm.kind, cm.body, cm.sender_id, cm.created_at AS last_at,
+        b.student_id, b.teacher_id, b.mode, b.status, b.start_at
+      FROM chat_message cm JOIN booking b ON b.id = cm.booking_id
+      WHERE (b.student_id = ${user.id}::uuid OR b.teacher_id = ${user.id}::uuid)
+        AND cm.deleted_at IS NULL
+      ORDER BY cm.booking_id, cm.created_at DESC`;
+    rows.sort((a, b) => b.last_at.getTime() - a.last_at.getTime());
+    const top = rows.slice(0, 50);
+    const unread = await this.unreadCounts(user);
+    const ids = [...new Set(top.map((r) => (r.student_id === user.id ? r.teacher_id : r.student_id)).filter((x): x is string => !!x))];
+    const accounts = ids.length ? await this.prisma.account.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } }) : [];
+    const names = new Map(accounts.map((a) => [a.id, a.name]));
+    const preview = (r: { kind: string; body: string | null }) =>
+      r.kind === 'image' ? '📷 사진' : r.kind === 'audio' ? '🎤 음성 메시지' : r.kind === 'file' ? '📎 파일' : (r.body ?? '').slice(0, 60);
+    return top.map((r) => {
+      const counterpartId = r.student_id === user.id ? r.teacher_id : r.student_id;
+      return {
+        bookingId: r.booking_id,
+        counterpartId,
+        counterpartName: (counterpartId && names.get(counterpartId)) ?? '상대',
+        mode: r.mode, status: r.status, startAt: r.start_at?.toISOString() ?? null,
+        lastAt: r.last_at.toISOString(),
+        lastPreview: preview(r),
+        lastMine: r.sender_id === user.id,
+        unread: unread[r.booking_id] ?? 0,
+      };
+    });
+  }
+
   /** 내 예약들의 미확인(상대가 보낸 안 읽은) 메시지 수 — 예약별. 목록 배지용. */
   async unreadCounts(user: AuthUser): Promise<Record<string, number>> {
     const rows = await this.prisma.$queryRaw<Array<{ booking_id: string; n: bigint }>>`
@@ -180,6 +326,7 @@ export class RealtimeService {
       WHERE (b.student_id = ${user.id}::uuid OR b.teacher_id = ${user.id}::uuid)
         AND cm.sender_id IS DISTINCT FROM ${user.id}::uuid
         AND cm.read_at IS NULL
+        AND cm.deleted_at IS NULL
       GROUP BY cm.booking_id`;
     const out: Record<string, number> = {};
     for (const r of rows) out[r.booking_id] = Number(r.n);

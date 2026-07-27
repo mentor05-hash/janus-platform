@@ -2,7 +2,7 @@ import { BadRequestException, Body, Controller, Get, Header, Inject, NotFoundExc
 import type { Pool } from 'pg';
 import { PG } from '../db';
 import { ApiKeyGuard } from './api-key.guard';
-import { AddParticipantDto, CreateRoomDto, MintTokenDto } from './dto';
+import { AddParticipantDto, CreateRoomDto, MintTokenDto, UpdateWindowDto } from './dto';
 import { MetricsService } from './metrics.service';
 import { RoomsGateway } from './rooms.gateway';
 import { RoomsService } from './rooms.service';
@@ -36,9 +36,8 @@ export class RoomsController {
   @UseGuards(ApiKeyGuard)
   @Post('rooms')
   async create(@Body() dto: CreateRoomDto) {
-    const hasOpen = dto.opensAt != null, hasClose = dto.closesAt != null;
-    if (hasOpen !== hasClose) throw new BadRequestException('opensAt 과 closesAt 은 함께 지정하거나 함께 생략해야 합니다.');
-    if (hasOpen && hasClose && Date.parse(dto.opensAt!) >= Date.parse(dto.closesAt!)) throw new BadRequestException('opensAt 은 closesAt 보다 앞서야 합니다.');
+    // 한쪽만 지정도 허용 — closes 만: 상시 개방하다 그 시각 이후 잠금(채팅형 유예), opens 만: 그때부터 상시.
+    if (dto.opensAt != null && dto.closesAt != null && Date.parse(dto.opensAt) >= Date.parse(dto.closesAt)) throw new BadRequestException('opensAt 은 closesAt 보다 앞서야 합니다.');
     return this.svc.createRoom({
       externalRef: dto.externalRef, features: dto.features, opensAt: dto.opensAt, closesAt: dto.closesAt,
       metadata: dto.metadata, tokenTtlSec: dto.tokenTtlSec, mode: dto.mode, participants: dto.participants ?? [],
@@ -72,6 +71,17 @@ export class RoomsController {
     const r = await this.svc.addParticipant(id, body);
     if (!r) throw new NotFoundException('room not found');
     return r;
+  }
+
+  /** 시간창·정책 메타 갱신 — 호스트 정책 변경(유예일·무료 한도)을 기존 룸에 반영(멱등). */
+  @UseGuards(ApiKeyGuard)
+  @Post('rooms/:id/window')
+  async updateWindow(@Param('id') id: string, @Body() body: UpdateWindowDto) {
+    if (body.opensAt != null && body.closesAt != null && Date.parse(body.opensAt) >= Date.parse(body.closesAt)) throw new BadRequestException('opensAt 은 closesAt 보다 앞서야 합니다.');
+    const room = await this.svc.updateRoom(id, { opensAt: body.opensAt, closesAt: body.closesAt, metadata: body.metadata });
+    if (!room) throw new NotFoundException('room not found');
+    await this.gateway.refreshRoom(id);
+    return { ok: true, session: this.svc.sessionInfo(room) };
   }
 
   /** 토큰 폐기 — 발급된 모든 토큰 무효화 + 현재 접속 강제 해제(예: 세션 조기 종료·킥). */

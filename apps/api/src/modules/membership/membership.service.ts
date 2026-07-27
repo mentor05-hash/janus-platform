@@ -7,6 +7,7 @@ import {
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { BillingCycle } from '../../config/enums';
+import { EntitlementService } from '../entitlement/entitlement.service';
 import { computeNextBilling } from './domain/billing-cycle';
 
 /**
@@ -16,7 +17,10 @@ import { computeNextBilling } from './domain/billing-cycle';
  */
 @Injectable()
 export class MembershipService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly entitlement: EntitlementService,
+  ) {}
 
   listGrades() {
     return this.prisma.membership_grade.findMany({ orderBy: { tier: 'asc' } });
@@ -118,7 +122,7 @@ export class MembershipService {
 
     const nextBilling = computeNextBilling(plan.billing_cycle, now);
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // 기존 활성 구독 비활성화
       await tx.student_subscription.updateMany({
         where: { student_id: studentId, status: 'active' },
@@ -147,5 +151,8 @@ export class MembershipService {
         nextBillingAt: nextBilling,
       };
     });
+    // 구독 번들: 플랜 포함 상품(배치표 등)을 자동 부여(구독-소스). 플랜 변경/해지 반영은 sync 내부에서.
+    await this.entitlement.syncSubscriptionProducts(studentId, plan.included_products, studentId);
+    return result;
   }
 }

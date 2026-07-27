@@ -10,7 +10,7 @@
 
 ## 구조
 ```
-itall-mentoring/
+janus-platform/
 ├─ apps/
 │  ├─ api/                  # NestJS 백엔드
 │  │  ├─ src/

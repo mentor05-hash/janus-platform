@@ -42,6 +42,10 @@
       "color": "#0E5C7C",
       "iosDisplayInForeground": true
     },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
     "plugins": ["expo-notifications"],
     "extra": {
       "apiBase": "http://localhost:3000/api/v1",

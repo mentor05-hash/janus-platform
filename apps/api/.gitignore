@@ -1,3 +1,4 @@
 
 # StorageProvider 로컬 저장(런타임 파일)
 var/
+dist-seed/

@@ -133,7 +133,7 @@ describe('예약 공지·사전알림·템플릿(§3)', () => {
       title: '취소공지',
       body: 'x',
       scheduledAt: future,
-    } as any);
+    } as any) as any; // 예약 발송 분기({scheduledId, scheduledAt, status})
     await svc.cancelScheduled(r.scheduledId, HQ);
     await prisma.scheduled_announcement.update({
       where: { id: r.scheduledId },

@@ -5,6 +5,7 @@ import { AppModule } from '../src/app.module';
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
 import { TransformInterceptor } from '../src/common/interceptors/transform.interceptor';
 import { PrismaService } from '../src/common/prisma/prisma.service';
+import { ACCOUNTS, auth, login as doLogin } from './fixtures/demo-accounts';
 
 /**
  * 대시보드(§D 권한 매트릭스 + 평가/순위·센터비교 엔진).
@@ -19,13 +20,7 @@ describe('대시보드(§dashboard)', () => {
   let ownTeacher = '';
   let otherTeacher = '';
 
-  const login = async (id: string, password = 'dev-password!') =>
-    (
-      await request(app.getHttpServer())
-        .post('/api/v1/auth/login')
-        .send({ loginId: id, password })
-    ).body.data.accessToken;
-  const auth = (t: string) => ({ Authorization: `Bearer ${t}` });
+  const login = (id: string) => doLogin(app, id);
   const get = (p: string, t: string) =>
     request(app.getHttpServer()).get(`/api/v1/${p}`).set(auth(t));
   const put = (p: string, t: string, b: any) =>
@@ -53,10 +48,10 @@ describe('대시보드(§dashboard)', () => {
     await app.init();
     prisma = mod.get(PrismaService);
 
-    tok.master = await login('master01');
-    tok.hq = await login('hq1');
-    tok.center = await login('admin01');
-    tok.teacher = await login('t1');
+    tok.master = await login(ACCOUNTS.master);
+    tok.hq = await login(ACCOUNTS.hq); // 본사(L2) — 구 'hq1' 은 시드에 없는 값이었다
+    tok.center = await login(ACCOUNTS.centerAdmin);
+    tok.teacher = await login(ACCOUNTS.teacher); // 구 't1' 없음
 
     const ca = await prisma.account.findUnique({ where: { login_id: 'admin01' } });
     adminCenter = ca?.center_id ?? null;

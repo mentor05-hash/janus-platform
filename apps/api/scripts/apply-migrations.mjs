@@ -6,8 +6,7 @@
  * - 빈 원장 + 빈 DB(CI 등) → 전부 순서대로 적용.
  * 적용 자체는 prisma db execute(다중 문장 지원), 원장 조회/기록은 PrismaClient.
  */
-import { readdirSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
@@ -15,9 +14,18 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const apiRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const migrationsDir = join(apiRoot, 'migrations');
-const schema = join(apiRoot, 'prisma', 'schema.prisma');
 
-require('dotenv').config({ path: join(apiRoot, '.env') });
+// .env 로드 — dotenv 는 devDep 일 수 있어(프로덕션 이미지 부재) 폴백 파서 내장.
+try {
+  require('dotenv').config({ path: join(apiRoot, '.env') });
+} catch {
+  try {
+    for (const line of readFileSync(join(apiRoot, '.env'), 'utf8').split('\n')) {
+      const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
+      if (m && !(m[1] in process.env)) process.env[m[1]] = m[2];
+    }
+  } catch { /* .env 없음 */ }
+}
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
@@ -25,15 +33,21 @@ const files = readdirSync(migrationsDir)
   .filter((f) => f.endsWith('.sql'))
   .sort();
 
-function applyFile(f) {
-  const r = spawnSync(
-    'npx',
-    ['prisma', 'db', 'execute', '--file', join(migrationsDir, f), '--schema', schema],
-    { cwd: apiRoot, stdio: ['ignore', 'pipe', 'inherit'], encoding: 'utf8' },
-  );
-  if (r.status !== 0) {
-    console.error(`\n✗ 실패: ${f}`);
-    process.exit(r.status ?? 1);
+// prisma CLI(devDep) 대신 pg(prod dep)로 직접 실행 — 프로덕션 컨테이너에서도 동작(근본처방).
+// simple query 프로토콜은 다중 문장·DO $$ 블록을 지원한다.
+const { Client } = require('pg');
+
+async function applyFile(f) {
+  const sql = readFileSync(join(migrationsDir, f), 'utf8');
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  await client.connect();
+  try {
+    await client.query(sql);
+  } catch (e) {
+    console.error(`\n✗ 실패: ${f}\n`, e.message ?? e);
+    process.exit(1);
+  } finally {
+    await client.end();
   }
 }
 
@@ -49,7 +63,22 @@ async function main() {
   const appliedRows = await prisma.$queryRawUnsafe('SELECT name FROM schema_migrations');
   const applied = new Set(appliedRows.map((r) => r.name));
 
-  // 베이스라인: 원장이 비었는데 스키마가 이미 있으면(account 존재) 기존 파일을 기록만 한다.
+  // --baseline: 미기록분을 "실행 없이" 적용됨으로 기록. DB 가 이미 현행(수동 psql 적용 등)인데
+  // 원장만 뒤처진 경우의 1회성 정합화 — 이후부터는 신규 파일만 정상 실행된다.
+  if (process.argv.includes('--baseline')) {
+    let n = 0;
+    for (const f of files) {
+      if (applied.has(f)) continue;
+      await prisma.$executeRawUnsafe('INSERT INTO schema_migrations(name) VALUES ($1) ON CONFLICT DO NOTHING', f);
+      console.log(`· ${f} → 기록만(실행 없음)`);
+      n++;
+    }
+    console.log(`베이스라인 완료: ${n}개 기록 / 전체 ${files.length}개`);
+    await prisma.$disconnect();
+    return;
+  }
+
+  // 베이스라인(자동): 원장이 비었는데 스키마가 이미 있으면(account 존재) 기존 파일을 기록만 한다.
   if (applied.size === 0) {
     const exists = await prisma.$queryRawUnsafe(
       "SELECT to_regclass('public.account') IS NOT NULL AS present",
@@ -71,7 +100,7 @@ async function main() {
       continue;
     }
     process.stdout.write(`▶ ${f} ... `);
-    applyFile(f);
+    await applyFile(f);
     await prisma.$executeRawUnsafe('INSERT INTO schema_migrations(name) VALUES ($1) ON CONFLICT DO NOTHING', f);
     console.log('ok');
     count++;

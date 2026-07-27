@@ -26,7 +26,7 @@ function resolveDatabaseUrl(): string {
   } catch {
     /* .env 없음 — 로컬 기본값 사용 */
   }
-  return 'postgresql://itall:itall_local_pw@localhost:5432/itall';
+  return 'postgresql://janus:janus_local_pw@localhost:5432/janus';
 }
 
 // 결정적 더미 UUID (실데이터 아님 — 시드 식별용). RFC v4 형식(버전 4·variant 8)으로 유효.
@@ -43,6 +43,11 @@ const ID = {
   acGuardian: '00000000-0000-4000-8000-0000000000a5',
   acHq: '00000000-0000-4000-8000-0000000000a6',
   acMaster: '00000000-0000-4000-8000-0000000000a7',
+  acPaid: '00000000-0000-4000-8000-0000000000a8',
+  acPaid2: '00000000-0000-4000-8000-0000000000a9',
+  acPaid3: '00000000-0000-4000-8000-0000000000aa',
+  acPaid4: '00000000-0000-4000-8000-0000000000ab',
+  acPaidAll: '00000000-0000-4000-8000-0000000000ac',
   planStd: '00000000-0000-4000-8000-0000000000b2',
   planPrem: '00000000-0000-4000-8000-0000000000b3',
   planVip: '00000000-0000-4000-8000-0000000000b4',
@@ -70,11 +75,17 @@ async function main() {
     // 2) 회원 등급 4단계. 하위(Basic·Standard)=주간 소멸(use-it-or-lose-it), 상위(Premium·VIP)=월간 풀.
     //    지급량은 유닛 이코노믹스 확정값(배분 60%·소멸 15%·마진 30%, 1크=0.5원): 월 Premium 210k / VIP 350k.
     //    [id, name, tier, grant(주간=주/월간=월), expire_policy, priority]
+    // 지급량은 **N23 확정값(O175, 2026-07-26 — D 등급사다리교정)**:
+    //   주 Standard 24k / 월 Premium 210k · VIP 380k.
+    // 승계값(Standard 30k / VIP 350k)에는 등급 역전이 있었다 — 상위 등급의 세션당 단가가 더 비쌌다.
+    // 근거·재현: docs/20_exec/유료_티어_가격_결정_워크시트_v1_2026-07-26.md · ops/pricing-sim.mjs
+    // ⚠ 정책값이다. 운영 중 변경은 seed 가 아니라 PATCH /hr/membership-grades/{id} 로 한다
+    //   (seed 는 ON CONFLICT DO NOTHING 이라 기존 DB 에 반영되지 않는다 — 마이그레이션 0105 참조).
     const grades: [string, string, number, number, string, number][] = [
       [ID.gradeBasic, 'Basic', 1, 0, 'end_of_week', 0],
-      [ID.gradeStd, 'Standard', 2, 30_000, 'end_of_week', 1],
+      [ID.gradeStd, 'Standard', 2, 24_000, 'end_of_week', 1],
       [ID.gradePrem, 'Premium', 3, 210_000, 'end_of_month', 2],
-      [ID.gradeVip, 'VIP', 4, 350_000, 'end_of_month', 3],
+      [ID.gradeVip, 'VIP', 4, 380_000, 'end_of_month', 3],
     ];
     for (const [id, name, tier, grant, expire, prio] of grades) {
       await client.query(
@@ -85,16 +96,17 @@ async function main() {
     }
 
     // 2-1) 구독 플랜(등급 연결, 월간) — 구독 시 학생 등급 결정(§5-3 연동)
-    const plans: [string, string, number, string][] = [
-      [ID.planStd, 'Standard 월간', 49_000, ID.gradeStd],
-      [ID.planPrem, 'Premium 월간', 89_000, ID.gradePrem],
-      [ID.planVip, 'VIP 월간', 149_000, ID.gradeVip],
+    const plans: [string, string, number, string, string][] = [
+      [ID.planStd, 'Standard 월간', 49_000, ID.gradeStd, '[]'],
+      [ID.planPrem, 'Premium 월간', 89_000, ID.gradePrem, '[]'],
+      [ID.planVip, 'VIP 월간', 149_000, ID.gradeVip, '["full"]'], // 구독 번들: 전체 배치표 포함(O74 #3)
     ];
-    for (const [id, name, price, gradeId] of plans) {
+    for (const [id, name, price, gradeId, included] of plans) {
       await client.query(
-        `INSERT INTO subscription_plan (id, name, price, billing_cycle, payer, grade_id)
-         VALUES ($1,$2,$3,'monthly','guardian',$4) ON CONFLICT (id) DO NOTHING`,
-        [id, name, price, gradeId],
+        `INSERT INTO subscription_plan (id, name, price, billing_cycle, payer, grade_id, included_products)
+         VALUES ($1,$2,$3,'monthly','guardian',$4,$5::jsonb)
+         ON CONFLICT (id) DO UPDATE SET included_products = EXCLUDED.included_products`,
+        [id, name, price, gradeId, included],
       );
     }
 
@@ -132,20 +144,18 @@ async function main() {
       [ID.center, CLASSIFY_LIMITS.fit, CLASSIFY_LIMITS.unfit],
     );
 
-    // 4-1) 급여 정책 — 건당·Q&A·시급(T5b)·등급수당(T5d)·자동인센티브+48h 미답 보상(T5c)
-    const hasPayroll = await client.query(
-      `SELECT 1 FROM payroll_policy WHERE center_id = $1 LIMIT 1`,
-      [ID.center],
-    );
-    if (hasPayroll.rowCount === 0) {
+    // 4-1) 급여 기준 — **매출 배분 단일 모델**(O113). 실제 지급에 쓰이는 값은 system_setting 두 키뿐이다.
+    //   구 payroll_policy 단가(건당 30,000·Q&A 5,000·시급 12,000·등급수당·자동인센티브)는 급여 산정에서
+    //   폐지됐다. 그걸 계속 시드하면 데모 환경에서 폐지 체계가 '살아 있는 것처럼' 보인다 — 시드하지 않는다.
+    //   (payroll_policy 테이블 자체는 남는다 — 다른 표시 경로가 아직 참조한다.)
+    for (const [key, value] of [
+      ['payroll_share_policy', { sharePct: 60 }],
+      ['payroll_model_policy', { mode: 'share', base: 2_000_000, incentivePct: 30 }],
+    ] as const) {
       await client.query(
-        `INSERT INTO payroll_policy (center_id, cycle, per_case_rate, qna_rate, hourly_rate, grade_allowance, auto_incentive)
-         VALUES ($1, 'monthly', 30000, 5000, 12000, $2::jsonb, $3::jsonb)`,
-        [
-          ID.center,
-          JSON.stringify({ S: 200000, A: 100000, B: 50000, C: 0 }),
-          JSON.stringify({ on: true, minCases: 0, amount: 12000, staleBonus: 8000 }),
-        ],
+        `INSERT INTO system_setting (key, value) VALUES ($1, $2::jsonb)
+         ON CONFLICT (key) DO NOTHING`,
+        [key, JSON.stringify(value)],
       );
     }
 
@@ -182,6 +192,7 @@ async function main() {
        VALUES ($1,$2,$3,$4,'A','더미 경력','교과') ON CONFLICT (account_id) DO NOTHING`,
       [ID.acTeacher, ID.center, ['수학'], ['미적분']],
     );
+
     // student_profile
     await client.query(
       `INSERT INTO student_profile (account_id, center_id, membership_grade_id)
@@ -205,6 +216,51 @@ async function main() {
        ON CONFLICT (account_id) DO NOTHING`,
       [ID.acGuardian],
     );
+
+    // 5-0) Q&A 데모 선생님(P5 배지 확인용) — 첫응답·만족도가 서로 다른 4명 + 지정 질문 실적.
+    //      teacher02(빠름·고평점) / teacher03(보통) / teacher04(느림·저평점) / teacher05(신규·무실적)
+    const qnaTeachers: [string, string, string, string[], number | null, number | null][] = [
+      ['e2e00000-0000-4000-8000-000000000102', 'teacher02', '김수학', ['수학'], 8, 5],
+      ['e2e00000-0000-4000-8000-000000000103', 'teacher03', '이영어', ['영어'], 45, 4],
+      ['e2e00000-0000-4000-8000-000000000104', 'teacher04', '박과탐', ['과학'], 200, 3],
+      ['e2e00000-0000-4000-8000-000000000105', 'teacher05', '최국어', ['국어'], null, null],
+    ];
+    for (const [tid, loginId, name, subjects, replyMin, rating] of qnaTeachers) {
+      await client.query(
+        `INSERT INTO account (id, role, center_id, login_id, pw_hash, name, status)
+         VALUES ($1,'teacher',$2,$3,$4,$5,'approved')
+         ON CONFLICT (id) DO UPDATE SET pw_hash = EXCLUDED.pw_hash, status = 'approved'`,
+        [tid, ID.center, loginId, DUMMY_PW_HASH, name],
+      );
+      await client.query(
+        `INSERT INTO teacher_profile (account_id, center_id, subjects, grade, career, teacher_category)
+         VALUES ($1,$2,$3,'A','데모 경력','교과') ON CONFLICT (account_id) DO NOTHING`,
+        [tid, ID.center, subjects],
+      );
+      if (replyMin == null) continue; // 신규(무실적) 선생님
+      // 지정 질문 2건: 접수→첫응답(replyMin분)→해결(+30분), 만족도 rating — 배지 집계의 원천 데이터.
+      for (let i = 0; i < 2; i++) {
+        const pid = `${tid.slice(0, 28)}a${i}${tid.slice(30)}`; // 선생님 id 파생 고정 uuid(멱등)
+        await client.query(
+          `INSERT INTO qna_post (id, student_id, subject, scope, assigned_teacher_id, body, status,
+                                 created_at, claimed_at, first_reply_at, resolved_at, rating)
+           VALUES ($1,$2,$3,'assigned',$4,$5,'resolved',
+                   now() - interval '${3 + i} days',
+                   now() - interval '${3 + i} days' + interval '${Math.max(1, Math.round(replyMin / 2))} minutes',
+                   now() - interval '${3 + i} days' + interval '${replyMin + i * 3} minutes',
+                   now() - interval '${3 + i} days' + interval '${replyMin + 30} minutes', $6)
+           ON CONFLICT (id) DO NOTHING`,
+          [pid, ID.acStudent, subjects[0], tid, `${subjects[0]} 데모 질문 ${i + 1} (SLA 배지 시드)`, rating],
+        );
+        await client.query(
+          `INSERT INTO qna_answer (id, post_id, teacher_id, body, accepted, pay_eligible, created_at)
+           VALUES ($1,$2,$3,$4,true,false, now() - interval '${3 + i} days' + interval '${replyMin + i * 3} minutes')
+           ON CONFLICT (id) DO NOTHING`,
+          [`${tid.slice(0, 28)}b${i}${tid.slice(30)}`, pid, tid, `데모 풀이 답변 ${i + 1}`],
+        );
+      }
+    }
+
     // 관리자 계층(§iam): L1 마스터 / L2 본사 / L3 센터. 역할은 admin, perm_level 로 계층.
     // 본사(HQ) — admin + 센터 미소속(center_id NULL) + L2.
     await client.query(
@@ -230,6 +286,53 @@ async function main() {
        VALUES ($1,'마스터',NULL,'L1') ON CONFLICT (account_id) DO UPDATE SET perm_level='L1', center_id=NULL, staff_role='마스터'`,
       [ID.acMaster],
     );
+    // 유료 결제 회원 데모(O74) — 학생 role(=member 티어) + 상품 권한. 상품 4종을 1:1로 부여해 각 권한 실측.
+    //   프로덕션 모델과 동일: 비회원 가입 시 student(member) → 결제 시 entitlement 부여로 유료 해제.
+    //   [id, login_id, name]
+    const paidAccounts: [string, string, string][] = [
+      [ID.acPaid, 'paid01', '유료회원1·전체배치표'],
+      [ID.acPaid2, 'paid02', '유료회원2·정시정밀'],
+      [ID.acPaid3, 'paid03', '유료회원3·카이로스'],
+      [ID.acPaid4, 'paid04', '유료회원4·카이로스+알레아'],
+      [ID.acPaidAll, 'paidall', '유료회원ALL·전체배치표+계산기'],
+    ];
+    // [accountId, product_key, serviceIds] — paidall 은 전체배치표+계산기묶음 2상품 보유(전 서비스 해제).
+    const paidGrants: [string, string, string[]][] = [
+      [ID.acPaid, 'full', ['baechipyo-full', 'baechipyo-jeongsi']],
+      [ID.acPaid2, 'jeongsi', ['baechipyo-jeongsi']],
+      [ID.acPaid3, 'kairos', ['kairos']],
+      [ID.acPaid4, 'kairos-alea', ['kairos', 'alea']],
+      [ID.acPaidAll, 'full', ['baechipyo-full', 'baechipyo-jeongsi']],
+      [ID.acPaidAll, 'kairos-alea', ['kairos', 'alea']],
+    ];
+    for (const [id, loginId, name] of paidAccounts) {
+      await client.query(
+        `INSERT INTO account (id, role, center_id, login_id, pw_hash, name, status)
+         VALUES ($1,'student',$2,$3,$4,$5,'approved')
+         ON CONFLICT (id) DO UPDATE SET pw_hash = EXCLUDED.pw_hash, status='approved'`,
+        [id, ID.center, loginId, DUMMY_PW_HASH, name],
+      );
+      await client.query(
+        `INSERT INTO student_profile (account_id, center_id, membership_grade_id)
+         VALUES ($1,$2,$3) ON CONFLICT (account_id) DO NOTHING`,
+        [id, ID.center, ID.gradeStd],
+      );
+    }
+    // 상품 권한(일회성 기간제·수능시즌 말). service_entitlement 미배포 DB(0065 전)면 건너뜀(시드 전체 실패 방지).
+    const hasEnt = await client.query("SELECT to_regclass('public.service_entitlement') IS NOT NULL AS present");
+    if (hasEnt.rows[0]?.present) {
+      for (const [id, productKey, serviceIds] of paidGrants) {
+        await client.query(
+          `INSERT INTO service_entitlement (account_id, service_id, product_key, source, expires_at)
+           SELECT $1, s, $2, 'seed', TIMESTAMPTZ '2027-01-31 23:59:59+09'
+             FROM unnest($3::text[]) AS s
+            WHERE NOT EXISTS (
+              SELECT 1 FROM service_entitlement e
+               WHERE e.account_id = $1 AND e.service_id = s AND e.source = 'seed' AND e.revoked_at IS NULL)`,
+          [id, productKey, serviceIds],
+        );
+      }
+    }
     // 크레딧 계좌(학생) — 잔액 0
     await client.query(
       `INSERT INTO credit_account (student_id, purchased_balance, granted_balance, reserved_credits)

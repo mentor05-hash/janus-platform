@@ -1,0 +1,15 @@
+{
+  "name": "@mentoring/media-kit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "야누스 미디어킷 — LiveKit 기반 음성·화상 세션 훅. 서비스 무관(상담·강의·클리닉이 소비), M-계약 M4 구현.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "peerDependencies": {
+    "livekit-client": ">=2",
+    "react": ">=18"
+  },
+  "dependencies": {
+    "@livekit/track-processors": "^0.7.2"
+  }
+}

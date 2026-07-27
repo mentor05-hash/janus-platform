@@ -16,7 +16,7 @@ export function WorkStatusBar() {
     api.patch('/teachers/me/status', { status: k }).catch(() => setWork(prev)); // 실패 시 롤백
   }
   if (work === null) return null;
-  const activeBg = (k: string) => (k === 'on' ? 'var(--teal)' : k === 'rest' ? '#F3B34D' : 'var(--line)');
+  const activeBg = (k: string) => (k === 'on' ? 'var(--teal)' : k === 'rest' ? '#CF9A3A' : 'var(--line)');
   const activeFg = (k: string) => (k === 'on' ? '#fff' : k === 'rest' ? '#5A3A00' : 'var(--ink)');
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', margin: '2px 0 14px' }}>

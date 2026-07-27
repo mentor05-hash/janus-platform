@@ -48,7 +48,7 @@ export function AdminPayrollPage() {
   }
 
   const settledIds = new Set(rep?.rows.map((r) => r.teacherId) ?? []);
-  const th: React.CSSProperties = { textAlign: 'left', padding: '8px 10px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', background: 'var(--fill,#f6f8fa)' };
+  const th: React.CSSProperties = { textAlign: 'left', padding: '8px 10px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', background: 'var(--fill,#f4f7fb)' };
   const td: React.CSSProperties = { padding: '8px 10px', fontSize: 13, borderTop: '1px solid var(--line)' };
 
   if (!rep) return <Spinner />;

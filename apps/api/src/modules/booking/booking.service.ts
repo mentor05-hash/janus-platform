@@ -9,6 +9,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { ShortfallError } from '../../common/errors/shortfall.error';
@@ -32,6 +33,7 @@ import { permAtLeast } from '../../config/perm';
 import { resolveStudentType, STUDENT_TYPE_LABEL, type StudentType } from '../../common/student-type';
 import { DEFAULT_CONSULT_DURATION, CONSULT_TYPES, isFullTime, DEFAULT_QUESTION_DURATION, QUESTION_TIERS, difficultyTier } from '../../common/consult-assignment';
 import { AvailabilityService } from '../availability/availability.service';
+import { TUTOR_SOURCE_PAGE, tutorSourceOf } from '../metrics/tutor-source';
 import { CreditService } from '../billing/credit.service';
 import { evaluatePenalty } from '../pricing-policy/domain/penalty';
 import { PricingService } from '../pricing-policy/pricing.service';
@@ -536,6 +538,7 @@ export class BookingService {
     origin: string;
     direction?: 'student' | 'reverse';
     content?: string | null;
+    attachments?: unknown[]; // 질문승격 등 — 첨부 이관(생기부 가드 필터 통과분만)
   }): Promise<{ ok: boolean; bookingId?: string; reason?: string }> {
     const startMin = p.slotStart * SLOT_GRANULARITY_MINUTES;
     const endMin = p.slotEnd * SLOT_GRANULARITY_MINUTES;
@@ -567,6 +570,7 @@ export class BookingService {
             mode: p.mode, direction: p.direction ?? 'student',
             start_at: startAt, end_at: endAt, status: BookingStatus.CONFIRMED,
             room_id: roomId, charged_credits: credits, origin: p.origin, content: p.content ?? null,
+            attachments: (p.attachments ?? []) as unknown as Prisma.InputJsonValue,
           },
         });
         if (credits > 0) {
@@ -595,6 +599,102 @@ export class BookingService {
   }
 
   /** GET /bookings — 역할별 목록. */
+  /** 사이드바 뱃지(인지 개선 ①) — 수락 대기 신청 수(선생님) + 1시간 내 임박 확정 상담. */
+  async attention(user: AuthUser) {
+    const isTeacher = user.role === AccountRole.TEACHER;
+    const now = new Date();
+    const inOneHour = new Date(now.getTime() + 3600_000);
+    const side: Prisma.bookingWhereInput = isTeacher ? { teacher_id: user.id } : { student_id: user.id };
+    const pending = isTeacher
+      ? await this.prisma.booking.count({ where: { teacher_id: user.id, status: BookingStatus.NEW, direction: 'student' } })
+      : 0;
+    const imminent = await this.prisma.booking.findFirst({
+      where: { ...side, status: BookingStatus.CONFIRMED, start_at: { lte: inOneHour }, end_at: { gte: now } },
+      orderBy: { start_at: 'asc' },
+      select: { id: true, start_at: true, mode: true },
+    });
+    return { pending, imminentAt: imminent?.start_at ?? null, imminentBookingId: imminent?.id ?? null };
+  }
+
+  /** 선생님 상담 인지 확인(ack) — 자동확정 예약에서 "봤어요" 증빙. 학생에게 알림. */
+  async ackByTeacher(user: AuthUser, id: string) {
+    const b = await this.prisma.booking.findUnique({ where: { id }, select: { id: true, teacher_id: true, student_id: true, teacher_ack_at: true, status: true } });
+    if (!b || b.teacher_id !== user.id) throw new NotFoundException('예약을 찾을 수 없습니다.');
+    if (b.teacher_ack_at) return { ok: true, ackAt: b.teacher_ack_at };
+    const now = new Date();
+    await this.prisma.booking.update({ where: { id }, data: { teacher_ack_at: now } });
+    await this.notify.notify(b.student_id, 'booking_acked', { bookingId: id });
+    return { ok: true, ackAt: now };
+  }
+
+  // 자동확정(수락 절차 없는) 예약 origin — 미인지 노쇼 판정 대상.
+  private static readonly AUTO_ORIGINS = ['자동배정', '우선배정', '질문배정', '질문승격', '역상담자동'];
+
+  /** 미인지 노쇼 처리(30분 주기) — 자동확정 예약이 종료 후 30분까지 인지되지 않으면
+   *  선생님 귀책 취소: 전액 환원 + 선생님 취소 카운트 + 양측·관리자 알림. */
+  @Cron('15,45 * * * *', { timeZone: 'Asia/Seoul' })
+  async processUnackedNoshow() {
+    const cutoff = new Date(Date.now() - 30 * 60_000);
+    const rows = await this.prisma.booking.findMany({
+      where: { status: BookingStatus.CONFIRMED, end_at: { lt: cutoff }, teacher_ack_at: null, origin: { in: BookingService.AUTO_ORIGINS } },
+      select: { id: true, student_id: true, teacher_id: true, center_id: true, charged_credits: true },
+      take: 50,
+    });
+    for (const b of rows) {
+      const done = await this.bookingTx(async (tx) => {
+        const upd = await tx.booking.updateMany({ where: { id: b.id, status: BookingStatus.CONFIRMED }, data: { status: BookingStatus.CANCELLED } });
+        if (upd.count !== 1) return false;
+        await tx.time_slot.deleteMany({ where: { booking_id: b.id } });
+        if ((b.charged_credits ?? 0) > 0) {
+          await this.credit.refundWithin(tx, b.student_id, b.charged_credits!, { refType: 'booking', refId: b.id });
+        }
+        // 선생님 귀책 — 취소 카운트 누적(평판·관리 지표).
+        await tx.teacher_profile.update({ where: { account_id: b.teacher_id }, data: { cancel_count: { increment: 1 } } });
+        return true;
+      });
+      if (!done) continue;
+      await this.notify.notify(b.student_id, 'booking_teacher_noshow', { bookingId: b.id });
+      await this.notify.notify(b.teacher_id, 'booking_teacher_noshow_teacher', { bookingId: b.id });
+      const admins = await this.prisma.account.findMany({
+        where: { role: { in: [AccountRole.ADMIN, AccountRole.HR] }, ...(b.center_id ? { center_id: b.center_id } : {}) },
+        select: { id: true }, take: 5,
+      });
+      for (const a of admins) await this.notify.notify(a.id, 'booking_teacher_noshow_admin', { bookingId: b.id, teacherId: b.teacher_id });
+    }
+  }
+
+  // ── 미응답 신청 리마인더(인지 개선 ①-b) — 2h 무응답 시 선생님 재알림, 24h 시 관리자 에스컬레이션 ──
+  @Cron('*/30 * * * *', { timeZone: 'Asia/Seoul' })
+  async remindPendingRequests() {
+    const now = Date.now();
+    const pend = await this.prisma.booking.findMany({
+      where: { status: BookingStatus.NEW, direction: 'student', created_at: { lt: new Date(now - 2 * 3600_000) } },
+      select: { id: true, teacher_id: true, center_id: true, created_at: true },
+      orderBy: { created_at: 'asc' },
+      take: 200,
+    });
+    for (const b of pend) {
+      // 알림 원장으로 멱등 — 같은 예약에 리마인더/에스컬레이션은 각 1회만.
+      const reminded = await this.prisma.notification.findFirst({
+        where: { type: 'booking_request_reminder', payload: { path: ['bookingId'], equals: b.id } }, select: { id: true },
+      });
+      if (!reminded) {
+        await this.notify.notify(b.teacher_id, 'booking_request_reminder', { bookingId: b.id });
+        continue; // 에스컬레이션은 다음 주기부터 판단
+      }
+      if (b.created_at.getTime() > now - 24 * 3600_000) continue;
+      const escalated = await this.prisma.notification.findFirst({
+        where: { type: 'booking_request_escalated', payload: { path: ['bookingId'], equals: b.id } }, select: { id: true },
+      });
+      if (escalated) continue;
+      const admins = await this.prisma.account.findMany({
+        where: { role: { in: [AccountRole.ADMIN, AccountRole.HR] }, ...(b.center_id ? { center_id: b.center_id } : {}) },
+        select: { id: true }, take: 5,
+      });
+      for (const a of admins) await this.notify.notify(a.id, 'booking_request_escalated', { bookingId: b.id, teacherId: b.teacher_id });
+    }
+  }
+
   async list(
     user: AuthUser,
     role?: 'student' | 'teacher',
@@ -610,7 +710,26 @@ export class BookingService {
       orderBy: { start_at: 'desc' },
       take: 100,
     });
-    return rows.map((b) => this.toBookingDto(b));
+    // 학생 뷰: 완료 상담의 후기 작성 여부를 표기(중복 후기 폼 방지·UX).
+    let reviewed = new Set<string>();
+    if (!asTeacher) {
+      const doneIds = rows.filter((b) => b.status === BookingStatus.DONE).map((b) => b.id);
+      if (doneIds.length) {
+        const revs = await this.prisma.review.findMany({ where: { booking_id: { in: doneIds } }, select: { booking_id: true } });
+        reviewed = new Set(revs.map((r) => r.booking_id));
+      }
+    }
+    // 상대방 표시용 이름 — 선생님 목록엔 학생 이름, 학생 목록엔 선생님 이름(당사자 간이므로 신규 노출 아님).
+    const names = await this.accountNames(rows.flatMap((b) => [b.student_id, b.teacher_id]));
+    return rows.map((b) => ({ ...this.toBookingDto(b), reviewed: reviewed.has(b.id), studentName: names.get(b.student_id) ?? null, teacherName: names.get(b.teacher_id) ?? null }));
+  }
+
+  /** 상대방 표시용 이름(학생·선생님) 배치 조회 — id → name. UUID 노출 대신 이름 표기용. */
+  private async accountNames(ids: Array<string | null | undefined>): Promise<Map<string, string>> {
+    const uniq = [...new Set(ids.filter((x): x is string => !!x))];
+    if (!uniq.length) return new Map();
+    const accts = await this.prisma.account.findMany({ where: { id: { in: uniq } }, select: { id: true, name: true } });
+    return new Map(accts.map((a) => [a.id, a.name]));
   }
 
   /** POST /bookings/reverse — 선생님이 학생에게 역상담 제안(첫 상담 한정). 슬롯 점유, 크레딧은 학생 수락 시 차감. */
@@ -1073,7 +1192,26 @@ export class BookingService {
       await this.notify.notify(b.student_id, 'booking_noshow', {
         bookingId: id,
       });
+    // tutor_source 계측(관측 전용·비차단) — 완주 스냅샷 + 재이용(재결제) 판정. 정산·상태에 개입하지 않음.
+    if (to === BookingStatus.DONE) void this.tagTutorSourceCompletion(b.teacher_id, b.student_id, id);
     return { id, status: to, refunded: refund ? b.charged_credits : 0 };
+  }
+
+  /**
+   * tutor_source 스냅샷 계측 — 완주 시점의 고용유형을 funnel_event 에 박제(소급 변경 방지).
+   * 이 학생의 이전 완주가 있으면 재이용(repurchase)도 함께 기록. 실패는 삼킨다(관측이 본 로직을 막지 않음).
+   */
+  private async tagTutorSourceCompletion(teacherId: string | null, studentId: string | null, bookingId: string) {
+    if (!teacherId) return;
+    try {
+      const p = await this.prisma.teacher_profile.findUnique({ where: { account_id: teacherId }, select: { employment_type: true } });
+      const meta = { tutorSource: tutorSourceOf(p?.employment_type ?? null), bookingId, teacherId, studentId };
+      await this.prisma.funnel_event.create({ data: { page: TUTOR_SOURCE_PAGE, event: 'completed', cta: 'completed', meta } });
+      if (studentId) {
+        const priorDone = await this.prisma.booking.count({ where: { student_id: studentId, status: BookingStatus.DONE, id: { not: bookingId } } });
+        if (priorDone > 0) await this.prisma.funnel_event.create({ data: { page: TUTOR_SOURCE_PAGE, event: 'repurchase', cta: 'repurchase', meta } });
+      }
+    } catch { /* 계측 실패 비차단 */ }
   }
 
   /** §5-7 가중 제한: 노쇼·과다거절 임계 초과 학생은 신규 예약 차단. */
@@ -1270,7 +1408,13 @@ export class BookingService {
       user.role === AccountRole.ADMIN ||
       user.role === AccountRole.HR;
     if (!involved) throw new ForbiddenException('이 예약에 접근할 권한이 없습니다.');
-    return this.toBookingDto(b);
+    // 학생 뷰: 완료 상담 후기 작성 여부(중복 후기 방지·UX)
+    let reviewed = false;
+    if (user.role === AccountRole.STUDENT && b.status === BookingStatus.DONE) {
+      reviewed = !!(await this.prisma.review.findUnique({ where: { booking_id: id }, select: { booking_id: true } }));
+    }
+    const names = await this.accountNames([b.student_id, b.teacher_id]);
+    return { ...this.toBookingDto(b), reviewed, studentName: names.get(b.student_id) ?? null, teacherName: names.get(b.teacher_id) ?? null };
   }
 
   /**
@@ -1388,6 +1532,7 @@ export class BookingService {
     room_id?: string | null;
     content?: string | null;
     attachments?: unknown;
+    teacher_ack_at?: Date | null;
   }) {
     const atts = Array.isArray(b.attachments)
       ? (b.attachments as { id: string; name: string; type?: string }[])
@@ -1409,6 +1554,7 @@ export class BookingService {
       roomId: b.room_id ?? null,
       content: b.content ?? null,
       attachments: atts,
+      teacherAckAt: b.teacher_ack_at?.toISOString() ?? null, // 선생님 인지 확인(자동확정 예약 증빙)
     };
   }
 }

@@ -4,11 +4,16 @@ import {
   AnswerSimilarityResult,
   ConsultingAnalysisInput,
   ConsultingAnalysisResult,
+  GatewayInterpretInput,
+  GatewayLlmResult,
   LlmProvider,
+  QnaDraftInput,
+  QnaDraftResult,
   ReportReviewInput,
   ReportReviewResult,
   ScoreOcrInput,
   ScoreOcrResult,
+  SchoolRecordVisionResult,
 } from './llm.types';
 
 /**
@@ -69,6 +74,18 @@ export class MockLlmProvider implements LlmProvider {
     };
   }
 
+  async draftAnswer(input: QnaDraftInput): Promise<QnaDraftResult> {
+    const subj = input.subject ? `[${input.subject}] ` : '';
+    const q = (input.body ?? '').trim().slice(0, 60);
+    this.logger.log('[stub] draftAnswer');
+    return {
+      body:
+        `${subj}질문 요지: ${q}${q.length >= 60 ? '…' : ''}\n\n` +
+        '① 먼저 개념/정의를 확인해 보세요. ② 문제의 조건을 하나씩 대입해 단계적으로 풀어보고, ③ 막히는 지점을 구체적으로 남겨 주시면 선생님이 이어서 보완해 드립니다.\n' +
+        '(이 초안은 AI가 생성한 참고용이며, 선생님 검토 후 정답이 확정됩니다.)',
+    };
+  }
+
   async extractScoreReport(input: ScoreOcrInput): Promise<ScoreOcrResult> {
     // 데모: 실 비전 인식은 LLM_PROVIDER=claude 연동 필요. 흐름 시연용 표준 과목 프리필.
     this.logger.log(`[stub] 성적표 OCR(데모) mime=${input.mimeType} bytes≈${Math.round((input.imageBase64?.length ?? 0) * 0.75)}`);
@@ -85,6 +102,16 @@ export class MockLlmProvider implements LlmProvider {
       ],
       note: '데모 OCR: 실제 성적표 인식은 비전 모델(LLM_PROVIDER=claude) 연동이 필요합니다. 과목 틀만 채웠으니 점수를 확인·입력하세요.',
     };
+  }
+
+  /** 생기부 비전 분류(stub) — mock 은 이미지 판별 불가이므로 'no'(오탐 0). 실판정은 LLM_PROVIDER=claude 필요. */
+  async classifySchoolRecord(_input: ScoreOcrInput): Promise<SchoolRecordVisionResult> {
+    return { label: 'no' };
+  }
+
+  /** 관문 해석(stub) — 실모델 미구성 신호로 예외를 던진다 → gateway 가 규칙 폴백을 사용(중복 규칙 구현 방지). */
+  async interpretGateway(_input: GatewayInterpretInput): Promise<GatewayLlmResult> {
+    throw new Error('mock LLM 은 관문 해석을 지원하지 않습니다 — 규칙 폴백을 사용하세요.');
   }
 
   private static norm(s: string): string {
@@ -140,6 +167,36 @@ export class MockLlmProvider implements LlmProvider {
         requests: missing.length ? ['누락 서류 제출 요청'] : ['추가 요청 없음'],
       },
       model: 'mock',
+    };
+  }
+
+  /** 상담 요약(R3) — 휴리스틱 stub: 전사문 문장 일부를 발췌해 초안 뼈대만 제공(검수 전제). */
+  async consultSummary(input: import('./llm.types').ConsultSummaryInput): Promise<import('./llm.types').ConsultSummaryResult> {
+    const sents = input.transcript.split(/(?<=[.!?다요])\s+/).map((s) => s.trim()).filter((s) => s.length > 8);
+    return {
+      demo: true,
+      covered: sents.slice(0, 4).map((s) => s.slice(0, 60)),
+      diagnosis: '[데모 초안] 실모델(LLM_PROVIDER) 미구성 — 전사문 발췌 기반 뼈대입니다. 검수 시 직접 작성해 주세요.',
+      nextActions: ['다음 상담 전까지 이번 상담 내용 복습', '궁금한 점은 Q&A 로 질문'],
+    };
+  }
+
+  /** 2뷰(학생/학부모) — 데모 stub: 원천 요약을 그대로 재배치만(없는 사실 생성 금지·가격 금지 준수). 검수 전제. */
+  async consultReportViews(input: import('./llm.types').ConsultReportViewsInput): Promise<import('./llm.types').ConsultReportViewsResult> {
+    const covered = input.covered.slice(0, 6);
+    const actions = input.nextActions.slice(0, 5);
+    return {
+      demo: true,
+      student: {
+        covered,
+        reviewPoints: covered.slice(0, 3).map((c) => `복습: ${c}`),
+        nextLearning: actions.length ? actions : ['다음 상담 전까지 이번 내용 복습'],
+      },
+      guardian: {
+        progress: input.diagnosis || '[데모] 이번 상담의 진척 요지입니다 — 검수 시 상담사가 직접 작성해 주세요.',
+        recommendedActions: actions.length ? actions : ['다음 상담을 권장드립니다'],
+        effort: '꾸준한 학습이 이어지도록 다음 상담을 권장드립니다.',
+      },
     };
   }
 }

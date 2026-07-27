@@ -13,7 +13,7 @@
 > 신규 스키마 변경은 `migrations/NNNN_*.sql` 로 추가하고 이 러너로 적용(수동 임의 적용 금지).
 
 ## DB 백업 (`backup-db.sh`)
-postgres 컨테이너를 `pg_dump` 하여 `~/itall-backups/`에 gzip 저장(최근 14개 유지).
+postgres 컨테이너를 `pg_dump` 하여 `~/janus-backups/`에 gzip 저장(최근 14개 유지).
 ```bash
 ./ops/backup-db.sh
 # 매일 새벽 3시 크론 예:
@@ -23,11 +23,11 @@ postgres 컨테이너를 `pg_dump` 하여 `~/itall-backups/`에 gzip 저장(최�
 ## DB 복구 + 리허설 (`restore-db.sh`)
 백업(.sql.gz)을 복원. 파괴적이라 DB명 입력 확인을 요구(`--yes` 로 생략).
 ```bash
-./ops/restore-db.sh ~/itall-backups/itall-YYYYMMDD-HHMMSS.sql.gz
+./ops/restore-db.sh ~/janus-backups/janus-YYYYMMDD-HHMMSS.sql.gz
 ```
 **복구 리허설(정기 권장)**: 최신 백업을 별도 DB로 복원해 실제로 되살아나는지 검증.
 ```bash
-RESTORE_DB=itall_restore_test ./ops/restore-db.sh <최신백업> --yes
+RESTORE_DB=janus_restore_test ./ops/restore-db.sh <최신백업> --yes
 # 검증 카운트(accounts/bookings/credit_accounts)가 0이 아니면 정상. 끝나면 DROP DATABASE.
 ```
 

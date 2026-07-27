@@ -1,0 +1,59 @@
+{
+  "_comment": "배치표 허브 manifest — JANUS_DATA_DIR/placement-hub/manifest.json 으로 복사해 사용. 허용목록: 목록에 없는 파일은 서빙 안 됨. 계산기(카이로스·알레아)는 repo 서빙 — 넣지 말 것. ⚠ O77 투트랙: 고속 유래 입력이 섞인 표(V1·V2)는 반드시 audience:'internal'(관리자만·상품권한 우회 불가·학생 탭 숨김). 외부 유료 공개는 V3 청정 빌드(어디가 원본+공식+아우구르, 고속 무입력)만 — 반출 전 check_clean_build.py 통과 필수. 유료 게이트: baechipyo-full(전 kind)·baechipyo-jeongsi(kind:jeongsi) — service_entitlement(O74).",
+  "tables": [
+    {
+      "slug": "gap-report",
+      "title": "야누스 격차 리포트 v2",
+      "short": "격차 리포트",
+      "icon": "◱",
+      "kind": "gap",
+      "updated": "2026-07-13",
+      "tier": "free",
+      "file": "gap-report-v2.html"
+    },
+    {
+      "slug": "jeongsi-2027",
+      "title": "2027 정시 정밀배치표 v26",
+      "short": "정밀배치표",
+      "icon": "▦",
+      "kind": "jeongsi",
+      "updated": "2026-07-14",
+      "badge": "6월 실채점",
+      "tier": "paid",
+      "audience": "internal",
+      "file": "jeongsi-2027-v26.html"
+    },
+    {
+      "slug": "susi",
+      "title": "전국 수시 합격 입결 v6",
+      "short": "수시 입결",
+      "icon": "◈",
+      "kind": "susi",
+      "updated": "2026-07-09",
+      "tier": "paid",
+      "audience": "internal",
+      "file": "susi-v6.html"
+    },
+    {
+      "slug": "jeongsi-2026",
+      "title": "2026 정시 정밀배치표 v24 (아카이브)",
+      "short": "정시 2026",
+      "icon": "▤",
+      "kind": "jeongsi",
+      "updated": "2026-07-09",
+      "tier": "paid",
+      "audience": "internal",
+      "file": "jeongsi-2026-v24.html"
+    },
+    {
+      "slug": "jeongsi-2027-v3",
+      "title": "2027 정시 정밀배치표 (청정 V3 — 준비 중)",
+      "short": "정밀배치표 V3",
+      "icon": "▦",
+      "kind": "jeongsi",
+      "tier": "paid",
+      "file": "jeongsi-2027-clean-v3.html",
+      "_comment": "V3 청정 빌드 도착 시 이 항목 활성(파일 배치+check_clean_build 통과) — 외부 유료 공개 유일본"
+    }
+  ]
+}

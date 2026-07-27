@@ -48,6 +48,12 @@ export interface ScoreOcrResult {
   note: string;
 }
 
+// ── 생기부 가드 비전 분류(§5 3단) ──
+// 이미지가 학교생활기록부 서식인지 yes/no/unsure 만 판정. 원문·근거 비보존(라벨만).
+export interface SchoolRecordVisionResult {
+  label: 'yes' | 'no' | 'unsure';
+}
+
 // ── 컨설팅 분석(생기부 등 · 설계안 §7) ──
 // 입력에는 식별정보(이름·연락처)를 넣지 않는다(마스킹). 산출물은 컨설턴트 검수용 "초안".
 export interface ConsultingAnalysisInput {
@@ -63,9 +69,117 @@ export interface ConsultingAnalysisResult {
   model: string; // 'mock' | claude 모델 태그
 }
 
+// ── 관문 해석(W2 D5 — 관문 홈 자유서술 → 의도·커리큘럼 카드) ──
+// 입력은 반드시 마스킹된 텍스트(gateway 도메인 maskSensitive 통과분).
+export interface GatewayInterpretInput {
+  text: string;
+}
+export interface GatewayLlmCard {
+  title: string;
+  desc: string;
+  service: string; // diagnosis|qna|consulting|tutoring|lecture|mental|curriculum
+  to: string; // 웹 라우트
+}
+export interface GatewayLlmResult {
+  intent: string; // diagnosis|qna|consulting|tutoring|lecture|mental|unknown
+  summary: string;
+  cards: GatewayLlmCard[];
+}
+
+export interface QnaDraftInput {
+  subject?: string | null;
+  difficulty?: string | null;
+  body: string;
+}
+export interface QnaDraftResult {
+  body: string; // AI 초안 본문("AI 생성" 라벨과 함께 노출)
+}
+
+// ── 상담 요약 리포트(R3 · 녹음 브리핑 §4) ──
+// 입력에 식별정보(이름·연락처)를 넣지 않는다. 산출물은 선생님 전건 검수용 "초안".
+export interface ConsultSummaryInput {
+  transcript: string;
+  durationSec?: number | null;
+  subject?: string | null; // 상담 카테고리/과목(있으면)
+  scoreHint?: string | null; // janus_score 요지(읽기 전용 — 예: "종합 72점, 수학 취약")
+}
+export interface ConsultSummaryResult {
+  covered: string[]; // 오늘 다룬 내용(3~6개)
+  diagnosis: string; // 진단·관찰(2~4문장)
+  nextActions: string[]; // 다음 액션(2~5개)
+  demo?: boolean; // mock 산출물 표시
+}
+
+// ── 상담 요약 2뷰 생성(학생용/학부모용 — 발송·수신 레이어 브리핑 v1 §4) ──
+// 원천(전사문 or 상담사 메모)에 없는 사실 생성 금지. 가격·상품 단정 금지(⛔). 본인 자녀 정보만.
+export interface ConsultReportViewsInput {
+  origin: 'audio' | 'fallback'; // 요약 원천 유형(감사·프롬프트 톤)
+  covered: string[]; // 원천 요약: 다룬 내용
+  diagnosis: string; // 원천 요약: 진단·관찰
+  nextActions: string[]; // 원천 요약: 상담사가 실제 언급한 다음 액션(가격·상품 제외)
+  subject?: string | null; // 상담 분야
+}
+export interface StudentReportView {
+  covered: string[]; // 오늘 다룬 내용
+  reviewPoints: string[]; // 복습 포인트
+  nextLearning: string[]; // 다음 학습
+}
+export interface GuardianReportView {
+  progress: string; // 진척 요지(2~4문장, 낙인·과장 없이)
+  recommendedActions: string[]; // 권장 다음 액션(상담사 언급 한정, 가격·상품 단정 금지)
+  effort: string; // 소요·권장(문장 — "다음 상담/과외를 권장드립니다" 수준까지, 단가 금지)
+}
+export interface ConsultReportViewsResult {
+  student: StudentReportView;
+  guardian: GuardianReportView;
+  demo?: boolean;
+}
+
+/**
+ * 호출 용도 — 일 호출 상한을 **용도별로** 나눠 하나가 폭주해도 나머지가 살아남게 한다.
+ * (실행계획서 §비용: "무료 관문 홈·Q&A AI 초안이 비용 폭주 지점")
+ *
+ * LlmProvider 의 **모든 메서드가 어느 용도에 속하는지 반드시 매핑돼야 한다**(PURPOSE_OF_METHOD).
+ * 매핑이 없으면 그 경로는 상한 없이 열린다 — 새 메서드를 추가할 때 함께 넣을 것.
+ */
+export const LLM_PURPOSES = [
+  'report', // 신고 1차 검토
+  'similarity', // 답변 유사도(표절·중복)
+  'draft', // Q&A AI 초안 — 질문마다 걸려 호출 수가 많다
+  'ocr', // 성적표 이미지 추출
+  'vision', // 생기부 서식 분류(이미지)
+  'consulting', // 입시 컨설팅 분석(별도 결제 / 등급 권리)
+  'gateway', // 관문 자유서술 해석 — 무료 진입점이라 폭주 위험이 가장 크다
+  'consultReport', // 상담 요약·2뷰 생성
+] as const;
+export type LlmPurpose = (typeof LLM_PURPOSES)[number];
+
+/** LlmProvider 메서드 → 용도. 상한 래퍼가 이 표로 판정한다. */
+export const PURPOSE_OF_METHOD = {
+  reviewReport: 'report',
+  checkAnswerSimilarity: 'similarity',
+  draftAnswer: 'draft',
+  extractScoreReport: 'ocr',
+  classifySchoolRecord: 'vision',
+  analyzeConsulting: 'consulting',
+  interpretGateway: 'gateway',
+  consultSummary: 'consultReport',
+  consultReportViews: 'consultReport',
+} as const satisfies Record<string, LlmPurpose>;
+
 export interface LlmProvider {
   reviewReport(input: ReportReviewInput): Promise<ReportReviewResult>;
   checkAnswerSimilarity(input: AnswerSimilarityInput): Promise<AnswerSimilarityResult>;
+  /** Q&A 질문 → AI 1차 초안(Q3). 미구성/실패 시 예외 → 호출측에서 초안 생략(무해). */
+  draftAnswer(input: QnaDraftInput): Promise<QnaDraftResult>;
   extractScoreReport(input: ScoreOcrInput): Promise<ScoreOcrResult>;
+  /** 이미지가 학교생활기록부 서식인지 분류(생기부 가드 §5 3단). 응답은 라벨만(원문 비보존). */
+  classifySchoolRecord(input: ScoreOcrInput): Promise<SchoolRecordVisionResult>;
   analyzeConsulting(input: ConsultingAnalysisInput): Promise<ConsultingAnalysisResult>;
+  /** 관문 자유서술 해석. 미구성/실패 시 예외 → 호출측(gateway)이 규칙 폴백. */
+  interpretGateway(input: GatewayInterpretInput): Promise<GatewayLlmResult>;
+  /** 상담 전사문 → 요약 리포트 초안(R3). 미구성/실패 시 예외 → 호출측이 재시도·수동 폴백. */
+  consultSummary(input: ConsultSummaryInput): Promise<ConsultSummaryResult>;
+  /** 요약 → 학생용/학부모용 2뷰(발송·수신 레이어). 미구성/실패 시 예외 → 호출측이 규칙 폴백. */
+  consultReportViews(input: ConsultReportViewsInput): Promise<ConsultReportViewsResult>;
 }

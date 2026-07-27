@@ -152,7 +152,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   mark: { width: 52, height: 52, borderRadius: 13, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', marginBottom: 14 },
   markText: { color: C.teal, fontWeight: '800', fontSize: 22 },
   brand: { color: '#fff', fontSize: 26, fontWeight: '800', letterSpacing: -0.5 },
-  heroSub: { color: '#cfe3ec', fontSize: 14, marginTop: 8, lineHeight: 20 },
+  heroSub: { color: '#cfe0f5', fontSize: 14, marginTop: 8, lineHeight: 20 },
   sheet: { flex: 1, backgroundColor: C.bg, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: SP.xl, paddingTop: 22 },
   label: { fontSize: 13, fontWeight: '700', color: C.muted, marginBottom: 8 },
   pwWrap: { position: 'relative', justifyContent: 'center' },

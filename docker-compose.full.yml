@@ -11,15 +11,15 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: itall
-      POSTGRES_PASSWORD: itall_local_pw
-      POSTGRES_DB: itall
+      POSTGRES_USER: janus
+      POSTGRES_PASSWORD: janus_local_pw
+      POSTGRES_DB: janus
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data   # dev compose 와 동일 볼륨(시드 데이터 재사용)
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U itall -d itall"]
+      test: ["CMD-SHELL", "pg_isready -U janus -d janus"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -46,7 +46,7 @@ services:
       API_PREFIX: /api/v1
       # connection_limit: 예약 advisory-lock 직렬화 시 대기 요청도 커넥션을 점유하므로 여유 확보.
       #   pool_timeout: 풀 대기 상한(초). 초과분은 서비스에서 우아한 409 로 안내. (postgres max=100)
-      DATABASE_URL: postgresql://itall:itall_local_pw@postgres:5432/itall?connection_limit=30&pool_timeout=20
+      DATABASE_URL: postgresql://janus:janus_local_pw@postgres:5432/janus?connection_limit=30&pool_timeout=20
       REDIS_URL: redis://redis:6379
       JWT_SECRET: dev-jwt-secret-please-change
       JWT_REFRESH_SECRET: dev-refresh-secret-please-change
@@ -56,14 +56,28 @@ services:
       NOTIFICATION_PROVIDER: mock
       STORAGE_PROVIDER: local
       STORAGE_LOCAL_DIR: /data/storage
+      # 배치표 허브 데이터 경로(§4 — ENV 로만). 컨테이너 안 마운트 지점 고정, 호스트 경로는 아래 volumes 에서 주입.
+      JANUS_DATA_DIR: /data/janus
       ZOOM_PROVIDER: mock
-      LLM_PROVIDER: none
+      # 미디어(SFU) — 기본 mock. LiveKit 실개통(M0·O79): MEDIA_PROVIDER=livekit + LIVEKIT_* 주입 후 api 재기동.
+      MEDIA_PROVIDER: ${MEDIA_PROVIDER:-mock}
+      LIVEKIT_URL: ${LIVEKIT_URL:-}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+      # 녹음 파이프라인(R1~R5) — 미설정 시 해당 단계 비활성(기존 동작 그대로).
+      LIVEKIT_EGRESS_S3: ${LIVEKIT_EGRESS_S3:-}
+      STT_PROVIDER: ${STT_PROVIDER:-mock}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      STT_WHISPER_MODEL: ${STT_WHISPER_MODEL:-whisper-1}
+      LLM_PROVIDER: ${LLM_PROVIDER:-none}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       HOMEROOM_CYCLE_DAYS: "30"
       PRE_BOOK_HORIZON_DAYS: "30"
       # 실시간 룸 서비스 이관 브리지(플래그). 엔드포인트만 추가 — 클라가 호출 전엔 기존 in-app 그대로.
       REALTIME_ROOMS_ENABLED: "true"
       ROOMS_API_URL: http://realtime-rooms:3100
-      ROOMS_PUBLIC_URL: http://localhost:3100
+      # 외부(폰 등) 접속 시 터널 URL 로 덮어쓰기: ROOMS_PUBLIC_URL=https://<룸터널> docker compose up -d api
+      ROOMS_PUBLIC_URL: ${ROOMS_PUBLIC_URL:-http://localhost:3100}
       ROOMS_API_KEY: dev-rooms-api-key
     depends_on:
       postgres:
@@ -74,6 +88,10 @@ services:
       - "3000:3000"
     volumes:
       - storage:/data/storage   # 업로드 파일(자료·첨부) 영속화 — api 재빌드에도 유지
+      # 배치표 허브 데이터(저작권 — repo 무반입) 읽기전용 마운트. 호스트 경로는 JANUS_DATA_DIR_HOST 로 주입.
+      #   예: JANUS_DATA_DIR_HOST=/Users/you/janus/20_data docker compose -f docker-compose.full.yml up
+      #   미설정 시 ./janus-data(gitignore) → 없으면 빈 폴더로 마운트(허브는 '준비 중' + 계산기 탭만).
+      - ${JANUS_DATA_DIR_HOST:-./janus-data}:/data/janus:ro
 
   # 화이트라벨 실시간 룸 서비스 — 채팅·화이트보드·음성. 예약 도메인과 절연된 독립 배포 단위.
   #   로컬 데모는 같은 postgres 의 'rooms' 스키마에 격리. 실서비스는 ROOMS_DATABASE_URL 을 전용 클러스터로.
@@ -84,12 +102,14 @@ services:
     environment:
       NODE_ENV: local
       PORT: "3100"
-      ROOMS_DATABASE_URL: postgresql://itall:itall_local_pw@postgres:5432/itall
+      ROOMS_DATABASE_URL: postgresql://janus:janus_local_pw@postgres:5432/janus
       REDIS_URL: redis://redis:6379
       WS_REDIS_ADAPTER: "1"
       ROOMS_JWT_SECRET: dev-rooms-secret-change    # 실서비스에선 시크릿으로 교체
       ROOMS_API_KEY: dev-rooms-api-key             # 호스트 백엔드↔룸서비스 서버-투-서버 키
       ROOMS_STORAGE_DIR: /data/rooms-storage
+      # 부재중 채팅 등 룸 이벤트를 호스트(API)로 통지 — 키는 ROOMS_API_KEY 재사용
+      EVENTS_WEBHOOK_URL: ${EVENTS_WEBHOOK_URL:-http://api:3000/api/v1/internal/rooms/events}
     depends_on:
       postgres:
         condition: service_healthy
@@ -107,6 +127,8 @@ services:
       args:
         # 로컬 데모 배포 — 데모 로그인 편의 활성. 실서비스 배포에선 이 줄을 제거/false.
         VITE_DEMO_MODE: "true"
+        # 상담 화상(M1) 켜기: .env 에 VITE_MEDIA_CONSULT=livekit 후 web 재빌드
+        VITE_MEDIA_CONSULT: ${VITE_MEDIA_CONSULT:-}
     ports:
       - "8080:80"
     depends_on:
@@ -124,6 +146,6 @@ services:
       - api
 
 volumes:
-  pgdata:   # = itall-mentoring_pgdata (dev compose 와 공유)
+  pgdata:   # = janus-platform_pgdata (dev compose 와 공유)
   storage:  # 업로드 파일 영속 저장(자료실·문제 첨부)
   rooms_storage:  # 실시간 룸 서비스 첨부 영속화

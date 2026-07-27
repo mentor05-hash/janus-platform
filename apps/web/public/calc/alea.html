@@ -1,0 +1,226 @@
+<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>야누스 알레아 (Alea) — 이벤트 부록 · 빵꾸 베팅 기대값 계산기</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+:root{--bg:#f4f6fa;--navy:#1e3550;--blue:#2f6fb3;--gold:#bc8a28;--bd:#dde3ec;--mut:#8695a8;--g:#1f8a4c;--r:#c05252}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Pretendard Variable',Pretendard,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;background:var(--bg);color:#1b2330;font-size:14px;line-height:1.6}
+header{background:#fff;border-bottom:1px solid #e4eaf1}
+.hbar{max-width:1060px;margin:0 auto;height:58px;padding:0 20px;display:flex;align-items:center;gap:10px}
+.brand{font-size:20px;font-weight:800;color:var(--navy);letter-spacing:-.02em}
+.tag{font-size:11.5px;font-weight:700;color:#8a6d1f;background:#f7edd2;border-radius:6px;padding:3px 8px}
+.sub{font-size:12px;color:var(--mut)}
+.wrap{max-width:1060px;margin:0 auto;padding:20px}
+.hero{background:linear-gradient(135deg,#1e3550 0%,#243f61 70%,#3b5378 100%);border:1px solid #17293f;border-radius:18px;padding:24px 28px;color:#e8eef7;margin-bottom:16px;position:relative;overflow:hidden}
+.hero::after{content:"🎲";position:absolute;right:22px;top:14px;font-size:44px;opacity:.18;transform:rotate(12deg)}
+.hero .ttl{display:flex;align-items:center;gap:10px;font-size:13.5px;font-weight:700}
+.pill{margin-left:auto;font-size:11.5px;background:#2a476b;border-radius:8px;padding:3px 10px;color:#b9c9de}
+.big{font-size:42px;font-weight:800;margin:14px 0 2px;font-family:'IBM Plex Mono',Consolas,monospace;color:#5c7392}
+.big.on{color:#f2d98a}
+.hero .line{font-size:13px;color:#8fa3bc}
+.hero .stats{border-top:1px solid #2a476b;margin-top:16px;padding-top:12px;display:flex;flex-wrap:wrap;gap:26px}
+.hero .stats b{font-size:15px}
+.hero .stats .k{font-size:11.5px;color:#8fa3bc;display:block}
+.grade{display:inline-block;font-size:13px;font-weight:800;border-radius:9px;padding:4px 13px;margin-top:10px;background:#2a476b;color:#b9c9de}
+section{background:#fff;border:1px solid var(--bd);border-radius:16px;padding:18px 22px;margin-bottom:16px}
+h2{font-size:15.5px;margin:0 0 4px;color:var(--navy)}
+.desc{font-size:12.5px;color:var(--mut);margin:0 0 10px}
+table{border-collapse:collapse;width:100%;margin-top:4px}
+th,td{border:1px solid var(--bd);padding:7px 10px;font-size:13px;text-align:center}
+th{background:var(--navy);color:#fff;font-weight:700;font-size:12.5px}
+td.l{text-align:left}
+input[type=number]{width:92px;padding:6px;border:1px solid var(--bd);border-radius:7px;text-align:center;font-size:13px}
+input[type=range]{width:200px;vertical-align:middle}
+.out{font-weight:800;color:var(--navy)}
+.note{background:#fdf6e7;border:1px solid #eedfba;border-radius:10px;padding:11px 15px;font-size:12.5px;margin-top:10px;color:#5a4708}
+.uni{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.uni .u{width:44px;height:44px;border-radius:10px;background:#eef2f8;border:1px solid var(--bd);display:flex;align-items:center;justify-content:center;font-size:21px;transition:transform .15s}
+.uni .u.pop{transform:scale(1.15)}
+button{font-family:inherit;font-size:13.5px;font-weight:700;border:none;border-radius:10px;padding:10px 18px;cursor:pointer}
+#roll{background:var(--gold);color:#fff}
+#roll:hover{background:#a87a20}
+.reg td{font-size:12.5px}
+.reg .bad{background:#fbf3f3;color:var(--r);font-weight:700}
+.reg .good{background:#f2f8f4;color:var(--g);font-weight:700}
+.foot{text-align:center;font-size:11.5px;color:var(--mut);padding:6px 0 28px}
+.kv{font-family:'IBM Plex Mono',Consolas,monospace;font-size:12px;background:#eef2f8;border-radius:5px;padding:1px 5px}
+@media(max-width:700px){.hero .stats{gap:14px}.big{font-size:32px}}
+</style><style>
+.jns-lock{transition:filter .18s}
+html[data-tier="free"][data-gate="on"] .jns-lock{filter:blur(8px);pointer-events:none;user-select:none}
+.jns-veil{transition:filter .2s}
+html[data-tier="free"][data-gate="on"] .jns-veil{filter:blur(6px);opacity:.5;pointer-events:none;user-select:none;max-height:440px;overflow:hidden;-webkit-mask-image:linear-gradient(180deg,#000 0%,#000 40%,rgba(0,0,0,.28) 78%,transparent 100%);mask-image:linear-gradient(180deg,#000 0%,#000 40%,rgba(0,0,0,.28) 78%,transparent 100%)}
+html[data-tier="free"][data-gate="on"] .jns-veil input,html[data-tier="free"][data-gate="on"] .jns-veil select,html[data-tier="free"][data-gate="on"] .jns-veil textarea,html[data-tier="free"][data-gate="on"] .jns-veil .out{filter:blur(2px);opacity:.45}
+html[data-tier="free"][data-gate="on"] .jns-veil td,html[data-tier="free"][data-gate="on"] .jns-veil th{padding-top:3px;padding-bottom:3px}
+.jns-paywall{display:none}
+html[data-tier="free"][data-gate="on"] .jns-paywall{display:flex;align-items:center;gap:12px;justify-content:center;flex-wrap:wrap;background:linear-gradient(135deg,#1e3550,#2f6fb3);color:#fff;border-radius:12px;padding:14px 18px;margin:14px auto;max-width:1000px;font-size:13.5px;font-weight:600}
+.jns-paywall button{background:#f2d98a;color:#3a2d05;border:none;border-radius:8px;padding:8px 16px;font-weight:800;cursor:pointer;font-family:inherit}
+</style>
+</head><body>
+<header><div class="hbar">
+<svg width="26" height="26" viewBox="0 0 96 96" fill="none" role="img" aria-label="야누스"><defs><linearGradient id="alA" gradientUnits="userSpaceOnUse" x1="18" y1="0" x2="78" y2="0"><stop offset="50%" stop-color="#2F6FB3"/><stop offset="50%" stop-color="#BC8A28"/></linearGradient><linearGradient id="alB" gradientUnits="userSpaceOnUse" x1="14" y1="0" x2="82" y2="0"><stop offset="50%" stop-color="#2F6FB3"/><stop offset="50%" stop-color="#BC8A28"/></linearGradient></defs><g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="10"><path d="M18 74V43C18 27.5 30.2 15 48 15C65.8 15 78 27.5 78 43V52" stroke="url(#alA)"/><path d="M14 79H82" stroke="url(#alB)"/></g></svg>
+<span class="brand">야누스</span><span class="tag">알레아 · 이벤트 부록</span>
+<span class="sub">Alea iacta est — 주사위는 던져졌다 · 빵꾸 베팅 기대값 계산기</span>
+<span style="flex:1"></span><span class="sub" style="font-family:monospace">janus.app/alea</span>
+</div></header>
+
+<div class="wrap">
+<div class="hero">
+ <div class="ttl"><span>🎰 이 원서, 지를 가치가 있는가</span><span class="pill" id="pill">입력 대기</span></div>
+ <div class="big" id="big">——.— <span style="font-size:19px">%</span></div>
+ <div class="line" id="line">마감 직전, 재수를 각오한 그 한 장 — 감이 아니라 기대값으로 던지세요</div>
+ <div class="stats">
+  <span><span class="k">시장 배당</span><b id="odds">—</b></span>
+  <span><span class="k">손익분기 마음배당</span><b id="breq">—</b></span>
+  <span><span class="k">당신의 마음배당</span><b id="myb">—</b></span>
+  <span><span class="k">켈리 허용</span><b id="kelly">—</b></span>
+ </div>
+ <div class="grade" id="grade">🎲 수치를 입력하면 등급이 나옵니다</div>
+</div>
+
+<section><h2>① 판돈 입력 <span class="desc" style="display:inline">— 마감 직전 진학사 화면과 전년 기록에서</span></h2>
+<table>
+<tr><th style="width:34%">항목</th><th style="width:22%">입력</th><th style="width:44%">설명</th></tr>
+<tr><td class="l">모집인원</td><td><input type="number" id="M" placeholder="예: 15"></td><td class="l">작을수록 변동성↑ (복권 성질)</td></tr>
+<tr><td class="l">마감직전 경쟁률</td><td><input type="number" id="En" step="0.01" placeholder="예: 1.2"></td><td class="l">지금 화면의 경쟁률</td></tr>
+<tr><td class="l">전년 최종 경쟁률</td><td><input type="number" id="Ep" step="0.01" placeholder="예: 6.0"></td><td class="l">비었으면 공포 지수 생략</td></tr>
+<tr><td class="l">전년 충원율(추합 배수)</td><td><input type="number" id="Rc" step="0.01" placeholder="예: 0.9"></td><td class="l">모집 대비 추합 인원 배수</td></tr>
+<tr><td class="l">진학사 칸수</td><td><input type="number" id="K" min="1" max="9" placeholder="예: 2"></td><td class="l">지름은 보통 1~3칸</td></tr>
+<tr><td class="l">컷과 내 거리 g (%p)</td><td><input type="number" id="g" step="0.1" placeholder="예: 1.0"></td><td class="l">예상컷 누백 − 내 누백. 모르면 1.0</td></tr>
+<tr><td class="l">메디컬 여부</td><td><input type="checkbox" id="med" style="transform:scale(1.3)"></td><td class="l">빵꾸의 43%가 메디컬에 집중(자체 실측)</td></tr>
+<tr><td class="l">예상지원 / 실지원 (선택)</td><td><input type="number" id="D" step="0.01" placeholder="예: 0.8"></td><td class="l">덴시타스 — &lt;1이면 표본 희석·변동성↑</td></tr>
+<tr><td class="l">재수 각오 <b id="Wv">70</b>%</td><td colspan="2"><input type="range" id="W" min="5" max="95" value="70"> <span class="desc" style="display:inline">“떨어져도 후회 없다”의 정도 → 마음배당으로 환산</span></td></tr>
+</table></section>
+
+<section><h2>② 판독 <span class="desc" style="display:inline">— 파보르(시장 공포) → 빵꾸 확률 → 총 합격확률</span></h2>
+<table>
+<tr><th>마감 투영 경쟁률</th><th>파보르 V</th><th>빵꾸 확률</th><th>P(합격|정상)</th><th>P(합격|빵꾸)</th><th>총 합격확률</th></tr>
+<tr><td class="out" id="oEf">—</td><td class="out" id="oV">—</td><td class="out" id="oPp">—</td><td class="out" id="oPn">—</td><td class="out" id="oPw">—</td><td class="out" id="oP" style="font-size:16px">—</td></tr>
+</table>
+<div class="note"><b>빵꾸는 로또가 아니라 반값 할인.</b> 빵꾸가 나도 컷 초과폭의 중앙값은 <b>0.7%p</b>(자체 1,851건 실측) — 컷에서 0.7%p 아래면 빵꾸 시 50%, 3%p 아래면 5%뿐. 마감직전 저경쟁도 최종까지 평균 <b>+1.7배수</b>가 더 들어옵니다(R²=0.50 — 구간 평균, 개별 단정 금지).</div></section>
+
+<section><h2>③ 후회 매트릭스 <span class="desc" style="display:inline">— 어느 쪽 후회가 더 큰가 (단위: 재수 1년의 비용)</span></h2>
+<table class="reg">
+<tr><th></th><th>합격(이었을) 세계</th><th>불합격 세계</th><th>기대 후회</th></tr>
+<tr><td class="l"><b>지른다</b></td><td>후회 0 — 축배</td><td>재수행 (확률 <span id="r1">—</span>)</td><td id="regB" class="out">—</td></tr>
+<tr><td class="l"><b>안 지른다</b></td><td>"빵꾸였는데…" 평생 회자 (확률 <span id="r2">—</span>)</td><td>후회 0 — 현명했다</td><td id="regN" class="out">—</td></tr>
+</table>
+<div class="note" id="regV">—</div></section>
+
+<section><h2>④ 평행우주 시뮬레이터 <span class="desc" style="display:inline">— 같은 원서를 10개의 우주에서 던진다면</span></h2>
+<button id="roll">🎲 주사위 굴리기 (10개 우주)</button>
+<span class="desc" style="display:inline;margin-left:10px" id="mc">—</span>
+<div class="uni" id="uni"></div></section>
+
+<div class="note" style="margin-bottom:16px">⚠ <b>이벤트 부록입니다</b> — 노벨상 전야의 이그노벨상 같은 것. 빵꾸 계수는 설계값(백테스트 캘리브레이션 전)이며, 공식 판단은 <b>야누스 배치표·카이로스</b>를 따르세요. 수학은 놀랍도록 냉정해서, 대부분의 지름에게 "그만두라"고 말합니다. 그것도 이 계산기의 기능입니다.</div>
+<div class="foot">야누스 입시연구소 · 개인 진학지도용 한정 · 외부 공개/재배포 금지</div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const V=id=>{const v=parseFloat($(id).value);return isNaN(v)?null:v;};
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const Q=K=>clamp(K<=5.5?(10*Math.pow(2,K-2.5))/100:(100-Math.pow(4.5,7.5-K))/100,.005,.995);
+let curP=null;
+function calc(){
+ $('Wv').textContent=$('W').value;
+ const M=V('M'),En=V('En'),Ep=V('Ep'),Rc=V('Rc'),K=V('K'),g=V('g')==null?1.0:V('g'),med=$('med').checked,D=V('D')==null?1:V('D'),W=parseFloat($('W').value);
+ if(M==null||En==null||Rc==null||K==null){curP=null;
+  $('pill').textContent='입력 대기';$('big').className='big';$('big').innerHTML='——.— <span style="font-size:19px">%</span>';
+  ['oEf','oV','oPp','oPn','oPw','oP','odds','breq','myb','kelly','regB','regN'].forEach(i=>$(i).textContent='—');
+  $('grade').textContent='🎲 수치를 입력하면 등급이 나옵니다';$('regV').textContent='—';$('r1').textContent='—';$('r2').textContent='—';return;}
+ const Ef=1.0248*En+1.7524;
+ const Vx=(Ep!=null&&Ef>0)?Ep/Ef:1;
+ const volF=clamp(1/Math.min(D,1),1,3);
+ const size=clamp(Math.sqrt(49/Math.max(M,1)),0.6,2.5);
+ const logit=-2.164+Math.log(Math.max(Vx,.05))+(med?0.5:0)+0.4*Math.log(volF)+0.5*Math.max(0,Rc-0.5)+0.3*Math.log(size);
+ const Pp=clamp(1/(1+Math.exp(-logit)),0.02,0.45);
+ const Pn=Q(K), Pw=Math.max(Pn,Math.pow(2,-Math.max(g,0)/0.7));
+ const P=(1-Pp)*Pn+Pp*Pw; curP=P;
+ const odds=1/P, breq=(1-P)/P, b=W/(100-W), f=P-(1-P)/b, cards=clamp(3*f,0,2);
+ $('oEf').textContent=Ef.toFixed(2)+' (±'+(Ef*0.3).toFixed(1)+')';
+ $('oV').textContent=Vx.toFixed(2)+(Vx>1.3?' 🥶 얼어붙음':Vx<0.8?' 🔥 과열':'');
+ $('oPp').textContent=(Pp*100).toFixed(1)+'%';
+ $('oPn').textContent=(Pn*100).toFixed(1)+'%';
+ $('oPw').textContent=(Pw*100).toFixed(1)+'%';
+ $('oP').textContent=(P*100).toFixed(1)+'%';
+ $('big').className='big on';$('big').innerHTML=(P*100).toFixed(1)+' <span style="font-size:19px">%</span>';
+ $('pill').textContent='계산됨';
+ $('odds').textContent=odds.toFixed(1)+'배';
+ $('breq').textContent=breq.toFixed(1)+'배';
+ $('myb').textContent=b.toFixed(1)+'배';
+ $('kelly').textContent=f>0?('3장 중 '+cards.toFixed(1)+'장'):'0장 (기대값 음수)';
+ let gr;
+ if(P>=0.35)gr='🧭 이건 지름이 아니라 소신 — 카이로스로 가세요';
+ else if(P>=0.18)gr='🎲 던질 만한 주사위 — 켈리와 상의하세요';
+ else if(P>=0.08)gr='🎰 반값 할인 로또 구간 — 컷 근처(g<1)일 때만';
+ else gr='💀 ALEA IACTA EST — 신의 영역입니다';
+ if(K>=6)gr='🧭 6칸 이상은 알레아 대상이 아닙니다 — 카이로스·배치표로';
+ $('grade').textContent=gr;
+ $('r1').textContent=((1-P)*100).toFixed(0)+'%';$('r2').textContent=(P*100).toFixed(0)+'%';
+ const regB=(1-P), regN=P*b;
+ $('regB').textContent=regB.toFixed(2);$('regN').textContent=regN.toFixed(2);
+ $('regB').className='out '+(regB>regN?'bad':'good');$('regN').className='out '+(regN>regB?'bad':'good');
+ $('regV').innerHTML=regN>regB?'<b>안 질렀을 때의 후회가 더 큽니다</b> — 당신의 각오(마음배당 '+b.toFixed(1)+'배)가 시장 배당을 이깁니다. 켈리도 '+(f>0?'동의':'반대')+'합니다.':'<b>질렀다 떨어지는 후회가 더 큽니다</b> — 마음배당 '+b.toFixed(1)+'배 &lt; 손익분기 '+breq.toFixed(1)+'배. 각오가 그 이상이 아니라면 접으세요.';
+}
+$('roll').addEventListener('click',()=>{
+ if(curP==null){$('mc').textContent='먼저 ①을 입력하세요';return;}
+ const uni=$('uni');uni.innerHTML='';
+ let win=0;
+ for(let i=0;i<10;i++){
+  const d=document.createElement('div');d.className='u';d.textContent='🎲';uni.appendChild(d);
+  setTimeout(()=>{const ok=Math.random()<curP;if(ok)win++;d.textContent=ok?'✅':'❌';d.classList.add('pop');setTimeout(()=>d.classList.remove('pop'),160);
+   if(i===9){let w=0;for(let j=0;j<10000;j++)if(Math.random()<curP)w++;
+    $('mc').textContent='10개 우주 중 '+win+'곳 합격 · 10,000회 시뮬 '+(w/100).toFixed(1)+'%';}
+  },140*(i+1));
+ }
+});
+document.querySelectorAll('input').forEach(i=>i.addEventListener('input',calc));
+calc();
+</script>
+<!-- ▼ 야누스 접합계약 배선 (C2·C3·C5) + free 가드 — 플랫폼 이식용 2026-07-15 -->
+<div style="max-width:1060px;margin:0 auto 22px;padding:0 20px;text-align:center">
+  <a id="consult-reserve" data-janus-page="alea" href="#" style="display:inline-block;font-size:13.5px;font-weight:700;color:#fff;background:#1e3550;border-radius:10px;padding:11px 22px;text-decoration:none">🗓 정시 상담 예약</a>
+</div>
+<script>
+(function(){
+  var PAGE='alea', SVC='alea';
+  // 게이트 활성: iframe 임베드 or ?gate=1 (standalone 테스트는 무잠금)
+  var GATE=(window.self!==window.top)||/[?&]gate=1/.test(location.search);
+  document.documentElement.dataset.gate=GATE?'on':'off';
+  // C2 · janus:sso 게이트 → data-tier(paid|free)
+  function applySSO(tok){
+    var paid=!!(tok&&tok.services&&tok.services.indexOf(SVC)>=0);
+    document.documentElement.dataset.tier=paid?'paid':'free';
+  }
+  try{applySSO(JSON.parse(localStorage.getItem('janus_sso')||'null'));}catch(e){}
+  window.addEventListener('janus:sso',function(e){applySSO(e.detail);});
+  // free 가드: 결과 요소에 jns-lock 부여 + 페이월 배너
+  function lock(){ var ids=['big','grade','oP','oPp','oPw','odds','breq','kelly']; ids.forEach(function(id){var el=document.getElementById(id); if(el)el.classList.add('jns-lock');}); }
+  lock();
+  var wrap=document.querySelector('.wrap');
+  if(wrap){ var pw=document.createElement('div'); pw.className='jns-paywall';
+    pw.innerHTML='🔒 유료 콘텐츠 — 야누스에서 잠금 해제하고 전체 결과를 확인하세요 <button id="jns-unlock">잠금 해제</button>';
+    // free 티저: 인트로(윗부분)만 남기고 그 아래 입력영역을 안개 베일로 감싼다(신비감).
+    (function(){var intro=wrap.querySelector('.grid,.hero');var start=intro?intro.nextElementSibling:wrap.firstElementChild;if(start&&!wrap.querySelector('.jns-veil')){var vl=document.createElement('div');vl.className='jns-veil';start.parentNode.insertBefore(vl,start);var n=vl.nextSibling;while(n){var nx=n.nextSibling;vl.appendChild(n);n=nx;}wrap.insertBefore(pw,vl);}else{wrap.insertBefore(pw,wrap.firstChild);}})();
+    var ub=document.getElementById('jns-unlock'); if(ub)ub.addEventListener('click',function(){track('unlock');});
+  }
+  // C3 · 계측
+  function track(ev){try{window.dispatchEvent(new CustomEvent('janus:track',{detail:{page:PAGE,ev:ev}}));}catch(e){}}
+  track('view');
+  // C5 · janus_report (relTier 필수)
+  function readResult(){ var p=document.getElementById('oP');
+    if(!p||p.textContent.indexOf('%')<0)return null;
+    return {key:p.textContent,
+      result:{total_prob:p.textContent,punk:(document.getElementById('oPp')||{}).textContent},
+      evidence:{relTier:'D',basis:'이벤트 부록 · 빵꾸 계수 설계값(미검증) · 진학사 수동입력'}}; }
+  var last='',t;
+  function report(){var r=readResult(); if(!r||r.key===last)return; last=r.key;
+    try{window.dispatchEvent(new CustomEvent('janus_report',{detail:{page:PAGE,result:r.result,evidence:r.evidence}}));}catch(e){}}
+  document.addEventListener('input',function(){clearTimeout(t);t=setTimeout(report,300);},true);
+  var cta=document.getElementById('consult-reserve');
+  if(cta)cta.addEventListener('click',function(ev){ev.preventDefault();track('consult');report();});
+})();
+</script>
+<!-- ▲ 배선 끝 -->
+</body></html>
