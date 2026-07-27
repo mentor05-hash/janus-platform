@@ -369,6 +369,9 @@ export class AdminPolicyService {
       purposeDailyLimit,
       peakFactor: policy.peakFactor,
       ...check,
+      // 상한 0 이하(무제한)면 available/usable 이 Infinity 라 JSON 에서 null 로 나간다.
+      // 운영자가 "값 없음"과 구분할 수 있게 플래그로 못박는다.
+      unlimited: !Number.isFinite(check.availablePerDay),
       // 감당 못 하면 무엇을 해야 하는지까지 알려 준다.
       advice: check.ok ? null : capacityMessage(check, AI_REPORT_PURPOSE),
     };

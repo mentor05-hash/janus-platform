@@ -67,6 +67,15 @@ export const AI_USAGE_GUARD = {
   maxReservePct: 0.9,
   minPeakFactor: 1,
   maxPeakFactor: 10,
+  /**
+   * 3층이 남겨 두는 여유분. 상한의 이 비율만큼은 권리 판매의 근거로 쓰지 않는다.
+   *
+   * 왜 필요한가: `필요 = 상한` 을 "감당 가능"이라 부르면, 그날의 마지막 요청은
+   * 반드시 503 을 받는다 — 판 권리를 못 지킨 것이다. 3층의 목적이 바로 그걸 막는 것이므로
+   * 등호에서 통과시키면 층 자체가 무의미해진다. 재시도·추정 오차·피크 안의 피크가
+   * 여기서 흡수된다.
+   */
+  capacityHeadroomPct: 0.2,
 } as const;
 
 /** 저장값이 부분적/오염돼 있어도 기본값으로 메꾼다. */
@@ -93,6 +102,8 @@ export interface CapacityCheck {
   requiredPerDay: number;
   /** 2층이 예약 용도에 실제로 허용하는 일 처리량 */
   availablePerDay: number;
+  /** 여유분을 뺀, 권리 판매의 근거로 삼아도 되는 일 처리량 */
+  usablePerDay: number;
   ok: boolean;
   /** 등급별 기여분 — 어디서 초과했는지 운영자가 보게 */
   byTier: { tier: number; users: number; perMonth: number; perDay: number }[];
@@ -103,6 +114,9 @@ export interface CapacityCheck {
  *
  * requiredPerDay = Σ(등급 사용자 수 × 월 권리) ÷ 30 × 피크계수
  * availablePerDay = 해당 용도의 일 상한(예약 용도는 전액 사용 가능)
+ * usablePerDay   = availablePerDay × (1 − 여유분)  ← **판정은 이 값으로 한다**
+ *
+ * 등호(필요 = 상한)를 통과시키지 않는 이유는 `capacityHeadroomPct` 주석에 있다.
  *
  * 사용자 수가 0이면 required 도 0이라 항상 통과한다 — 즉 **초기에는 아무 제약이 없고,
  * 실제로 회원이 늘어난 뒤에야 상한을 올리라고 요구한다**. 그게 맞는 순서다.
@@ -127,11 +141,16 @@ export function reconcileCapacity(input: {
   // 일 상한 0 이하 = 무제한 의도 → 언제나 감당 가능.
   const availablePerDay =
     purposeDailyLimit <= 0 ? Number.POSITIVE_INFINITY : purposeDailyLimit;
+  // 여유분을 뺀 값으로 판정한다 — 상한을 100% 소진하는 상태는 "감당 가능"이 아니다.
+  const usablePerDay = Number.isFinite(availablePerDay)
+    ? Math.floor(availablePerDay * (1 - AI_USAGE_GUARD.capacityHeadroomPct))
+    : availablePerDay;
 
   return {
     requiredPerDay,
     availablePerDay,
-    ok: requiredPerDay <= availablePerDay,
+    usablePerDay,
+    ok: requiredPerDay <= usablePerDay,
     byTier: byTier.map((x) => ({ ...x, perDay: Math.ceil(x.perDay) })),
   };
 }
@@ -140,8 +159,10 @@ export function reconcileCapacity(input: {
 export function capacityMessage(c: CapacityCheck, purpose: string): string {
   const worst = [...c.byTier].sort((a, b) => b.perDay - a.perDay)[0];
   return (
-    `판매한 권리를 감당할 수 없습니다: 필요 ${c.requiredPerDay}건/일 > 상한 ${c.availablePerDay}건/일` +
-    `(용도 ${purpose}).` +
+    `판매한 권리를 감당할 수 없습니다: 필요 ${c.requiredPerDay}건/일 > 가용 ${c.usablePerDay}건/일` +
+    `(상한 ${c.availablePerDay}건/일 중 여유분 ${Math.round(
+      AI_USAGE_GUARD.capacityHeadroomPct * 100,
+    )}% 제외 · 용도 ${purpose}).` +
     (worst && worst.perDay > 0
       ? ` 가장 큰 기여는 등급 ${worst.tier}(${worst.users}명 × 월 ${
           worst.users ? worst.perMonth / worst.users : 0

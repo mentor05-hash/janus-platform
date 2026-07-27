@@ -18,6 +18,25 @@ for i in $(seq 1 60); do
   sleep 1
 done
 
+# 1-1) 전제 검증 — 로그인 상한이 켜져 있으면 스위트는 중간부터 전부 무너진다.
+#      상한은 10회/분인데 스위트는 25회를 쓴다. 앞의 몇 개만 통과하고 나머지가
+#      "로그인 실패"로 죽는 탓에, 원인이 계정 문제로 보이는 게 이 실패의 함정이다.
+#      7건 실패로 뒤늦게 알아채는 대신 여기서 즉시 멈추고 조치를 알려 준다.
+echo "▶ 전제 확인: 로그인 상한 비활성"
+tripped=0
+for _ in $(seq 1 12); do
+  code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${API}/auth/login" \
+    -H 'Content-Type: application/json' \
+    -d '{"loginId":"__preflight__","password":"__preflight__"}' 2>/dev/null)
+  if [ "$code" = "429" ]; then tripped=1; break; fi
+done
+if [ "$tripped" = 1 ]; then
+  echo "  ✗ 로그인 상한(10회/분)이 활성 상태입니다 — 이 스위트는 로그인 25회를 씁니다."
+  echo "  → API 를 RATE_LIMIT_DISABLED=true 로 기동하세요(배포 환경에선 절대 금지)."
+  exit 1
+fi
+echo "  ✓ 비활성 확인 — 진행"
+
 # 2) 스모크 스크립트 목록(순서 무관·독립).
 SCRIPTS=(
   journey-e2e.sh

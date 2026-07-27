@@ -87,7 +87,25 @@ describe('AI 사용량 3층 정책(B221)', () => {
         peakFactor: AI_USAGE_DEFAULT.peakFactor,
       });
       expect(peak.requiredPerDay).toBe(flat.requiredPerDay * 3);
-      expect(peak.ok).toBe(false); // 60건/일 상한으로는 피크를 못 버틴다
+      // 필요 60 = 상한 60. 여유분이 없으면 "딱 맞는다"고 통과시켰겠지만,
+      // 그 상태의 마지막 요청은 반드시 거절된다 — 판 권리를 못 지킨다.
+      expect(peak.requiredPerDay).toBe(peak.availablePerDay);
+      expect(peak.ok).toBe(false);
+    });
+
+    it('상한을 100% 소진하는 계획은 통과시키지 않는다 — 여유분이 판정 기준', () => {
+      const c = reconcileCapacity({
+        benefits: GRADE_BENEFITS_DEFAULT,
+        usersByTier: { 4: 100 },
+        purposeDailyLimit,
+        peakFactor: AI_USAGE_DEFAULT.peakFactor,
+      });
+      expect(c.availablePerDay).toBe(60);
+      expect(c.usablePerDay).toBe(
+        Math.floor(60 * (1 - AI_USAGE_GUARD.capacityHeadroomPct)),
+      );
+      expect(c.usablePerDay).toBeLessThan(c.availablePerDay);
+      expect(c.ok).toBe(c.requiredPerDay <= c.usablePerDay);
     });
 
     it('피크 계수 1 미만은 1 로 올려 본다 — 과소평가를 막는다', () => {
@@ -109,6 +127,8 @@ describe('AI 사용량 3층 정책(B221)', () => {
       });
       expect(c.ok).toBe(true);
       expect(c.availablePerDay).toBe(Number.POSITIVE_INFINITY);
+      // 무제한에는 여유분을 뺄 대상이 없다 — 곱하면 NaN 이 되므로 그대로 둔다.
+      expect(c.usablePerDay).toBe(Number.POSITIVE_INFINITY);
     });
 
     it('등급별 기여를 분해해 알려 준다 — 어디를 줄여야 하는지 보이게', () => {
@@ -133,8 +153,9 @@ describe('AI 사용량 3층 정책(B221)', () => {
         peakFactor: 1,
       });
       const msg = capacityMessage(c, 'consulting');
-      expect(msg).toContain('67');
-      expect(msg).toContain('60');
+      expect(msg).toContain('67'); // 필요량
+      expect(msg).toContain('48'); // 가용(= 판정 기준)
+      expect(msg).toContain('60'); // 상한(어디까지 올릴 수 있는지 보이게)
       expect(msg).toContain('등급 4');
       expect(msg).toContain('LLM_DAILY_LIMIT_CONSULTING');
     });

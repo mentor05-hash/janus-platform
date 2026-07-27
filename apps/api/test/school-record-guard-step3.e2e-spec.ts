@@ -1,13 +1,13 @@
 import { randomUUID } from 'crypto';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../common/prisma/prisma.service';
-import type { CacheProvider } from '../../common/cache/cache.types';
-import { SchoolRecordGuardPolicyService } from './school-record-guard-policy.service';
-import { SchoolRecordEventService } from './school-record-event.service';
-import { SchoolRecordAppealService } from './school-record-appeal.service';
-import { SchoolRecordConsultingDisabledException } from './school-record-consulting-disabled.exception';
-import { CONSULTING_UPLOAD_DISABLED_KEY } from './school-record-admin.types';
-import { ConsultingService } from '../consulting/consulting.service';
+import { PrismaService } from '../src/common/prisma/prisma.service';
+import type { CacheProvider } from '../src/common/cache/cache.types';
+import { SchoolRecordGuardPolicyService } from '../src/modules/guard/school-record-guard-policy.service';
+import { SchoolRecordEventService } from '../src/modules/guard/school-record-event.service';
+import { SchoolRecordAppealService } from '../src/modules/guard/school-record-appeal.service';
+import { SchoolRecordConsultingDisabledException } from '../src/modules/guard/school-record-consulting-disabled.exception';
+import { CONSULTING_UPLOAD_DISABLED_KEY } from '../src/modules/guard/school-record-admin.types';
+import { ConsultingService } from '../src/modules/consulting/consulting.service';
 
 /**
  * 생기부 가드 스텝3 실측 — 컨설팅 토글 on/off + 7/29 예약 발화(시간 조작) + 통계/이의.

@@ -130,6 +130,10 @@ jobs:
       - name: Build
         run: npm run build
       - name: Start API (background)
+        # 스모크 스위트는 짧은 시간에 로그인 25회 → 로그인 상한(10회/분)에 걸린다.
+        # ops/run-all-e2e.sh 가 요구하는 조건이다. 이 잡 안에서만 유효하며 배포에는 절대 설정하지 않는다.
+        env:
+          RATE_LIMIT_DISABLED: 'true'
         run: |
           node dist/main &
           echo $! > /tmp/api.pid
