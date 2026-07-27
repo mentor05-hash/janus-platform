@@ -51,6 +51,12 @@ import {
 const SIMILARITY_PRIOR_LIMIT = 20;
 /** 교사 1인 일 유사도 검사 기본 상한. 넘으면 검사 없이 등록된다(등록을 막지 않는다). */
 const DEFAULT_SIMILARITY_PER_USER_DAY = 40;
+/**
+ * 사용자 1인 일 AI 초안 생성 횟수(B221 1층).
+ * 질문 등록마다 유료 LLM 이 도는데 질문 등록 자체는 크레딧으로만 제한된다 —
+ * 무료 질문권·커뮤니티 경로가 있어 한 명이 초안 예산을 혼자 태울 수 있었다.
+ */
+const DEFAULT_DRAFT_PER_USER_DAY = 10;
 import { canAnswerQuestion, QnaScope } from './domain/qna';
 import { computeSla } from './domain/qna-sla';
 import { pickAssignee } from './domain/qna-assign';
@@ -131,6 +137,8 @@ export class QnaService {
   private readonly subject: SubjectQuota;
   /** 교사 1인 일 유사도 검사 횟수(B221 1층). ENV 우선. */
   private readonly simPerUserDay: number;
+  /** 사용자 1인 일 AI 초안 생성 횟수(B221 1층). ENV 우선. */
+  private readonly draftPerUserDay: number;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -151,6 +159,10 @@ export class QnaService {
     this.simPerUserDay = envInt(
       config.get<string>('LLM_SIMILARITY_PER_USER_DAY'),
       DEFAULT_SIMILARITY_PER_USER_DAY,
+    );
+    this.draftPerUserDay = envInt(
+      config.get<string>('LLM_DRAFT_PER_USER_DAY'),
+      DEFAULT_DRAFT_PER_USER_DAY,
     );
   }
 
@@ -444,7 +456,7 @@ export class QnaService {
       },
     });
     // Q3: 질문 등록 즉시 AI 1차 초안 자동 생성(비동기·비용상한·실패 무해).
-    void this.generateAiDraft(post.id, {
+    void this.generateAiDraft(student.id, post.id, {
       subject: dto.subject ?? null,
       difficulty: dto.difficulty ?? null,
       body: dto.body,
@@ -1837,7 +1849,7 @@ export class QnaService {
       },
     });
     await this.cache.incr(key, 26 * 3600);
-    void this.generateAiDraft(post.id, {
+    void this.generateAiDraft(user.id, post.id, {
       subject: dto.subject ?? null,
       difficulty: dto.difficulty ?? null,
       body: dto.body,
@@ -2460,17 +2472,43 @@ export class QnaService {
     }));
   }
 
-  /** Q3 AI 1차 초안 생성(비동기·일일 비용상한·실패 무해) → qna_post.ai_draft 저장. */
+  /**
+   * Q3 AI 1차 초안 생성(비동기·실패 무해) → `qna_post.ai_draft` 저장.
+   *
+   * **1층(사용자별)만 여기서 센다.** 전역 일 상한은 어댑터(`QuotaLlmProvider` 의 `draft`
+   * 용도)가 이미 갖고 있다 — 예전에는 이 메서드가 `qna:aidraft:{일자}` 카운터를 따로 돌려
+   * 같은 호출을 **두 곳에서** 세고 있었다. 게이트웨이에서 고친 것과 같은 결함이다(O178):
+   * 상한이 둘이면 실효값과 운영자가 보는 값이 달라지고, ENV 를 올려도 다른 쪽이 막는다.
+   * 구 키 `QNA_AI_DAILY_LIMIT` 은 `LEGACY_LIMIT_ENV_KEY` 가 계속 존중한다.
+   * (그 카운터의 일자 키는 UTC 기준이라 리셋이 09:00 KST 였다 — 단일화로 함께 사라진다.)
+   *
+   * 사용자별 한도가 없으면 한 명이 초안 예산을 혼자 태울 수 있다. 질문 등록은 크레딧으로
+   * 제한되지만 무료 질문권·커뮤니티 경로가 있어 크레딧이 상한 역할을 다 하지 못한다.
+   * 한도를 넘으면 **조용히 건너뛴다** — 초안은 부수 기능이고, 질문 등록은 이미 끝났다.
+   */
   private async generateAiDraft(
+    actorId: string,
     postId: string,
     q: { subject: string | null; difficulty: string | null; body: string },
   ) {
     try {
-      const limit = Number(process.env.QNA_AI_DAILY_LIMIT ?? 200);
-      const key = `qna:aidraft:${new Date().toISOString().slice(0, 10)}`; // 일자 러프 상한
-      const used = Number((await this.cache.get<number>(key)) ?? 0);
-      if (used >= limit) return;
-      await this.cache.incr(key, 26 * 3600);
+      await this.subject.consume(
+        'abuse',
+        'qna_draft',
+        actorId,
+        this.draftPerUserDay,
+        'day',
+      );
+    } catch (e) {
+      if (e instanceof SubjectQuotaExceededError) {
+        this.logger.warn(
+          `[qna] 사용자 일 AI 초안 한도 초과 — 초안 없이 진행: user=${actorId}`,
+        );
+        return;
+      }
+      throw e;
+    }
+    try {
       const draft = await this.llm.draftAnswer({
         subject: q.subject,
         difficulty: q.difficulty,

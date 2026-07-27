@@ -41,4 +41,7 @@ export function llmDailyLimitEnvKey(purpose: LlmPurpose): string {
  */
 export const LEGACY_LIMIT_ENV_KEY: Partial<Record<LlmPurpose, string>> = {
   gateway: 'GATEWAY_LLM_DAILY_LIMIT',
+  // Q&A 초안이 서비스 안에서 따로 세던 상한(중복). 카운터는 어댑터로 단일화했지만
+  // 운영에 이 키가 설정돼 있을 수 있으므로 값은 계속 존중한다.
+  draft: 'QNA_AI_DAILY_LIMIT',
 };
