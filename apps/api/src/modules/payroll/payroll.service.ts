@@ -29,8 +29,7 @@ export class PayrollService {
 
   async estimate(teacherId: string, actor: AuthUser, period?: string) {
     const isSelf = actor.role === AccountRole.TEACHER && actor.id === teacherId;
-    const isAdmin =
-      actor.role === AccountRole.ADMIN || actor.role === AccountRole.HR;
+    const isAdmin = actor.role === AccountRole.ADMIN;
     if (!isSelf && !isAdmin)
       throw new ForbiddenException('급여 조회 권한이 없습니다.');
     return this.compute(teacherId, actor, period);
@@ -97,8 +96,9 @@ export class PayrollService {
   /** 한 선생님의 기간 매출배분 급여 명세(완료·확정 세션 매출 × 배분율, 4대보험 반영). */
   async revenueSharePayslip(teacherId: string, actor: AuthUser, period?: string) {
     const isSelf = actor.role === AccountRole.TEACHER && actor.id === teacherId;
-    const isAdmin = actor.role === AccountRole.ADMIN || actor.role === AccountRole.HR;
+    const isAdmin = actor.role === AccountRole.ADMIN;
     if (!isSelf && !isAdmin) throw new ForbiddenException('명세 조회 권한이 없습니다.');
+    if (isAdmin) await this.assertTeacherCenter(actor, teacherId);
     const { start, endExclusive, label } = this.periodBounds(period);
     const tp = await this.prisma.teacher_profile.findUnique({
       where: { account_id: teacherId },
@@ -152,7 +152,7 @@ export class PayrollService {
 
   /** 관리자: 스코프 내 전임 전원의 매출배분 급여 요약(합계 포함). */
   async revenueShareList(actor: AuthUser, period?: string) {
-    if (actor.role !== AccountRole.ADMIN && actor.role !== AccountRole.HR) {
+    if (actor.role !== AccountRole.ADMIN) {
       throw new ForbiddenException('관리자만 조회할 수 있습니다.');
     }
     const centerId = actor.centerId ?? null;
@@ -183,9 +183,9 @@ export class PayrollService {
     };
   }
 
-  /** 확정 정산: 산정 결과를 payroll_estimate 에 기록(관리자/HR). */
+  /** 확정 정산: 산정 결과를 payroll_estimate 에 기록(관리자 전용 · N35→O127). */
   async settle(teacherId: string, actor: AuthUser, now = new Date()) {
-    if (actor.role !== AccountRole.ADMIN && actor.role !== AccountRole.HR) {
+    if (actor.role !== AccountRole.ADMIN) {
       throw new ForbiddenException('관리자만 정산을 확정할 수 있습니다.');
     }
     // 정산 대상 기간과 **산정 기간이 반드시 같아야 한다** — 이전에는 누적액을 그 달 금액으로 기록했다.
@@ -249,11 +249,32 @@ export class PayrollService {
     };
   }
 
-  /** 지급완료 처리(관리자/HR) — 확정 정산을 실지급 상태로 전환(가상 이체). */
+  /**
+   * 관리자가 만질 수 있는 교사인지 센터로 좁힌다(S4 · O127).
+   * compute() 에는 있었지만 markPaid·payslip·revenueSharePayslip 에는 **없었다** —
+   * teacher UUID 만 알면 타 센터 교사의 명세를 열람하거나 '지급 완료'로 바꿀 수 있었고,
+   * 지급 완료는 되돌리는 API 가 없다. 본인(교사) 조회는 자기 행이라 해당 없음.
+   * centerId 가 없으면 본사 → 전체 허용.
+   */
+  private async assertTeacherCenter(actor: AuthUser, teacherId: string) {
+    if (!actor.centerId) return;
+    const tp = await this.prisma.teacher_profile.findUnique({
+      where: { account_id: teacherId },
+      select: { center_id: true },
+    });
+    if (tp?.center_id !== actor.centerId) {
+      throw new ForbiddenException(
+        '다른 센터 교사의 급여는 조회/정산할 수 없습니다.',
+      );
+    }
+  }
+
+  /** 지급완료 처리(관리자 전용) — 확정 정산을 실지급 상태로 전환(가상 이체). */
   async markPaid(teacherId: string, actor: AuthUser, period?: string) {
-    if (actor.role !== AccountRole.ADMIN && actor.role !== AccountRole.HR) {
+    if (actor.role !== AccountRole.ADMIN) {
       throw new ForbiddenException('관리자만 지급 처리를 할 수 있습니다.');
     }
+    await this.assertTeacherCenter(actor, teacherId);
     const { start } = this.periodBounds(period);
     const row = await this.prisma.payroll_estimate.findFirst({
       where: { teacher_id: teacherId, cycle: 'monthly', period_start: start },
@@ -272,9 +293,9 @@ export class PayrollService {
     return { id: updated.id, status: updated.status, paidAt: updated.paid_at };
   }
 
-  /** 재무 정산 리포트(관리자/HR) — 기간 확정/지급 집계 + 공제 합계 + 센터별. */
+  /** 재무 정산 리포트(관리자 전용 · N35→O127) — 기간 확정/지급 집계 + 공제 합계 + 센터별. */
   async financeReport(actor: AuthUser, period?: string) {
-    if (actor.role !== AccountRole.ADMIN && actor.role !== AccountRole.HR) {
+    if (actor.role !== AccountRole.ADMIN) {
       throw new ForbiddenException('관리자만 재무 리포트를 볼 수 있습니다.');
     }
     const { start, label } = this.periodBounds(period);
@@ -320,8 +341,9 @@ export class PayrollService {
   /** 명세서 데이터(본인 또는 관리자) — 인쇄·PDF 저장용. */
   async payslip(teacherId: string, actor: AuthUser, period?: string) {
     const isSelf = actor.role === AccountRole.TEACHER && actor.id === teacherId;
-    const isAdmin = actor.role === AccountRole.ADMIN || actor.role === AccountRole.HR;
+    const isAdmin = actor.role === AccountRole.ADMIN;
     if (!isSelf && !isAdmin) throw new ForbiddenException('명세서 조회 권한이 없습니다.');
+    if (isAdmin) await this.assertTeacherCenter(actor, teacherId);
     const { start, label } = this.periodBounds(period);
     const row = await this.prisma.payroll_estimate.findFirst({
       where: { teacher_id: teacherId, cycle: 'monthly', period_start: start },
@@ -346,9 +368,8 @@ export class PayrollService {
       where: { account_id: teacherId },
     });
     if (!teacher) throw new NotFoundException('선생님을 찾을 수 없습니다.');
-    // 관리자/HR 은 자기 센터 교사만(타 센터 급여 열람·정산 방지, S4)
-    const isAdmin =
-      actor.role === AccountRole.ADMIN || actor.role === AccountRole.HR;
+    // 관리자는 자기 센터 교사만(타 센터 급여 열람·정산 방지, S4)
+    const isAdmin = actor.role === AccountRole.ADMIN;
     if (isAdmin && actor.centerId && teacher.center_id !== actor.centerId) {
       throw new ForbiddenException(
         '다른 센터 교사의 급여는 조회/정산할 수 없습니다.',

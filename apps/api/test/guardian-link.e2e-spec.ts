@@ -96,12 +96,78 @@ describe('학부모–자녀 연결', () => {
   });
 
   /**
-   * 아래 2건은 **화면 문구의 근거**다.
-   * 모바일 승인 카드는 거절·해제에 '지금은 다시 신청할 수 없어요'라고 말한다 — 그 말이 참인지 여기서 고정한다.
-   * (재신청을 허용할지는 정책 결정이라 이 스펙은 현재 계약을 기록할 뿐 옳다고 주장하지 않는다.)
+   * 아래 블록은 **화면 문구의 근거**다(O124 — 이전 계약을 뒤집었다).
+   *
+   * 예전에는 거절·해제가 종착이라 (보호자,학생) 쌍이 **영구히** 연결 불가였고, 모바일 확인 문구도
+   * '지금은 다시 신청할 수 없어요'라고 그 사실을 말했다. 지금은 재신청으로 같은 행이 pending 으로
+   * 되살아난다 — 대신 즉시 반복은 쿨다운·횟수로 막고, 종착 상태를 곧바로 approved 로 되돌리는 것은
+   * 관리자만 할 수 있다. **문구와 이 계약은 한 몸이라** 여기서 함께 고정한다.
    */
-  it('해제된 뒤에는 보호자가 재신청할 수 없다 — 종착 상태라 되돌릴 경로가 없다', async () => {
-    await expect(svc.requestLink(guardian, { studentLoginId })).rejects.toThrow(/이미 연결 신청이 존재합니다/);
+  it('해제 직후 재신청은 쿨다운에 막힌다 — 되살릴 수는 있으나 즉시는 아니다', async () => {
+    await expect(svc.requestLink(guardian, { studentLoginId })).rejects.toThrow(
+      /7일 동안은 재신청할 수 없습니다/,
+    );
+  });
+
+  it('쿨다운이 지나면 해제된 연결이 pending 으로 부활하고 승인 요청 알림이 다시 간다', async () => {
+    const [link] = await svc.listLinks(student);
+    // 해제 시각을 쿨다운 밖으로 되돌린다(시간 경과 시뮬레이션).
+    await prisma.guardian_link_event.updateMany({
+      where: { link_id: link.id },
+      data: { created_at: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000) },
+    });
+    const notifs = () =>
+      prisma.notification.count({ where: { recipient_id: student.id, type: 'guardian_link_requested' } });
+    const before = await notifs();
+
+    const revived = await svc.requestLink(guardian, { studentLoginId, relation: '모' });
+
+    // @@unique(guardian_id, student_id) 때문에 새 행이 아니라 **같은 행**이 되살아나야 한다.
+    expect(revived.id).toBe(link.id);
+    expect(revived.status).toBe('pending');
+    expect(await notifs()).toBe(before + 1); // 학생이 다시 승인해야 하므로 알림 재발송
+    const ev = await prisma.guardian_link_event.findFirst({
+      where: { link_id: link.id, to_status: 'pending', from_status: 'revoked' },
+      orderBy: { created_at: 'desc' },
+    });
+    expect(ev?.reason).toBe('relink');
+    // 부활은 pending 일 뿐 — 학생 승인 전에는 자녀 목록에 나타나지 않는다.
+    expect((await svc.listChildren(guardian)).find((c: any) => c.studentId === student.id)).toBeUndefined();
+  });
+
+  it('재신청 3회를 모두 쓰면 자동 경로가 닫히고 관리자 안내로 바뀐다', async () => {
+    const [link] = await svc.listLinks(student);
+    const old = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 쿨다운 밖 — 횟수만으로 막히는지 본다
+    await prisma.guardian_student_link.update({ where: { id: link.id }, data: { status: 'revoked' } });
+    await prisma.guardian_link_event.deleteMany({ where: { link_id: link.id } });
+    for (let i = 0; i < 3; i++) {
+      await prisma.guardian_link_event.create({
+        data: { link_id: link.id, from_status: 'revoked', to_status: 'pending', actor_id: guardian.id, actor_role: 'guardian', reason: 'relink', created_at: old },
+      });
+    }
+    await prisma.guardian_link_event.create({
+      data: { link_id: link.id, from_status: 'approved', to_status: 'revoked', actor_id: student.id, actor_role: 'student', reason: 'respond', created_at: old },
+    });
+
+    await expect(svc.requestLink(guardian, { studentLoginId })).rejects.toThrow(/센터 관리자에게 문의/);
+  });
+
+  it('종착 상태 복구는 관리자만 — 학생은 스스로 되돌릴 수 없다', async () => {
+    const [link] = await svc.listLinks(student);
+    expect(link.status).toBe('revoked');
+
+    // 학생에게 revoked 는 여전히 종착이다(학생의 해제 의사를 학생이 뒤집지 않는다).
+    await expect(svc.respondLink(link.id, { action: 'approve' }, student)).rejects.toThrow(
+      /허용되지 않는 연결 상태 전이/,
+    );
+
+    // 관리자는 쿨다운·횟수와 무관하게 강제 복구할 수 있다(법정대리인 확인 등 오프라인 근거).
+    const adminAcc = await prisma.account.findFirstOrThrow({ where: { login_id: ACCOUNTS.centerAdmin }, select: { id: true, center_id: true } });
+    const admin = { id: adminAcc.id, role: 'admin', centerId: adminAcc.center_id };
+    const r = await svc.respondLink(link.id, { action: 'approve' }, admin as any);
+    expect(r.status).toBe('approved');
+    const ev = await prisma.guardian_link_event.findFirst({ where: { link_id: link.id }, orderBy: { created_at: 'desc' } });
+    expect(ev?.reason).toBe('admin_override'); // 일반 응답과 구분해 감사에 남는다
   });
 
   it('relation 은 부/모/기타로 좁혀져 있다 — 이 값이 자녀 승인 카드에 그대로 렌더되므로 자유 텍스트면 문구를 심을 수 있다', async () => {

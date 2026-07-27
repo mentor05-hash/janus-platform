@@ -193,15 +193,17 @@ export function LegalScreen({ onBack, onWithdrawn }: { onBack: () => void; onWit
                   {l.counterpartName}
                   {l.relation ? <Text style={styles.linkRel}> · {l.relation}</Text> : null}
                 </Text>
+                {/* 숫자(7일·3회)는 API 의 RELINK_COOLDOWN_DAYS·RELINK_MAX_ATTEMPTS 와 짝이다 —
+                    바꾸면 여기와 웹 LegalPage·GuardianConsentPage 문구를 함께 고쳐야 한다(O124). */}
                 <Text style={styles.linkStatus}>
                   {pend === 'revoke'
-                    ? '해제하면 보호자 화면이 닫힙니다. 지금은 이 보호자가 다시 신청할 수 없으니 신중히 선택해 주세요.'
+                    ? '해제하면 보호자 화면이 바로 닫혀요. 이 보호자는 7일 뒤 다시 신청할 수 있고, 그때도 승인할지는 내가 정해요.'
                     : pend === 'reject'
-                    ? '거절하면 이 보호자는 지금은 다시 신청할 수 없어요. 정말 거절할까요?'
+                    ? '거절하면 이 보호자는 7일 뒤 다시 신청할 수 있어요(최대 3회, 관리자가 제한을 풀어 줄 수도 있어요). 그때도 승인할지는 내가 정해요. 정말 거절할까요?'
                     : (LINK_STATUS[l.status] ?? l.status)}
                 </Text>
                 {(l.status === 'rejected' || l.status === 'revoked') && !pend ? (
-                  <Text style={styles.linkStatus}>다시 연결하려면 관리자에게 문의해 주세요.</Text>
+                  <Text style={styles.linkStatus}>보호자가 7일 뒤 다시 신청할 수 있어요. 더 빨리 연결하려면 관리자에게 문의해 주세요.</Text>
                 ) : null}
               </View>
               {pend ? (
@@ -218,7 +220,7 @@ export function LegalScreen({ onBack, onWithdrawn }: { onBack: () => void; onWit
                   <TouchableOpacity disabled={linkBusy} onPress={() => respondLink(l.id, 'approve')} style={[styles.linkBtn, styles.linkBtnOn, linkBusy && { opacity: 0.6 }]}>
                     <Text style={styles.linkBtnOnT}>승인</Text>
                   </TouchableOpacity>
-                  {/* 거절도 되돌릴 수 없다 — 해제와 같은 2단계를 쓴다(비대칭이면 한쪽만 오탭으로 파괴된다). */}
+                  {/* 재신청은 열렸지만 7일을 기다려야 한다 — 오탭 비용이 여전히 커서 해제와 같은 2단계를 유지한다. */}
                   <TouchableOpacity disabled={linkBusy} onPress={() => setConfirming({ id: l.id, action: 'reject' })} style={[styles.linkBtn, linkBusy && { opacity: 0.6 }]}>
                     <Text style={styles.linkBtnT}>거절</Text>
                   </TouchableOpacity>

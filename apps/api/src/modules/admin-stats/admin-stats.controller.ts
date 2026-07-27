@@ -6,9 +6,9 @@ import { AdminStatsService } from './admin-stats.service';
 export class AdminStatsController {
   constructor(private readonly stats: AdminStatsService) {}
 
-  /** GET /admin/stats/overview — 진단·강좌·커뮤니티 핵심 지표(admin/hr). */
+  /** GET /admin/stats/overview — 진단·강좌·커뮤니티 핵심 지표(관리자 전용 · O128). */
   @Get('overview')
-  @Roles('admin', 'hr')
+  @Roles('admin')
   overview() {
     return this.stats.overview();
   }
