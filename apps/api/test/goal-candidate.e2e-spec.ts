@@ -18,52 +18,81 @@ describe('목표 후보(goal candidates)', () => {
   let student: any;
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     await app.init();
     prisma = mod.get(PrismaService);
     scores = mod.get(ScoresService);
-    const acc = await prisma.account.findFirstOrThrow({ where: { login_id: 'student01' }, select: { id: true, center_id: true } });
+    const acc = await prisma.account.findFirstOrThrow({
+      where: { login_id: 'student01' },
+      select: { id: true, center_id: true },
+    });
     student = { id: acc.id, role: 'student', centerId: acc.center_id };
-    await prisma.student_goal_candidate.deleteMany({ where: { student_id: acc.id } });
+    await prisma.student_goal_candidate.deleteMany({
+      where: { student_id: acc.id },
+    });
 
     // 누백 이력을 **이 스펙이 직접 시드**한다 — 데모 시드에 의존하면 다른 세션의 검증 잔여물(누백 없는 최신 회차)에
     // 최신 선정이 가려져 NO_NB 로 무너진다. period 는 문자열 정렬이라 기존 회차보다 뒤에 오게 두고 afterAll 에서 지운다.
     // 값 선정: 최신 2.4(기존 밴드 기대치 유지) · best 1.9 · worst 3.1 → 컷 3.2/2.4/1.5 에서 각각 다르게 뒤집힌다.
-    await prisma.score_report.deleteMany({ where: { student_id: acc.id, period: { startsWith: SEED_PREFIX } } });
+    await prisma.score_report.deleteMany({
+      where: { student_id: acc.id, period: { startsWith: SEED_PREFIX } },
+    });
     for (const [i, nb] of [1.9, 3.1, 2.4].entries()) {
       await prisma.score_report.create({
         data: {
-          student_id: acc.id, center_id: acc.center_id, period: `${SEED_PREFIX}${i + 1}`,
-          exam_type: '수능/모의', source: 'self', created_by: acc.id,
+          student_id: acc.id,
+          center_id: acc.center_id,
+          period: `${SEED_PREFIX}${i + 1}`,
+          exam_type: '수능/모의',
+          source: 'self',
+          created_by: acc.id,
           placement: { nb, gye: '이과' },
         },
       });
     }
   });
   afterAll(async () => {
-    await prisma.student_goal_candidate.deleteMany({ where: { student_id: student.id } });
-    await prisma.score_report.deleteMany({ where: { student_id: student.id, period: { startsWith: SEED_PREFIX } } });
+    await prisma.student_goal_candidate.deleteMany({
+      where: { student_id: student.id },
+    });
+    await prisma.score_report.deleteMany({
+      where: { student_id: student.id, period: { startsWith: SEED_PREFIX } },
+    });
     await app.close();
   });
 
-  const cand = (univ: string, dept: string, cut: number) => ({ mode: 'jeongsi' as const, univ, dept, cut });
+  const cand = (univ: string, dept: string, cut: number) => ({
+    mode: 'jeongsi' as const,
+    univ,
+    dept,
+    cut,
+  });
 
   it('후보 등록 → 목록에 포함', async () => {
-    const c = await scores.addGoalCandidate(student, cand('가온대', '소프트웨어', 1.5));
+    const c = await scores.addGoalCandidate(
+      student,
+      cand('가온대', '소프트웨어', 1.5),
+    );
     expect(c.cut).toBe(1.5);
     const list = await scores.listGoalCandidates(student, 'jeongsi');
     expect(list.map((x) => x.univ)).toContain('가온대');
   });
 
   it('같은 대학·학과 중복 등록은 400', async () => {
-    await expect(scores.addGoalCandidate(student, cand('가온대', '소프트웨어', 1.9))).rejects.toThrow();
+    await expect(
+      scores.addGoalCandidate(student, cand('가온대', '소프트웨어', 1.9)),
+    ).rejects.toThrow();
   });
 
   it('상한(3개) 초과 등록은 400', async () => {
     await scores.addGoalCandidate(student, cand('나래대', '데이터과학', 2.4));
     await scores.addGoalCandidate(student, cand('다솜대', '컴퓨터공학', 3.2));
-    await expect(scores.addGoalCandidate(student, cand('벼리대', '전자공학', 2.0))).rejects.toThrow();
+    await expect(
+      scores.addGoalCandidate(student, cand('벼리대', '전자공학', 2.0)),
+    ).rejects.toThrow();
   });
 
   it('후보별 밴드 비교 — 격차 작은 순(안정→상향) 정렬, 근거는 1회만', async () => {
@@ -79,7 +108,8 @@ describe('목표 후보(goal candidates)', () => {
     expect(rep.disclaimer).toContain('보장하지 않습니다');
     // 합격률 힌트는 후보 카드에 싣지 않는다(인접 후보 동일 37% 오독 방지) — 목록 수준 1회 안내만.
     expect(rep.candidates.every((c) => !('admitProbHint' in c))).toBe(true);
-    if (rep.admitHintNote) expect(rep.admitHintNote).toContain('개별 학과 합격률이 아닙니다');
+    if (rep.admitHintNote)
+      expect(rep.admitHintNote).toContain('개별 학과 합격률이 아닙니다');
   });
 
   it('회차 변동 폭 — 누백 이력 2회 이상이면 분포 제공(1회성 시험 편차 근거)', async () => {
@@ -87,7 +117,10 @@ describe('목표 후보(goal candidates)', () => {
     if (rep.spread) {
       expect(rep.spread.count).toBeGreaterThanOrEqual(2);
       expect(rep.spread.best).toBeLessThanOrEqual(rep.spread.worst); // 누백은 낮을수록 상위
-      expect(rep.spread.spread).toBeCloseTo(rep.spread.worst - rep.spread.best, 2);
+      expect(rep.spread.spread).toBeCloseTo(
+        rep.spread.worst - rep.spread.best,
+        2,
+      );
     } else {
       expect(rep.spread).toBeNull(); // 이력 2회 미만
     }
@@ -98,9 +131,20 @@ describe('목표 후보(goal candidates)', () => {
       const rep = await scores.goalCandidateReport(student, 'jeongsi');
       for (const c of rep.candidates) {
         if (c.volatility === null) continue; // 이력 2회 미만
-        expect(Object.keys(c.volatility).sort()).toEqual(['bestBand', 'consistent', 'worstBand']);
+        expect(Object.keys(c.volatility).sort()).toEqual([
+          'bestBand',
+          'consistent',
+          'worstBand',
+        ]);
         // 후보 불변값(범위·표본 수·문장)은 목록 레벨이 1회 담당한다 — admitProbHint 와 같은 처리.
-        for (const k of ['count', 'best', 'worst', 'spread', 'smallSample', 'message']) {
+        for (const k of [
+          'count',
+          'best',
+          'worst',
+          'spread',
+          'smallSample',
+          'message',
+        ]) {
           expect(k in (c.volatility as Record<string, unknown>)).toBe(false);
         }
       }
@@ -111,7 +155,11 @@ describe('목표 후보(goal candidates)', () => {
       const ORDER = ['안정', '적정', '소신', '상향'];
       for (const c of rep.candidates) {
         if (!c.volatility) continue;
-        const [lo, hi, pt] = [c.volatility.bestBand, c.volatility.worstBand, c.band].map((b) => ORDER.indexOf(b));
+        const [lo, hi, pt] = [
+          c.volatility.bestBand,
+          c.volatility.worstBand,
+          c.band,
+        ].map((b) => ORDER.indexOf(b));
         expect(pt).toBeGreaterThanOrEqual(lo);
         expect(pt).toBeLessThanOrEqual(hi);
       }
@@ -125,7 +173,10 @@ describe('목표 후보(goal candidates)', () => {
       expect(anyVol).toBe(rep.spread !== null);
       if (rep.spread) {
         expect(rep.smallSample).toBe(rep.spread.count < 3);
-        expect(rep.flipCount).toBe(rep.candidates.filter((c) => c.volatility && !c.volatility.consistent).length);
+        expect(rep.flipCount).toBe(
+          rep.candidates.filter((c) => c.volatility && !c.volatility.consistent)
+            .length,
+        );
       }
     });
 
@@ -138,7 +189,9 @@ describe('목표 후보(goal candidates)', () => {
       expect(rep.spread!.spread).toBe(1.2);
       expect(rep.spread!.count).toBeGreaterThanOrEqual(3);
       expect(rep.smallSample).toBe(false);
-      const shapes = rep.candidates.map((c) => `${c.volatility!.bestBand}~${c.volatility!.worstBand}`);
+      const shapes = rep.candidates.map(
+        (c) => `${c.volatility!.bestBand}~${c.volatility!.worstBand}`,
+      );
       expect(shapes).toEqual(['안정~적정', '안정~상향', '소신~상향']);
       // 하나의 전역 범위(1.9~3.1)에서 후보마다 다른 판정이 나온다 = 컷 종속. 전역 분포만으로는 이 정보를 만들 수 없다.
       expect(new Set(shapes).size).toBe(3);
@@ -151,23 +204,39 @@ describe('목표 후보(goal candidates)', () => {
       // (서비스가 '3회 이상' 규칙을 재구현하면 임계값이 갈라진다).
       expect(rep.direction).toBe('mixed');
       // 후보 행에는 방향을 싣지 않는다(후보 3개에 같은 값 3중복 금지 — 3키 투영 원칙).
-      expect(rep.candidates.every((c) => !c.volatility || !('direction' in c.volatility))).toBe(true);
+      expect(
+        rep.candidates.every(
+          (c) => !c.volatility || !('direction' in c.volatility),
+        ),
+      ).toBe(true);
     });
 
     it('꾸준히 향상한 이력이면 direction=improving — 데모 시드가 실제로 이 분기를 태운다', async () => {
       // 창에는 데모 시드 회차도 함께 잡히므로(3.1 → 2.6 → 2.3 → …) **그 뒤로 계속 내려가는** 값을 써야
       // 전체 계열이 단조 향상이 된다. 앞 회차보다 큰 값을 넣으면 mixed 로 판정되는 게 정상이다.
       const set = async (i: number, nb: number) =>
-        prisma.score_report.updateMany({ where: { student_id: student.id, period: `${SEED_PREFIX}${i}` }, data: { placement: { nb, gye: '이과' } } });
-      await set(1, 2.0); await set(2, 1.8); await set(3, 1.6);
+        prisma.score_report.updateMany({
+          where: { student_id: student.id, period: `${SEED_PREFIX}${i}` },
+          data: { placement: { nb, gye: '이과' } },
+        });
+      await set(1, 2.0);
+      await set(2, 1.8);
+      await set(3, 1.6);
       const rep = await scores.goalCandidateReport(student, 'jeongsi');
       expect(rep.direction).toBe('improving');
-      await set(1, 1.9); await set(2, 3.1); await set(3, 2.4);
+      await set(1, 1.9);
+      await set(2, 3.1);
+      await set(3, 2.4);
     });
 
     it('수시는 volatility 전부 null + 사유 문장 — 침묵하면 "수시가 더 확실하다"로 오독된다', async () => {
       // 상한은 모드별이므로 수시 후보를 따로 담아 '후보가 0개라 통과'하는 공허한 검증을 피한다.
-      await scores.addGoalCandidate(student, { mode: 'susi', univ: '수시검증대', dept: '내신과', cut: 2.0 });
+      await scores.addGoalCandidate(student, {
+        mode: 'susi',
+        univ: '수시검증대',
+        dept: '내신과',
+        cut: 2.0,
+      });
       const rep = await scores.goalCandidateReport(student, 'susi', 2.5);
       expect(rep.candidates.length).toBeGreaterThan(0);
       expect(rep.spread).toBeNull();
@@ -181,7 +250,9 @@ describe('목표 후보(goal candidates)', () => {
   it('타인 후보는 삭제 불가(소유권)', async () => {
     const list = await scores.listGoalCandidates(student, 'jeongsi');
     const other = { ...student, id: '00000000-0000-4000-8000-0000000000ff' };
-    await expect(scores.removeGoalCandidate(other, list[0].id)).rejects.toThrow();
+    await expect(
+      scores.removeGoalCandidate(other, list[0].id),
+    ).rejects.toThrow();
   });
 
   it('후보 삭제', async () => {

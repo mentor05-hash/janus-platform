@@ -38,7 +38,9 @@ export class MembershipService {
     return this.prisma.membership_grade.update({
       where: { id },
       data: {
-        ...(dto.weeklyCredits != null ? { weekly_credits: dto.weeklyCredits } : {}),
+        ...(dto.weeklyCredits != null
+          ? { weekly_credits: dto.weeklyCredits }
+          : {}),
         ...(dto.active != null ? { active: dto.active } : {}),
       },
     });
@@ -58,24 +60,44 @@ export class MembershipService {
   private static readonly PROMO_KEY = 'membership_promo';
   private static readonly PROMO_DEFAULT = {
     headline: '자녀 학습, 한 단계 더',
-    subcopy: '상위 멤버십으로 매주 더 많은 상담 크레딧과 우선 배정을 받아보세요.',
+    subcopy:
+      '상위 멤버십으로 매주 더 많은 상담 크레딧과 우선 배정을 받아보세요.',
     highlightPlanId: null as string | null,
   };
 
   /** 홍보 문구 조회(기본값=코드값, 본사 편집 시 override). */
   async getPromo() {
-    const row = await this.prisma.system_setting.findUnique({ where: { key: MembershipService.PROMO_KEY } });
-    return { ...MembershipService.PROMO_DEFAULT, ...((row?.value as object) ?? {}) };
+    const row = await this.prisma.system_setting.findUnique({
+      where: { key: MembershipService.PROMO_KEY },
+    });
+    return {
+      ...MembershipService.PROMO_DEFAULT,
+      ...((row?.value as object) ?? {}),
+    };
   }
 
   /** 홍보 문구 변경(본사 관리자). */
-  async setPromo(actor: AuthUser, dto: { headline?: string; subcopy?: string; highlightPlanId?: string | null }) {
+  async setPromo(
+    actor: AuthUser,
+    dto: {
+      headline?: string;
+      subcopy?: string;
+      highlightPlanId?: string | null;
+    },
+  ) {
     const isHq = actor.role === 'admin' && !actor.centerId;
-    if (!isHq) throw new ForbiddenException('홍보 문구는 본사 관리자만 변경할 수 있습니다.');
+    if (!isHq)
+      throw new ForbiddenException(
+        '홍보 문구는 본사 관리자만 변경할 수 있습니다.',
+      );
     const next = { ...(await this.getPromo()), ...dto };
     await this.prisma.system_setting.upsert({
       where: { key: MembershipService.PROMO_KEY },
-      create: { key: MembershipService.PROMO_KEY, value: next, updated_by: actor.id },
+      create: {
+        key: MembershipService.PROMO_KEY,
+        value: next,
+        updated_by: actor.id,
+      },
       update: { value: next, updated_by: actor.id, updated_at: new Date() },
     });
     return next;
@@ -98,9 +120,18 @@ export class MembershipService {
    * 학부모가 자녀 대신 구독 개시(업셀). 승인된 연결 자녀만 허용.
    * 결제(정기결제)는 플랜 payer 정책(기본 guardian)에 따라 autopay 가 보호자 계좌로 청구.
    */
-  async subscribeForChild(guardian: AuthUser, studentId: string, planId: string, now = new Date()) {
+  async subscribeForChild(
+    guardian: AuthUser,
+    studentId: string,
+    planId: string,
+    now = new Date(),
+  ) {
     const link = await this.prisma.guardian_student_link.findFirst({
-      where: { guardian_id: guardian.id, student_id: studentId, status: 'approved' },
+      where: {
+        guardian_id: guardian.id,
+        student_id: studentId,
+        status: 'approved',
+      },
     });
     if (!link) throw new ForbiddenException('연결된 자녀가 아닙니다.');
     return this.doSubscribe(studentId, planId, now);
@@ -152,7 +183,11 @@ export class MembershipService {
       };
     });
     // 구독 번들: 플랜 포함 상품(배치표 등)을 자동 부여(구독-소스). 플랜 변경/해지 반영은 sync 내부에서.
-    await this.entitlement.syncSubscriptionProducts(studentId, plan.included_products, studentId);
+    await this.entitlement.syncSubscriptionProducts(
+      studentId,
+      plan.included_products,
+      studentId,
+    );
     return result;
   }
 }

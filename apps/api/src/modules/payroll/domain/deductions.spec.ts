@@ -9,7 +9,13 @@ describe('computeDeductions (급여 공제)', () => {
 
   it('실지급 = 총액 − 공제합계 (항목 합과 total 일치)', () => {
     const d = computeDeductions(3_000_000);
-    const sum = d.국민연금 + d.건강보험 + d.장기요양 + d.고용보험 + d.소득세 + d.지방소득세;
+    const sum =
+      d.국민연금 +
+      d.건강보험 +
+      d.장기요양 +
+      d.고용보험 +
+      d.소득세 +
+      d.지방소득세;
     expect(d.total).toBe(sum);
     expect(d.net).toBe(3_000_000 - d.total);
   });
@@ -23,7 +29,9 @@ describe('computeDeductions (급여 공제)', () => {
 
   it('지방소득세 = 소득세의 10%(반올림 오차 허용)', () => {
     const d = computeDeductions(4_000_000);
-    expect(Math.abs(d.지방소득세 - Math.round(d.소득세 * 0.1))).toBeLessThanOrEqual(10);
+    expect(
+      Math.abs(d.지방소득세 - Math.round(d.소득세 * 0.1)),
+    ).toBeLessThanOrEqual(10);
   });
 
   it('총액이 클수록 공제·실지급 단조 증가', () => {

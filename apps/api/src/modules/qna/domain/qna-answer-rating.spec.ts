@@ -56,7 +56,10 @@ describe('aggregateAxisStats (N33 설명방식 오각형)', () => {
     expect(visibleAxisCount(none)).toBe(0);
     expect(isPentagonVisible(none)).toBe(false); // 거짓 레이더 차단
 
-    const one = aggregateAxisStats([4, 5, 4, 5, 5].map((score) => ({ axis: 'logic', score })), 5);
+    const one = aggregateAxisStats(
+      [4, 5, 4, 5, 5].map((score) => ({ axis: 'logic', score })),
+      5,
+    );
     expect(visibleAxisCount(one)).toBe(1);
     expect(isPentagonVisible(one)).toBe(true); // 1축 통과 → 렌더
   });

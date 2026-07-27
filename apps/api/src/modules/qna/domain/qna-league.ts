@@ -26,21 +26,32 @@ export const DEFAULT_LEAGUE_POLICY: LeaguePolicy = {
   promote1: { minAuthored: 15, minAccepted: 10, minRate: 70 },
 };
 
-export const TIER_LABEL: Record<number, string> = { 3: '3부 · 입문', 2: '2부 · 정예', 1: '1부 · 마스터' };
+export const TIER_LABEL: Record<number, string> = {
+  3: '3부 · 입문',
+  2: '2부 · 정예',
+  1: '1부 · 마스터',
+};
 
 const meets = (s: LeagueStats, r: TierRule): boolean =>
-  s.authored >= r.minAuthored && s.accepted >= r.minAccepted && s.acceptRate >= r.minRate;
+  s.authored >= r.minAuthored &&
+  s.accepted >= r.minAccepted &&
+  s.acceptRate >= r.minRate;
 
 /** 실적 → 최고 달성 등급(3 기본, 요건 충족 시 2 또는 1). */
-export function evaluateLeague(s: LeagueStats, policy: LeaguePolicy = DEFAULT_LEAGUE_POLICY): number {
+export function evaluateLeague(
+  s: LeagueStats,
+  policy: LeaguePolicy = DEFAULT_LEAGUE_POLICY,
+): number {
   if (meets(s, policy.promote1)) return 1;
   if (meets(s, policy.promote2)) return 2;
   return 3;
 }
 
 /** 다음 상위 등급과 그 요건(1부면 null) — 진행도 안내용. */
-export function nextTierNeed(currentTier: number, policy: LeaguePolicy = DEFAULT_LEAGUE_POLICY):
-  { tier: number; rule: TierRule } | null {
+export function nextTierNeed(
+  currentTier: number,
+  policy: LeaguePolicy = DEFAULT_LEAGUE_POLICY,
+): { tier: number; rule: TierRule } | null {
   if (currentTier <= 1) return null;
   if (currentTier === 2) return { tier: 1, rule: policy.promote1 };
   return { tier: 2, rule: policy.promote2 };

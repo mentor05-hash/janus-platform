@@ -70,7 +70,9 @@ export class PricingService {
     credits += occupancyFee + paidConsultingFee;
     // 외부학생 할증(§외부생 정책) — 유형·점유·컨설팅 가산 후 최종 할증
     const externalSurcharge =
-      externalSurchargePct > 0 ? Math.round(credits * (externalSurchargePct / 100)) : 0;
+      externalSurchargePct > 0
+        ? Math.round(credits * (externalSurchargePct / 100))
+        : 0;
     credits += externalSurcharge;
     return {
       mode,

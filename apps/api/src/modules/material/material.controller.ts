@@ -58,7 +58,10 @@ export class MaterialController {
     @CurrentUser() user: AuthUser,
     @Res() res: Response,
   ) {
-    const { data, filename, contentType } = await this.materials.download(user, id);
+    const { data, filename, contentType } = await this.materials.download(
+      user,
+      id,
+    );
     res.setHeader('Content-Type', contentType || 'application/octet-stream');
     res.setHeader(
       'Content-Disposition',
@@ -70,7 +73,10 @@ export class MaterialController {
   /** DELETE /materials/:id — 작성자 또는 관리자. */
   @Delete(':id')
   @Roles('teacher', 'admin', 'hr')
-  remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.materials.remove(user, id);
   }
 }

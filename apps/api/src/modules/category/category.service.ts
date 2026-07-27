@@ -11,7 +11,9 @@ export class CategoryService {
   /** 본사관리자 = admin + 센터 미소속. */
   private assertHq(user: AuthUser) {
     if (!(user.role === AccountRole.ADMIN && !user.centerId)) {
-      throw new ForbiddenException('본사관리자만 카테고리를 관리할 수 있습니다.');
+      throw new ForbiddenException(
+        '본사관리자만 카테고리를 관리할 수 있습니다.',
+      );
     }
   }
 
@@ -30,7 +32,11 @@ export class CategoryService {
       _max: { sort_order: true },
     });
     return this.prisma.category.create({
-      data: { kind, name: name.trim(), sort_order: (max._max.sort_order ?? 0) + 1 },
+      data: {
+        kind,
+        name: name.trim(),
+        sort_order: (max._max.sort_order ?? 0) + 1,
+      },
     });
   }
 

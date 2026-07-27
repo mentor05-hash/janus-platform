@@ -16,7 +16,17 @@ import { QnaService } from './qna.service';
  * 질문 건당 과금(billing/pricing), 공개질문 수임 게이트(§5-9), 채택→급여 적격.
  */
 @Module({
-  imports: [PricingPolicyModule, BillingModule, LlmModule, BookingModule, AvailabilityModule, NotificationModule, RealtimeModule, StorageModule, SchoolRecordGuardModule],
+  imports: [
+    PricingPolicyModule,
+    BillingModule,
+    LlmModule,
+    BookingModule,
+    AvailabilityModule,
+    NotificationModule,
+    RealtimeModule,
+    StorageModule,
+    SchoolRecordGuardModule,
+  ],
   controllers: [QnaController],
   providers: [QnaService],
   exports: [QnaService],

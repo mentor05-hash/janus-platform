@@ -46,7 +46,8 @@ export class PublicSyncService {
       ext_key: String(extKey),
       name: String(name),
       addr: (pick('addr', 'FA_RDNMA', 'address') as string) ?? null,
-      dong_code: (pick('dong_code', 'ADMST_ZONE_NM', 'dongCode') as string) ?? null,
+      dong_code:
+        (pick('dong_code', 'ADMST_ZONE_NM', 'dongCode') as string) ?? null,
       lat: num(pick('lat', 'latitude')),
       lng: num(pick('lng', 'longitude')),
       phone: (pick('phone', 'FA_TELNO', 'tel') as string) ?? null,
@@ -55,10 +56,17 @@ export class PublicSyncService {
   }
 
   /** JANUS_DATA_DIR 의 공공 학원 JSON 을 파싱→upsert(ext_key 기준 idempotent). */
-  async syncFromDataDir(): Promise<{ scanned: number; upserted: number; skipped: number; source: string }> {
+  async syncFromDataDir(): Promise<{
+    scanned: number;
+    upserted: number;
+    skipped: number;
+    source: string;
+  }> {
     const dir = this.dataDir();
     if (!dir) {
-      this.logger.warn('JANUS_DATA_DIR 미설정 — 공공데이터 적재 건너뜀. seedSample() 로 샘플만 확인 가능.');
+      this.logger.warn(
+        'JANUS_DATA_DIR 미설정 — 공공데이터 적재 건너뜀. seedSample() 로 샘플만 확인 가능.',
+      );
       return { scanned: 0, upserted: 0, skipped: 0, source: 'none' };
     }
     let files: string[] = [];
@@ -75,7 +83,9 @@ export class PublicSyncService {
       let arr: Record<string, unknown>[] = [];
       try {
         const parsed = JSON.parse(readFileSync(join(dir, f), 'utf8'));
-        arr = Array.isArray(parsed) ? parsed : (parsed.data ?? parsed.rows ?? []);
+        arr = Array.isArray(parsed)
+          ? parsed
+          : (parsed.data ?? parsed.rows ?? []);
       } catch (e) {
         this.logger.error(`파싱 실패 ${f}: ${(e as Error).message}`);
         continue;
@@ -95,7 +105,9 @@ export class PublicSyncService {
         upserted += 1;
       }
     }
-    this.logger.log(`공공데이터 적재: scanned=${scanned} upserted=${upserted} skipped=${skipped}`);
+    this.logger.log(
+      `공공데이터 적재: scanned=${scanned} upserted=${upserted} skipped=${skipped}`,
+    );
     return { scanned, upserted, skipped, source: dir };
   }
 
@@ -113,13 +125,44 @@ export class PublicSyncService {
         addr: '서울 강남구 대치동 (샘플)',
         phone: '02-000-0001',
         classes: [
-          { subject: '수학', target_grades: ['고1', '고2'], level: 'regular', tuition_krw: 350000, schedule: [{ dow: '월', start: '18:00', end: '20:00' }] },
-          { subject: '수학', target_grades: ['고3', 'N수'], level: 'prep', tuition_krw: 450000, schedule: [{ dow: '화', start: '19:00', end: '22:00' }] },
+          {
+            subject: '수학',
+            target_grades: ['고1', '고2'],
+            level: 'regular',
+            tuition_krw: 350000,
+            schedule: [{ dow: '월', start: '18:00', end: '20:00' }],
+          },
+          {
+            subject: '수학',
+            target_grades: ['고3', 'N수'],
+            level: 'prep',
+            tuition_krw: 450000,
+            schedule: [{ dow: '화', start: '19:00', end: '22:00' }],
+          },
         ],
-        bus: { name: '1호차', days: ['월', '수', '금'], stops: [{ seq: 1, name: '대치역', dong_code: DONG }, { seq: 2, name: '은마사거리', dong_code: NEIGHBOR }] },
+        bus: {
+          name: '1호차',
+          days: ['월', '수', '금'],
+          stops: [
+            { seq: 1, name: '대치역', dong_code: DONG },
+            { seq: 2, name: '은마사거리', dong_code: NEIGHBOR },
+          ],
+        },
         cohorts: [
-          { kind: 'grade_band', period: '2026H1', source: 'claimed', n_total: 0, payload: { 내신: { '1-2': 40, '3-4': 35, '5-6': 20, '7-9': 5 } } },
-          { kind: 'grade_band', period: '2026H1', source: 'verified', n_total: 8, payload: { 모평: { '1-2': 50, '3-4': 30, '5-6': 15, '7-9': 5 } } },
+          {
+            kind: 'grade_band',
+            period: '2026H1',
+            source: 'claimed',
+            n_total: 0,
+            payload: { 내신: { '1-2': 40, '3-4': 35, '5-6': 20, '7-9': 5 } },
+          },
+          {
+            kind: 'grade_band',
+            period: '2026H1',
+            source: 'verified',
+            n_total: 8,
+            payload: { 모평: { '1-2': 50, '3-4': 30, '5-6': 15, '7-9': 5 } },
+          },
         ],
       },
       {
@@ -127,17 +170,48 @@ export class PublicSyncService {
         name: '샘플 영어독해 학원',
         addr: '서울 강남구 대치동 (샘플)',
         phone: '02-000-0002',
-        classes: [{ subject: '영어', target_grades: ['중2', '중3'], level: 'advanced', tuition_krw: 300000, schedule: [{ dow: '목', start: '17:00', end: '19:00' }] }],
+        classes: [
+          {
+            subject: '영어',
+            target_grades: ['중2', '중3'],
+            level: 'advanced',
+            tuition_krw: 300000,
+            schedule: [{ dow: '목', start: '17:00', end: '19:00' }],
+          },
+        ],
         bus: null,
-        cohorts: [{ kind: 'school_dist', period: '2026H1', source: 'verified', n_total: 6, payload: [{ school: '○○중', n: 3 }, { school: '△△중', n: 3 }] }],
+        cohorts: [
+          {
+            kind: 'school_dist',
+            period: '2026H1',
+            source: 'verified',
+            n_total: 6,
+            payload: [
+              { school: '○○중', n: 3 },
+              { school: '△△중', n: 3 },
+            ],
+          },
+        ],
       },
       {
         ext_key: 'SEED-A-003',
         name: '샘플 국어논술 교습소',
         addr: '서울 강남구 대치동 (샘플)',
         phone: '02-000-0003',
-        classes: [{ subject: '국어', target_grades: ['고1', '고2', '고3'], level: 'basic', tuition_krw: 250000, schedule: [{ dow: '금', start: '18:30', end: '20:30' }] }],
-        bus: { name: '가선', days: ['화', '목'], stops: [{ seq: 1, name: '대치사거리', dong_code: DONG }] },
+        classes: [
+          {
+            subject: '국어',
+            target_grades: ['고1', '고2', '고3'],
+            level: 'basic',
+            tuition_krw: 250000,
+            schedule: [{ dow: '금', start: '18:30', end: '20:30' }],
+          },
+        ],
+        bus: {
+          name: '가선',
+          days: ['화', '목'],
+          stops: [{ seq: 1, name: '대치사거리', dong_code: DONG }],
+        },
         cohorts: [],
       },
     ];
@@ -145,30 +219,80 @@ export class PublicSyncService {
     for (const s of samples) {
       const a = await this.prisma.academy.upsert({
         where: { ext_key: s.ext_key },
-        create: { ext_key: s.ext_key, name: s.name, addr: s.addr, dong_code: DONG, phone: s.phone, source: 'public', nearest_station: { name: '대치', line: '분당', walk_min: 5 } },
+        create: {
+          ext_key: s.ext_key,
+          name: s.name,
+          addr: s.addr,
+          dong_code: DONG,
+          phone: s.phone,
+          source: 'public',
+          nearest_station: { name: '대치', line: '분당', walk_min: 5 },
+        },
         update: { name: s.name, updated_at: new Date() },
       });
       // 반: 기존 샘플 반 제거 후 재삽입(idempotent)
-      await this.prisma.academy_class.deleteMany({ where: { academy_id: a.id } });
+      await this.prisma.academy_class.deleteMany({
+        where: { academy_id: a.id },
+      });
       for (const c of s.classes) {
         await this.prisma.academy_class.create({
-          data: { academy_id: a.id, subject: c.subject, target_grades: c.target_grades, level: c.level, tuition_krw: c.tuition_krw, tuition_source: 'declared', schedule: c.schedule },
+          data: {
+            academy_id: a.id,
+            subject: c.subject,
+            target_grades: c.target_grades,
+            level: c.level,
+            tuition_krw: c.tuition_krw,
+            tuition_source: 'declared',
+            schedule: c.schedule,
+          },
         });
       }
       // 버스
       await this.prisma.bus_route.deleteMany({ where: { academy_id: a.id } });
       if (s.bus) {
-        const r = await this.prisma.bus_route.create({ data: { academy_id: a.id, name: s.bus.name, days: s.bus.days, direction: 'pickup' } });
+        const r = await this.prisma.bus_route.create({
+          data: {
+            academy_id: a.id,
+            name: s.bus.name,
+            days: s.bus.days,
+            direction: 'pickup',
+          },
+        });
         for (const st of s.bus.stops) {
-          await this.prisma.bus_stop.create({ data: { route_id: r.id, seq: st.seq, name: st.name, dong_code: st.dong_code } });
+          await this.prisma.bus_stop.create({
+            data: {
+              route_id: r.id,
+              seq: st.seq,
+              name: st.name,
+              dong_code: st.dong_code,
+            },
+          });
         }
       }
       // cohort — claimed/verified 라벨 데모(§3). verified 는 n_total>=5.
       for (const cs of s.cohorts) {
         await this.prisma.cohort_stat.upsert({
-          where: { academy_id_kind_period_source: { academy_id: a.id, kind: cs.kind, period: cs.period, source: cs.source } },
-          create: { academy_id: a.id, kind: cs.kind, period: cs.period, source: cs.source, n_total: cs.n_total, payload_json: cs.payload },
-          update: { n_total: cs.n_total, payload_json: cs.payload, updated_at: new Date() },
+          where: {
+            academy_id_kind_period_source: {
+              academy_id: a.id,
+              kind: cs.kind,
+              period: cs.period,
+              source: cs.source,
+            },
+          },
+          create: {
+            academy_id: a.id,
+            kind: cs.kind,
+            period: cs.period,
+            source: cs.source,
+            n_total: cs.n_total,
+            payload_json: cs.payload,
+          },
+          update: {
+            n_total: cs.n_total,
+            payload_json: cs.payload,
+            updated_at: new Date(),
+          },
         });
       }
     }

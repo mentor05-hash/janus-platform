@@ -8,13 +8,28 @@ export class AdminStatsService {
 
   async overview() {
     const [
-      diagAttempts, diagAgg, diagStudents,
-      lectureCount, enrollCount,
-      commPosts, commAnswers, commAccepted, leaguePromoted,
+      diagAttempts,
+      diagAgg,
+      diagStudents,
+      lectureCount,
+      enrollCount,
+      commPosts,
+      commAnswers,
+      commAccepted,
+      leaguePromoted,
     ] = await Promise.all([
-      this.prisma.diagnostic_attempt.count({ where: { submitted_at: { not: null } } }),
-      this.prisma.diagnostic_attempt.aggregate({ where: { submitted_at: { not: null } }, _avg: { score: true } }),
-      this.prisma.diagnostic_attempt.findMany({ where: { submitted_at: { not: null } }, distinct: ['student_id'], select: { student_id: true } }),
+      this.prisma.diagnostic_attempt.count({
+        where: { submitted_at: { not: null } },
+      }),
+      this.prisma.diagnostic_attempt.aggregate({
+        where: { submitted_at: { not: null } },
+        _avg: { score: true },
+      }),
+      this.prisma.diagnostic_attempt.findMany({
+        where: { submitted_at: { not: null } },
+        distinct: ['student_id'],
+        select: { student_id: true },
+      }),
       this.prisma.lecture.count({ where: { active: true } }),
       this.prisma.lecture_enrollment.count(),
       this.prisma.qna_post.count({ where: { community: true } }),
@@ -37,7 +52,9 @@ export class AdminStatsService {
         posts: commPosts,
         answers: commAnswers,
         accepted: commAccepted,
-        acceptRate: commAnswers ? Math.round((commAccepted / commAnswers) * 100) : 0,
+        acceptRate: commAnswers
+          ? Math.round((commAccepted / commAnswers) * 100)
+          : 0,
         leaguePromoted,
       },
     };

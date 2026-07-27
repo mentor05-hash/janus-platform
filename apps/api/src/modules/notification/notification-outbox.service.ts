@@ -31,11 +31,17 @@ export class NotificationOutboxService {
 
   @Cron(process.env.NOTIFICATION_RETRY_CRON ?? '*/5 * * * *')
   async scheduledRetry() {
-    await withCronLock(this.cache, 'notification-retry', 240, async () => {
-      const n = await this.retryFailed();
-      if (n.retried)
-        this.logger.log(`알림 재시도: ${n.recovered}/${n.retried} 복구`);
-    }, this.logger);
+    await withCronLock(
+      this.cache,
+      'notification-retry',
+      240,
+      async () => {
+        const n = await this.retryFailed();
+        if (n.retried)
+          this.logger.log(`알림 재시도: ${n.recovered}/${n.retried} 복구`);
+      },
+      this.logger,
+    );
   }
 
   /** 실패 채널이 남은 알림을 재발송. 반환: {retried 알림 수, recovered 완전복구 수}. */

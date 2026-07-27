@@ -10,7 +10,12 @@ import { tutorSourceOf } from '../metrics/tutor-source';
 import { AccountRole, BookingStatus } from '../../config/enums';
 import { CREDIT_WON_RATIO } from '../../config/constants';
 import { AuditService } from '../audit/audit.service';
-import { computeDeductions, computeEmployerContribution, severanceAccrual, computeFreelancer } from './domain/deductions';
+import {
+  computeDeductions,
+  computeEmployerContribution,
+  severanceAccrual,
+  computeFreelancer,
+} from './domain/deductions';
 import { isFullTime } from '../../common/consult-assignment';
 
 /**
@@ -40,20 +45,35 @@ export class PayrollService {
   private static readonly SHARE_DEFAULT = { sharePct: 60 };
 
   async getSharePolicy(): Promise<{ sharePct: number }> {
-    const row = await this.prisma.system_setting.findUnique({ where: { key: PayrollService.SHARE_KEY } });
-    return { ...PayrollService.SHARE_DEFAULT, ...((row?.value as object) ?? {}) };
+    const row = await this.prisma.system_setting.findUnique({
+      where: { key: PayrollService.SHARE_KEY },
+    });
+    return {
+      ...PayrollService.SHARE_DEFAULT,
+      ...((row?.value as object) ?? {}),
+    };
   }
 
   async setSharePolicy(actor: AuthUser, dto: { sharePct?: number }) {
     const isHq = actor.role === AccountRole.ADMIN && !actor.centerId;
-    if (!isHq) throw new ForbiddenException('배분율은 본사 관리자만 변경할 수 있습니다.');
-    if (dto.sharePct !== undefined && (dto.sharePct < 0 || dto.sharePct > 100)) {
+    if (!isHq)
+      throw new ForbiddenException(
+        '배분율은 본사 관리자만 변경할 수 있습니다.',
+      );
+    if (
+      dto.sharePct !== undefined &&
+      (dto.sharePct < 0 || dto.sharePct > 100)
+    ) {
       throw new BadRequestException('배분율은 0~100% 범위여야 합니다.');
     }
     const next = { ...(await this.getSharePolicy()), ...dto };
     await this.prisma.system_setting.upsert({
       where: { key: PayrollService.SHARE_KEY },
-      create: { key: PayrollService.SHARE_KEY, value: next, updated_by: actor.id },
+      create: {
+        key: PayrollService.SHARE_KEY,
+        value: next,
+        updated_by: actor.id,
+      },
       update: { value: next, updated_by: actor.id, updated_at: new Date() },
     });
     return next;
@@ -61,55 +81,106 @@ export class PayrollService {
 
   // ── 급여 모델(본사): share=순수배분 · floor=기본급 보장+배분 · base_incentive=기본급+인센티브 ──
   private static readonly MODEL_KEY = 'payroll_model_policy';
-  private static readonly MODEL_DEFAULT = { mode: 'share', base: 2_000_000, incentivePct: 30 };
+  private static readonly MODEL_DEFAULT = {
+    mode: 'share',
+    base: 2_000_000,
+    incentivePct: 30,
+  };
 
-  async getModelPolicy(): Promise<{ mode: string; base: number; incentivePct: number }> {
-    const row = await this.prisma.system_setting.findUnique({ where: { key: PayrollService.MODEL_KEY } });
-    return { ...PayrollService.MODEL_DEFAULT, ...((row?.value as object) ?? {}) };
+  async getModelPolicy(): Promise<{
+    mode: string;
+    base: number;
+    incentivePct: number;
+  }> {
+    const row = await this.prisma.system_setting.findUnique({
+      where: { key: PayrollService.MODEL_KEY },
+    });
+    return {
+      ...PayrollService.MODEL_DEFAULT,
+      ...((row?.value as object) ?? {}),
+    };
   }
 
-  async setModelPolicy(actor: AuthUser, dto: { mode?: string; base?: number; incentivePct?: number }) {
+  async setModelPolicy(
+    actor: AuthUser,
+    dto: { mode?: string; base?: number; incentivePct?: number },
+  ) {
     const isHq = actor.role === AccountRole.ADMIN && !actor.centerId;
-    if (!isHq) throw new ForbiddenException('급여 모델은 본사 관리자만 변경할 수 있습니다.');
-    if (dto.mode !== undefined && !['share', 'floor', 'base_incentive'].includes(dto.mode)) {
-      throw new BadRequestException('mode 는 share | floor | base_incentive 여야 합니다.');
+    if (!isHq)
+      throw new ForbiddenException(
+        '급여 모델은 본사 관리자만 변경할 수 있습니다.',
+      );
+    if (
+      dto.mode !== undefined &&
+      !['share', 'floor', 'base_incentive'].includes(dto.mode)
+    ) {
+      throw new BadRequestException(
+        'mode 는 share | floor | base_incentive 여야 합니다.',
+      );
     }
-    if (dto.base !== undefined && (dto.base < 0 || dto.base > 20_000_000)) throw new BadRequestException('기본급 범위 오류.');
-    if (dto.incentivePct !== undefined && (dto.incentivePct < 0 || dto.incentivePct > 100)) throw new BadRequestException('인센티브율 범위 오류.');
+    if (dto.base !== undefined && (dto.base < 0 || dto.base > 20_000_000))
+      throw new BadRequestException('기본급 범위 오류.');
+    if (
+      dto.incentivePct !== undefined &&
+      (dto.incentivePct < 0 || dto.incentivePct > 100)
+    )
+      throw new BadRequestException('인센티브율 범위 오류.');
     const next = { ...(await this.getModelPolicy()), ...dto };
     await this.prisma.system_setting.upsert({
       where: { key: PayrollService.MODEL_KEY },
-      create: { key: PayrollService.MODEL_KEY, value: next, updated_by: actor.id },
+      create: {
+        key: PayrollService.MODEL_KEY,
+        value: next,
+        updated_by: actor.id,
+      },
       update: { value: next, updated_by: actor.id, updated_at: new Date() },
     });
     return next;
   }
 
   /** 급여 모델에 따른 세전 급여 산정. */
-  private grossByModel(revenue: number, sharePct: number, model: { mode: string; base: number; incentivePct: number }): number {
+  private grossByModel(
+    revenue: number,
+    sharePct: number,
+    model: { mode: string; base: number; incentivePct: number },
+  ): number {
     const share = Math.round((revenue * sharePct) / 100);
-    if (model.mode === 'floor') return Math.max(model.base, share);                       // 기본급 보장 + 배분
-    if (model.mode === 'base_incentive') return model.base + Math.round((revenue * model.incentivePct) / 100); // 기본급 + 인센티브
-    return share;                                                                          // 순수 배분
+    if (model.mode === 'floor') return Math.max(model.base, share); // 기본급 보장 + 배분
+    if (model.mode === 'base_incentive')
+      return model.base + Math.round((revenue * model.incentivePct) / 100); // 기본급 + 인센티브
+    return share; // 순수 배분
   }
 
   /** 한 선생님의 기간 매출배분 급여 명세(완료·확정 세션 매출 × 배분율, 4대보험 반영). */
-  async revenueSharePayslip(teacherId: string, actor: AuthUser, period?: string) {
+  async revenueSharePayslip(
+    teacherId: string,
+    actor: AuthUser,
+    period?: string,
+  ) {
     const isSelf = actor.role === AccountRole.TEACHER && actor.id === teacherId;
     const isAdmin = actor.role === AccountRole.ADMIN;
-    if (!isSelf && !isAdmin) throw new ForbiddenException('명세 조회 권한이 없습니다.');
+    if (!isSelf && !isAdmin)
+      throw new ForbiddenException('명세 조회 권한이 없습니다.');
     if (isAdmin) await this.assertTeacherCenter(actor, teacherId);
     const { start, endExclusive, label } = this.periodBounds(period);
     const tp = await this.prisma.teacher_profile.findUnique({
       where: { account_id: teacherId },
-      include: { account: { select: { name: true } }, center: { select: { name: true } } },
+      include: {
+        account: { select: { name: true } },
+        center: { select: { name: true } },
+      },
     });
     if (!tp) throw new NotFoundException('선생님을 찾을 수 없습니다.');
     const { sharePct } = await this.getSharePolicy();
     const model = await this.getModelPolicy();
     const agg = await this.prisma.booking.aggregate({
-      where: { teacher_id: teacherId, status: { in: [BookingStatus.CONFIRMED, BookingStatus.DONE] }, start_at: { gte: start, lt: endExclusive } },
-      _sum: { charged_credits: true }, _count: { _all: true },
+      where: {
+        teacher_id: teacherId,
+        status: { in: [BookingStatus.CONFIRMED, BookingStatus.DONE] },
+        start_at: { gte: start, lt: endExclusive },
+      },
+      _sum: { charged_credits: true },
+      _count: { _all: true },
     });
     // 크레딧 매출 → 원 환산(1크=0.5원, O1). 배분·명세는 원 기준.
     const creditRevenue = agg._sum.charged_credits ?? 0;
@@ -118,11 +189,11 @@ export class PayrollService {
     const gross = this.grossByModel(revenue, sharePct, model);
     const deductions = computeDeductions(gross);
     const employer = computeEmployerContribution(gross);
-    const severance = severanceAccrual(gross);          // 퇴직금 적립(전임만)
+    const severance = severanceAccrual(gross); // 퇴직금 적립(전임만)
     const totalCost = gross + employer.total + severance; // 회사 총부담(4대보험+퇴직금 포함)
     // 같은 배분액을 프리랜서(사업소득 3.3%)로 지급했을 때 비교
     const freelancer = computeFreelancer(gross);
-    const fullTimePremium = totalCost - gross;           // 전임 추가비용(사업주보험+퇴직금)
+    const fullTimePremium = totalCost - gross; // 전임 추가비용(사업주보험+퇴직금)
     return {
       period: label,
       teacherId,
@@ -130,20 +201,22 @@ export class PayrollService {
       center: tp.center?.name ?? '-',
       fullTime: isFullTime(tp.employment_type),
       sessions,
-      creditRevenue,        // 크레딧 매출(크레딧 단위)
-      revenue,              // 원 매출(= creditRevenue × 0.5)
+      creditRevenue, // 크레딧 매출(크레딧 단위)
+      revenue, // 원 매출(= creditRevenue × 0.5)
       sharePct,
-      model,                // 급여 모델(share/floor/base_incentive)
-      gross,                // 세전 급여(모델 반영)
-      deductions,           // 근로자 4대보험 + 소득세/지방세 + net
-      net: deductions.net,  // 전임 실수령
-      employer,             // 사업주 4대보험
-      severance,            // 퇴직금 적립(월)
-      totalCost,            // 회사 총부담(급여+사업주보험+퇴직금)
-      laborRatioPct: revenue > 0 ? Math.round((totalCost / revenue) * 1000) / 10 : 0,
-      freelancer: {         // 동일 배분액을 프리랜서로 지급 시
-        companyCost: gross,           // 회사 부담 = 지급액(추가부담 0)
-        net: freelancer.net,          // 프리랜서 실수령(3.3% 원천징수 후)
+      model, // 급여 모델(share/floor/base_incentive)
+      gross, // 세전 급여(모델 반영)
+      deductions, // 근로자 4대보험 + 소득세/지방세 + net
+      net: deductions.net, // 전임 실수령
+      employer, // 사업주 4대보험
+      severance, // 퇴직금 적립(월)
+      totalCost, // 회사 총부담(급여+사업주보험+퇴직금)
+      laborRatioPct:
+        revenue > 0 ? Math.round((totalCost / revenue) * 1000) / 10 : 0,
+      freelancer: {
+        // 동일 배분액을 프리랜서로 지급 시
+        companyCost: gross, // 회사 부담 = 지급액(추가부담 0)
+        net: freelancer.net, // 프리랜서 실수령(3.3% 원천징수 후)
         withholding: freelancer.withholding,
         savingVsFullTime: fullTimePremium, // 전임 대비 회사 절감액(=전임 추가비용)
       },
@@ -157,20 +230,49 @@ export class PayrollService {
     }
     const centerId = actor.centerId ?? null;
     const teachers = await this.prisma.teacher_profile.findMany({
-      where: { employment_type: '전임', ...(centerId ? { center_id: centerId } : {}) },
+      where: {
+        employment_type: '전임',
+        ...(centerId ? { center_id: centerId } : {}),
+      },
       select: { account_id: true },
     });
-    const rows: Array<{ teacherId: string; name: string; center: string; sessions: number; revenue: number; gross: number; net: number; totalCost: number; freelancerCost: number; premium: number }> = [];
+    const rows: Array<{
+      teacherId: string;
+      name: string;
+      center: string;
+      sessions: number;
+      revenue: number;
+      gross: number;
+      net: number;
+      totalCost: number;
+      freelancerCost: number;
+      premium: number;
+    }> = [];
     for (const t of teachers) {
       const p = await this.revenueSharePayslip(t.account_id, actor, period);
       rows.push({
-        teacherId: p.teacherId, name: p.teacherName, center: p.center, sessions: p.sessions,
-        revenue: p.revenue, gross: p.gross, net: p.net, totalCost: p.totalCost,
-        freelancerCost: p.freelancer.companyCost, premium: p.freelancer.savingVsFullTime,
+        teacherId: p.teacherId,
+        name: p.teacherName,
+        center: p.center,
+        sessions: p.sessions,
+        revenue: p.revenue,
+        gross: p.gross,
+        net: p.net,
+        totalCost: p.totalCost,
+        freelancerCost: p.freelancer.companyCost,
+        premium: p.freelancer.savingVsFullTime,
       });
     }
     rows.sort((a, b) => b.gross - a.gross);
-    const sum = (k: 'revenue' | 'gross' | 'net' | 'totalCost' | 'freelancerCost' | 'premium') => rows.reduce((a, r) => a + r[k], 0);
+    const sum = (
+      k:
+        | 'revenue'
+        | 'gross'
+        | 'net'
+        | 'totalCost'
+        | 'freelancerCost'
+        | 'premium',
+    ) => rows.reduce((a, r) => a + r[k], 0);
     const { sharePct } = await this.getSharePolicy();
     const model = await this.getModelPolicy();
     return {
@@ -178,7 +280,14 @@ export class PayrollService {
       sharePct,
       model,
       count: rows.length,
-      totals: { revenue: sum('revenue'), gross: sum('gross'), net: sum('net'), totalCost: sum('totalCost'), freelancerCost: sum('freelancerCost'), premium: sum('premium') },
+      totals: {
+        revenue: sum('revenue'),
+        gross: sum('gross'),
+        net: sum('net'),
+        totalCost: sum('totalCost'),
+        freelancerCost: sum('freelancerCost'),
+        premium: sum('premium'),
+      },
       rows,
     };
   }
@@ -189,11 +298,18 @@ export class PayrollService {
       throw new ForbiddenException('관리자만 정산을 확정할 수 있습니다.');
     }
     // 정산 대상 기간과 **산정 기간이 반드시 같아야 한다** — 이전에는 누적액을 그 달 금액으로 기록했다.
-    const { start: periodStart, end: periodEnd, label: periodLabel } = this.periodBounds(undefined, now);
+    const {
+      start: periodStart,
+      end: periodEnd,
+      label: periodLabel,
+    } = this.periodBounds(undefined, now);
     const est = await this.compute(teacherId, actor, periodLabel);
     const deductions = computeDeductions(est.confirmedAmount);
     // tutor_source 스냅샷(계측 차원) — 정산 시점 고용유형 박제. ⚠ 금액·계산에 무관, 순수 라벨.
-    const prof = await this.prisma.teacher_profile.findUnique({ where: { account_id: teacherId }, select: { employment_type: true } });
+    const prof = await this.prisma.teacher_profile.findUnique({
+      where: { account_id: teacherId },
+      select: { employment_type: true },
+    });
     const data = {
       cycle: 'monthly',
       confirmed_amount: est.confirmedAmount,
@@ -224,11 +340,23 @@ export class PayrollService {
           data: { teacher_id: teacherId, ...data },
         });
     await this.audit.record(actor, {
-      action: 'payroll.settle', targetType: 'teacher', targetId: teacherId,
+      action: 'payroll.settle',
+      targetType: 'teacher',
+      targetId: teacherId,
       summary: `급여 정산 확정(실지급 ${deductions.net.toLocaleString()}원 · 공제 ${deductions.total.toLocaleString()}원)`,
-      meta: { gross: est.confirmedAmount, net: deductions.net, period: periodStart.toISOString().slice(0, 7) },
+      meta: {
+        gross: est.confirmedAmount,
+        net: deductions.net,
+        period: periodStart.toISOString().slice(0, 7),
+      },
     });
-    return { id: row.id, status: 'confirmed', deductions, netAmount: deductions.net, ...est };
+    return {
+      id: row.id,
+      status: 'confirmed',
+      deductions,
+      netAmount: deductions.net,
+      ...est,
+    };
   }
 
   /**
@@ -280,13 +408,16 @@ export class PayrollService {
       where: { teacher_id: teacherId, cycle: 'monthly', period_start: start },
     });
     if (!row) throw new NotFoundException('먼저 정산을 확정하세요.');
-    if (row.status === 'paid') throw new BadRequestException('이미 지급 완료된 정산입니다.');
+    if (row.status === 'paid')
+      throw new BadRequestException('이미 지급 완료된 정산입니다.');
     const updated = await this.prisma.payroll_estimate.update({
       where: { id: row.id },
       data: { status: 'paid', paid_at: new Date() },
     });
     await this.audit.record(actor, {
-      action: 'payroll.pay', targetType: 'teacher', targetId: teacherId,
+      action: 'payroll.pay',
+      targetType: 'teacher',
+      targetId: teacherId,
       summary: `급여 지급 완료(실지급 ${(row.net_amount ?? 0).toLocaleString()}원)`,
       meta: { net: row.net_amount, period: this.periodBounds(period).label },
     });
@@ -300,19 +431,51 @@ export class PayrollService {
     }
     const { start, label } = this.periodBounds(period);
     const rows = await this.prisma.payroll_estimate.findMany({
-      where: { cycle: 'monthly', period_start: start, status: { in: ['confirmed', 'paid'] } },
-      include: { teacher_profile: { include: { account: { select: { name: true, center_id: true } }, center: { select: { name: true } } } } },
+      where: {
+        cycle: 'monthly',
+        period_start: start,
+        status: { in: ['confirmed', 'paid'] },
+      },
+      include: {
+        teacher_profile: {
+          include: {
+            account: { select: { name: true, center_id: true } },
+            center: { select: { name: true } },
+          },
+        },
+      },
     });
     // HQ(센터 미소속)는 전사, 그 외는 자기 센터만
     const isHq = actor.role === AccountRole.ADMIN && !actor.centerId;
-    const scoped = rows.filter((r) => isHq || r.teacher_profile.account.center_id === actor.centerId);
-    const sum = (f: (r: (typeof scoped)[number]) => number) => scoped.reduce((a, r) => a + f(r), 0);
-    const ded = (r: (typeof scoped)[number], k: string) => Number((r.deductions as Record<string, number> | null)?.[k] ?? 0);
-    const byCenter = new Map<string, { center: string; count: number; gross: number; net: number; paid: number }>();
+    const scoped = rows.filter(
+      (r) => isHq || r.teacher_profile.account.center_id === actor.centerId,
+    );
+    const sum = (f: (r: (typeof scoped)[number]) => number) =>
+      scoped.reduce((a, r) => a + f(r), 0);
+    const ded = (r: (typeof scoped)[number], k: string) =>
+      Number((r.deductions as Record<string, number> | null)?.[k] ?? 0);
+    const byCenter = new Map<
+      string,
+      {
+        center: string;
+        count: number;
+        gross: number;
+        net: number;
+        paid: number;
+      }
+    >();
     for (const r of scoped) {
       const c = r.teacher_profile.center?.name ?? '(미지정)';
-      const e = byCenter.get(c) ?? { center: c, count: 0, gross: 0, net: 0, paid: 0 };
-      e.count += 1; e.gross += r.confirmed_amount ?? 0; e.net += r.net_amount ?? 0;
+      const e = byCenter.get(c) ?? {
+        center: c,
+        count: 0,
+        gross: 0,
+        net: 0,
+        paid: 0,
+      };
+      e.count += 1;
+      e.gross += r.confirmed_amount ?? 0;
+      e.net += r.net_amount ?? 0;
       if (r.status === 'paid') e.paid += r.net_amount ?? 0;
       byCenter.set(c, e);
     }
@@ -321,20 +484,34 @@ export class PayrollService {
       headcount: scoped.length,
       gross: sum((r) => r.confirmed_amount ?? 0),
       net: sum((r) => r.net_amount ?? 0),
-      paid: scoped.filter((r) => r.status === 'paid').reduce((a, r) => a + (r.net_amount ?? 0), 0),
-      pending: scoped.filter((r) => r.status !== 'paid').reduce((a, r) => a + (r.net_amount ?? 0), 0),
+      paid: scoped
+        .filter((r) => r.status === 'paid')
+        .reduce((a, r) => a + (r.net_amount ?? 0), 0),
+      pending: scoped
+        .filter((r) => r.status !== 'paid')
+        .reduce((a, r) => a + (r.net_amount ?? 0), 0),
       deductions: {
-        국민연금: sum((r) => ded(r, '국민연금')), 건강보험: sum((r) => ded(r, '건강보험')),
-        장기요양: sum((r) => ded(r, '장기요양')), 고용보험: sum((r) => ded(r, '고용보험')),
-        소득세: sum((r) => ded(r, '소득세')), 지방소득세: sum((r) => ded(r, '지방소득세')),
-        total: sum((r) => Number((r.deductions as Record<string, number> | null)?.total ?? 0)),
+        국민연금: sum((r) => ded(r, '국민연금')),
+        건강보험: sum((r) => ded(r, '건강보험')),
+        장기요양: sum((r) => ded(r, '장기요양')),
+        고용보험: sum((r) => ded(r, '고용보험')),
+        소득세: sum((r) => ded(r, '소득세')),
+        지방소득세: sum((r) => ded(r, '지방소득세')),
+        total: sum((r) =>
+          Number((r.deductions as Record<string, number> | null)?.total ?? 0),
+        ),
       },
       byCenter: [...byCenter.values()].sort((a, b) => b.net - a.net),
-      rows: scoped.map((r) => ({
-        teacherId: r.teacher_id, name: r.teacher_profile.account.name,
-        center: r.teacher_profile.center?.name ?? '-',
-        gross: r.confirmed_amount ?? 0, net: r.net_amount ?? 0, status: r.status,
-      })).sort((a, b) => b.net - a.net),
+      rows: scoped
+        .map((r) => ({
+          teacherId: r.teacher_id,
+          name: r.teacher_profile.account.name,
+          center: r.teacher_profile.center?.name ?? '-',
+          gross: r.confirmed_amount ?? 0,
+          net: r.net_amount ?? 0,
+          status: r.status,
+        }))
+        .sort((a, b) => b.net - a.net),
     };
   }
 
@@ -342,12 +519,20 @@ export class PayrollService {
   async payslip(teacherId: string, actor: AuthUser, period?: string) {
     const isSelf = actor.role === AccountRole.TEACHER && actor.id === teacherId;
     const isAdmin = actor.role === AccountRole.ADMIN;
-    if (!isSelf && !isAdmin) throw new ForbiddenException('명세서 조회 권한이 없습니다.');
+    if (!isSelf && !isAdmin)
+      throw new ForbiddenException('명세서 조회 권한이 없습니다.');
     if (isAdmin) await this.assertTeacherCenter(actor, teacherId);
     const { start, label } = this.periodBounds(period);
     const row = await this.prisma.payroll_estimate.findFirst({
       where: { teacher_id: teacherId, cycle: 'monthly', period_start: start },
-      include: { teacher_profile: { include: { account: { select: { name: true } }, center: { select: { name: true } } } } },
+      include: {
+        teacher_profile: {
+          include: {
+            account: { select: { name: true } },
+            center: { select: { name: true } },
+          },
+        },
+      },
     });
     if (!row) throw new NotFoundException('해당 기간 확정 정산이 없습니다.');
     return {
@@ -384,16 +569,30 @@ export class PayrollService {
     //   그 달 confirmed_amount 로 기록해 월이 갈수록 금액이 계속 커졌다. 반대로 payslip·financeReport 는
     //   월을 잘라서, **선생님 화면과 관리자 명세가 구조적으로 어긋났다.**
     //   기준은 payslip 과 동일하게 `booking.start_at`(예약 시작 시각) — 두 경로가 같은 기간·같은 금액을 내야 한다.
-    const { start, endExclusive, label: periodLabel } = this.periodBounds(period);
+    const {
+      start,
+      endExclusive,
+      label: periodLabel,
+    } = this.periodBounds(period);
     const inPeriod = { start_at: { gte: start, lt: endExclusive } };
     const [doneAgg, upAgg] = await Promise.all([
       this.prisma.booking.aggregate({
-        where: { teacher_id: teacherId, status: BookingStatus.DONE, ...inPeriod },
-        _sum: { charged_credits: true }, _count: { _all: true },
+        where: {
+          teacher_id: teacherId,
+          status: BookingStatus.DONE,
+          ...inPeriod,
+        },
+        _sum: { charged_credits: true },
+        _count: { _all: true },
       }),
       this.prisma.booking.aggregate({
-        where: { teacher_id: teacherId, status: BookingStatus.CONFIRMED, ...inPeriod },
-        _sum: { charged_credits: true }, _count: { _all: true },
+        where: {
+          teacher_id: teacherId,
+          status: BookingStatus.CONFIRMED,
+          ...inPeriod,
+        },
+        _sum: { charged_credits: true },
+        _count: { _all: true },
       }),
     ]);
     const { sharePct } = await this.getSharePolicy();
@@ -402,8 +601,16 @@ export class PayrollService {
     const upCredits = upAgg._sum.charged_credits ?? 0;
     const confirmedRevenue = Math.round(doneCredits * CREDIT_WON_RATIO); // 원
     const upcomingRevenue = Math.round(upCredits * CREDIT_WON_RATIO);
-    const confirmedAmount = this.grossByModel(confirmedRevenue, sharePct, model);
-    const expectedAmount = this.grossByModel(confirmedRevenue + upcomingRevenue, sharePct, model);
+    const confirmedAmount = this.grossByModel(
+      confirmedRevenue,
+      sharePct,
+      model,
+    );
+    const expectedAmount = this.grossByModel(
+      confirmedRevenue + upcomingRevenue,
+      sharePct,
+      model,
+    );
 
     return {
       teacherId,
@@ -412,7 +619,7 @@ export class PayrollService {
       period: periodLabel,
       confirmedAmount,
       expectedAmount,
-      incentive: 0,          // 인센티브는 급여 모델(base_incentive)로 흡수 — 별도 항목 없음
+      incentive: 0, // 인센티브는 급여 모델(base_incentive)로 흡수 — 별도 항목 없음
       incentiveOn: false,
       breakdown: {
         model: model.mode,
@@ -422,8 +629,8 @@ export class PayrollService {
         upcomingSessions: upAgg._count._all,
         confirmedCredits: doneCredits,
         upcomingCredits: upCredits,
-        confirmedRevenue,      // 확정 원 매출
-        upcomingRevenue,       // 예정 원 매출
+        confirmedRevenue, // 확정 원 매출
+        upcomingRevenue, // 예정 원 매출
         base: model.base,
       },
       rates: {
@@ -435,5 +642,4 @@ export class PayrollService {
       gradeTable: {},
     };
   }
-
 }

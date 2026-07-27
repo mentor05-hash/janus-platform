@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common';
 import { GuardianConsentModule } from '../guardian-consent/guardian-consent.module';
 import { NotificationModule } from '../notification/notification.module';
-import { GuardianPlanController, StudentPlanProposalController } from './guardian-plan.controller';
+import {
+  GuardianPlanController,
+  StudentPlanProposalController,
+} from './guardian-plan.controller';
 import { GuardianPlanService } from './guardian-plan.service';
 
 /**

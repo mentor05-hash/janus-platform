@@ -14,7 +14,8 @@ export class CurriculumService {
   ) {}
 
   async myPlan(user: AuthUser) {
-    if (user.role !== AccountRole.STUDENT) throw new ForbiddenException('학생만 학습 플랜을 볼 수 있습니다.');
+    if (user.role !== AccountRole.STUDENT)
+      throw new ForbiddenException('학생만 학습 플랜을 볼 수 있습니다.');
 
     // 1) 최신 진단 → 약점 유형
     let weak: { subject: string; unit: string; rate: number }[] = [];
@@ -23,15 +24,26 @@ export class CurriculumService {
     if (attempts.length) {
       attemptId = attempts[0].id;
       const detail = await this.diag.detail(user, attemptId);
-      weak = detail.units.filter((u) => u.weak).map((u) => ({ subject: u.subject, unit: u.unit, rate: u.rate }));
+      weak = detail.units
+        .filter((u) => u.weak)
+        .map((u) => ({ subject: u.subject, unit: u.unit, rate: u.rate }));
     }
 
     // 2) 최신 성적 → 요약 라벨
-    const report = await this.prisma.score_report.findFirst({ where: { student_id: user.id }, orderBy: { period: 'desc' } });
+    const report = await this.prisma.score_report.findFirst({
+      where: { student_id: user.id },
+      orderBy: { period: 'desc' },
+    });
     const pl = (report?.placement as Record<string, unknown> | null) ?? null;
     const nb = pl?.nb;
     const score: PlanScore = report
-      ? { hasScore: true, label: typeof nb === 'number' ? `전국누백 ${nb}% · ${(pl?.gye as string) ?? '계열 미상'}` : `표점 입력 · ${(pl?.gye as string) ?? '계열 미상'}` }
+      ? {
+          hasScore: true,
+          label:
+            typeof nb === 'number'
+              ? `전국누백 ${nb}% · ${(pl?.gye as string) ?? '계열 미상'}`
+              : `표점 입력 · ${(pl?.gye as string) ?? '계열 미상'}`,
+        }
       : { hasScore: false, label: '성적 미입력 — 성적진단에서 입력하세요' };
 
     return { ...buildWeeklyPlan(weak, score), latestAttemptId: attemptId };

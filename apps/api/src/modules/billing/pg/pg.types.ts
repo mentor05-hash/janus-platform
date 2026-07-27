@@ -23,7 +23,8 @@ export interface PgProvider {
 }
 
 /** PG 웹훅 정규화 이벤트 — 벤더별 페이로드를 이 형태로 매핑해 처리(§9 O2). */
-export type PgWebhookType = 'payment.paid' | 'payment.failed' | 'payment.refunded';
+export type PgWebhookType =
+  'payment.paid' | 'payment.failed' | 'payment.refunded';
 export interface PgWebhookEvent {
   /** 벤더 고유 이벤트 ID — (provider,eventId) 로 멱등 처리. */
   eventId: string;

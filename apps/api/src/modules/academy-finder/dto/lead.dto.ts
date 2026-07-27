@@ -1,4 +1,10 @@
-import { IsBoolean, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
 /**
  * 상담 신청(리드) — 전달 정보는 "요약 + 동의 범위"만(§4). 개별 성적 상세는 전달하지 않는다.

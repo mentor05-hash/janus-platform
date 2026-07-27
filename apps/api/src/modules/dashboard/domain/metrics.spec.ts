@@ -99,7 +99,9 @@ describe('dashboard metrics (순수)', () => {
 
   it('buildPriorityCase: 앞일수록 작은 값(=먼저 선택), 미정의는 끝', () => {
     const sql = buildPriorityCase('status', ['done', 'noshow']);
-    expect(sql).toBe("CASE status WHEN 'done' THEN 0 WHEN 'noshow' THEN 1 ELSE 2 END");
+    expect(sql).toBe(
+      "CASE status WHEN 'done' THEN 0 WHEN 'noshow' THEN 1 ELSE 2 END",
+    );
     // 완료가 노쇼보다 우선(작은 값)
     expect(STATUS_DEDUP_ORDER.indexOf('done')).toBeLessThan(
       STATUS_DEDUP_ORDER.indexOf('noshow'),

@@ -17,7 +17,10 @@ export class OpsController {
 
   /** PUT /admin/ops-settings — 운영 정책 저장(본사 마스터, 서비스 가드). */
   @Put('ops-settings')
-  putOpsSetting(@CurrentUser() user: AuthUser, @Body() dto: { key: string; value: unknown }) {
+  putOpsSetting(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: { key: string; value: unknown },
+  ) {
     return this.ops.putOpsSetting(user, String(dto?.key ?? ''), dto?.value);
   }
 

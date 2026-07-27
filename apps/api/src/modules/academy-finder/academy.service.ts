@@ -10,7 +10,14 @@ import {
 } from './provenance';
 import { bestClassFitRatio, classFitRatio, scoreAcademy } from './scoring';
 
-type ClassRow = { subject: string; level: string; target_grades: string[]; tuition_krw: number | null; tuition_source: string; schedule: Prisma.JsonValue };
+type ClassRow = {
+  subject: string;
+  level: string;
+  target_grades: string[];
+  tuition_krw: number | null;
+  tuition_source: string;
+  schedule: Prisma.JsonValue;
+};
 type FilterReq = { subject?: string; level?: string; grade?: string };
 
 /**
@@ -28,7 +35,13 @@ export class AcademyService {
   /** class.schedule([{dow,...}]) 에 요일 포함 여부. jsonb 는 JS 로 판정(부분 매칭). */
   private classHasDay(schedule: Prisma.JsonValue, day: string): boolean {
     if (!Array.isArray(schedule)) return false;
-    return schedule.some((sl) => sl && typeof sl === 'object' && !Array.isArray(sl) && (sl as Record<string, unknown>).dow === day);
+    return schedule.some(
+      (sl) =>
+        sl &&
+        typeof sl === 'object' &&
+        !Array.isArray(sl) &&
+        (sl as Record<string, unknown>).dow === day,
+    );
   }
 
   /** 한 반이 요청 클래스 필터(과목·레벨·학년·수강료·요일)를 모두 만족하는가. */
@@ -36,22 +49,40 @@ export class AcademyService {
     if (dto.subject && c.subject !== dto.subject) return false;
     if (dto.level && c.level !== dto.level) return false;
     if (dto.grade && !c.target_grades.includes(dto.grade)) return false;
-    if (dto.tuitionMax != null && !(c.tuition_krw != null && c.tuition_krw <= dto.tuitionMax)) return false;
+    if (
+      dto.tuitionMax != null &&
+      !(c.tuition_krw != null && c.tuition_krw <= dto.tuitionMax)
+    )
+      return false;
     if (dto.day && !this.classHasDay(c.schedule, dto.day)) return false;
     return true;
   }
 
   /** GET /academies — 카드 리스트(필터·§5 스코어 정렬·페이지네이션). */
   async search(dto: AcademySearchDto) {
-    const req: FilterReq = { subject: dto.subject, level: dto.level, grade: dto.grade };
-    const hasClassFilter = !!(dto.subject || dto.level || dto.grade || dto.tuitionMax != null || dto.day);
+    const req: FilterReq = {
+      subject: dto.subject,
+      level: dto.level,
+      grade: dto.grade,
+    };
+    const hasClassFilter = !!(
+      dto.subject ||
+      dto.level ||
+      dto.grade ||
+      dto.tuitionMax != null ||
+      dto.day
+    );
     const busOnly = dto.busOnly === 'true' && !!dto.dong;
 
     // 1) 코스 프리필터(WHERE, 인덱스 활용) — 이름·과목·버스경유. 정밀 반 매칭은 JS.
     const where: Prisma.academyWhereInput = { active: true };
     if (dto.q) where.name = { contains: dto.q, mode: 'insensitive' };
-    if (dto.subject) where.classes = { some: { active: true, subject: dto.subject } };
-    if (busOnly) where.bus_routes = { some: { active: true, stops: { some: { dong_code: dto.dong } } } };
+    if (dto.subject)
+      where.classes = { some: { active: true, subject: dto.subject } };
+    if (busOnly)
+      where.bus_routes = {
+        some: { active: true, stops: { some: { dong_code: dto.dong } } },
+      };
 
     // 2) 후보 로드(신선도 순, 상한). 정밀 필터·채점은 JS.
     const candidates = await this.prisma.academy.findMany({
@@ -63,40 +94,74 @@ export class AcademyService {
         cohort_stats: { where: { source: 'verified' }, take: 1 },
         bus_routes: {
           where: { active: true },
-          include: { stops: dto.dong ? { where: { dong_code: dto.dong } } : { take: 0 } },
+          include: {
+            stops: dto.dong ? { where: { dong_code: dto.dong } } : { take: 0 },
+          },
         },
       },
     });
     const capped = candidates.length >= AcademyService.CANDIDATE_CAP;
-    if (capped) this.logger.warn(`후보 상한(${AcademyService.CANDIDATE_CAP}) 도달 — 일부 결과가 채점 대상에서 제외될 수 있음(meta.capped).`);
+    if (capped)
+      this.logger.warn(
+        `후보 상한(${AcademyService.CANDIDATE_CAP}) 도달 — 일부 결과가 채점 대상에서 제외될 수 있음(meta.capped).`,
+      );
 
     const now = Date.now();
     // 3) 정밀 필터 + 채점.
     const scored = candidates
       .map((a) => {
-        const matchingClasses = hasClassFilter ? a.classes.filter((c) => this.classMatches(c, dto)) : a.classes;
+        const matchingClasses = hasClassFilter
+          ? a.classes.filter((c) => this.classMatches(c, dto))
+          : a.classes;
         if (hasClassFilter && matchingClasses.length === 0) return null; // 요청 필터 불충족 → 제외
-        const busPass = !!dto.dong && a.bus_routes.some((r) => r.stops.length > 0);
+        const busPass =
+          !!dto.dong && a.bus_routes.some((r) => r.stops.length > 0);
         const walkMin = this.walkMin(a.nearest_station);
         const verified = a.cohort_stats.length > 0;
-        const ageDays = Math.max(0, Math.floor((now - new Date(a.updated_at).getTime()) / 86_400_000));
-        const score = scoreAcademy({ bestClassFitRatio: bestClassFitRatio(a.classes, req), busPass, walkMin, verified, ageDays });
+        const ageDays = Math.max(
+          0,
+          Math.floor((now - new Date(a.updated_at).getTime()) / 86_400_000),
+        );
+        const score = scoreAcademy({
+          bestClassFitRatio: bestClassFitRatio(a.classes, req),
+          busPass,
+          walkMin,
+          verified,
+          ageDays,
+        });
         // 대표 반: 매칭 반 중 적합도 최고 → 저렴 순.
-        const rep = [...matchingClasses].sort((x, y) => classFitRatio(y, req) - classFitRatio(x, req) || (x.tuition_krw ?? Infinity) - (y.tuition_krw ?? Infinity))[0];
+        const rep = [...matchingClasses].sort(
+          (x, y) =>
+            classFitRatio(y, req) - classFitRatio(x, req) ||
+            (x.tuition_krw ?? Infinity) - (y.tuition_krw ?? Infinity),
+        )[0];
         return { a, busPass, verified, score, rep };
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
 
     // 4) 정렬.
     scored.sort((p, q) => {
-      if (dto.sort === 'tuition') return (p.rep?.tuition_krw ?? Infinity) - (q.rep?.tuition_krw ?? Infinity);
-      if (dto.sort === 'fresh') return new Date(q.a.updated_at).getTime() - new Date(p.a.updated_at).getTime();
-      return q.score - p.score || new Date(q.a.updated_at).getTime() - new Date(p.a.updated_at).getTime(); // 기본 score
+      if (dto.sort === 'tuition')
+        return (
+          (p.rep?.tuition_krw ?? Infinity) - (q.rep?.tuition_krw ?? Infinity)
+        );
+      if (dto.sort === 'fresh')
+        return (
+          new Date(q.a.updated_at).getTime() -
+          new Date(p.a.updated_at).getTime()
+        );
+      return (
+        q.score - p.score ||
+        new Date(q.a.updated_at).getTime() - new Date(p.a.updated_at).getTime()
+      ); // 기본 score
     });
 
     // 5) 페이지네이션(JS slice).
     const total = scored.length;
-    const pageRows = scored.slice((dto.page - 1) * dto.size, (dto.page - 1) * dto.size + dto.size);
+    const pageRows = scored.slice(
+      (dto.page - 1) * dto.size,
+      (dto.page - 1) * dto.size + dto.size,
+    );
     const data = pageRows.map(({ a, busPass, verified, score, rep }) => ({
       id: a.id,
       name: a.name,
@@ -109,16 +174,29 @@ export class AcademyService {
       busPass,
       score,
       repClass: rep
-        ? { subject: rep.subject, level: rep.level, tuitionKrw: rep.tuition_krw, tuitionLabel: tuitionSourceLabel(rep.tuition_source) }
+        ? {
+            subject: rep.subject,
+            level: rep.level,
+            tuitionKrw: rep.tuition_krw,
+            tuitionLabel: tuitionSourceLabel(rep.tuition_source),
+          }
         : null,
     }));
 
-    return { data, meta: { ...buildPageMeta(total, dto.page, dto.size), sort: dto.sort ?? 'score', capped } };
+    return {
+      data,
+      meta: {
+        ...buildPageMeta(total, dto.page, dto.size),
+        sort: dto.sort ?? 'score',
+        capped,
+      },
+    };
   }
 
   /** nearest_station JSON 에서 도보 분 추출(없으면 null). */
   private walkMin(nearest: Prisma.JsonValue): number | null {
-    if (!nearest || typeof nearest !== 'object' || Array.isArray(nearest)) return null;
+    if (!nearest || typeof nearest !== 'object' || Array.isArray(nearest))
+      return null;
     const w = (nearest as Record<string, unknown>).walk_min;
     return typeof w === 'number' ? w : null;
   }
@@ -128,7 +206,10 @@ export class AcademyService {
     const a = await this.prisma.academy.findFirst({
       where: { id, active: true },
       include: {
-        classes: { where: { active: true }, orderBy: [{ subject: 'asc' }, { tuition_krw: 'asc' }] },
+        classes: {
+          where: { active: true },
+          orderBy: [{ subject: 'asc' }, { tuition_krw: 'asc' }],
+        },
         bus_routes: {
           where: { active: true },
           include: { stops: { orderBy: { seq: 'asc' } } },

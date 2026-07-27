@@ -1,7 +1,17 @@
 import { buildGapReport, type GapInput } from './gap-report';
 
-const jeongsi = (nb: number, cut: number): GapInput => ({ mode: 'jeongsi', gye: '이과', myValue: nb, target: { univ: '서울대', dept: '컴퓨터공학', cut } });
-const susi = (g: number, cut: number): GapInput => ({ mode: 'susi', gye: '문과', myValue: g, target: { univ: '서울대', dept: '경영학', cut } });
+const jeongsi = (nb: number, cut: number): GapInput => ({
+  mode: 'jeongsi',
+  gye: '이과',
+  myValue: nb,
+  target: { univ: '서울대', dept: '컴퓨터공학', cut },
+});
+const susi = (g: number, cut: number): GapInput => ({
+  mode: 'susi',
+  gye: '문과',
+  myValue: g,
+  target: { univ: '서울대', dept: '경영학', cut },
+});
 
 describe('buildGapReport (janus_report · 정시/수시)', () => {
   it('정시: 목표 누백까지 부족(소신)·shortfall·단위', () => {
@@ -29,9 +39,13 @@ describe('buildGapReport (janus_report · 정시/수시)', () => {
   });
 
   it('C5: 모든 evidence 에 relTier(정시·수시 모두)', () => {
-    for (const r of [buildGapReport(jeongsi(1.6, 1.5)), buildGapReport(susi(2.0, 1.8))]) {
+    for (const r of [
+      buildGapReport(jeongsi(1.6, 1.5)),
+      buildGapReport(susi(2.0, 1.8)),
+    ]) {
       expect(r.evidence.length).toBeGreaterThan(0);
-      for (const e of r.evidence) expect(['measured', 'multiyear', 'estimated']).toContain(e.relTier);
+      for (const e of r.evidence)
+        expect(['measured', 'multiyear', 'estimated']).toContain(e.relTier);
     }
   });
 
@@ -42,15 +56,23 @@ describe('buildGapReport (janus_report · 정시/수시)', () => {
   });
 
   it('업셀 윤리: 무료 액션 + consult-reserve(양 모드)', () => {
-    for (const r of [buildGapReport(jeongsi(2.0, 1.5)), buildGapReport(susi(2.5, 1.8))]) {
+    for (const r of [
+      buildGapReport(jeongsi(2.0, 1.5)),
+      buildGapReport(susi(2.5, 1.8)),
+    ]) {
       expect(r.prescription.actions.some((a) => a.free)).toBe(true);
-      expect(r.prescription.actions.some((a) => a.ctaId === 'consult-reserve')).toBe(true);
+      expect(
+        r.prescription.actions.some((a) => a.ctaId === 'consult-reserve'),
+      ).toBe(true);
     }
   });
 });
 
 describe('회차 변동성 판정(O108) — 한 점으로 단정하지 않기', () => {
-  const withRecent = (nb: number, cut: number, recent: number[]): GapInput => ({ ...jeongsi(nb, cut), recent });
+  const withRecent = (nb: number, cut: number, recent: number[]): GapInput => ({
+    ...jeongsi(nb, cut),
+    recent,
+  });
 
   it('recent 없으면 volatility=null (기존 페이로드·소비자 호환)', () => {
     expect(buildGapReport(jeongsi(2.0, 1.5)).volatility).toBeNull();
@@ -83,8 +105,13 @@ describe('회차 변동성 판정(O108) — 한 점으로 단정하지 않기', 
   });
 
   it('3회 미만이면 smallSample=true (해석 주의)', () => {
-    expect(buildGapReport(withRecent(2.0, 1.5, [1.8, 2.0]))!.volatility!.smallSample).toBe(true);
-    expect(buildGapReport(withRecent(2.0, 1.5, [1.8, 1.9, 2.0]))!.volatility!.smallSample).toBe(false);
+    expect(
+      buildGapReport(withRecent(2.0, 1.5, [1.8, 2.0]))!.volatility!.smallSample,
+    ).toBe(true);
+    expect(
+      buildGapReport(withRecent(2.0, 1.5, [1.8, 1.9, 2.0]))!.volatility!
+        .smallSample,
+    ).toBe(false);
   });
 
   it('점 판정(gap.band)은 최신 회차 기준으로 그대로 유지된다(정본 계약 불변)', () => {
@@ -94,7 +121,10 @@ describe('회차 변동성 판정(O108) — 한 점으로 단정하지 않기', 
   });
 
   it('수시(등급)도 같은 방향으로 동작한다 — 낮을수록 상위', () => {
-    const v = buildGapReport({ ...susi(2.3, 1.8), recent: [1.7, 2.3] })!.volatility!;
+    const v = buildGapReport({
+      ...susi(2.3, 1.8),
+      recent: [1.7, 2.3],
+    })!.volatility!;
     expect(v.best).toBe(1.7);
     expect(v.bestBand).toBe('적정');
     expect(v.message).toContain('등급');
@@ -105,7 +135,18 @@ describe('회차 변동성 판정(O108) — 한 점으로 단정하지 않기', 
     // ⚠ 이 배열은 **σ 가드**다 — 필드를 추가할 때 배열만 확장하고, 표준편차·신뢰구간·가중평균 종류의
     //    키를 넣으려는 순간 여기서 막히도록 남겨둔다(삭제 금지).
     expect(Object.keys(v).sort()).toEqual(
-      ['best', 'bestBand', 'consistent', 'count', 'direction', 'message', 'smallSample', 'spread', 'worst', 'worstBand'].sort(),
+      [
+        'best',
+        'bestBand',
+        'consistent',
+        'count',
+        'direction',
+        'message',
+        'smallSample',
+        'spread',
+        'worst',
+        'worstBand',
+      ].sort(),
     );
   });
 
@@ -114,7 +155,9 @@ describe('회차 변동성 판정(O108) — 한 점으로 단정하지 않기', 
   it('꾸준히 향상한 이력은 변동이 아니라 향상으로 서술한다(사실과 다른 운 프레이밍 방지)', () => {
     // 컷 2.0 · 2.4 → 2.1 → 1.8 (누백은 낮을수록 상위 = 계속 향상). best 1.8/worst 2.4 로 밴드는 갈리지만
     // "회차에 따라 갈립니다 · 한 회차로 단정하지 마세요" 는 사실과 다르다.
-    const v = buildGapReport(withRecent(1.8, 2.0, [2.4, 2.1, 1.8]))!.volatility!;
+    const v = buildGapReport(
+      withRecent(1.8, 2.0, [2.4, 2.1, 1.8]),
+    )!.volatility!;
     expect(v.consistent).toBe(false);
     expect(v.direction).toBe('improving');
     expect(v.message).toContain('꾸준히 올랐어요');
@@ -125,23 +168,31 @@ describe('회차 변동성 판정(O108) — 한 점으로 단정하지 않기', 
   });
 
   it('계속 하락한 이력은 최근 회차가 지금 위치라고 말한다', () => {
-    const v = buildGapReport(withRecent(2.4, 2.0, [1.8, 2.1, 2.4]))!.volatility!;
+    const v = buildGapReport(
+      withRecent(2.4, 2.0, [1.8, 2.1, 2.4]),
+    )!.volatility!;
     expect(v.direction).toBe('worsening');
     expect(v.message).toContain('계속 내려갔어요');
   });
 
   it('오르내림이 섞이면 mixed — 이때만 "한 회차로 단정하지 마세요"', () => {
-    const v = buildGapReport(withRecent(2.2, 2.0, [1.7, 2.5, 2.2]))!.volatility!;
+    const v = buildGapReport(
+      withRecent(2.2, 2.0, [1.7, 2.5, 2.2]),
+    )!.volatility!;
     expect(v.direction).toBe('mixed');
     expect(v.message).toContain('단정하지 마세요');
   });
 
   it('2회뿐이면 방향을 판정하지 않는다 — 2점으로 추세를 말하는 건 smallSample 경고와 모순', () => {
-    expect(buildGapReport(withRecent(1.8, 2.0, [2.4, 1.8]))!.volatility!.direction).toBeNull();
+    expect(
+      buildGapReport(withRecent(1.8, 2.0, [2.4, 1.8]))!.volatility!.direction,
+    ).toBeNull();
   });
 
   it('전 회차 동일값이면 변동 없음으로 서술하고 방향도 없다', () => {
-    const v = buildGapReport(withRecent(2.3, 2.0, [2.3, 2.3, 2.3]))!.volatility!;
+    const v = buildGapReport(
+      withRecent(2.3, 2.0, [2.3, 2.3, 2.3]),
+    )!.volatility!;
     expect(v.spread).toBe(0);
     expect(v.direction).toBeNull();
     expect(v.consistent).toBe(true);

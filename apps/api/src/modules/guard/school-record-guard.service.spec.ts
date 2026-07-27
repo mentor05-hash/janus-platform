@@ -24,7 +24,11 @@ function llmStub(label: 'yes' | 'no' | 'unsure'): LlmProvider {
   } as unknown as LlmProvider;
 }
 function textFile(text: string, name = 'q.txt') {
-  return { buffer: Buffer.from(text, 'utf8'), originalname: name, mimetype: 'text/plain' };
+  return {
+    buffer: Buffer.from(text, 'utf8'),
+    originalname: name,
+    mimetype: 'text/plain',
+  };
 }
 
 describe('SchoolRecordGuardService', () => {
@@ -43,37 +47,49 @@ describe('SchoolRecordGuardService', () => {
     });
 
     it('생기부 파일명 → 차단(SR_FILENAME)', async () => {
-      const v = await guard.inspect(textFile('임의 내용', '2026_생활기록부.pdf'));
+      const v = await guard.inspect(
+        textFile('임의 내용', '2026_생활기록부.pdf'),
+      );
       expect(v.blocked).toBe(true);
       expect(v.reason).toBe('SR_FILENAME');
     });
 
     it('키워드 1개(임계 미달) → 통과', async () => {
-      const v = await guard.inspect(textFile('학교생활세부사항기록부 안내문 (서식 아님)'));
+      const v = await guard.inspect(
+        textFile('학교생활세부사항기록부 안내문 (서식 아님)'),
+      );
       expect(v.blocked).toBe(false);
     });
 
     it('assertUploadAllowed: 생기부 감지 시 SchoolRecordBlockedException', async () => {
-      await expect(guard.assertUploadAllowed(textFile(MOCK_SR_TEXT))).rejects.toBeInstanceOf(
-        SchoolRecordBlockedException,
-      );
+      await expect(
+        guard.assertUploadAllowed(textFile(MOCK_SR_TEXT)),
+      ).rejects.toBeInstanceOf(SchoolRecordBlockedException);
     });
 
     it('assertUploadAllowed: 성적표는 통과(예외 없음)', async () => {
-      await expect(guard.assertUploadAllowed(textFile(MOCK_SCORE_TEXT))).resolves.toBeUndefined();
+      await expect(
+        guard.assertUploadAllowed(textFile(MOCK_SCORE_TEXT)),
+      ).resolves.toBeUndefined();
     });
   });
 
   describe('정책 비활성(guard.schoolRecord.enabled=false) → 무판정 통과', () => {
     it('enabled=false 면 생기부 텍스트도 통과', async () => {
-      const guard = new SchoolRecordGuardService(configStub({ GUARD_SR_ENABLED: 'false' }));
+      const guard = new SchoolRecordGuardService(
+        configStub({ GUARD_SR_ENABLED: 'false' }),
+      );
       const v = await guard.inspect(textFile(MOCK_SR_TEXT));
       expect(v.blocked).toBe(false);
     });
   });
 
   describe('비전 단계(§5 3단, forceVision — 성적표 OCR 경로)', () => {
-    const imageFile = { buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47]), originalname: 'photo.png', mimetype: 'image/png' };
+    const imageFile = {
+      buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47]),
+      originalname: 'photo.png',
+      mimetype: 'image/png',
+    };
 
     it('분류기 yes → 차단(SR_VISION)', async () => {
       const guard = new SchoolRecordGuardService(configStub(), llmStub('yes'));
@@ -89,7 +105,10 @@ describe('SchoolRecordGuardService', () => {
     });
 
     it('분류기 unsure → 보수적 차단(SR_UNSURE)', async () => {
-      const guard = new SchoolRecordGuardService(configStub(), llmStub('unsure'));
+      const guard = new SchoolRecordGuardService(
+        configStub(),
+        llmStub('unsure'),
+      );
       const v = await guard.inspect(imageFile, { forceVision: true });
       expect(v.blocked).toBe(true);
       expect(v.reason).toBe('SR_UNSURE');

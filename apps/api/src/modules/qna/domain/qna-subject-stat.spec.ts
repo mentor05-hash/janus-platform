@@ -43,13 +43,21 @@ describe('aggregateSubjectStats (N33 과목 오각형 원천)', () => {
       { subject: '수학', accepted: true },
       { subject: '수학', accepted: true },
     ]);
-    expect(stats.map((s) => s.subject)).toEqual(['수학', '영어', OTHER_SUBJECT]);
+    expect(stats.map((s) => s.subject)).toEqual([
+      '수학',
+      '영어',
+      OTHER_SUBJECT,
+    ]);
   });
 
   it('과목별 리그 등급 = 리그 정책 재사용(요건 충족 과목만 승급)', () => {
     // promote2 기본: minAuthored 5·minAccepted 3·minRate 50
-    const rows = Array.from({ length: 6 }, () => ({ subject: '수학', accepted: true }))
-      .concat(Array.from({ length: 2 }, () => ({ subject: '영어', accepted: true })));
+    const rows = Array.from({ length: 6 }, () => ({
+      subject: '수학',
+      accepted: true,
+    })).concat(
+      Array.from({ length: 2 }, () => ({ subject: '영어', accepted: true })),
+    );
     const stats = aggregateSubjectStats(rows, DEFAULT_LEAGUE_POLICY);
     const math = stats.find((s) => s.subject === '수학')!;
     const eng = stats.find((s) => s.subject === '영어')!;
@@ -71,8 +79,12 @@ describe('aggregateSubjectStats (N33 과목 오각형 원천)', () => {
   });
 
   it('㉙ 노출 게이트 — authored≥minAuthored(5)만 visible', () => {
-    const rows = Array.from({ length: 5 }, () => ({ subject: '수학', accepted: false }))
-      .concat(Array.from({ length: 4 }, () => ({ subject: '영어', accepted: false })));
+    const rows = Array.from({ length: 5 }, () => ({
+      subject: '수학',
+      accepted: false,
+    })).concat(
+      Array.from({ length: 4 }, () => ({ subject: '영어', accepted: false })),
+    );
     const stats = aggregateSubjectStats(rows, DEFAULT_LEAGUE_POLICY);
     expect(stats.find((s) => s.subject === '수학')!.visible).toBe(true); // 5건 → 표시 자격
     expect(stats.find((s) => s.subject === '영어')!.visible).toBe(false); // 4건 → 쌓는 중

@@ -16,12 +16,25 @@ export interface SliceResult {
 }
 
 /** q(2자+)가 행의 문자열 필드 어딘가에 포함되면 일치. limit 는 1..SLICE_MAX_ROWS 로 강제. */
-export function filterSliceRows(rows: SliceRow[], q: string, limit = SLICE_MAX_ROWS): SliceResult {
+export function filterSliceRows(
+  rows: SliceRow[],
+  q: string,
+  limit = SLICE_MAX_ROWS,
+): SliceResult {
   const term = (q ?? '').trim();
-  if (term.length < SLICE_MIN_QUERY) return { available: true, total: 0, rows: [], capped: false };
-  const lim = Math.min(SLICE_MAX_ROWS, Math.max(1, Math.floor(limit) || SLICE_MAX_ROWS));
+  if (term.length < SLICE_MIN_QUERY)
+    return { available: true, total: 0, rows: [], capped: false };
+  const lim = Math.min(
+    SLICE_MAX_ROWS,
+    Math.max(1, Math.floor(limit) || SLICE_MAX_ROWS),
+  );
   const matched = rows.filter((r) =>
     Object.values(r).some((v) => typeof v === 'string' && v.includes(term)),
   );
-  return { available: true, total: matched.length, rows: matched.slice(0, lim), capped: matched.length > lim };
+  return {
+    available: true,
+    total: matched.length,
+    rows: matched.slice(0, lim),
+    capped: matched.length > lim,
+  };
 }

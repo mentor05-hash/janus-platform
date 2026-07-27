@@ -5,7 +5,9 @@
 export const VERIFIED_MIN_N = Number(process.env.ACADEMY_VERIFIED_MIN_N) || 5;
 
 /** 등급(1~9) → 성적 밴드. 스펙 §2 payload 키. */
-export function gradeToBand(grade: number): '1-2' | '3-4' | '5-6' | '7-9' | null {
+export function gradeToBand(
+  grade: number,
+): '1-2' | '3-4' | '5-6' | '7-9' | null {
   if (!Number.isFinite(grade)) return null;
   if (grade < 1) return null; // 등급 체계는 1~9 — 하한 밖(0·음수)은 무효
   if (grade <= 2) return '1-2';
@@ -22,11 +24,19 @@ const BANDS = ['1-2', '3-4', '5-6', '7-9'] as const;
  * 개별 등급은 저장하지 않는다(분포만).
  */
 export function toBandPercent(grades: number[]): Record<string, number> {
-  const counts: Record<string, number> = { '1-2': 0, '3-4': 0, '5-6': 0, '7-9': 0 };
+  const counts: Record<string, number> = {
+    '1-2': 0,
+    '3-4': 0,
+    '5-6': 0,
+    '7-9': 0,
+  };
   let n = 0;
   for (const g of grades) {
     const b = gradeToBand(g);
-    if (b) { counts[b] += 1; n += 1; }
+    if (b) {
+      counts[b] += 1;
+      n += 1;
+    }
   }
   if (n === 0) return {};
   const pct: Record<string, number> = {};

@@ -1,5 +1,13 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
-import { ArrayMaxSize, IsArray, IsIn, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsIn,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+} from 'class-validator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
@@ -15,9 +23,19 @@ class SsoTokenDto {
 class SsoServiceDto {
   @IsString() @MaxLength(40) @Matches(SLUG) id!: string;
   @IsString() @MaxLength(80) name!: string;
-  @IsOptional() @IsArray() @ArrayMaxSize(10) @IsString({ each: true }) allowedScopes?: string[];
-  @IsOptional() @IsIn(['free', 'member', 'paid', 'consultant']) minTier?: string;
-  @IsOptional() @IsArray() @ArrayMaxSize(10) @IsString({ each: true }) redirectOrigins?: string[];
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  allowedScopes?: string[];
+  @IsOptional()
+  @IsIn(['free', 'member', 'paid', 'consultant'])
+  minTier?: string;
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  redirectOrigins?: string[];
 }
 
 @Controller()

@@ -27,7 +27,8 @@ export const POLICY_REASON = {
 } as const;
 
 /** system_setting 키 — 컨설팅 신규 생기부 업로드 비활성 토글(런타임 가변, 요청 시 조회). */
-export const CONSULTING_UPLOAD_DISABLED_KEY = 'guard.schoolRecord.consultingUploadDisabled';
+export const CONSULTING_UPLOAD_DISABLED_KEY =
+  'guard.schoolRecord.consultingUploadDisabled';
 
 /** 토글이 자동 활성되는 법령 시행 시각(지시서 §2 컨설팅 행 · 제25조의2, 2026-07-29 00:00 KST). */
 export const DEFAULT_ACTIVATION_AT = '2026-07-29T00:00:00+09:00';

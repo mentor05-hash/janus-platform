@@ -20,58 +20,105 @@ describe('학부모 계획 트랙', () => {
   let prevIsMinor: boolean | null = null;
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     await app.init();
     prisma = mod.get(PrismaService);
     plan = mod.get(GuardianPlanService);
     consent = mod.get(GuardianConsentService);
-    const s = await prisma.account.findFirstOrThrow({ where: { login_id: 'student01' }, select: { id: true, center_id: true } });
-    const g = await prisma.account.findFirstOrThrow({ where: { login_id: 'guardian01' }, select: { id: true, center_id: true } });
+    const s = await prisma.account.findFirstOrThrow({
+      where: { login_id: 'student01' },
+      select: { id: true, center_id: true },
+    });
+    const g = await prisma.account.findFirstOrThrow({
+      where: { login_id: 'guardian01' },
+      select: { id: true, center_id: true },
+    });
     student = { id: s.id, role: 'student', centerId: s.center_id };
     guardian = { id: g.id, role: 'guardian', centerId: g.center_id };
     // 승인된 연결을 **이 스펙이 보장**한다 — guardian.e2e-spec 이 afterAll 에서 링크를 지우고 복원하지 않아
     // 전체 e2e 순서에 따라 이 스위트가 통째로 무너졌다(데모 시드에도 링크가 없다).
     await prisma.guardian_student_link.upsert({
-      where: { guardian_id_student_id: { guardian_id: g.id, student_id: s.id } },
-      create: { guardian_id: g.id, student_id: s.id, relation: '모', status: 'approved', link_method: 'test' },
+      where: {
+        guardian_id_student_id: { guardian_id: g.id, student_id: s.id },
+      },
+      create: {
+        guardian_id: g.id,
+        student_id: s.id,
+        relation: '모',
+        status: 'approved',
+        link_method: 'test',
+      },
       update: { status: 'approved' },
     });
 
-    const uc = await prisma.user_consent.findUnique({ where: { account_id: s.id }, select: { is_minor: true } });
+    const uc = await prisma.user_consent.findUnique({
+      where: { account_id: s.id },
+      select: { is_minor: true },
+    });
     prevIsMinor = uc?.is_minor ?? null;
     await prisma.guardian_plan_item.deleteMany({ where: { student_id: s.id } });
-    await prisma.student_task.deleteMany({ where: { student_id: s.id, created_by: 'guardian' } });
-    await prisma.student_share_consent.deleteMany({ where: { student_id: s.id } });
+    await prisma.student_task.deleteMany({
+      where: { student_id: s.id, created_by: 'guardian' },
+    });
+    await prisma.student_share_consent.deleteMany({
+      where: { student_id: s.id },
+    });
   });
 
   afterAll(async () => {
-    await prisma.guardian_plan_item.deleteMany({ where: { student_id: student.id } });
-    await prisma.student_task.deleteMany({ where: { student_id: student.id, created_by: 'guardian' } });
-    await prisma.student_share_consent.deleteMany({ where: { student_id: student.id } });
-    if (prevIsMinor !== null) await prisma.user_consent.update({ where: { account_id: student.id }, data: { is_minor: prevIsMinor } });
+    await prisma.guardian_plan_item.deleteMany({
+      where: { student_id: student.id },
+    });
+    await prisma.student_task.deleteMany({
+      where: { student_id: student.id, created_by: 'guardian' },
+    });
+    await prisma.student_share_consent.deleteMany({
+      where: { student_id: student.id },
+    });
+    if (prevIsMinor !== null)
+      await prisma.user_consent.update({
+        where: { account_id: student.id },
+        data: { is_minor: prevIsMinor },
+      });
     await app.close();
   });
 
   const setMinor = (v: boolean) =>
     prisma.user_consent.upsert({
       where: { account_id: student.id },
-      create: { account_id: student.id, terms_version: 'v1', privacy_version: 'v1', is_minor: v },
+      create: {
+        account_id: student.id,
+        terms_version: 'v1',
+        privacy_version: 'v1',
+        is_minor: v,
+      },
       update: { is_minor: v },
     });
 
-  const guardianTasks = () => prisma.student_task.findMany({ where: { student_id: student.id, created_by: 'guardian' } });
+  const guardianTasks = () =>
+    prisma.student_task.findMany({
+      where: { student_id: student.id, created_by: 'guardian' },
+    });
 
   it('학부모가 자기 트랙에 계획 추가(draft) — 학생 인박스·할 일에는 아직 없다', async () => {
-    const item = await plan.create(guardian, student.id, { title: '수학 오답노트 매일 20분', subject: '수학' });
+    const item = await plan.create(guardian, student.id, {
+      title: '수학 오답노트 매일 20분',
+      subject: '수학',
+    });
     expect(item.status).toBe('draft');
     expect(await plan.myProposals(student)).toHaveLength(0); // 제안 전이라 학생에게 안 보임
-    expect(await guardianTasks()).toHaveLength(0);           // task 도 없음
+    expect(await guardianTasks()).toHaveLength(0); // task 도 없음
   });
 
   it('draft 는 수정 가능', async () => {
     const [item] = await plan.list(guardian, student.id);
-    const upd = await plan.update(guardian, item.id, { title: '수학 오답노트 매일 30분', subject: '수학' });
+    const upd = await plan.update(guardian, item.id, {
+      title: '수학 오답노트 매일 30분',
+      subject: '수학',
+    });
     expect(upd.title).toContain('30분');
   });
 
@@ -89,7 +136,9 @@ describe('학부모 계획 트랙', () => {
 
   it('제안한 항목은 수정 불가(학생이 본 내용과 달라지지 않게)', async () => {
     const [item] = await plan.list(guardian, student.id);
-    await expect(plan.update(guardian, item.id, { title: '몰래 바꾸기' })).rejects.toThrow();
+    await expect(
+      plan.update(guardian, item.id, { title: '몰래 바꾸기' }),
+    ).rejects.toThrow();
   });
 
   it('학생 수락 → 내 할 일 생성(created_by=guardian)·상태 accepted', async () => {
@@ -107,11 +156,16 @@ describe('학부모 계획 트랙', () => {
   });
 
   it('수락을 동시에 두 번 눌러도 할 일이 하나만 생긴다(이중 탭 방어)', async () => {
-    const item = await plan.create(guardian, student.id, { title: '이중탭 방어 검증' });
+    const item = await plan.create(guardian, student.id, {
+      title: '이중탭 방어 검증',
+    });
     await plan.propose(guardian, item.id);
     const before = (await guardianTasks()).length;
     // 동시 실행 — 원자적 claim 이 없으면 둘 다 통과해 할 일이 2건 생긴다(모바일 이중 탭 실측 재현).
-    const results = await Promise.allSettled([plan.accept(student, item.id), plan.accept(student, item.id)]);
+    const results = await Promise.allSettled([
+      plan.accept(student, item.id),
+      plan.accept(student, item.id),
+    ]);
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     expect(results.filter((r) => r.status === 'rejected')).toHaveLength(1);
     expect((await guardianTasks()).length).toBe(before + 1); // 정확히 1건만 증가
@@ -123,7 +177,9 @@ describe('학부모 계획 트랙', () => {
   });
 
   it('학생 거절 → 할 일 만들지 않고 declined 로 남는다', async () => {
-    const item = await plan.create(guardian, student.id, { title: '거절될 계획' });
+    const item = await plan.create(guardian, student.id, {
+      title: '거절될 계획',
+    });
     await plan.propose(guardian, item.id);
     const before = (await guardianTasks()).length;
     const r = await plan.decline(student, item.id);
@@ -135,15 +191,24 @@ describe('학부모 계획 트랙', () => {
 
   it('성인 자녀 → 학생 공유 동의가 없으면 제안 불가', async () => {
     await setMinor(false);
-    await prisma.student_share_consent.deleteMany({ where: { student_id: student.id } });
-    const item = await plan.create(guardian, student.id, { title: '성인 자녀 제안 시도' });
+    await prisma.student_share_consent.deleteMany({
+      where: { student_id: student.id },
+    });
+    const item = await plan.create(guardian, student.id, {
+      title: '성인 자녀 제안 시도',
+    });
     await expect(plan.propose(guardian, item.id)).rejects.toThrow();
-    expect((await plan.list(guardian, student.id)).find((x) => x.id === item.id)?.status).toBe('draft');
+    expect(
+      (await plan.list(guardian, student.id)).find((x) => x.id === item.id)
+        ?.status,
+    ).toBe('draft');
   });
 
   it('성인 자녀 → 학생이 동의하면 제안 가능', async () => {
     await consent.grantShare(student, guardian.id);
-    const item = (await plan.list(guardian, student.id)).find((x) => x.status === 'draft')!;
+    const item = (await plan.list(guardian, student.id)).find(
+      (x) => x.status === 'draft',
+    )!;
     const p = await plan.propose(guardian, item.id);
     expect(p.status).toBe('proposed');
   });
@@ -157,16 +222,23 @@ describe('학부모 계획 트랙', () => {
   it('내게 오지 않은 제안은 응답 불가', async () => {
     const props = await plan.myProposals(student);
     if (props.length) {
-      const stranger = { ...student, id: '00000000-0000-4000-8000-0000000000fb' };
+      const stranger = {
+        ...student,
+        id: '00000000-0000-4000-8000-0000000000fb',
+      };
       await expect(plan.accept(stranger as any, props[0].id)).rejects.toThrow();
     }
   });
 
   it('학부모가 계획을 삭제해도 학생이 수락한 할 일은 남는다(학생 소유)', async () => {
-    const accepted = (await plan.list(guardian, student.id)).find((x) => x.status === 'accepted')!;
+    const accepted = (await plan.list(guardian, student.id)).find(
+      (x) => x.status === 'accepted',
+    )!;
     const taskId = accepted.student_task_id!;
     await plan.remove(guardian, accepted.id);
-    const task = await prisma.student_task.findUnique({ where: { id: taskId } });
+    const task = await prisma.student_task.findUnique({
+      where: { id: taskId },
+    });
     expect(task).not.toBeNull(); // FK SET NULL — 할 일은 보존
   });
 });

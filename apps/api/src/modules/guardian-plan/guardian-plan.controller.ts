@@ -1,4 +1,15 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { IsOptional, IsString, MaxLength } from 'class-validator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
@@ -27,26 +38,40 @@ export class GuardianPlanController {
 
   /** POST /guardian/plan?studentId= — 계획 추가(draft: 아직 학생에게 보이지 않음). */
   @Post()
-  create(@CurrentUser() user: AuthUser, @Body() dto: PlanItemDto, @Query('studentId') studentId?: string) {
+  create(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: PlanItemDto,
+    @Query('studentId') studentId?: string,
+  ) {
     if (!studentId) throw new BadRequestException('studentId 가 필요합니다.');
     return this.svc.create(user, studentId, dto);
   }
 
   /** PATCH /guardian/plan/{id} — 계획 수정(draft 만). */
   @Patch(':id')
-  update(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: PlanItemDto) {
+  update(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: PlanItemDto,
+  ) {
     return this.svc.update(user, id, dto);
   }
 
   /** DELETE /guardian/plan/{id} — 계획 삭제(학생이 수락해 만든 할 일은 학생 것이라 남는다). */
   @Delete(':id')
-  remove(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+  remove(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.svc.remove(user, id);
   }
 
   /** POST /guardian/plan/{id}/propose — 학생에게 제안(성인 자녀는 학생 동의 필요·O105). */
   @Post(':id/propose')
-  propose(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+  propose(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.svc.propose(user, id);
   }
 }
@@ -65,13 +90,19 @@ export class StudentPlanProposalController {
 
   /** POST /me/plan-proposals/{id}/accept — 수락 → 내 할 일 생성. */
   @Post(':id/accept')
-  accept(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+  accept(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.svc.accept(user, id);
   }
 
   /** POST /me/plan-proposals/{id}/decline — 거절(할 일 생성하지 않음). */
   @Post(':id/decline')
-  decline(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+  decline(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
     return this.svc.decline(user, id);
   }
 }

@@ -39,7 +39,9 @@ export class GatewayService {
     // (구 ENV `GATEWAY_LLM_DAILY_LIMIT` 는 llm.limits.ts 가 계속 존중한다.)
     try {
       const raw = await this.llm.interpretGateway({ text: masked });
-      const normalized = normalizeLlmResult(raw as Partial<GatewayInterpretation>);
+      const normalized = normalizeLlmResult(
+        raw as Partial<GatewayInterpretation>,
+      );
       return { ...normalized, source: 'llm', masked: hits > 0 };
     } catch (e) {
       const reason = classifyGatewayLlmFailure(e);

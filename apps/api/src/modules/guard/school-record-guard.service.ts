@@ -67,10 +67,14 @@ export class SchoolRecordGuardService {
     const patterns = this.config.get<string>('GUARD_SR_FILENAME_PATTERNS');
     const partial: PartialSchoolRecordGuardPolicy = {};
     if (enabled != null) partial.enabled = enabled !== 'false';
-    if (threshold != null && threshold !== '') partial.keywordThreshold = Number(threshold);
+    if (threshold != null && threshold !== '')
+      partial.keywordThreshold = Number(threshold);
     if (llmCheck != null) partial.llmCheck = llmCheck === 'true';
     if (patterns) {
-      const list = patterns.split(',').map((s) => s.trim()).filter(Boolean);
+      const list = patterns
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
       if (list.length) partial.filenamePatterns = list;
     }
     return resolvePolicy(partial);
@@ -91,8 +95,7 @@ export class SchoolRecordGuardService {
   ): Promise<GuardVerdict> {
     const mimeType = file.mimetype;
     const isPdf =
-      mimeType === 'application/pdf' ||
-      /\.pdf$/i.test(file.originalname ?? '');
+      mimeType === 'application/pdf' || /\.pdf$/i.test(file.originalname ?? '');
 
     // PDF 는 텍스트 추출(메모리) 후 텍스트 단계로. 추출 실패(poppler 부재 등)는
     // 인프라 사유이므로 fail-open — 파일명 단계는 여전히 적용된다.

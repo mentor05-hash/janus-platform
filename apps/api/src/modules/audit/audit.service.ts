@@ -37,7 +37,9 @@ export class AuditService {
         },
       });
     } catch (e) {
-      this.logger.warn(`감사 로그 기록 실패: ${entry.action} — ${(e as Error).message}`);
+      this.logger.warn(
+        `감사 로그 기록 실패: ${entry.action} — ${(e as Error).message}`,
+      );
     }
   }
 

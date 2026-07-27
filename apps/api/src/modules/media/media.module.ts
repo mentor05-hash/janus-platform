@@ -37,8 +37,18 @@ const DEFAULT_RECORDING_LIMIT = 40;
 /** 일 음성 전사 상한 — 유료 STT. 녹음 길이 비례 과금이라 보수적으로. */
 const DEFAULT_STT_LIMIT = 60;
 @Module({
-  imports: [RealtimeModule, LlmModule, NotificationModule, GuardianConsentModule], // 시스템 메시지·요약(R3)·발송 알림(R4)·전달동의 게이트(①)
-  controllers: [MediaDemoController, MediaTokenController, MediaRecordingController, ConsultReportController], // 데모(M0)·상담 토큰(M1)·녹음(R1)·리포트(R2~R4)
+  imports: [
+    RealtimeModule,
+    LlmModule,
+    NotificationModule,
+    GuardianConsentModule,
+  ], // 시스템 메시지·요약(R3)·발송 알림(R4)·전달동의 게이트(①)
+  controllers: [
+    MediaDemoController,
+    MediaTokenController,
+    MediaRecordingController,
+    ConsultReportController,
+  ], // 데모(M0)·상담 토큰(M1)·녹음(R1)·리포트(R2~R4)
   providers: [
     MediaRecordingService,
     ConsultReportService,
@@ -51,7 +61,10 @@ const DEFAULT_STT_LIMIT = 60;
         if (which === 'whisper') {
           const key = config.get<string>('OPENAI_API_KEY');
           if (key) {
-            const inner = new WhisperSttProvider(key, config.get<string>('STT_WHISPER_MODEL') ?? 'whisper-1');
+            const inner = new WhisperSttProvider(
+              key,
+              config.get<string>('STT_WHISPER_MODEL') ?? 'whisper-1',
+            );
             // 유료 API — 일 상한 강제(B008). 전사는 상담 후 비동기 후처리라 fail-open
             // (카운터 장애로 리포트 파이프라인을 멈추는 손해가 더 크다).
             return new QuotaSttProvider(
@@ -60,7 +73,9 @@ const DEFAULT_STT_LIMIT = 60;
               envInt(config.get<string>('STT_DAILY_LIMIT'), DEFAULT_STT_LIMIT),
             );
           }
-          new Logger('MediaModule').warn('STT_PROVIDER=whisper 이나 OPENAI_API_KEY 미설정 → mock 폴백');
+          new Logger('MediaModule').warn(
+            'STT_PROVIDER=whisper 이나 OPENAI_API_KEY 미설정 → mock 폴백',
+          );
         }
         return new MockSttProvider(); // 비용 0 — 상한 불필요
       },
@@ -75,7 +90,12 @@ const DEFAULT_STT_LIMIT = 60;
           const key = config.get<string>('LIVEKIT_API_KEY');
           const secret = config.get<string>('LIVEKIT_API_SECRET');
           if (url && key && secret) {
-            const inner = new LiveKitMediaProvider(url, key, secret, config.get<string>('LIVEKIT_EGRESS_S3'));
+            const inner = new LiveKitMediaProvider(
+              url,
+              key,
+              secret,
+              config.get<string>('LIVEKIT_EGRESS_S3'),
+            );
             // 수업·상담 접속을 캐시 장애로 끊으면 수업 자체가 멈춘다 —
             // LLM(fail-closed)과 달리 기본 통과(fail-open). 비용보다 가용성이 우선인 경로다.
             const failOpen =
@@ -83,11 +103,19 @@ const DEFAULT_STT_LIMIT = 60;
             return new QuotaMediaProvider(
               inner,
               new UsageQuota(cache, 'media', failOpen),
-              envInt(config.get<string>('MEDIA_DAILY_TOKEN_LIMIT'), DEFAULT_TOKEN_LIMIT),
-              envInt(config.get<string>('MEDIA_DAILY_RECORDING_LIMIT'), DEFAULT_RECORDING_LIMIT),
+              envInt(
+                config.get<string>('MEDIA_DAILY_TOKEN_LIMIT'),
+                DEFAULT_TOKEN_LIMIT,
+              ),
+              envInt(
+                config.get<string>('MEDIA_DAILY_RECORDING_LIMIT'),
+                DEFAULT_RECORDING_LIMIT,
+              ),
             );
           }
-          new Logger('MediaModule').warn('MEDIA_PROVIDER=livekit 이나 자격증명 미설정 → mock 로 폴백');
+          new Logger('MediaModule').warn(
+            'MEDIA_PROVIDER=livekit 이나 자격증명 미설정 → mock 로 폴백',
+          );
         }
         return new MockMediaProvider();
       },

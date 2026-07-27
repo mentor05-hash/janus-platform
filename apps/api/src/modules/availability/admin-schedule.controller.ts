@@ -12,12 +12,24 @@ export class AdminScheduleController {
   /** POST /admin/schedules/bulk — 여러 선생님 기본/주계획 일괄 적용. */
   @Post('schedules/bulk')
   @HttpCode(200)
-  @Roles('admin', 'hr')
+  @Roles('admin')
   bulk(
-    @Body() body: { items?: { loginId: string; recurringTemplate?: Record<string, { start: string; end: string }[]>; weekPlans?: { weekStart: string; template: Record<string, { start: string; end: string }[]> }[] }[] },
+    @Body()
+    body: {
+      items?: {
+        loginId: string;
+        recurringTemplate?: Record<string, { start: string; end: string }[]>;
+        weekPlans?: {
+          weekStart: string;
+          template: Record<string, { start: string; end: string }[]>;
+        }[];
+      }[];
+    },
     @CurrentUser() user: AuthUser,
   ) {
-    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
+    const today = new Date().toLocaleDateString('en-CA', {
+      timeZone: 'Asia/Seoul',
+    });
     return this.availability.bulkApplySchedules(
       { id: user.id, role: user.role, centerId: user.centerId },
       (body?.items ?? []) as never,

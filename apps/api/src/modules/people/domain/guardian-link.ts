@@ -47,7 +47,10 @@ export function canLinkTransition(
 }
 
 /** 재신청이 가능한 상태(= 학생이 이미 판단을 내려 종료된 상태). */
-export const RELINKABLE_STATUSES: GuardianLinkStatus[] = ['rejected', 'revoked'];
+export const RELINKABLE_STATUSES: GuardianLinkStatus[] = [
+  'rejected',
+  'revoked',
+];
 
 /**
  * 재신청 스팸 방지(O124). 관리자 강제 복구는 이 제한을 받지 않는다.

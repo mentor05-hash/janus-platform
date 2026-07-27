@@ -1,4 +1,10 @@
-import { IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsIn,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export const MATERIAL_VISIBILITY = ['public', 'center', 'private'] as const;
 export type MaterialVisibility = (typeof MATERIAL_VISIBILITY)[number];

@@ -1,8 +1,17 @@
-import { coversPlacement, isProductKey, PLACEMENT_FULL_SERVICE, PLACEMENT_JEONGSI_SERVICE, PRODUCTS } from './products';
+import {
+  coversPlacement,
+  isProductKey,
+  PLACEMENT_FULL_SERVICE,
+  PLACEMENT_JEONGSI_SERVICE,
+  PRODUCTS,
+} from './products';
 
 describe('entitlement products', () => {
   it('상품 4종이 정의되고 각자 서비스를 연다', () => {
-    expect(PRODUCTS.full.services).toEqual([PLACEMENT_FULL_SERVICE, PLACEMENT_JEONGSI_SERVICE]);
+    expect(PRODUCTS.full.services).toEqual([
+      PLACEMENT_FULL_SERVICE,
+      PLACEMENT_JEONGSI_SERVICE,
+    ]);
     expect(PRODUCTS.jeongsi.services).toEqual([PLACEMENT_JEONGSI_SERVICE]);
     expect(PRODUCTS.kairos.services).toEqual(['kairos']);
     expect(PRODUCTS['kairos-alea'].services).toEqual(['kairos', 'alea']);

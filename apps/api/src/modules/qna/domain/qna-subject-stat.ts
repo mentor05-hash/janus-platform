@@ -4,7 +4,11 @@
  * 과목명은 canonical 정규화(㉚)로 접어 파편화를 막는다('수학'·'미적분' 통합).
  * 노출 게이트(㉙): 과목별 authored ≥ 리그 minAuthored(=5)일 때만 visible=true(과목 오각형 표시 자격).
  */
-import { evaluateLeague, DEFAULT_LEAGUE_POLICY, type LeaguePolicy } from './qna-league';
+import {
+  evaluateLeague,
+  DEFAULT_LEAGUE_POLICY,
+  type LeaguePolicy,
+} from './qna-league';
 import { normalizeSubject } from './qna-subject-canonical';
 
 export const OTHER_SUBJECT = '기타';
@@ -33,15 +37,31 @@ export function aggregateSubjectStats(
   }
   const out: SubjectStat[] = [];
   for (const [subject, c] of m) {
-    const acceptRate = c.authored ? Math.round((c.accepted / c.authored) * 100) : 0;
-    const tier = evaluateLeague({ authored: c.authored, accepted: c.accepted, acceptRate }, policy);
+    const acceptRate = c.authored
+      ? Math.round((c.accepted / c.authored) * 100)
+      : 0;
+    const tier = evaluateLeague(
+      { authored: c.authored, accepted: c.accepted, acceptRate },
+      policy,
+    );
     const visible = c.authored >= policy.promote2.minAuthored;
-    out.push({ subject, authored: c.authored, accepted: c.accepted, acceptRate, tier, visible });
+    out.push({
+      subject,
+      authored: c.authored,
+      accepted: c.accepted,
+      acceptRate,
+      tier,
+      visible,
+    });
   }
   out.sort((a, b) => {
     if (a.subject === OTHER_SUBJECT) return 1;
     if (b.subject === OTHER_SUBJECT) return -1;
-    return b.accepted - a.accepted || b.authored - a.authored || a.subject.localeCompare(b.subject);
+    return (
+      b.accepted - a.accepted ||
+      b.authored - a.authored ||
+      a.subject.localeCompare(b.subject)
+    );
   });
   return out;
 }

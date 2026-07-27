@@ -25,7 +25,10 @@ export class EnrollmentController {
 
   /** DELETE /enrollments/:academyId — 재원 철회. */
   @Delete(':academyId')
-  withdraw(@CurrentUser() user: AuthUser, @Param('academyId') academyId: string) {
+  withdraw(
+    @CurrentUser() user: AuthUser,
+    @Param('academyId') academyId: string,
+  ) {
     return this.svc.withdraw(user, academyId);
   }
 }

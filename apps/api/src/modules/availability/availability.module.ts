@@ -10,7 +10,11 @@ import { AvailabilityService } from './availability.service';
  * 근무 캘린더·슬롯(휴게 버퍼 §5-1)·차단·줌·상담실. matching/booking 이 가용성 판정에 의존.
  */
 @Module({
-  controllers: [AvailabilityController, AdminInfraController, AdminScheduleController],
+  controllers: [
+    AvailabilityController,
+    AdminInfraController,
+    AdminScheduleController,
+  ],
   providers: [AvailabilityService, AdminInfraService],
   exports: [AvailabilityService],
 })

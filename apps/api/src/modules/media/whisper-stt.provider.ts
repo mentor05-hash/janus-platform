@@ -10,13 +10,26 @@ import type { SttInput, SttProvider, SttResult } from './stt.types';
 export class WhisperSttProvider implements SttProvider {
   private readonly logger = new Logger('Stt:whisper');
 
-  constructor(private readonly apiKey: string, private readonly model = 'whisper-1') {}
+  constructor(
+    private readonly apiKey: string,
+    private readonly model = 'whisper-1',
+  ) {}
 
   async transcribe(input: SttInput): Promise<SttResult> {
     const form = new FormData();
     const mime = input.mime ?? 'audio/ogg';
-    const ext = mime.includes('ogg') ? 'ogg' : mime.includes('webm') ? 'webm' : mime.includes('mp4') ? 'mp4' : 'mp3';
-    form.append('file', new Blob([new Uint8Array(input.audio)], { type: mime }), `audio.${ext}`);
+    const ext = mime.includes('ogg')
+      ? 'ogg'
+      : mime.includes('webm')
+        ? 'webm'
+        : mime.includes('mp4')
+          ? 'mp4'
+          : 'mp3';
+    form.append(
+      'file',
+      new Blob([new Uint8Array(input.audio)], { type: mime }),
+      `audio.${ext}`,
+    );
     form.append('model', this.model);
     form.append('language', input.lang ?? 'ko');
     const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
@@ -30,6 +43,10 @@ export class WhisperSttProvider implements SttProvider {
       throw new Error(`STT 실패(${res.status})`);
     }
     const j = (await res.json()) as { text?: string };
-    return { text: j.text ?? '', engine: `whisper:${this.model}`, lang: input.lang ?? 'ko' };
+    return {
+      text: j.text ?? '',
+      engine: `whisper:${this.model}`,
+      lang: input.lang ?? 'ko',
+    };
   }
 }

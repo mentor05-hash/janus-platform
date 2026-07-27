@@ -15,7 +15,10 @@ export const CONSULTING_UPLOAD_DISABLED_MESSAGE =
 export class SchoolRecordConsultingDisabledException extends HttpException {
   constructor() {
     super(
-      { error: 'SR_CONSULTING_DISABLED', message: CONSULTING_UPLOAD_DISABLED_MESSAGE },
+      {
+        error: 'SR_CONSULTING_DISABLED',
+        message: CONSULTING_UPLOAD_DISABLED_MESSAGE,
+      },
       HttpStatus.UNPROCESSABLE_ENTITY,
     );
   }

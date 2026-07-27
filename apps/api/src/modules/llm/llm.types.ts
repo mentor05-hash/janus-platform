@@ -64,8 +64,16 @@ export interface ConsultingAnalysisInput {
 }
 export interface ConsultingAnalysisResult {
   summary: { strengths: string[]; concerns: string[]; highlights: string[] };
-  diagnostic: { fit_directions: string[]; activity_suggestions: string[]; target_gap: string };
-  document_check: { missing: string[]; inconsistencies: string[]; requests: string[] };
+  diagnostic: {
+    fit_directions: string[];
+    activity_suggestions: string[];
+    target_gap: string;
+  };
+  document_check: {
+    missing: string[];
+    inconsistencies: string[];
+    requests: string[];
+  };
   model: string; // 'mock' | claude 모델 태그
 }
 
@@ -169,17 +177,23 @@ export const PURPOSE_OF_METHOD = {
 
 export interface LlmProvider {
   reviewReport(input: ReportReviewInput): Promise<ReportReviewResult>;
-  checkAnswerSimilarity(input: AnswerSimilarityInput): Promise<AnswerSimilarityResult>;
+  checkAnswerSimilarity(
+    input: AnswerSimilarityInput,
+  ): Promise<AnswerSimilarityResult>;
   /** Q&A 질문 → AI 1차 초안(Q3). 미구성/실패 시 예외 → 호출측에서 초안 생략(무해). */
   draftAnswer(input: QnaDraftInput): Promise<QnaDraftResult>;
   extractScoreReport(input: ScoreOcrInput): Promise<ScoreOcrResult>;
   /** 이미지가 학교생활기록부 서식인지 분류(생기부 가드 §5 3단). 응답은 라벨만(원문 비보존). */
   classifySchoolRecord(input: ScoreOcrInput): Promise<SchoolRecordVisionResult>;
-  analyzeConsulting(input: ConsultingAnalysisInput): Promise<ConsultingAnalysisResult>;
+  analyzeConsulting(
+    input: ConsultingAnalysisInput,
+  ): Promise<ConsultingAnalysisResult>;
   /** 관문 자유서술 해석. 미구성/실패 시 예외 → 호출측(gateway)이 규칙 폴백. */
   interpretGateway(input: GatewayInterpretInput): Promise<GatewayLlmResult>;
   /** 상담 전사문 → 요약 리포트 초안(R3). 미구성/실패 시 예외 → 호출측이 재시도·수동 폴백. */
   consultSummary(input: ConsultSummaryInput): Promise<ConsultSummaryResult>;
   /** 요약 → 학생용/학부모용 2뷰(발송·수신 레이어). 미구성/실패 시 예외 → 호출측이 규칙 폴백. */
-  consultReportViews(input: ConsultReportViewsInput): Promise<ConsultReportViewsResult>;
+  consultReportViews(
+    input: ConsultReportViewsInput,
+  ): Promise<ConsultReportViewsResult>;
 }

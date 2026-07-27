@@ -78,14 +78,18 @@ export class GuardianController {
    * 센터 격리는 서비스에서 학생 센터 기준으로 적용된다.
    */
   @Get('admin/guardian-links')
-  @Roles('admin', 'hr')
+  @Roles('admin')
   adminLinks(
     @CurrentUser() user: AuthUser,
     @Query('q') q?: string,
     @Query('scope') scope?: string,
   ) {
     // 기본은 '막힌 연결만' — 전체를 기본으로 두면 정상 연결이 상한을 채워 볼 것이 잘린다.
-    return this.guardian.adminListLinks(user, q, scope === 'all' ? 'all' : 'stuck');
+    return this.guardian.adminListLinks(
+      user,
+      q,
+      scope === 'all' ? 'all' : 'stuck',
+    );
   }
 
   /**
@@ -94,8 +98,11 @@ export class GuardianController {
    * 연결 성립은 학생 승인에 남긴다(학생 동의권을 우회하지 않는 가벼운 경로).
    */
   @Post('admin/guardian-links/:id/unlock')
-  @Roles('admin', 'hr')
-  unlockLink(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+  @Roles('admin')
+  unlockLink(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.guardian.unlockRelink(user, id);
   }
 

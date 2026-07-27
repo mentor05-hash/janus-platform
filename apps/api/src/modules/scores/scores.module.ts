@@ -8,7 +8,12 @@ import { ScoresService } from './scores.service';
 
 /** 성적 업로드 — 엑셀 일괄·수동·OCR + 미업로드 학생 조회 + 학생/학부모 조회. */
 @Module({
-  imports: [StorageModule, LlmModule, SchoolRecordGuardModule, GuardianConsentModule],
+  imports: [
+    StorageModule,
+    LlmModule,
+    SchoolRecordGuardModule,
+    GuardianConsentModule,
+  ],
   controllers: [ScoresController, ScoresMeController],
   providers: [ScoresService],
 })

@@ -48,16 +48,24 @@ const LAST_DAY_CREDITS = 10_000;
 const SHARE_PCT = 60;
 const CREDIT_WON = 0.5; // config/constants.ts CREDIT_WON_RATIO
 const THIS_MONTH_CREDITS = 2 * DONE_CREDITS_EACH + LAST_DAY_CREDITS;
-const EXPECTED_CONFIRMED = Math.round(Math.round(THIS_MONTH_CREDITS * CREDIT_WON) * SHARE_PCT / 100); // 15,000
+const EXPECTED_CONFIRMED = Math.round(
+  (Math.round(THIS_MONTH_CREDITS * CREDIT_WON) * SHARE_PCT) / 100,
+); // 15,000
 
 /** 기간 픽스처 — periodBounds 와 같은 UTC 월 경계를 쓴다(서버 규약과 어긋나면 테스트가 거짓이 된다). */
 const now = new Date();
-const thisMonth = (day: number) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), day, 3, 0, 0));
-const lastMonth = (day: number) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, day, 3, 0, 0));
+const thisMonth = (day: number) =>
+  new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), day, 3, 0, 0));
+const lastMonth = (day: number) =>
+  new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, day, 3, 0, 0));
 /** 이번 달 말일 **낮 시간** — 옛 경계(말일 00:00 lte)에서 빠졌던 지점. */
 const endOfThisMonth = () => {
-  const lastDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), lastDate, 12, 0, 0));
+  const lastDate = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), lastDate, 12, 0, 0),
+  );
 };
 const POLICY_KEYS = ['payroll_share_policy', 'payroll_model_policy'] as const;
 
@@ -118,18 +126,28 @@ describe('2.6 운영·예상급여 통합', () => {
     // 지난 달 예약 1건 — **이번 달 급여에 섞이면 안 된다**(회귀 가드).
     const prev = await prisma.booking.create({
       data: {
-        student_id: STUDENT, teacher_id: TEACHER_P, center_id: CENTER,
-        consult_type: 'subject' as any, mode: 'zoom' as any, status: 'done' as any,
-        charged_credits: 999_999, start_at: lastMonth(15),
+        student_id: STUDENT,
+        teacher_id: TEACHER_P,
+        center_id: CENTER,
+        consult_type: 'subject' as any,
+        mode: 'zoom' as any,
+        status: 'done' as any,
+        charged_credits: 999_999,
+        start_at: lastMonth(15),
       },
     });
     bookingIds.push(prev.id);
     // 이번 달 **말일** 예약 1건 — 옛 경계(`lte 말일 00:00`)에서 통째로 누락됐던 케이스.
     const lastDay = await prisma.booking.create({
       data: {
-        student_id: STUDENT, teacher_id: TEACHER_P, center_id: CENTER,
-        consult_type: 'subject' as any, mode: 'zoom' as any, status: 'done' as any,
-        charged_credits: LAST_DAY_CREDITS, start_at: endOfThisMonth(),
+        student_id: STUDENT,
+        teacher_id: TEACHER_P,
+        center_id: CENTER,
+        consult_type: 'subject' as any,
+        mode: 'zoom' as any,
+        status: 'done' as any,
+        charged_credits: LAST_DAY_CREDITS,
+        start_at: endOfThisMonth(),
       },
     });
     bookingIds.push(lastDay.id);
@@ -147,7 +165,10 @@ describe('2.6 운영·예상급여 통합', () => {
     });
     await prisma.system_setting.upsert({
       where: { key: 'payroll_model_policy' },
-      create: { key: 'payroll_model_policy', value: { mode: 'share', base: 2_000_000, incentivePct: 30 } },
+      create: {
+        key: 'payroll_model_policy',
+        value: { mode: 'share', base: 2_000_000, incentivePct: 30 },
+      },
       update: { value: { mode: 'share', base: 2_000_000, incentivePct: 30 } },
     });
   });
@@ -166,8 +187,13 @@ describe('2.6 운영·예상급여 통합', () => {
     await prisma.account.deleteMany({ where: { id: TEACHER_P } });
     // 전역 정책 원복 — 원래 없던 키는 삭제해 제품 기본값(SHARE_DEFAULT·MODEL_DEFAULT)으로 되돌린다.
     for (const [key, value] of prevPolicies) {
-      if (value === null) await prisma.system_setting.deleteMany({ where: { key } });
-      else await prisma.system_setting.update({ where: { key }, data: { value: value as never } });
+      if (value === null)
+        await prisma.system_setting.deleteMany({ where: { key } });
+      else
+        await prisma.system_setting.update({
+          where: { key },
+          data: { value: value as never },
+        });
     }
     await app.close();
   });
@@ -180,15 +206,21 @@ describe('2.6 운영·예상급여 통합', () => {
     expect(r.breakdown.creditWonRatio).toBe(CREDIT_WON);
     expect(r.breakdown.doneSessions).toBe(3); // 이번 달 3건(10·11일 + 말일) — 지난 달 1건은 제외
     expect(r.breakdown.confirmedCredits).toBe(THIS_MONTH_CREDITS);
-    expect(r.breakdown.confirmedRevenue).toBe(Math.round(THIS_MONTH_CREDITS * CREDIT_WON));
+    expect(r.breakdown.confirmedRevenue).toBe(
+      Math.round(THIS_MONTH_CREDITS * CREDIT_WON),
+    );
     expect(r.confirmedAmount).toBe(EXPECTED_CONFIRMED);
-    expect(r.period).toBe(`${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`);
+    expect(r.period).toBe(
+      `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`,
+    );
   });
 
   it('기간 격리: 지난 달 예약은 이번 달 급여에 섞이지 않는다(O118)', async () => {
     // 지난 달 예약이 999,999크레딧이므로 누적 산정이면 금액이 폭증한다 — 그게 옛 버그였다.
     const r: any = await payroll.estimate(TEACHER_P, teacherUser);
-    expect(r.confirmedCredits ?? r.breakdown.confirmedCredits).toBe(THIS_MONTH_CREDITS);
+    expect(r.confirmedCredits ?? r.breakdown.confirmedCredits).toBe(
+      THIS_MONTH_CREDITS,
+    );
     expect(r.confirmedAmount).toBe(EXPECTED_CONFIRMED);
     // 지난 달을 명시 조회하면 그 달 금액만 나온다.
     const prevLabel = `${now.getUTCFullYear()}-${String(now.getUTCMonth() || 12).padStart(2, '0')}`;
@@ -209,7 +241,9 @@ describe('2.6 운영·예상급여 통합', () => {
     const slip: any = await payroll.revenueSharePayslip(TEACHER_P, adminUser);
     expect(slip.period).toBe(est.period);
     // payslip 은 완료+예정을 합쳐 매출을 낸다 — 예정이 없으면 확정과 같아야 한다.
-    expect(slip.creditRevenue).toBe(est.breakdown.confirmedCredits + est.breakdown.upcomingCredits);
+    expect(slip.creditRevenue).toBe(
+      est.breakdown.confirmedCredits + est.breakdown.upcomingCredits,
+    );
     expect(slip.gross).toBe(est.expectedAmount);
   });
 

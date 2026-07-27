@@ -1,5 +1,21 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
-import { IsIn, IsISO8601, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Query,
+} from '@nestjs/common';
+import {
+  IsIn,
+  IsISO8601,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -65,7 +81,10 @@ export class EntitlementController {
   /** 권한 행 취소(환불·오부여) — 소프트 삭제. */
   @Roles('admin')
   @Delete('admin/entitlements/:id')
-  revoke(@CurrentUser() actor: AuthUser, @Param('id', new ParseUUIDPipe()) id: string) {
+  revoke(
+    @CurrentUser() actor: AuthUser,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
     return this.entitlement.revoke(actor, id);
   }
 }

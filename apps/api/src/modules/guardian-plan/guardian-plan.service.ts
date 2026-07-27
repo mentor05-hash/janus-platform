@@ -1,11 +1,22 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccountRole } from '../../config/enums';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { GuardianConsentService } from '../guardian-consent/guardian-consent.service';
 import { NotifyService } from '../notification/notify.service';
 
-export type PlanInput = { title: string; subject?: string | null; dueDate?: string | null; note?: string | null };
+export type PlanInput = {
+  title: string;
+  subject?: string | null;
+  dueDate?: string | null;
+  note?: string | null;
+};
 
 const dateOnly = (s: string) => new Date(`${s.slice(0, 10)}T00:00:00.000Z`);
 
@@ -29,13 +40,18 @@ export class GuardianPlanService {
   /** 승인된 연결만(pending/rejected 차단). 학부모 자기 트랙의 최소 요건. */
   private async assertApprovedLink(guardianId: string, studentId: string) {
     const link = await this.prisma.guardian_student_link.findFirst({
-      where: { guardian_id: guardianId, student_id: studentId, status: 'approved' },
+      where: {
+        guardian_id: guardianId,
+        student_id: studentId,
+        status: 'approved',
+      },
     });
     if (!link) throw new ForbiddenException('승인된 자녀 연결이 아닙니다.');
   }
 
   private assertGuardian(user: AuthUser) {
-    if (user.role !== AccountRole.GUARDIAN) throw new ForbiddenException('학부모만 사용할 수 있습니다.');
+    if (user.role !== AccountRole.GUARDIAN)
+      throw new ForbiddenException('학부모만 사용할 수 있습니다.');
   }
 
   /** 내 계획 트랙 목록(학부모). 자녀별. */
@@ -56,7 +72,9 @@ export class GuardianPlanService {
     if (!title) throw new BadRequestException('계획 제목을 입력하세요.');
     return this.prisma.guardian_plan_item.create({
       data: {
-        guardian_id: user.id, student_id: studentId, title,
+        guardian_id: user.id,
+        student_id: studentId,
+        title,
         subject: dto.subject?.trim() || null,
         due_date: dto.dueDate ? dateOnly(dto.dueDate) : null,
         note: dto.note?.trim() || null,
@@ -65,9 +83,12 @@ export class GuardianPlanService {
   }
 
   private async owned(user: AuthUser, id: string) {
-    const row = await this.prisma.guardian_plan_item.findUnique({ where: { id } });
+    const row = await this.prisma.guardian_plan_item.findUnique({
+      where: { id },
+    });
     if (!row) throw new NotFoundException('계획을 찾을 수 없습니다.');
-    if (row.guardian_id !== user.id) throw new ForbiddenException('본인이 만든 계획만 변경할 수 있습니다.');
+    if (row.guardian_id !== user.id)
+      throw new ForbiddenException('본인이 만든 계획만 변경할 수 있습니다.');
     return row;
   }
 
@@ -75,15 +96,20 @@ export class GuardianPlanService {
   async update(user: AuthUser, id: string, dto: PlanInput) {
     this.assertGuardian(user);
     const row = await this.owned(user, id);
-    if (row.status !== 'draft') throw new BadRequestException('이미 제안한 계획은 수정할 수 없습니다. 새로 만들어 주세요.');
+    if (row.status !== 'draft')
+      throw new BadRequestException(
+        '이미 제안한 계획은 수정할 수 없습니다. 새로 만들어 주세요.',
+      );
     const title = dto.title.trim();
     if (!title) throw new BadRequestException('계획 제목을 입력하세요.');
     return this.prisma.guardian_plan_item.update({
       where: { id },
       data: {
-        title, subject: dto.subject?.trim() || null,
+        title,
+        subject: dto.subject?.trim() || null,
         due_date: dto.dueDate ? dateOnly(dto.dueDate) : null,
-        note: dto.note?.trim() || null, updated_at: new Date(),
+        note: dto.note?.trim() || null,
+        updated_at: new Date(),
       },
     });
   }
@@ -103,22 +129,34 @@ export class GuardianPlanService {
   async propose(user: AuthUser, id: string) {
     this.assertGuardian(user);
     const row = await this.owned(user, id);
-    if (row.status !== 'draft') throw new BadRequestException('이미 제안한 계획입니다.');
+    if (row.status !== 'draft')
+      throw new BadRequestException('이미 제안한 계획입니다.');
     // **행위 게이트**(열람 게이트와 다름): 미성년=연결만으로 전권 / 성인=학생 본인 동의 필요.
     // 제안은 학부모가 만든 내용을 학생에게 보내는 것이라 학생 데이터가 흐르지 않는다 → 미성년에 본인확인 불요.
     await this.consent.assertGuardianInvolvementAllowed(user, row.student_id);
     const updated = await this.prisma.guardian_plan_item.update({
-      where: { id }, data: { status: 'proposed', proposed_at: new Date(), updated_at: new Date() },
+      where: { id },
+      data: {
+        status: 'proposed',
+        proposed_at: new Date(),
+        updated_at: new Date(),
+      },
     });
-    await this.notify.notify(row.student_id, 'guardian_plan_proposed', { planId: row.id, title: row.title });
-    this.logger.log(`학부모 계획 제안 guardian=${user.id} student=${row.student_id} plan=${row.id}`);
+    await this.notify.notify(row.student_id, 'guardian_plan_proposed', {
+      planId: row.id,
+      title: row.title,
+    });
+    this.logger.log(
+      `학부모 계획 제안 guardian=${user.id} student=${row.student_id} plan=${row.id}`,
+    );
     return updated;
   }
 
   // ── 학생 측: 대기 중인 제안 조회·수락·거절 ──
 
   private assertStudent(user: AuthUser) {
-    if (user.role !== AccountRole.STUDENT) throw new ForbiddenException('학생만 사용할 수 있습니다.');
+    if (user.role !== AccountRole.STUDENT)
+      throw new ForbiddenException('학생만 사용할 수 있습니다.');
   }
 
   /** 나에게 온 학부모 제안(대기 중). 수락 전에는 할 일 목록에 나타나지 않는다. */
@@ -129,20 +167,30 @@ export class GuardianPlanService {
       orderBy: { proposed_at: 'desc' },
     });
     const guardians = await this.prisma.account.findMany({
-      where: { id: { in: rows.map((r) => r.guardian_id) } }, select: { id: true, name: true },
+      where: { id: { in: rows.map((r) => r.guardian_id) } },
+      select: { id: true, name: true },
     });
     const nameOf = new Map(guardians.map((g) => [g.id, g.name]));
     return rows.map((r) => ({
-      id: r.id, title: r.title, subject: r.subject, dueDate: r.due_date, note: r.note,
-      proposedAt: r.proposed_at, guardianName: nameOf.get(r.guardian_id) ?? null,
+      id: r.id,
+      title: r.title,
+      subject: r.subject,
+      dueDate: r.due_date,
+      note: r.note,
+      proposedAt: r.proposed_at,
+      guardianName: nameOf.get(r.guardian_id) ?? null,
     }));
   }
 
   private async proposedToMe(user: AuthUser, id: string) {
-    const row = await this.prisma.guardian_plan_item.findUnique({ where: { id } });
+    const row = await this.prisma.guardian_plan_item.findUnique({
+      where: { id },
+    });
     if (!row) throw new NotFoundException('제안을 찾을 수 없습니다.');
-    if (row.student_id !== user.id) throw new ForbiddenException('내게 온 제안이 아닙니다.');
-    if (row.status !== 'proposed') throw new BadRequestException('이미 응답한 제안입니다.');
+    if (row.student_id !== user.id)
+      throw new ForbiddenException('내게 온 제안이 아닙니다.');
+    if (row.status !== 'proposed')
+      throw new BadRequestException('이미 응답한 제안입니다.');
     return row;
   }
 
@@ -151,13 +199,18 @@ export class GuardianPlanService {
    * 읽고-쓰기 사이에 다른 요청이 끼면 할 일이 중복 생성되므로, updateMany 조건부 갱신으로 한 명만 이기게 한다
    * (tasks.service 의 리마인더 claim 과 같은 패턴). 이긴 쪽만 count===1 을 받는다.
    */
-  private async claimProposal(user: AuthUser, id: string, next: 'accepted' | 'declined') {
+  private async claimProposal(
+    user: AuthUser,
+    id: string,
+    next: 'accepted' | 'declined',
+  ) {
     const row = await this.proposedToMe(user, id); // 존재·소유·상태 사전 검증(친절한 오류 메시지용)
     const claim = await this.prisma.guardian_plan_item.updateMany({
       where: { id, student_id: user.id, status: 'proposed' },
       data: { status: next, responded_at: new Date(), updated_at: new Date() },
     });
-    if (claim.count !== 1) throw new BadRequestException('이미 응답한 제안입니다.');
+    if (claim.count !== 1)
+      throw new BadRequestException('이미 응답한 제안입니다.');
     return row;
   }
 
@@ -167,13 +220,22 @@ export class GuardianPlanService {
     const row = await this.claimProposal(user, id, 'accepted'); // 선점 성공한 요청만 진행
     const task = await this.prisma.student_task.create({
       data: {
-        student_id: user.id, title: row.title, category: 'custom',
-        subject: row.subject, due_date: row.due_date,
+        student_id: user.id,
+        title: row.title,
+        category: 'custom',
+        subject: row.subject,
+        due_date: row.due_date,
         created_by: 'guardian', // 자동 제안(auto)·본인 추가(self)와 구분 — 출처를 화면에 표시
       },
     });
-    await this.prisma.guardian_plan_item.update({ where: { id }, data: { student_task_id: task.id } });
-    await this.notify.notify(row.guardian_id, 'guardian_plan_accepted', { planId: row.id, title: row.title });
+    await this.prisma.guardian_plan_item.update({
+      where: { id },
+      data: { student_task_id: task.id },
+    });
+    await this.notify.notify(row.guardian_id, 'guardian_plan_accepted', {
+      planId: row.id,
+      title: row.title,
+    });
     return { id, accepted: true, taskId: task.id };
   }
 
@@ -181,7 +243,10 @@ export class GuardianPlanService {
   async decline(user: AuthUser, id: string) {
     this.assertStudent(user);
     const row = await this.claimProposal(user, id, 'declined');
-    await this.notify.notify(row.guardian_id, 'guardian_plan_declined', { planId: row.id, title: row.title });
+    await this.notify.notify(row.guardian_id, 'guardian_plan_declined', {
+      planId: row.id,
+      title: row.title,
+    });
     return { id, declined: true };
   }
 }

@@ -4,7 +4,9 @@ import type { PrismaService } from '../../../common/prisma/prisma.service';
 
 describe('StubChannelGateway (§10)', () => {
   // push 채널 미테스트 → push_token.findMany 만 최소 목 제공.
-  const prismaStub = { push_token: { findMany: async () => [] } } as unknown as PrismaService;
+  const prismaStub = {
+    push_token: { findMany: async () => [] },
+  } as unknown as PrismaService;
   const sut = new StubChannelGateway(prismaStub);
   const msg: NotifyMessage = {
     recipientId: 'r1',

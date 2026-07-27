@@ -11,7 +11,11 @@
 
 export type GapMode = 'jeongsi' | 'susi';
 export type RelTier = 'measured' | 'multiyear' | 'estimated';
-export const REL_TIER_LABEL: Record<RelTier, string> = { measured: '어디가 실측', multiyear: '다년 앵커', estimated: '추정' };
+export const REL_TIER_LABEL: Record<RelTier, string> = {
+  measured: '어디가 실측',
+  multiyear: '다년 앵커',
+  estimated: '추정',
+};
 
 export interface JanusEvidence {
   claim: string;
@@ -87,7 +91,12 @@ export interface JanusReport {
   evidence: JanusEvidence[];
   prescription: {
     headline: string;
-    actions: Array<{ label: string; to: string; ctaId?: string; free?: boolean }>;
+    actions: Array<{
+      label: string;
+      to: string;
+      ctaId?: string;
+      free?: boolean;
+    }>;
   };
   disclaimer: string;
 }
@@ -111,7 +120,12 @@ function bandOf(delta: number): GapBand {
  * 정밀한 수치를 보여주면 근거 신뢰도(C5)·예측한계 표시 원칙에 어긋난다.
  * 정시 누백·수시 등급 모두 '낮을수록 상위'라 best=min, worst=max 로 동일하게 처리된다.
  */
-function buildVolatility(recent: number[] | undefined, cut: number, unitLabel: string, suffix: string): JanusReport['volatility'] {
+function buildVolatility(
+  recent: number[] | undefined,
+  cut: number,
+  unitLabel: string,
+  suffix: string,
+): JanusReport['volatility'] {
   const vals = (recent ?? []).filter((v) => Number.isFinite(v)).map(round2);
   if (vals.length < 2) return null; // 1회뿐이면 '변동'을 말할 근거가 없다
   const best = Math.min(...vals);
@@ -124,9 +138,16 @@ function buildVolatility(recent: number[] | undefined, cut: number, unitLabel: s
   const first = vals[0];
   const last = vals[vals.length - 1];
   // 방향은 3회 이상에서만 — 낮을수록 상위이므로 값이 내려가면 향상이다.
-  const mono = (cmp: (a: number, b: number) => boolean) => vals.every((v, i) => i === 0 || cmp(v, vals[i - 1]));
+  const mono = (cmp: (a: number, b: number) => boolean) =>
+    vals.every((v, i) => i === 0 || cmp(v, vals[i - 1]));
   const direction: NonNullable<JanusReport['volatility']>['direction'] =
-    vals.length < 3 || spread === 0 ? null : mono((v, p) => v <= p) ? 'improving' : mono((v, p) => v >= p) ? 'worsening' : 'mixed';
+    vals.length < 3 || spread === 0
+      ? null
+      : mono((v, p) => v <= p)
+        ? 'improving'
+        : mono((v, p) => v >= p)
+          ? 'worsening'
+          : 'mixed';
   const range = `최근 ${vals.length}회 ${unitLabel} ${best}~${worst}${suffix}(변동 폭 ${spread})`;
   const message =
     spread === 0
@@ -140,7 +161,18 @@ function buildVolatility(recent: number[] | undefined, cut: number, unitLabel: s
           : direction === 'worsening'
             ? `최근 ${vals.length}회 ${unitLabel} ${first}→${last}${suffix}로 계속 내려갔어요 — 예전 회차 기준 '${bestBand}'이 아니라 최근 '${worstBand}'이 지금 위치예요.`
             : `${range} — 회차에 따라 '${bestBand}'에서 '${worstBand}'까지 갈립니다. 한 회차 결과만으로 단정하지 마세요.`;
-  return { count: vals.length, best, worst, spread, bestBand, worstBand, consistent, smallSample, direction, message };
+  return {
+    count: vals.length,
+    best,
+    worst,
+    spread,
+    bestBand,
+    worstBand,
+    consistent,
+    smallSample,
+    direction,
+    message,
+  };
 }
 
 // 정시(어디가 70%컷 백테스트)만 컷 근접 구간 합격률 힌트(≈37%). 수시는 정량 단언 회피.
@@ -148,7 +180,12 @@ function admitHint(mode: GapMode, delta: number): number | null {
   return mode === 'jeongsi' && delta >= -0.2 && delta <= 0.3 ? 37 : null;
 }
 
-function bandHeadline(band: GapBand, t: GapTarget, shortfall: number, unitLabel: string): string {
+function bandHeadline(
+  band: GapBand,
+  t: GapTarget,
+  shortfall: number,
+  unitLabel: string,
+): string {
   switch (band) {
     case '안정':
       return `${t.univ} ${t.dept} — 현재 위치가 목표 컷보다 여유 있습니다. 유지 전략이 핵심입니다.`;
@@ -161,22 +198,49 @@ function bandHeadline(band: GapBand, t: GapTarget, shortfall: number, unitLabel:
   }
 }
 
-function evidenceFor(mode: GapMode, t: GapTarget, unit: { label: string; suffix: string }): JanusEvidence[] {
+function evidenceFor(
+  mode: GapMode,
+  t: GapTarget,
+  unit: { label: string; suffix: string },
+): JanusEvidence[] {
   const cutEv: JanusEvidence = {
     claim: `목표 컷(${t.univ} ${t.dept}) ${unit.label} ${t.cut}${unit.suffix} 기준. 발표 입결/변환 확정 후 재확인이 필요합니다.`,
-    source: mode === 'jeongsi' ? '배치표 지원가능선(입력값)' : '수시 입결 지원가능선(입력값)',
+    source:
+      mode === 'jeongsi'
+        ? '배치표 지원가능선(입력값)'
+        : '수시 입결 지원가능선(입력값)',
     relTier: 'estimated',
   };
   if (mode === 'jeongsi') {
     return [
-      { claim: '작년 70%컷 지원자의 실제 합격률은 약 37%였습니다 — 컷=합격이 아닙니다.', source: '백테스트 1,851명(어디가 70%컷 캘리브레이션 +4.2%p)', relTier: 'multiyear' },
-      { claim: '예측 오차(MAE)는 점수대에 따라 약 3~9 수준입니다. 컷 근접일수록 실채점·대학별 변환 발표 후 재확인이 필요합니다.', source: '다년 교차검증(계열보정 MAE 4.96)', relTier: 'measured' },
+      {
+        claim:
+          '작년 70%컷 지원자의 실제 합격률은 약 37%였습니다 — 컷=합격이 아닙니다.',
+        source: '백테스트 1,851명(어디가 70%컷 캘리브레이션 +4.2%p)',
+        relTier: 'multiyear',
+      },
+      {
+        claim:
+          '예측 오차(MAE)는 점수대에 따라 약 3~9 수준입니다. 컷 근접일수록 실채점·대학별 변환 발표 후 재확인이 필요합니다.',
+        source: '다년 교차검증(계열보정 MAE 4.96)',
+        relTier: 'measured',
+      },
       cutEv,
     ];
   }
   return [
-    { claim: '수시 입결은 대학 발표 2024~2026 다년치를 사용합니다. 전형·수능최저 충족 여부가 실제 합격을 크게 가릅니다.', source: '대학발표 입결 17,031개 모집단위', relTier: 'multiyear' },
-    { claim: '수능최저 파서 검증: 합격사례 충족 99.4%. 최저 미충족은 컷 무관하게 불합격이므로 별도 점검이 필요합니다.', source: '최저 검증(합격사례 99.4%)', relTier: 'measured' },
+    {
+      claim:
+        '수시 입결은 대학 발표 2024~2026 다년치를 사용합니다. 전형·수능최저 충족 여부가 실제 합격을 크게 가릅니다.',
+      source: '대학발표 입결 17,031개 모집단위',
+      relTier: 'multiyear',
+    },
+    {
+      claim:
+        '수능최저 파서 검증: 합격사례 충족 99.4%. 최저 미충족은 컷 무관하게 불합격이므로 별도 점검이 필요합니다.',
+      source: '최저 검증(합격사례 99.4%)',
+      relTier: 'measured',
+    },
     cutEv,
   ];
 }
@@ -196,9 +260,24 @@ export function buildGapReport(input: GapInput): JanusReport {
       : `현재 ${unit.label} ${myValue}${unit.suffix} — 목표 컷(${target.cut}${unit.suffix})까지 ${shortfall} 부족합니다.`;
 
   const actions: JanusReport['prescription']['actions'] = [
-    { label: '무료 커리큘럼 카드 — 격차 원인별 처방 보기', to: '/services', free: true },
-    { label: mode === 'jeongsi' ? '배치표에서 다른 학과와 비교' : '수시 입결에서 다른 전형과 비교', to: '/placement', free: true },
-    { label: '1:1 전략 상담 예약 — 격차 근거 위 상담', to: '/consulting/apply', ctaId: 'consult-reserve' },
+    {
+      label: '무료 커리큘럼 카드 — 격차 원인별 처방 보기',
+      to: '/services',
+      free: true,
+    },
+    {
+      label:
+        mode === 'jeongsi'
+          ? '배치표에서 다른 학과와 비교'
+          : '수시 입결에서 다른 전형과 비교',
+      to: '/placement',
+      free: true,
+    },
+    {
+      label: '1:1 전략 상담 예약 — 격차 근거 위 상담',
+      to: '/consulting/apply',
+      ctaId: 'consult-reserve',
+    },
   ];
 
   return {
@@ -209,9 +288,17 @@ export function buildGapReport(input: GapInput): JanusReport {
     generatedFor: { gye, value: myValue },
     target,
     gap: { delta, shortfall, band, admitProbHint, message },
-    volatility: buildVolatility(input.recent, target.cut, unit.label, unit.suffix),
+    volatility: buildVolatility(
+      input.recent,
+      target.cut,
+      unit.label,
+      unit.suffix,
+    ),
     evidence: evidenceFor(mode, target, unit),
-    prescription: { headline: bandHeadline(band, target, shortfall, unit.label), actions },
+    prescription: {
+      headline: bandHeadline(band, target, shortfall, unit.label),
+      actions,
+    },
     disclaimer:
       '본 리포트는 지난 입시 데이터 기반 추정이며 실제 합격을 보장하지 않습니다. 무료로 시작할 수 있는 처방을 우선 안내합니다.',
   };

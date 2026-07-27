@@ -160,7 +160,9 @@ export class ConsultationService {
             }
           : {}),
       },
-      include: { teacher_profile: { include: { account: { select: { name: true } } } } },
+      include: {
+        teacher_profile: { include: { account: { select: { name: true } } } },
+      },
       orderBy: { created_at: 'desc' },
     });
     return notes.map((n) => this.maskForViewer(n as NoteRow, user, studentId));
@@ -301,7 +303,9 @@ export class ConsultationService {
           select: { id: true },
         });
         if (!seen)
-          throw new ForbiddenException('담당 이력이 없는 학생은 열람할 수 없습니다.');
+          throw new ForbiddenException(
+            '담당 이력이 없는 학생은 열람할 수 없습니다.',
+          );
       }
       return;
     }

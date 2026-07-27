@@ -22,9 +22,22 @@ export class NotifyService {
   ) {}
 
   /** 접속 중 선생님 전원 실시간 신호(원장 미기록 — 배지·큐 갱신용). */
-  async broadcastTeachers(type: string, title: string, body: string, payload: Record<string, unknown> = {}): Promise<void> {
-    try { await this.realtime?.emitToTeachers('notif:new', { type, payload, title, body }); }
-    catch (e) { this.logger.warn(`broadcastTeachers 실패: ${String(e)}`); }
+  async broadcastTeachers(
+    type: string,
+    title: string,
+    body: string,
+    payload: Record<string, unknown> = {},
+  ): Promise<void> {
+    try {
+      await this.realtime?.emitToTeachers('notif:new', {
+        type,
+        payload,
+        title,
+        body,
+      });
+    } catch (e) {
+      this.logger.warn(`broadcastTeachers 실패: ${String(e)}`);
+    }
   }
 
   async notify(
@@ -43,7 +56,12 @@ export class NotifyService {
           .then((ok) => {
             if (ok) {
               const { title, body } = renderNotification(type, payload);
-              this.realtime!.emitToUser(recipientId, 'notif:new', { type, payload, title, body });
+              this.realtime!.emitToUser(recipientId, 'notif:new', {
+                type,
+                payload,
+                title,
+                body,
+              });
             }
           })
           .catch(() => {});

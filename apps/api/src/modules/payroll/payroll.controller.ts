@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -75,7 +84,10 @@ export class PayrollAdminController {
   /** GET /admin/payroll/revenue-share?period= — 전임 매출배분(60%) 급여 요약(관리자 전용·센터 스코프). */
   @Get('revenue-share')
   @Roles('admin')
-  revenueShareList(@CurrentUser() user: AuthUser, @Query('period') period?: string) {
+  revenueShareList(
+    @CurrentUser() user: AuthUser,
+    @Query('period') period?: string,
+  ) {
     return this.payroll.revenueShareList(user, period);
   }
 
@@ -89,7 +101,10 @@ export class PayrollAdminController {
   /** PATCH /admin/payroll/share-policy — 배분율 변경(본사 관리자). */
   @Patch('share-policy')
   @Roles('admin')
-  setSharePolicy(@CurrentUser() user: AuthUser, @Body() dto: { sharePct?: number }) {
+  setSharePolicy(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: { sharePct?: number },
+  ) {
     return this.payroll.setSharePolicy(user, dto);
   }
 
@@ -103,7 +118,10 @@ export class PayrollAdminController {
   /** PATCH /admin/payroll/model — 급여 모델 변경(본사 관리자). */
   @Patch('model')
   @Roles('admin')
-  setModel(@CurrentUser() user: AuthUser, @Body() dto: { mode?: string; base?: number; incentivePct?: number }) {
+  setModel(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: { mode?: string; base?: number; incentivePct?: number },
+  ) {
     return this.payroll.setModelPolicy(user, dto);
   }
 }

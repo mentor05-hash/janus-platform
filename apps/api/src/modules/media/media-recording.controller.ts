@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Headers, Param, ParseUUIDPipe, Post, Req, UnauthorizedException } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Req,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { IsBoolean, IsUUID } from 'class-validator';
 import type { Request } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -23,7 +33,10 @@ export class MediaRecordingController {
 
   /** GET /media/consent/:bookingId — 동의·녹음 상태(상담룸 UI 초기화). enabled=false 면 UI 비노출. */
   @Get('consent/:bookingId')
-  status(@Param('bookingId', ParseUUIDPipe) bookingId: string, @CurrentUser() user: AuthUser) {
+  status(
+    @Param('bookingId', ParseUUIDPipe) bookingId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.svc.status(user, bookingId);
   }
 
@@ -35,7 +48,10 @@ export class MediaRecordingController {
 
   /** GET /media/guardian-consent/:studentId — 자녀 녹음·AI 요약 동의 상태(학부모). */
   @Get('guardian-consent/:studentId')
-  guardianStatus(@Param('studentId', ParseUUIDPipe) studentId: string, @CurrentUser() user: AuthUser) {
+  guardianStatus(
+    @Param('studentId', ParseUUIDPipe) studentId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.svc.guardianConsentStatus(user, studentId);
   }
 
@@ -48,12 +64,19 @@ export class MediaRecordingController {
   /** POST /media/egress-webhook — LiveKit webhook(서명 검증 필수·공개 엔드포인트). */
   @Public()
   @Post('egress-webhook')
-  async webhook(@Req() req: Request & { rawBody?: Buffer }, @Headers('authorization') auth: string | undefined, @Body() body: Record<string, unknown>) {
+  async webhook(
+    @Req() req: Request & { rawBody?: Buffer },
+    @Headers('authorization') auth: string | undefined,
+    @Body() body: Record<string, unknown>,
+  ) {
     const raw = req.rawBody?.toString('utf8') ?? JSON.stringify(body ?? {});
-    if (!this.svc.verifyWebhook(raw, auth)) throw new UnauthorizedException('webhook 서명 검증 실패');
+    if (!this.svc.verifyWebhook(raw, auth))
+      throw new UnauthorizedException('webhook 서명 검증 실패');
     const event = (body as { event?: string }).event;
     if (event === 'egress_ended') {
-      return this.svc.handleEgressEnded(body as Parameters<MediaRecordingService['handleEgressEnded']>[0]);
+      return this.svc.handleEgressEnded(
+        body as Parameters<MediaRecordingService['handleEgressEnded']>[0],
+      );
     }
     return { ok: true, ignored: event ?? 'unknown' };
   }

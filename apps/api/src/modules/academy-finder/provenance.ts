@@ -25,8 +25,13 @@ export function tuitionSourceLabel(source?: string | null): string {
 }
 
 /** verified 는 재원생 n명 기준을 함께 노출(§3). */
-export function cohortSourceLabel(source?: string | null, nTotal?: number): string {
-  const base = COHORT_SOURCE_LABEL[source ?? 'claimed'] ?? '학원 제공 · 야누스 미검증';
-  if (source === 'verified' && nTotal && nTotal > 0) return `${base} (재원생 ${nTotal}명 기준)`;
+export function cohortSourceLabel(
+  source?: string | null,
+  nTotal?: number,
+): string {
+  const base =
+    COHORT_SOURCE_LABEL[source ?? 'claimed'] ?? '학원 제공 · 야누스 미검증';
+  if (source === 'verified' && nTotal && nTotal > 0)
+    return `${base} (재원생 ${nTotal}명 기준)`;
   return base;
 }

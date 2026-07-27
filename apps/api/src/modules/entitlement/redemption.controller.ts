@@ -1,5 +1,14 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
-import { IsIn, IsInt, IsISO8601, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsISO8601,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -46,10 +55,14 @@ export class RedemptionController {
   /** 관리자: 코드 목록(상품·사용여부 필터). */
   @Roles('admin')
   @Get('admin/redemption-codes')
-  list(@Query('productKey') productKey?: string, @Query('redeemed') redeemed?: string) {
+  list(
+    @Query('productKey') productKey?: string,
+    @Query('redeemed') redeemed?: string,
+  ) {
     return this.redemption.list({
       productKey: productKey || undefined,
-      redeemed: redeemed === 'true' ? true : redeemed === 'false' ? false : undefined,
+      redeemed:
+        redeemed === 'true' ? true : redeemed === 'false' ? false : undefined,
     });
   }
 }

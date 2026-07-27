@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Put, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Put,
+  Query,
+} from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -58,7 +67,10 @@ export class SchoolRecordAdminController {
 
   /** 컨설팅 업로드 토글 수동 on/off(본사 마스터). */
   @Put('consulting-toggle')
-  setToggle(@Body() dto: SetConsultingToggleDto, @CurrentUser() user: AuthUser) {
+  setToggle(
+    @Body() dto: SetConsultingToggleDto,
+    @CurrentUser() user: AuthUser,
+  ) {
     return this.policy.setConsultingUploadDisabled(user, dto.enabled);
   }
 }

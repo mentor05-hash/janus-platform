@@ -26,5 +26,7 @@ export function resolveStudentType(profile: {
   return profile.center_id ? 'enrolled' : 'external';
 }
 
-export const isExternalStudent = (p: { type_code?: string | null; center_id?: string | null }) =>
-  resolveStudentType(p) === 'external';
+export const isExternalStudent = (p: {
+  type_code?: string | null;
+  center_id?: string | null;
+}) => resolveStudentType(p) === 'external';

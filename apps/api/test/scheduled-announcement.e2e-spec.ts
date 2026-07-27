@@ -128,12 +128,12 @@ describe('예약 공지·사전알림·템플릿(§3)', () => {
 
   it('예약 취소 → 발송 안 됨', async () => {
     const future = new Date(Date.now() + 2 * 24 * 3600 * 1000).toISOString();
-    const r = await svc.send(HQ, {
+    const r = (await svc.send(HQ, {
       targets: ['student'],
       title: '취소공지',
       body: 'x',
       scheduledAt: future,
-    } as any) as any; // 예약 발송 분기({scheduledId, scheduledAt, status})
+    } as any)) as any; // 예약 발송 분기({scheduledId, scheduledAt, status})
     await svc.cancelScheduled(r.scheduledId, HQ);
     await prisma.scheduled_announcement.update({
       where: { id: r.scheduledId },

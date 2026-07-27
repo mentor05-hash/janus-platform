@@ -15,7 +15,11 @@ export class DongResolver {
   }
 
   /** 정류장의 dong_code 결정. 명시 입력 우선, 없으면 좌표 역산(stub 은 미지원 → null). */
-  async resolve(input: { dongCode?: string | null; lat?: number | null; lng?: number | null }): Promise<string | null> {
+  async resolve(input: {
+    dongCode?: string | null;
+    lat?: number | null;
+    lng?: number | null;
+  }): Promise<string | null> {
     if (input.dongCode) return input.dongCode;
     if (this.mode() === 'real' && input.lat != null && input.lng != null) {
       // 실 연동 지점 — 역지오코딩 호출 후 dong_code 매핑.
@@ -23,7 +27,9 @@ export class DongResolver {
       return null;
     }
     if (input.lat != null && input.lng != null) {
-      this.logger.debug('좌표만 제공되었으나 stub 은 역산 미지원 — dong_code 는 운영자 입력 필요.');
+      this.logger.debug(
+        '좌표만 제공되었으나 stub 은 역산 미지원 — dong_code 는 운영자 입력 필요.',
+      );
     }
     return null;
   }

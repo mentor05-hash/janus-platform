@@ -1,9 +1,21 @@
-import { BadRequestException, Body, Controller, Delete, Get, Post, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { GuardianConsentService } from './guardian-consent.service';
-import { GuardianConsentDto, GuardianVerifyDto, ShareConsentDto } from './dto/guardian-consent.dto';
+import {
+  GuardianConsentDto,
+  GuardianVerifyDto,
+  ShareConsentDto,
+} from './dto/guardian-consent.dto';
 
 /** 본부 결정 ① 학부모 동의·본인확인 — 미성년 자녀 데이터 전달 게이트(학부모 전용). */
 @Controller('guardian/consent')
@@ -13,7 +25,10 @@ export class GuardianConsentController {
 
   /** GET /guardian/consent?studentId= — 본인확인·전달동의 현재 상태. */
   @Get()
-  status(@CurrentUser() user: AuthUser, @Query('studentId') studentId?: string) {
+  status(
+    @CurrentUser() user: AuthUser,
+    @Query('studentId') studentId?: string,
+  ) {
     if (!studentId) throw new BadRequestException('studentId 가 필요합니다.');
     return this.svc.status(user, studentId);
   }
@@ -32,7 +47,10 @@ export class GuardianConsentController {
 
   /** DELETE /guardian/consent?studentId= — 전달 동의 철회. */
   @Delete()
-  revoke(@CurrentUser() user: AuthUser, @Query('studentId') studentId?: string) {
+  revoke(
+    @CurrentUser() user: AuthUser,
+    @Query('studentId') studentId?: string,
+  ) {
     if (!studentId) throw new BadRequestException('studentId 가 필요합니다.');
     return this.svc.revokeConsent(user, studentId);
   }
@@ -61,7 +79,10 @@ export class StudentShareConsentController {
 
   /** DELETE /me/share-consents?guardianId= — 공유 동의 철회(즉시). */
   @Delete()
-  revoke(@CurrentUser() user: AuthUser, @Query('guardianId') guardianId?: string) {
+  revoke(
+    @CurrentUser() user: AuthUser,
+    @Query('guardianId') guardianId?: string,
+  ) {
     if (!guardianId) throw new BadRequestException('guardianId 가 필요합니다.');
     return this.svc.revokeShare(user, guardianId);
   }

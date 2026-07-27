@@ -35,10 +35,14 @@ export class OrgService {
       data: { name: dto.name, region: dto.region ?? null },
       select: { id: true, name: true, region: true },
     });
-    if (actor) await this.audit.record(actor, {
-      action: 'org.center.create', targetType: 'center', targetId: c.id,
-      summary: `센터 생성: ${c.name}`, meta: { region: c.region },
-    });
+    if (actor)
+      await this.audit.record(actor, {
+        action: 'org.center.create',
+        targetType: 'center',
+        targetId: c.id,
+        summary: `센터 생성: ${c.name}`,
+        meta: { region: c.region },
+      });
     return c;
   }
 
@@ -86,7 +90,9 @@ export class OrgService {
       },
     });
     await this.audit.record(actor, {
-      action: 'org.staff.create', targetType: 'account', targetId: account.id,
+      action: 'org.staff.create',
+      targetType: 'account',
+      targetId: account.id,
       summary: `관리자 계정 생성: ${dto.name} (${dto.permLevel})`,
       meta: { loginId: dto.loginId, permLevel: dto.permLevel, centerId },
     });

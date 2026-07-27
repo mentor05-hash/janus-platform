@@ -5,7 +5,12 @@ import { AppModule } from '../src/app.module';
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
 import { TransformInterceptor } from '../src/common/interceptors/transform.interceptor';
 import { PrismaService } from '../src/common/prisma/prisma.service';
-import { ACCOUNTS, E2E_PREFIX, auth, login as doLogin } from './fixtures/demo-accounts';
+import {
+  ACCOUNTS,
+  E2E_PREFIX,
+  auth,
+  login as doLogin,
+} from './fixtures/demo-accounts';
 
 /**
  * 자료실(§material): 게시(선생님)·공개범위 스코프·다운로드 게이트·삭제 권한.
@@ -32,18 +37,31 @@ describe('자료실(§material)', () => {
   const login = (id: string) => doLogin(app, id);
 
   beforeAll(async () => {
-    const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const mod = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
     app = mod.createNestApplication();
     app.setGlobalPrefix('api/v1');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        transform: true,
+        forbidNonWhitelisted: true,
+      }),
+    );
     app.useGlobalInterceptors(new TransformInterceptor());
     app.useGlobalFilters(new AllExceptionsFilter());
     await app.init();
     prisma = mod.get(PrismaService);
 
-    const t1 = await prisma.account.findFirstOrThrow({ where: { login_id: ACCOUNTS.teacher } });
+    const t1 = await prisma.account.findFirstOrThrow({
+      where: { login_id: ACCOUNTS.teacher },
+    });
     t1Center = t1.center_id ?? null;
-    if (!t1Center) throw new Error(`${ACCOUNTS.teacher} 에 center_id 가 없다 — 센터 공개범위 검증이 성립하지 않는다.`);
+    if (!t1Center)
+      throw new Error(
+        `${ACCOUNTS.teacher} 에 center_id 가 없다 — 센터 공개범위 검증이 성립하지 않는다.`,
+      );
 
     const sameS = await prisma.account.findFirstOrThrow({
       where: { role: 'student', center_id: t1Center },
@@ -60,17 +78,25 @@ describe('자료실(§material)', () => {
     //   항상 0건이었고(그래서 otherS 가 null → 스위트 전멸), 설령 있는 값을 느슨하게 잡으면 같은 센터 학생을
     //   집어 `centers.has(m.center_id)` 경계를 **전혀 타지 않는 위양성**이 된다.
     await dropFixture();
-    const fxCenter = await prisma.center.create({ data: { name: OTHER_CENTER }, select: { id: true } });
+    const fxCenter = await prisma.center.create({
+      data: { name: OTHER_CENTER },
+      select: { id: true },
+    });
     otherCenterId = fxCenter.id;
     const fxAcc = await prisma.account.create({
       data: {
-        role: 'student', center_id: otherCenterId, login_id: OTHER_STUDENT,
+        role: 'student',
+        center_id: otherCenterId,
+        login_id: OTHER_STUDENT,
         pw_hash: t1.pw_hash, // 시드 계정 해시 복사 — 같은 비번(DEMO_PW)으로 로그인된다
-        name: 'e2e 타 센터 학생', status: 'approved',
+        name: 'e2e 타 센터 학생',
+        status: 'approved',
       },
       select: { id: true },
     });
-    await prisma.student_profile.create({ data: { account_id: fxAcc.id, center_id: otherCenterId } });
+    await prisma.student_profile.create({
+      data: { account_id: fxAcc.id, center_id: otherCenterId },
+    });
 
     tok.t1 = await login(ACCOUNTS.teacher); // 구 't1' 은 시드에 없는 값이었다
     tok.tOther = await login(otherT.login_id);
@@ -83,7 +109,8 @@ describe('자료실(§material)', () => {
   });
 
   afterAll(async () => {
-    if (created.length) await prisma.material.deleteMany({ where: { id: { in: created } } });
+    if (created.length)
+      await prisma.material.deleteMany({ where: { id: { in: created } } });
     await dropFixture();
     await app.close();
   });
@@ -92,7 +119,9 @@ describe('자료실(§material)', () => {
     request(app.getHttpServer()).post('/api/v1/materials').set(auth(t));
 
   it('게시: 학생은 403, 선생님은 201(파일 첨부)', async () => {
-    const denied = await post(tok.sSame).field('title', 'x').field('visibility', 'public');
+    const denied = await post(tok.sSame)
+      .field('title', 'x')
+      .field('visibility', 'public');
     expect(denied.status).toBe(403);
 
     const pub = await post(tok.t1)
@@ -118,13 +147,17 @@ describe('자료실(§material)', () => {
   });
 
   it('목록 공개범위: 같은 센터 학생=공개+센터(비공개 제외), 타 센터=공개만', async () => {
-    const same = await request(app.getHttpServer()).get('/api/v1/materials').set(auth(tok.sSame));
+    const same = await request(app.getHttpServer())
+      .get('/api/v1/materials')
+      .set(auth(tok.sSame));
     const sameTitles = same.body.data.map((m: any) => m.title);
     expect(sameTitles).toContain('공개자료');
     expect(sameTitles).toContain('센터자료');
     expect(sameTitles).not.toContain('비공개자료');
 
-    const other = await request(app.getHttpServer()).get('/api/v1/materials').set(auth(tok.sOther));
+    const other = await request(app.getHttpServer())
+      .get('/api/v1/materials')
+      .set(auth(tok.sOther));
     const otherTitles = other.body.data.map((m: any) => m.title);
     expect(otherTitles).toContain('공개자료');
     expect(otherTitles).not.toContain('센터자료');

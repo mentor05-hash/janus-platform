@@ -1,4 +1,9 @@
-import { gradeToBand, toBandPercent, kAnonSchoolDist, VERIFIED_MIN_N } from './cohort-agg';
+import {
+  gradeToBand,
+  toBandPercent,
+  kAnonSchoolDist,
+  VERIFIED_MIN_N,
+} from './cohort-agg';
 
 describe('cohort aggregation (§3·§4)', () => {
   describe('gradeToBand', () => {
@@ -52,7 +57,10 @@ describe('cohort aggregation (§3·§4)', () => {
       expect(map['기타']).toBe(5); // 3+2
     });
     it('빈 학교명·공백은 무시', () => {
-      const dist = kAnonSchoolDist([null, '', '  ', ...Array(5).fill('A고')], 5);
+      const dist = kAnonSchoolDist(
+        [null, '', '  ', ...Array(5).fill('A고')],
+        5,
+      );
       expect(dist).toEqual([{ school: 'A고', n: 5 }]);
     });
     it('모두 소수면 기타로만', () => {
@@ -60,7 +68,11 @@ describe('cohort aggregation (§3·§4)', () => {
       expect(dist).toEqual([{ school: '기타', n: 4 }]);
     });
     it('n 내림차순 정렬(기타는 마지막)', () => {
-      const schools = [...Array(8).fill('큰고'), ...Array(6).fill('중고'), ...Array(2).fill('소고')];
+      const schools = [
+        ...Array(8).fill('큰고'),
+        ...Array(6).fill('중고'),
+        ...Array(2).fill('소고'),
+      ];
       const dist = kAnonSchoolDist(schools, 5);
       expect(dist.map((d) => d.school)).toEqual(['큰고', '중고', '기타']);
     });

@@ -19,7 +19,12 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { MinPerm } from '../../common/decorators/min-perm.decorator';
 import type { UploadedFileLike } from '../storage/storage.types';
 import { DashboardService } from './dashboard.service';
-import { DashVisibilityDto, DirectorDto, MonthlyHoursDto, UpdateWeightsDto } from './dto/dashboard.dto';
+import {
+  DashVisibilityDto,
+  DirectorDto,
+  MonthlyHoursDto,
+  UpdateWeightsDto,
+} from './dto/dashboard.dto';
 import type { PivotView } from './dto/dashboard.dto';
 
 /**
@@ -58,18 +63,25 @@ export class DashboardController {
     return this.dash.setVisibility(user, dto);
   }
 
+  // 화면 `evaluation` 은 관리자 전용 — 클래스 기본(admin,hr)을 여기서 좁힌다(N37).
   @Get('admin/evaluation/weights')
-  getWeights(@CurrentUser() user: AuthUser, @Query('centerId') centerId?: string) {
+  @Roles('admin')
+  getWeights(
+    @CurrentUser() user: AuthUser,
+    @Query('centerId') centerId?: string,
+  ) {
     return this.dash.getWeights(user, centerId);
   }
 
   @Put('admin/evaluation/weights')
+  @Roles('admin')
   @MinPerm('L2')
   updateWeights(@Body() dto: UpdateWeightsDto, @CurrentUser() user: AuthUser) {
     return this.dash.updateWeights(user, dto);
   }
 
   @Get('admin/evaluation/ranking')
+  @Roles('admin')
   ranking(
     @CurrentUser() user: AuthUser,
     @Query('period') period?: string,
@@ -93,7 +105,10 @@ export class DashboardController {
   /** POST /admin/teachers/monthly-hours/excel — 월간 시수 엑셀 일괄 업로드. */
   @Post('admin/teachers/monthly-hours/excel')
   @UseInterceptors(FileInterceptor('file'))
-  monthlyHoursExcel(@CurrentUser() user: AuthUser, @UploadedFile() file: UploadedFileLike) {
+  monthlyHoursExcel(
+    @CurrentUser() user: AuthUser,
+    @UploadedFile() file: UploadedFileLike,
+  ) {
     return this.dash.bulkMonthlyHoursExcel(user, file.buffer);
   }
 
@@ -101,8 +116,14 @@ export class DashboardController {
   @Get('admin/teachers/monthly-hours/template')
   monthlyHoursTemplate(@Res() res: Response) {
     const buf = this.dash.monthlyHoursTemplate();
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename="monthly-hours-template.xlsx"');
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="monthly-hours-template.xlsx"',
+    );
     res.send(buf);
   }
 
@@ -136,7 +157,13 @@ export class DashboardController {
     @Query('centerId') centerId?: string,
     @Query('teacherId') teacherId?: string,
   ) {
-    return this.dash.pivots(user, view, { period, from, to, centerId, teacherId });
+    return this.dash.pivots(user, view, {
+      period,
+      from,
+      to,
+      centerId,
+      teacherId,
+    });
   }
 
   /** GET /ops/consultation-stats — 상담기록 종류별 통계(§5). */

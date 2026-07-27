@@ -118,10 +118,21 @@ export function rangeBlockReason(
   endMin: number,
 ): Exclude<SlotStatus, 'avail'> | 'range' | null {
   if (endMin <= startMin) return 'range';
-  const slots = buildDaySlots({ ...input, dayStartMin: startMin, dayEndMin: endMin });
+  const slots = buildDaySlots({
+    ...input,
+    dayStartMin: startMin,
+    dayEndMin: endMin,
+  });
   if (slots.length === 0) return 'off';
-  const nonAvail = slots.filter((s) => s.status !== 'avail').map((s) => s.status);
+  const nonAvail = slots
+    .filter((s) => s.status !== 'avail')
+    .map((s) => s.status);
   if (nonAvail.length === 0) return null;
-  const priority: Exclude<SlotStatus, 'avail'>[] = ['booked', 'blocked', 'rest', 'off'];
+  const priority: Exclude<SlotStatus, 'avail'>[] = [
+    'booked',
+    'blocked',
+    'rest',
+    'off',
+  ];
   return priority.find((p) => nonAvail.includes(p)) ?? 'off';
 }

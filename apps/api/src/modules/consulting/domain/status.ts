@@ -13,7 +13,10 @@ export type ConsultingStatus =
 export type ConsultingPackage = 'single' | 'season' | 'full';
 export type AssignmentMode = 'at_application' | 'manual';
 
-export const CONSULTING_TRANSITIONS: Record<ConsultingStatus, ConsultingStatus[]> = {
+export const CONSULTING_TRANSITIONS: Record<
+  ConsultingStatus,
+  ConsultingStatus[]
+> = {
   draft: ['submitted', 'canceled'],
   submitted: ['awaiting_payment', 'canceled'],
   awaiting_payment: ['paid', 'canceled'],
@@ -23,12 +26,18 @@ export const CONSULTING_TRANSITIONS: Record<ConsultingStatus, ConsultingStatus[]
   canceled: [],
 };
 
-export function canTransition(from: ConsultingStatus, to: ConsultingStatus): boolean {
+export function canTransition(
+  from: ConsultingStatus,
+  to: ConsultingStatus,
+): boolean {
   return CONSULTING_TRANSITIONS[from]?.includes(to) ?? false;
 }
 
 // 상품별 배정 방식 기본값. 상품마다 다르게 설정하며, 추후 system_setting으로 override(Phase 2).
-export const DEFAULT_ASSIGNMENT_MODE: Record<ConsultingPackage, AssignmentMode> = {
+export const DEFAULT_ASSIGNMENT_MODE: Record<
+  ConsultingPackage,
+  AssignmentMode
+> = {
   single: 'manual', // 단건 진단 — 관리자 수동 배정
   season: 'at_application', // 시즌 정기권 — 신청 시 전담 지정
   full: 'manual', // 종합 전담 — 맞춤 배정

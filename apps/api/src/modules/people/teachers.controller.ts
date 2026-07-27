@@ -62,7 +62,10 @@ export class TeachersController {
   /** PATCH /teachers/:id/verify-achievements — 관리자·HR: 목표대학 실적 검증 배지 토글. */
   @Patch(':id/verify-achievements')
   @Roles('admin', 'hr')
-  verifyAchievements(@Param('id') id: string, @Body() dto: { verified: boolean }) {
+  verifyAchievements(
+    @Param('id') id: string,
+    @Body() dto: { verified: boolean },
+  ) {
     return this.people.setAchievementsVerified(id, dto.verified === true);
   }
 

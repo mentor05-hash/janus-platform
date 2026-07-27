@@ -31,8 +31,14 @@ export const ACCOUNTS = {
  * 로그인 — 실패하면 **상태코드·바디를 담아 던진다**.
  * 토큰을 조용히 undefined 로 넘기면 실패 지점이 엉뚱한 곳(첫 요청의 401)으로 밀려 원인을 못 찾는다.
  */
-export async function login(app: INestApplication, loginId: string, password: string = DEMO_PW): Promise<string> {
-  const res = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ loginId, password });
+export async function login(
+  app: INestApplication,
+  loginId: string,
+  password: string = DEMO_PW,
+): Promise<string> {
+  const res = await request(app.getHttpServer())
+    .post('/api/v1/auth/login')
+    .send({ loginId, password });
   const token = res.body?.data?.accessToken;
   if (!token) {
     throw new Error(
