@@ -23,7 +23,26 @@ import { AccountRole, ConsultMode, ConsultType, TeacherGrade } from '../../confi
 import { AvailabilityService } from '../availability/availability.service';
 import { BookingService } from '../booking/booking.service';
 import { CreditService } from '../billing/credit.service';
+import { ConfigService } from '@nestjs/config';
 import { PricingService } from '../pricing-policy/pricing.service';
+import { AdminPolicyService } from '../pricing-policy/admin-policy.service';
+import {
+  benefitOf,
+  compareQnaQueue,
+} from '../pricing-policy/domain/grade-benefits';
+import { envInt } from '../../common/quota/usage-quota';
+import {
+  SubjectQuota,
+  SubjectQuotaExceededError,
+} from '../../common/quota/subject-quota';
+
+/**
+ * 유사도 비교에 넣을 이전 답변 수. 프롬프트 길이 = 호출당 단가라 상한이 필요하다.
+ * 기존 100건은 답변 본문 100개를 한 프롬프트에 실어 비용 추정을 크게 벗어났다.
+ */
+const SIMILARITY_PRIOR_LIMIT = 20;
+/** 교사 1인 일 유사도 검사 기본 상한. 넘으면 검사 없이 등록된다(등록을 막지 않는다). */
+const DEFAULT_SIMILARITY_PER_USER_DAY = 40;
 import { canAnswerQuestion, QnaScope } from './domain/qna';
 import { computeSla } from './domain/qna-sla';
 import { pickAssignee } from './domain/qna-assign';
@@ -39,7 +58,7 @@ import { SchoolRecordGuardService } from '../guard/school-record-guard.service';
 import { CreateAnswerDto, CreateQuestionDto } from './dto/qna.dto';
 import { Inject } from '@nestjs/common';
 import { LLM_PROVIDER } from '../llm/llm.types';
-import type { LlmProvider } from '../llm/llm.types';
+import type { LlmProvider, AnswerSimilarityResult } from '../llm/llm.types';
 
 // 강제배정 상태기계 임계값(§1-2 배정 루프). 운영 중 필요 시 정책값으로 승격.
 const CLAIM_TTL_MIN = 30; // 클레임 후 이 시간까지 첫 응답 없으면 재개방
@@ -67,6 +86,10 @@ interface QnaRow {
 export class QnaService {
   private readonly logger = new Logger('Qna');
 
+  private readonly subject: SubjectQuota;
+  /** 교사 1인 일 유사도 검사 횟수(B221 1층). ENV 우선. */
+  private readonly simPerUserDay: number;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly pricing: PricingService,
@@ -78,8 +101,16 @@ export class QnaService {
     private readonly notify: NotifyService,
     private readonly files: FilesService,
     private readonly guard: SchoolRecordGuardService,
+    private readonly policy: AdminPolicyService,
+    config: ConfigService,
     @Optional() private readonly realtime?: RealtimeGateway,
-  ) {}
+  ) {
+    this.subject = new SubjectQuota(this.cache, 'llm');
+    this.simPerUserDay = envInt(
+      config.get<string>('LLM_SIMILARITY_PER_USER_DAY'),
+      DEFAULT_SIMILARITY_PER_USER_DAY,
+    );
+  }
 
   /** 질문 요금 안내(학생) — 문항형/일반형 건당 크레딧 + 주간 무료 질문권 잔여. 센터별 정책 반영. */
   async pricingInfo(centerId: string | null, studentId?: string) {
@@ -480,7 +511,11 @@ export class QnaService {
       // Q1: 나를 소프트 블록한 학생의 질문은 화면·배정 큐에서 제외(사유 비노출).
       const blocks = await this.prisma.qna_relation_block.findMany({ where: { teacher_id: user.id }, select: { student_id: true } });
       const blockedStudents = blocks.map((b) => b.student_id);
-      return shape(await this.prisma.qna_post.findMany({
+      // 답변 큐는 **경합 지점**이다 — 선생님이 목록 위에서부터 집어가므로 순서가 곧 응답 속도다.
+      // 상위 등급 질문에 가중치를 주되(B218), 48h 초과 미답은 등급을 무시하고 앞으로 끌어올린다
+      // (기아 방지 + 급여 T5c 48h 보상과 정합). 총 답변량을 늘리지 않으므로 원가는 0.
+      const benefits = await this.policy.getGradeBenefits();
+      const rows = await this.prisma.qna_post.findMany({
         where: {
           AND: [
             // P2: ai_pending(AI 1층 대기)은 선생님에게 노출하지 않는다 — escalate 후에만.
@@ -488,8 +523,21 @@ export class QnaService {
             ...(blockedStudents.length ? [{ student_id: { notIn: blockedStudents } }] : []),
           ],
         },
-        orderBy: { created_at: 'desc' }, include: answersInclude,
-      }));
+        orderBy: { created_at: 'desc' },
+        include: {
+          ...answersInclude,
+          student_profile: { select: { membership_grade: { select: { tier: true } } } },
+        },
+      });
+      const now = new Date();
+      const key = (r: (typeof rows)[number]) => ({
+        createdAt: r.created_at,
+        weight: benefitOf(
+          benefits,
+          r.student_profile?.membership_grade?.tier ?? null,
+        ).qnaQueueWeight,
+      });
+      return shape([...rows].sort((a, b) => compareQnaQueue(key(a), key(b), now)));
     }
     if (user.role === AccountRole.ADMIN || user.role === AccountRole.HR) {
       return shape(await this.prisma.qna_post.findMany({ orderBy: { created_at: 'desc' }, take: 200, include: answersInclude }));
@@ -603,17 +651,8 @@ export class QnaService {
       const already = await this.prisma.qna_answer.findFirst({ where: { post_id: postId, teacher_id: teacher.id }, select: { id: true } });
       if (already) throw new ForbiddenException('재답변 요청된 질문입니다 — 이전 답변자는 다시 답할 수 없습니다.');
     }
-    // AI 1차 답변 유사도(표절·중복) — 같은 질문의 다른 답변 + 이 선생님의 최근 답변과 비교
-    const priorRows = await this.prisma.qna_answer.findMany({
-      where: { OR: [{ post_id: postId }, { teacher_id: teacher.id }] },
-      select: { id: true, body: true },
-      orderBy: { created_at: 'desc' },
-      take: 100,
-    });
-    const sim = await this.llm.checkAnswerSimilarity({
-      body: dto.body ?? '',
-      priors: priorRows.filter((r) => r.body).map((r) => ({ id: r.id, body: r.body! })),
-    });
+    // AI 1차 답변 유사도(표절·중복) — **best-effort**. 검사 실패가 답변 등록을 막지 않는다.
+    const sim = await this.similarityBestEffort(postId, teacher, dto.body ?? '');
     const ans = await this.prisma.qna_answer.create({
       data: {
         post_id: postId,
@@ -622,9 +661,11 @@ export class QnaService {
         attachments: (dto.attachments ?? []) as unknown as Prisma.InputJsonValue, // P4 화이트보드 풀이 등
         accepted: false,
         pay_eligible: false,
-        similarity: sim.maxSimilarity,
-        similar_to_id: sim.similarToId ?? null,
-        sim_flagged: sim.flagged,
+        // `similarity = NULL` 이 곧 **미검사** 표식이다(검사되면 0 이라도 값이 들어간다).
+        // sim_flagged 는 non-null 이라 미검사 시 false — 단독으로는 구분되지 않는다.
+        similarity: sim?.maxSimilarity ?? null,
+        similar_to_id: sim?.similarToId ?? null,
+        sim_flagged: sim?.flagged ?? false,
       },
     });
     // Q1 SLA: 최초 응답 시각(1회만).
@@ -634,7 +675,72 @@ export class QnaService {
     const moderationWarning = await this.moderate(teacher, 'qna_answer', ans.id, dto.body);
     // 학생에게 답변 도착 알림 — 목록 실시간 갱신("답변옴")·토스트.
     void this.notify.notify(post.student_id, 'qna_answered', { postId });
-    return { id: ans.id, postId, accepted: false, simFlagged: sim.flagged, similarity: sim.maxSimilarity, simSummary: sim.summary, moderationWarning };
+    return {
+      id: ans.id,
+      postId,
+      accepted: false,
+      // 검사를 못 붙였으면 미검사 상태로 정직하게 내려보낸다 — 화면이 "이상 없음"으로 오해하면
+      // 표절 검사가 돌지 않은 것을 아무도 눈치채지 못한다.
+      simChecked: sim !== null,
+      simFlagged: sim?.flagged ?? null,
+      similarity: sim?.maxSimilarity ?? null,
+      simSummary: sim?.summary ?? null,
+      moderationWarning,
+    };
+  }
+
+  /**
+   * 답변 유사도 검사 — **검사 실패가 답변 등록을 막지 않는다**(B221·B223).
+   *
+   * 이전 구현은 `checkAnswerSimilarity()` 를 먼저 호출하고 그 결과로 row 를 만들었다.
+   * 그래서 LLM 장애나 비용 상한 도달이 곧 **답변 등록 전면 중단**이었다 —
+   * 학생은 답을 못 받고 선생님은 급여 적격 건(`pay_eligible`)을 만들 수 없다.
+   * 부수 기능(표절 검사)이 핵심 기능(답변)을 끄는 순서라 뒤집었다.
+   *
+   * 또 교사 1인이 답변마다 트리거하므로 사용자별 일 한도를 걸어
+   * 한 명이 `similarity` 용도 상한을 혼자 태우지 못하게 한다.
+   */
+  private async similarityBestEffort(
+    postId: string,
+    teacher: AuthUser,
+    body: string,
+  ): Promise<AnswerSimilarityResult | null> {
+    try {
+      await this.subject.consume(
+        'abuse',
+        'answer_similarity',
+        teacher.id,
+        this.simPerUserDay,
+        'day',
+      );
+    } catch (e) {
+      if (e instanceof SubjectQuotaExceededError) {
+        this.logger.warn(
+          `[qna] 교사 일 유사도 검사 한도 초과 — 검사 없이 등록: teacher=${teacher.id}`,
+        );
+        return null;
+      }
+      throw e;
+    }
+    // 비교 대상이 많을수록 프롬프트가 길어져 호출당 단가가 오른다 — 20건으로 제한.
+    const priorRows = await this.prisma.qna_answer.findMany({
+      where: { OR: [{ post_id: postId }, { teacher_id: teacher.id }] },
+      select: { id: true, body: true },
+      orderBy: { created_at: 'desc' },
+      take: SIMILARITY_PRIOR_LIMIT,
+    });
+    try {
+      return await this.llm.checkAnswerSimilarity({
+        body,
+        priors: priorRows
+          .filter((r) => r.body)
+          .map((r) => ({ id: r.id, body: r.body! })),
+      });
+    } catch {
+      // 전역 상한(503)·모델 오류 모두 여기로 온다 — 등록은 계속한다.
+      this.logger.warn('[qna] 답변 유사도 검사 실패 — 검사 없이 등록');
+      return null;
+    }
   }
 
   // ── C2(큐브 벤치마크): 답변 후속 문답 — 같은 선생님에게 이어 묻기(추가 과금 없음) ──

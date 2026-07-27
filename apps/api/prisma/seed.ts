@@ -75,11 +75,17 @@ async function main() {
     // 2) 회원 등급 4단계. 하위(Basic·Standard)=주간 소멸(use-it-or-lose-it), 상위(Premium·VIP)=월간 풀.
     //    지급량은 유닛 이코노믹스 확정값(배분 60%·소멸 15%·마진 30%, 1크=0.5원): 월 Premium 210k / VIP 350k.
     //    [id, name, tier, grant(주간=주/월간=월), expire_policy, priority]
+    // 지급량은 **N23 확정값(O175, 2026-07-26 — D 등급사다리교정)**:
+    //   주 Standard 24k / 월 Premium 210k · VIP 380k.
+    // 승계값(Standard 30k / VIP 350k)에는 등급 역전이 있었다 — 상위 등급의 세션당 단가가 더 비쌌다.
+    // 근거·재현: docs/20_exec/유료_티어_가격_결정_워크시트_v1_2026-07-26.md · ops/pricing-sim.mjs
+    // ⚠ 정책값이다. 운영 중 변경은 seed 가 아니라 PATCH /hr/membership-grades/{id} 로 한다
+    //   (seed 는 ON CONFLICT DO NOTHING 이라 기존 DB 에 반영되지 않는다 — 마이그레이션 0105 참조).
     const grades: [string, string, number, number, string, number][] = [
       [ID.gradeBasic, 'Basic', 1, 0, 'end_of_week', 0],
-      [ID.gradeStd, 'Standard', 2, 30_000, 'end_of_week', 1],
+      [ID.gradeStd, 'Standard', 2, 24_000, 'end_of_week', 1],
       [ID.gradePrem, 'Premium', 3, 210_000, 'end_of_month', 2],
-      [ID.gradeVip, 'VIP', 4, 350_000, 'end_of_month', 3],
+      [ID.gradeVip, 'VIP', 4, 380_000, 'end_of_month', 3],
     ];
     for (const [id, name, tier, grant, expire, prio] of grades) {
       await client.query(

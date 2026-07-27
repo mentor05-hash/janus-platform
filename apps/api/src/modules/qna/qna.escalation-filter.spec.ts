@@ -21,6 +21,8 @@ function makeService(readBytes: jest.Mock) {
     {} as any, // notify
     files, // files
     guard, // guard
+    {} as any, // policy(AdminPolicyService) — 이 필터는 쓰지 않는다
+    { get: () => undefined } as unknown as ConfigService, // config — 유사도 한도 ENV 조회용
   );
   return svc;
 }
