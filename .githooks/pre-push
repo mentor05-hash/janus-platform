@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+#
+# 기본 브랜치로의 **직접 push 차단** — 실수 유입 방지.
+#
+# 왜 훅인가: 이 저장소는 무료 플랜의 private repo 라 GitHub 브랜치 보호를 쓸 수 없다
+# (룰셋 API 가 "Upgrade to GitHub Pro or make this repository public" 로 응답).
+# public 전환은 CLAUDE.md §4(저작권 데이터·PII·시크릿) 때문에 선택지가 아니다.
+# 그래서 서버가 못 막는 것을 클라이언트에서 막는다.
+#
+# 한계(알고 쓸 것): `--no-verify` 로 우회된다. 의도적 우회는 못 막고, **실수를 막는다**.
+# 서버측 강제가 필요하면 GitHub Pro 로 올린 뒤 브랜치 보호를 켜라 —
+# 절차: docs/20_exec/야누스_브랜치보호_설정_런북_2026-07-27.md
+#
+# 연결: git config core.hooksPath .githooks   (ops/session-deps.sh 가 자동 설정)
+
+set -u
+
+PROTECTED_DEFAULT='feat/consulting-intake main master'
+# 기본 브랜치 이름이 바뀌면 여기와 .github/workflows/ci.yml 의 push.branches 를 함께 고친다.
+PROTECTED="${JANUS_PROTECTED_BRANCHES:-$PROTECTED_DEFAULT}"
+
+blocked=0
+
+# stdin 으로 `<local ref> <local sha> <remote ref> <remote sha>` 가 줄마다 들어온다.
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  [ -z "${remote_ref:-}" ] && continue
+  branch="${remote_ref#refs/heads/}"
+  for p in $PROTECTED; do
+    if [ "$branch" = "$p" ]; then
+      echo ""
+      echo "  ✗ '$branch' 로 직접 push 하려 합니다 — 기본 브랜치는 PR 로만 들어와야 합니다."
+      echo ""
+      echo "    실험·서브 계획 작업이 검증 없이 섞이는 것을 막기 위한 차단입니다."
+      echo "    작업 브랜치를 만들어 PR 을 여세요:"
+      echo ""
+      echo "      git switch -c claude/작업이름"
+      echo "      git push -u origin claude/작업이름"
+      echo ""
+      blocked=1
+    fi
+  done
+done
+
+if [ "$blocked" = 1 ]; then
+  echo "    (정말 필요하면 --no-verify 로 우회할 수 있지만, 그때는 왜 필요한지 먼저 확인하세요.)"
+  echo ""
+  exit 1
+fi
+
+exit 0

@@ -64,4 +64,36 @@ fi
 echo "[session-deps] Prisma Client 생성 (apps/api) …"
 npm run prisma:generate --workspace apps/api
 
+# ── 4) git 훅 연결 ──────────────────────────────────────────────────────
+# 훅 두 개를 켠다:
+#   pre-commit  gitleaks 시크릿·금지파일 스캔 (실행계획서 §1-3, fail-closed)
+#   pre-push    기본 브랜치 직접 push 차단 (무료 플랜이라 GitHub 브랜치 보호를 못 쓴다)
+#
+# 매 세션이 새 클론에서 시작하는데 git 설정은 클론에 따라오지 않는다 — 그래서 매번 연결한다.
+# **그동안 이게 없어서 에이전트 세션의 커밋은 시크릿 스캔을 거치지 않았다.**
+#
+# 순서가 중요하다: gitleaks 없이 hooksPath 를 걸면 pre-commit 이 fail-closed 로
+# **모든 커밋을 막는다**(scripts/setup-hooks.sh 가 자동 배선을 피한 이유가 그것이다).
+# 그래서 먼저 설치하고, 확보됐을 때만 연결한다.
+if [ -d .githooks ]; then
+  if ! command -v gitleaks >/dev/null 2>&1; then
+    echo "[session-deps] gitleaks 설치 …"
+    if command -v sudo >/dev/null 2>&1; then
+      sudo apt-get install -y -qq gitleaks >/dev/null 2>&1 || true
+    else
+      apt-get install -y -qq gitleaks >/dev/null 2>&1 || true
+    fi
+  fi
+  chmod +x .githooks/* 2>/dev/null || true
+  if command -v gitleaks >/dev/null 2>&1; then
+    git config core.hooksPath .githooks
+    echo "[session-deps] git 훅 연결 — 시크릿 스캔(pre-commit) · 기본 브랜치 직접 push 차단(pre-push)."
+  else
+    git config --unset core.hooksPath 2>/dev/null || true
+    echo "[session-deps] ⚠ gitleaks 설치 실패 — 훅 미연결(커밋 전면 차단 방지)."
+    echo "[session-deps]   시크릿 스캔과 직접 push 차단이 **모두 꺼진 상태**다. 수동 설치 후:"
+    echo "[session-deps]   npm run hooks:setup"
+  fi
+fi
+
 echo "[session-deps] 준비 완료."
