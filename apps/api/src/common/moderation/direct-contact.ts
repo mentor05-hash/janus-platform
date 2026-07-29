@@ -7,7 +7,7 @@ export type ContactKind =
   'phone' | 'kakao' | 'sns' | 'email' | 'account' | 'direct';
 
 const PATTERNS: Array<[ContactKind, RegExp]> = [
-  ['phone', /01[016789][ .\-]?\d{3,4}[ .\-]?\d{4}/],
+  ['phone', /01[016789][ .-]?\d{3,4}[ .-]?\d{4}/],
   ['email', /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i],
   ['kakao', /(카톡|카카오\s?톡|kakao\s?talk)/i],
   ['sns', /(텔레그램|인스타\s?(그램)?\s?(아이디|디엠|dm))/i],

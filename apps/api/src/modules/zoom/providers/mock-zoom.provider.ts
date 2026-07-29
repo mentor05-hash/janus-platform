@@ -9,12 +9,12 @@ import { IssueJoinInput, JoinInfo, ZoomProvider } from '../zoom.types';
 export class MockZoomProvider implements ZoomProvider {
   private readonly logger = new Logger('ZoomProvider:mock');
 
-  async issueJoinUrl(input: IssueJoinInput): Promise<JoinInfo> {
+  issueJoinUrl(input: IssueJoinInput): Promise<JoinInfo> {
     const meetingId = input.bookingId;
     const joinUrl = `https://meet.local/session/${input.bookingId}`;
     this.logger.log(
       `[stub] 입장 URL 발급 booking=${input.bookingId} → ${joinUrl}`,
     );
-    return { joinUrl, meetingId };
+    return Promise.resolve({ joinUrl, meetingId });
   }
 }

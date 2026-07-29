@@ -10,7 +10,6 @@ import { AuditService } from '../audit/audit.service';
 import { EntitlementService } from '../entitlement/entitlement.service';
 import {
   signSsoToken,
-  SsoRole,
   SsoTier,
   tierAtLeast,
   tierForRole,
@@ -92,7 +91,7 @@ export class SsoService {
     const token = signSsoToken(
       {
         sub: user.id,
-        role: user.role as SsoRole,
+        role: user.role,
         tier,
         aud: svc.id,
         scope,

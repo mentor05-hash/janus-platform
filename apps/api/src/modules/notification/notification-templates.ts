@@ -5,6 +5,7 @@
  * - body 안의 {키} 는 payload 값으로 치환(없으면 그대로 유지하지 않고 빈 문자열).
  * - 신규 알림 type 은 여기에 한 줄 추가한다(누락 시 generic 폴백).
  */
+import { toText, toTrimmedText } from '../../common/text/to-text';
 export type NotifPayload = Record<string, unknown>;
 export interface RenderedNotif {
   title: string;
@@ -12,13 +13,14 @@ export interface RenderedNotif {
 }
 
 type Tmpl = { title: string; body: string };
-const S = (v: unknown) => (v == null ? '' : String(v));
+const S = (v: unknown) => toText(v);
 
 /** payload 우선순위 키에서 첫 유효값(사람이 넣은 message/title 우선). */
 const pick = (p: NotifPayload, ...keys: string[]): string => {
   for (const k of keys) {
     const v = p[k];
-    if (v != null && String(v).trim()) return String(v).trim();
+    const t = toTrimmedText(v);
+    if (t) return t;
   }
   return '';
 };

@@ -13,6 +13,7 @@ import type { Request } from 'express';
 import { Public } from '../../../common/decorators/public.decorator';
 import { PgWebhookService } from './pg-webhook.service';
 import { PgWebhookEvent, PgWebhookType } from './pg.types';
+import { toText } from '../../../common/text/to-text';
 
 const TYPES: PgWebhookType[] = [
   'payment.paid',
@@ -48,9 +49,9 @@ export class PgWebhookController {
 
   /** 벤더 페이로드 → 정규화 이벤트. (데모는 이미 정규화 형태를 그대로 수신) */
   private normalize(body: Record<string, unknown>): PgWebhookEvent {
-    const eventId = String(body.eventId ?? body.id ?? '');
+    const eventId = toText(body.eventId ?? body.id ?? '');
     const type = body.type as PgWebhookType;
-    const idempotencyKey = String(body.idempotencyKey ?? body.orderId ?? '');
+    const idempotencyKey = toText(body.idempotencyKey ?? body.orderId ?? '');
     if (!eventId || !TYPES.includes(type) || !idempotencyKey) {
       throw new BadRequestException(
         '필수 필드 누락(eventId/type/idempotencyKey)',
@@ -62,10 +63,10 @@ export class PgWebhookController {
       type,
       idempotencyKey,
       payerAccountId: body.payerAccountId
-        ? String(body.payerAccountId)
+        ? toText(body.payerAccountId)
         : undefined,
       amount: Number.isFinite(amount) ? amount : undefined,
-      pgTxnId: body.pgTxnId ? String(body.pgTxnId) : undefined,
+      pgTxnId: body.pgTxnId ? toText(body.pgTxnId) : undefined,
     };
   }
 }

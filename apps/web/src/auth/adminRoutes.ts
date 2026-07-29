@@ -15,8 +15,10 @@ import { isHq } from './roleHome';
  * **기본은 차단**이다(deny-by-default). `roles` 에 'hr' 를 넣는 것은 기능정의서 §1.1 이 정의한
  * HR 직무(등록·승인·명부 일괄등록)에 맞거나 문서에 명시 근거가 있을 때만이다.
  *
- * ⚠ 이 표는 **웹의 도달 범위**만 정한다. 백엔드 `@Roles` 는 아직 이보다 넓은 곳이 있다(N37).
- *    표가 좁은 쪽이라 누수는 없지만, 백엔드까지 좁혀야 정합이 완성된다.
+ * 이 표는 **웹의 도달 범위**를 정하는 동시에 백엔드 권한의 기대값이기도 하다(N37 → O182).
+ * `apps/api/src/modules/iam/admin-roles-drift.spec.ts` 가 이 파일을 직접 읽어, HR 에게 열린
+ * API 를 **그 API 를 부르는 화면**의 역할과 대조한다. 여기서 'hr' 를 빼면 백엔드도 함께
+ * 좁혀야 CI 가 통과한다 — 두 쪽이 갈라지면 테스트가 먼저 깨진다.
  */
 export type AdminRoute = {
   /** `/admin` 하위 경로. App.tsx 의 element 맵 키와 1:1 이다. */
@@ -52,7 +54,7 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   //   ① 기능정의서 권한 매트릭스에 보호자 연결 행이 없다 — 명시 근거 없이 HR 을 넣지 않는다(O128 기본 차단).
   //   ② 강제 복구(`PATCH /guardian/links/:id/respond`)는 **학생 동의를 우회**한다. 연결이 서면
   //      보호자가 성적·리포트에 닿으므로, 등록·승인 직무보다 무거운 권한이다.
-  // ⚠ 백엔드 @Roles('admin','hr') 는 그대로라 API 직접 호출은 여전히 열려 있다 — N37 에서 좁혀야 한다.
+  // 백엔드도 좁혔다(N37 → O182): `PATCH /guardian/links/:id/respond` 에서 'hr' 를 뺐다.
   { path: 'guardian-links', label: '보호자 연결 복구', roles: ADMIN },
   { path: 'scores', label: '성적 업로드', roles: ADMIN },              // 성적=민감정보 전량 조회·수정
   { path: 'placement/hub', label: '배치표 허브', roles: ADMIN },        // 저작권 데이터(CLAUDE.md §4)

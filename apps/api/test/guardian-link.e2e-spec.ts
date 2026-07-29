@@ -112,7 +112,7 @@ describe('학부모–자녀 연결', () => {
     const [link] = await svc.listLinks(student);
     const stranger = { ...student, id: '00000000-0000-4000-8000-0000000000fe' };
     await expect(
-      svc.respondLink(link.id, { action: 'revoke' }, stranger as any),
+      svc.respondLink(link.id, { action: 'revoke' }, stranger),
     ).rejects.toThrow();
   });
 

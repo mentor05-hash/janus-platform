@@ -46,9 +46,18 @@ export class RedisCacheProvider implements CacheProvider, OnModuleDestroy {
   }
 
   async incr(key: string, ttlSeconds: number): Promise<number> {
+    return this.incrBy(key, 1, ttlSeconds);
+  }
+
+  async incrBy(
+    key: string,
+    amount: number,
+    ttlSeconds: number,
+  ): Promise<number> {
     try {
-      const n = await this.redis.incr(key);
-      if (n === 1) await this.redis.expire(key, ttlSeconds);
+      const n = await this.redis.incrby(key, amount);
+      // 최초 가산이면 만료를 건다. amount 가 1 이 아닐 수 있으므로 n === amount 로 판정한다.
+      if (n === amount) await this.redis.expire(key, ttlSeconds);
       return n;
     } catch {
       return 0; // degrade: 카운트 불가 시 제한하지 않음(가용성 우선)

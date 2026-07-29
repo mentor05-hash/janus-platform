@@ -33,7 +33,7 @@ describe('QnaService.filterEscalationAttachments (상담 승격 첨부 필터)',
   const CLEAN = { id: 'clean', name: '풀이.png', type: 'image' };
   const SR = { id: 'sr', name: '생기부.pdf', type: 'pdf' };
 
-  const readBytes = jest.fn(async (id: string) => {
+  const readBytes = jest.fn((id: string) => {
     if (id === 'sr') {
       // 생기부 파일명 → 가드 차단(SR_FILENAME).
       return {
@@ -43,11 +43,11 @@ describe('QnaService.filterEscalationAttachments (상담 승격 첨부 필터)',
       };
     }
     // 성적/일반 첨부 → 통과.
-    return {
+    return Promise.resolve({
       data: Buffer.from('국어 90 수학 85'),
       filename: '풀이.png',
       contentType: 'text/plain',
-    };
+    });
   });
 
   it('차단 파일은 이관 목록에서 제외, 통과 파일만 유지', async () => {
@@ -63,7 +63,7 @@ describe('QnaService.filterEscalationAttachments (상담 승격 첨부 필터)',
   });
 
   it('읽기 실패한 첨부는 이관 유지(업로드 시 가드 통과분)', async () => {
-    const failing = jest.fn(async () => {
+    const failing = jest.fn(() => {
       throw new Error('not found');
     });
     const svc = makeService(failing);

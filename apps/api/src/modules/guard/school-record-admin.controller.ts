@@ -23,10 +23,14 @@ import {
 
 /**
  * 생기부 가드 관리자 콘솔 (지시서 §6 스텝3) — 차단 통계·이의 큐·컨설팅 업로드 토글.
- * 전역 가드로 인증되며 admin·hr 만 접근(RolesGuard). 토글 저장은 서비스에서 본사 마스터로 재제한.
+ * 전역 가드로 인증되며 **관리자만** 접근(RolesGuard). 토글 저장은 서비스에서 본사 마스터로 재제한.
+ *
+ * N37: 기본값이 `admin,hr` 이라 5개 경로가 HR 에게 열려 있었다. 대응 화면 `sr-guard` 는
+ * 관리자 전용이고, 이의 큐에는 학생이 올린 생기부 관련 사유·처리 메모가 담긴다(PII).
+ * 성적을 좁힌 O181 과 같은 이유로 좁힌다.
  */
 @Controller('admin/school-record-guard')
-@Roles('admin', 'hr')
+@Roles('admin')
 export class SchoolRecordAdminController {
   constructor(
     private readonly events: SchoolRecordEventService,

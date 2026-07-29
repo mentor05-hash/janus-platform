@@ -194,7 +194,7 @@ describe('학부모 열람 게이트(janus_report)', () => {
     });
 
     it('본인확인 + 전달동의면 열람 가능(학생 동의 없이도 — 보호자 권한)', async () => {
-      await consent.grantConsent(guardian, { studentId: student.id } as any);
+      await consent.grantConsent(guardian, { studentId: student.id });
       const list = await scores.listChildReports(guardian, student.id);
       expect(list.length).toBeGreaterThan(0);
     });

@@ -90,6 +90,7 @@ import { CreateAnswerDto, CreateQuestionDto } from './dto/qna.dto';
 import { Inject } from '@nestjs/common';
 import { LLM_PROVIDER } from '../llm/llm.types';
 import type { LlmProvider, AnswerSimilarityResult } from '../llm/llm.types';
+import { toJson } from '../../common/prisma/json';
 
 // 강제배정 상태기계 임계값(§1-2 배정 루프). 운영 중 필요 시 정책값으로 승격.
 const CLAIM_TTL_MIN = 30; // 클레임 후 이 시간까지 첫 응답 없으면 재개방
@@ -211,7 +212,7 @@ export class QnaService {
           target_type: context,
           target_id: refId,
           summary: (text ?? '').slice(0, 120),
-          meta: { kinds } as object,
+          meta: toJson({ kinds }),
           center_id: actor.centerId ?? null,
         },
       });
@@ -253,7 +254,7 @@ export class QnaService {
     const cfg = {
       ...QnaService.FREE_QUOTA_DEFAULT,
       ...((row?.value as object) ?? {}),
-    } as { premiumWeekly: number; defaultWeekly: number };
+    };
     const sp = await this.prisma.student_profile.findUnique({
       where: { account_id: studentId },
       select: { membership_grade: { select: { name: true, tier: true } } },
@@ -1731,7 +1732,7 @@ export class QnaService {
         studentId: student.id,
         teacherId,
         centerId: tp.center_id,
-        teacherGrade: (tp.grade as TeacherGrade) ?? TeacherGrade.B,
+        teacherGrade: tp.grade ?? TeacherGrade.B,
         consultType: ConsultType.SUBJECT,
         mode: ConsultMode.CHAT,
         dateStr: pick.dateStr,

@@ -5,6 +5,7 @@ import { PrismaService } from '../../../common/prisma/prisma.service';
 import { CreditService } from '../credit.service';
 import { isProdEnv } from '../../../config/env.validation';
 import { PgWebhookEvent, PgWebhookType } from './pg.types';
+import { toJson } from '../../../common/prisma/json';
 
 /**
  * PG 웹훅 수신·멱등 처리 (CLAUDE.md §9 O2·§10).
@@ -51,7 +52,7 @@ export class PgWebhookService {
           provider,
           event_id: event.eventId,
           type: event.type,
-          payload: event as unknown as object,
+          payload: toJson(event),
           status: 'received',
         },
       });

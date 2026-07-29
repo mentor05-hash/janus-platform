@@ -4,7 +4,6 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { CACHE_PROVIDER } from '../../common/cache/cache.types';
 import type { CacheProvider } from '../../common/cache/cache.types';
 import { withCronLock } from '../../common/cache/cron-lock';
-import { BillingCycle } from '../../config/enums';
 import { computeNextBilling } from '../membership/domain/billing-cycle';
 import { PG_PROVIDER } from './pg/pg.types';
 import type { PgProvider } from './pg/pg.types';

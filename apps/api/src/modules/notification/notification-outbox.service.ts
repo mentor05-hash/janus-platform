@@ -7,7 +7,6 @@ import { withCronLock } from '../../common/cache/cron-lock';
 import {
   CHANNEL_GATEWAY,
   DeliveryMap,
-  DeliveryStatus,
   NotifyChannel,
   NotifyMessage,
 } from './notification.types';

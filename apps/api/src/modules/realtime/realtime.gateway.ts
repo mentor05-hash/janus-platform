@@ -148,12 +148,15 @@ export class RealtimeGateway implements OnGatewayConnection {
       const token =
         (client.handshake.auth?.token as string) ||
         (client.handshake.query?.token as string);
-      const payload = this.jwt.verify(token) as {
+      // 제네릭으로 받는다 — `verify()` 의 기본 반환은 any 라 그대로 쓰면 아래 전부가
+      // no-unsafe-* 가 된다. `as` 단언으로 덮으면 no-unnecessary-type-assertion 이
+      // "any 는 무엇에든 대입 가능"이라며 불필요로 오판해 자동수정이 다시 지운다.
+      const payload = this.jwt.verify<{
         sub: string;
         role: string;
         centerId: string | null;
         loginId: string;
-      };
+      }>(token);
       const user: SockUser = {
         id: payload.sub,
         role: payload.role,

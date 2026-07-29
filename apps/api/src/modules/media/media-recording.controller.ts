@@ -74,9 +74,7 @@ export class MediaRecordingController {
       throw new UnauthorizedException('webhook 서명 검증 실패');
     const event = (body as { event?: string }).event;
     if (event === 'egress_ended') {
-      return this.svc.handleEgressEnded(
-        body as Parameters<MediaRecordingService['handleEgressEnded']>[0],
-      );
+      return this.svc.handleEgressEnded(body);
     }
     return { ok: true, ignored: event ?? 'unknown' };
   }

@@ -204,7 +204,7 @@ export class EntitlementService {
         code: 'PRODUCT_UNKNOWN',
         message: `알 수 없는 상품: ${productKey}`,
       });
-    const product = PRODUCTS[productKey as ProductKey];
+    const product = PRODUCTS[productKey];
     const accountId = (await this.resolveAccount(accountRef)).id; // login_id·UUID 모두 허용
     const created = await this.prisma.$transaction(
       product.services.map((serviceId) =>

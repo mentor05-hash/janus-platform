@@ -116,9 +116,14 @@ export class GuardianController {
     return this.guardian.requestLink(user, dto);
   }
 
-  /** PATCH /guardian/links/{id}/respond — 학생/관리자 승인·거절·해제. */
+  /**
+   * PATCH /guardian/links/{id}/respond — 학생/관리자 승인·거절·해제.
+   * O180 의 후속(N37): 관리자 경로는 **학생 동의를 우회**하는 강제 복구고, 연결이 서면
+   * 보호자가 성적·리포트에 닿는다. 화면(`guardian-links`)을 관리자 전용으로 좁힌 결정을
+   * 백엔드에도 반영해 HR 을 뺀다. 'student' 는 본인 동의 경로라 그대로 둔다.
+   */
   @Patch('guardian/links/:id/respond')
-  @Roles('student', 'admin', 'hr')
+  @Roles('student', 'admin')
   respond(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: GuardianLinkRespondDto,

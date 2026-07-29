@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { toJsonOrUndefined } from '../../common/prisma/json';
 
 /**
  * 간이 전환 계측(W3) — 자체 로그 테이블 funnel_event.
@@ -23,7 +24,7 @@ export class FunnelService {
         event: dto.event,
         cta: dto.cta ?? null,
         session_id: dto.sessionId ?? null,
-        meta: (dto.meta ?? undefined) as object | undefined,
+        meta: toJsonOrUndefined(dto.meta),
       },
     });
     return { ok: true };

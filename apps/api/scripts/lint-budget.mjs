@@ -22,9 +22,24 @@ import { dirname, join } from 'node:path';
 
 /**
  * 허용 오류 수. **줄었으면 이 값을 낮춰서 커밋할 것** — 스크립트가 새 값을 알려 준다.
- * 2026-07-27 기준 187 (prettier 3,129건 정리 후 남은 타입 안전성 부채).
+ *
+ * 2026-07-27  187  prettier 3,129건 정리 후 남은 타입 안전성 부채
+ * 2026-07-29   70  아래 네 갈래로 정리. 규칙을 끄거나 무시주석을 붙여 줄인 것은 없다.
+ *   · `no-base-to-string` 24 → `common/text/to-text.ts` 의 `toText()`.
+ *     `String(unknown)` 은 객체가 오면 조용히 `"[object Object]"` 가 된다 — 엑셀 파싱·PG
+ *     웹훅·Prisma JSON 처럼 타입을 모르는 값에 쓰이고 있었고, 그 값이 DB·CSV·알림 문구로
+ *     나갔다. 규칙이 잡던 건 스타일이 아니라 **잠재 결함**이라 고치는 쪽이 맞았다.
+ *   · `require-await` 33 → mock·stub 어댑터의 `async` 제거 + `Promise.resolve` 반환.
+ *     인터페이스를 맞추려 async 만 붙어 있던 자리다. 예외를 던지던 하나(`interpretGateway`)는
+ *     `Promise.reject` 로 바꿨다 — 동기 throw 로 바뀌면 `.catch()` 폴백을 지나쳐 버린다.
+ *   · `no-unsafe-*` 47 → `Record<string, any>`·`getRequest()` 같은 any 원천에 타입을 붙였다
+ *     (`material.service.shape` · `metrics.interceptor` · `jwt.verify<T>`).
+ *   · 미사용 import 6건 삭제 + `_` 접두사 규칙화(`argsIgnorePattern`) — 인터페이스 구현체는
+ *     인자를 지울 수 없으므로 접두사로 의도를 표시하던 관례를 설정에 반영했다.
+ *
+ * 남은 70건은 대부분 `no-unsafe-*` 이고, 절반 이상이 스펙 파일이다.
  */
-const BUDGET = 187;
+const BUDGET = 70;
 
 const apiDir = join(dirname(fileURLToPath(import.meta.url)), '..');
 

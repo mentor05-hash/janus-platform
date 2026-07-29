@@ -194,9 +194,9 @@ export class CancellationService {
     const q = await this.pricing.quoteSession(
       booking.mode as never,
       minutes,
-      teacher.grade as never,
+      teacher.grade,
       teacher.center_id,
-      consultType as never,
+      consultType,
     );
     const slotStart = startMin / SLOT_GRANULARITY_MINUTES;
     const slotEnd = endMin / SLOT_GRANULARITY_MINUTES;

@@ -28,7 +28,7 @@ const TYPES = [
 
 class EventDto {
   @IsString() @MaxLength(120) title!: string;
-  @IsOptional() @IsIn(TYPES as unknown as string[]) type?: string;
+  @IsOptional() @IsIn(TYPES) type?: string;
   @IsString() startDate!: string;
   @IsOptional() @IsString() endDate?: string | null;
   @IsOptional() @IsString() @MaxLength(20) grade?: string | null;
@@ -37,7 +37,7 @@ class EventDto {
 }
 class EventPatchDto {
   @IsOptional() @IsString() @MaxLength(120) title?: string;
-  @IsOptional() @IsIn(TYPES as unknown as string[]) type?: string;
+  @IsOptional() @IsIn(TYPES) type?: string;
   @IsOptional() @IsString() startDate?: string;
   @IsOptional() @IsString() endDate?: string | null;
   @IsOptional() @IsString() @MaxLength(20) grade?: string | null;

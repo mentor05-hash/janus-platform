@@ -9,12 +9,13 @@ import { ChargeInput, ChargeResult, PgProvider } from './pg.types';
 export class MockPgProvider implements PgProvider {
   private readonly logger = new Logger('PgProvider:mock');
 
-  async charge(input: ChargeInput): Promise<ChargeResult> {
-    if (input.amount <= 0) return { transactionId: '', status: 'failed' };
+  charge(input: ChargeInput): Promise<ChargeResult> {
+    if (input.amount <= 0)
+      return Promise.resolve({ transactionId: '', status: 'failed' });
     const transactionId = `mock_${input.idempotencyKey}`;
     this.logger.log(
       `[stub] 승인 payer=${input.payerAccountId} amount=${input.amount} (${input.purpose})`,
     );
-    return { transactionId, status: 'done' };
+    return Promise.resolve({ transactionId, status: 'done' });
   }
 }

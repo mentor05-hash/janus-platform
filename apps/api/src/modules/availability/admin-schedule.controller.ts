@@ -32,7 +32,7 @@ export class AdminScheduleController {
     });
     return this.availability.bulkApplySchedules(
       { id: user.id, role: user.role, centerId: user.centerId },
-      (body?.items ?? []) as never,
+      body?.items ?? [],
       today,
     );
   }

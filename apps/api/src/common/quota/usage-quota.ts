@@ -54,11 +54,29 @@ export class UsageQuota {
    * limit <= 0 이면 해당 스코프를 무제한으로 본다(상한 미설정 의도).
    */
   async consume(scope: string, limit: number): Promise<void> {
-    if (limit <= 0) return;
-    const key = `${this.label}:quota:${scope}:${kstDay()}`;
-    const used = await this.cache.incr(key, secondsToKstMidnight());
+    return this.consumeUnits(scope, 1, limit);
+  }
 
-    // incr 은 최초 호출에 1 을 반환한다 — 0 은 캐시 장애(RedisCacheProvider 가 degrade 로 0 반환).
+  /**
+   * 한 번의 사용이 여러 단위를 소모할 때(예: STT 는 **분** 단위 과금).
+   * 호출 수로만 세면 상한이 길이에 무감각해진다 — 30초 60건과 60분 60건이 같아진다.
+   *
+   * **선(先)과금**이다: 실제 호출 전에 units 를 먼저 더한다. 뒤에 더하면 상한을 넘긴
+   * 만큼은 이미 과금된 뒤이므로 상한이 사후 통보가 된다.
+   */
+  async consumeUnits(
+    scope: string,
+    units: number,
+    limit: number,
+    /** 경고·초과 로그에 쓸 단위 이름. 기본 '회'. */
+    unit = '회',
+  ): Promise<void> {
+    if (limit <= 0) return;
+    const amount = Math.max(1, Math.ceil(units));
+    const key = `${this.label}:quota:${scope}:${kstDay()}`;
+    const used = await this.cache.incrBy(key, amount, secondsToKstMidnight());
+
+    // incrBy 는 최초 호출에 amount(≥1)를 반환한다 — 0 은 캐시 장애(RedisCacheProvider degrade).
     if (used === 0) {
       if (this.failOpen) {
         this.logger.warn(
@@ -73,11 +91,11 @@ export class UsageQuota {
     }
 
     if (used > limit) {
-      await this.alarm(scope, used, limit, 'exceeded');
+      await this.alarm(scope, used, limit, 'exceeded', unit);
       throw new QuotaExceededError(scope, limit);
     }
     if (used >= Math.ceil(limit * this.warnRatio)) {
-      await this.alarm(scope, used, limit, 'warn');
+      await this.alarm(scope, used, limit, 'warn', unit);
     }
   }
 
@@ -95,10 +113,11 @@ export class UsageQuota {
     used: number,
     limit: number,
     kind: 'warn' | 'exceeded',
+    unit = '회',
   ): Promise<void> {
     const seen = `${this.label}:quota:alarm:${kind}:${scope}:${kstDay()}`;
     if (!(await this.cache.acquireLock(seen, secondsToKstMidnight()))) return;
-    const msg = `[quota:${kind}] ${this.label}/${scope} 오늘 ${used}/${limit} 회`;
+    const msg = `[quota:${kind}] ${this.label}/${scope} 오늘 ${used}/${limit} ${unit}`;
     if (kind === 'exceeded')
       this.logger.error(`${msg} — 상한 도달로 호출을 차단합니다.`);
     else

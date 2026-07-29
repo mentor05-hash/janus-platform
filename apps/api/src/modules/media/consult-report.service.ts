@@ -17,6 +17,7 @@ import { NotifyService } from '../notification/notify.service';
 import { GuardianConsentService } from '../guardian-consent/guardian-consent.service';
 import { STT_PROVIDER } from './stt.types';
 import type { SttProvider } from './stt.types';
+import { toJson } from '../../common/prisma/json';
 
 type ReportBody = {
   covered: string[];
@@ -73,7 +74,7 @@ export class ConsultReportService {
     return {
       ...ConsultReportService.FLAG_DEFAULT,
       ...((row?.value as object) ?? {}),
-    } as typeof ConsultReportService.FLAG_DEFAULT;
+    };
   }
 
   /** 민감 산출물 접근 감사(R5) — 실패해도 본 작업 비차단. */
@@ -154,7 +155,12 @@ export class ConsultReportService {
         : r.s3_key.endsWith('.mp4')
           ? 'audio/mp4'
           : 'audio/ogg';
-      const tr = await this.stt.transcribe({ audio, mime, lang: 'ko' });
+      const tr = await this.stt.transcribe({
+        audio,
+        mime,
+        lang: 'ko',
+        durationSec: r.duration_sec, // 분 단위 상한의 입력(추정 폴백을 피한다)
+      });
       const transcript = await this.prisma.consult_transcript.upsert({
         where: { recording_id: r.id },
         create: {
@@ -175,7 +181,7 @@ export class ConsultReportService {
       const s = await this.llm.consultSummary({
         transcript: tr.text,
         durationSec: r.duration_sec,
-        subject: b.sub_type ?? String(b.consult_type ?? '') ?? null,
+        subject: b.sub_type ?? String(b.consult_type ?? ''),
         scoreHint: null, // janus_score 요지 직결은 후속(scores 모듈 결합 없이 v1 출시 — 기획 §5 주석)
       });
       await this.saveDraft(
@@ -545,7 +551,7 @@ export class ConsultReportService {
   ) {
     try {
       await this.prisma.funnel_event.create({
-        data: { page: 'consult_report', event, cta, meta: meta as object },
+        data: { page: 'consult_report', event, cta, meta: toJson(meta) },
       });
     } catch {
       /* 계측 실패는 삼킨다 */
@@ -741,8 +747,8 @@ export class ConsultReportService {
   ) {
     await this.prisma.consult_report_view.upsert({
       where: { report_id_audience: { report_id: reportId, audience } },
-      create: { report_id: reportId, audience, body: body as object },
-      update: { body: body as object, status: 'draft', updated_at: new Date() },
+      create: { report_id: reportId, audience, body: toJson(body) },
+      update: { body: toJson(body), status: 'draft', updated_at: new Date() },
     });
   }
 
@@ -828,7 +834,7 @@ export class ConsultReportService {
     delete (merged as { demo?: boolean }).demo; // 사람이 손댔으니 데모 마크 해제
     await this.prisma.consult_report_view.update({
       where: { id: cur.id },
-      data: { body: merged as object, status: 'draft', updated_at: new Date() },
+      data: { body: toJson(merged), status: 'draft', updated_at: new Date() },
     });
     // 편집은 검수 상태를 초기화 — 승인 후 몰래 바뀐 본문이 재검수 없이 발송되지 않게(전건 검수 원칙).
     if (report.status === 'approved')

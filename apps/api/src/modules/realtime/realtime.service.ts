@@ -6,6 +6,7 @@ import {
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccountRole } from '../../config/enums';
+import { toJson } from '../../common/prisma/json';
 
 export type FeatureMode = 'off' | 'all' | 'premium';
 export type RealtimeFeatures = {
@@ -47,11 +48,11 @@ export class RealtimeService {
       where: { key: RealtimeService.KEY },
       create: {
         key: RealtimeService.KEY,
-        value: next as object,
+        value: toJson(next),
         updated_by: actor.id,
       },
       update: {
-        value: next as object,
+        value: toJson(next),
         updated_by: actor.id,
         updated_at: new Date(),
       },
@@ -287,7 +288,7 @@ export class RealtimeService {
           recipient_id: recipientId,
           type: 'chat_message',
           channels: ['app'],
-          payload: { bookingId } as object,
+          payload: toJson({ bookingId }),
         },
       });
       return true;
@@ -492,7 +493,7 @@ export class RealtimeService {
           target_type: context,
           target_id: refId,
           summary: text.slice(0, 120),
-          meta: { kinds } as object,
+          meta: toJson({ kinds }),
           center_id: actor.centerId ?? null,
         },
       });

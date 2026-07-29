@@ -17,6 +17,8 @@ import type { LlmProvider, ScoreOcrResult } from '../llm/llm.types';
 import { SchoolRecordGuardService } from '../guard/school-record-guard.service';
 import { GuardianConsentService } from '../guardian-consent/guardian-consent.service';
 import { parseNb, toJanusScore } from './domain/janus-score';
+import { toJson } from '../../common/prisma/json';
+import { toText, toTrimmedText } from '../../common/text/to-text';
 import {
   buildGapReport,
   type GapMode,
@@ -116,7 +118,7 @@ export class ScoresService {
               report_file_id: input.reportFileId ?? existing.report_file_id,
               updated_at: new Date(),
               ...(input.placement
-                ? { placement: input.placement as object }
+                ? { placement: toJson(input.placement) }
                 : {}),
             },
           })
@@ -131,7 +133,7 @@ export class ScoresService {
               report_file_id: input.reportFileId ?? null,
               created_by: actor.id,
               ...(input.placement
-                ? { placement: input.placement as object }
+                ? { placement: toJson(input.placement) }
                 : {}),
             },
           });
@@ -289,14 +291,14 @@ export class ScoresService {
       const r = rows[i];
       const norm: Record<string, unknown> = {};
       for (const k of Object.keys(r)) norm[k.trim()] = r[k];
-      const loginId = String(
+      const loginId = toTrimmedText(
         norm['아이디'] ??
           norm['학생아이디'] ??
           norm['로그인아이디'] ??
           norm['id'] ??
           '',
-      ).trim();
-      const period = String(norm['기간'] ?? '').trim();
+      );
+      const period = toTrimmedText(norm['기간'] ?? '');
       if (!loginId || !period) {
         result.skipped++;
         result.errors.push(`${i + 2}행: 아이디/기간 누락`);
@@ -324,12 +326,13 @@ export class ScoresService {
           {
             period,
             examType:
-              String(norm['시험'] ?? norm['시험유형'] ?? '') || undefined,
+              toText(norm['시험'] ?? norm['시험유형'] ?? '') || undefined,
             items,
           },
           'excel',
         );
-        existed ? result.updated++ : result.created++;
+        if (existed) result.updated++;
+        else result.created++;
       } catch (e) {
         result.skipped++;
         result.errors.push(`${i + 2}행(${loginId}): ${(e as Error).message}`);
@@ -470,18 +473,18 @@ export class ScoresService {
     await this.prisma.score_report.update({
       where: { id: reportId },
       data: {
-        placement: {
+        placement: toJson({
           ...placement,
           source: placement.source ?? 'manual',
           updatedAt: new Date().toISOString(),
-        } as object,
+        }),
       },
     });
     await this.audit.record(actor, {
       action: 'scores.placement',
       targetType: 'score_report',
       targetId: reportId,
-      summary: `배치 라인 입력(${placement.tier ?? ''} ${placement.line ?? ''})`,
+      summary: `배치 라인 입력(${toText(placement.tier)} ${toText(placement.line)})`,
       meta: placement,
     });
     return { ok: true };
@@ -878,12 +881,12 @@ export class ScoresService {
       await this.prisma.score_report.update({
         where: { id: r.id },
         data: {
-          placement: {
+          placement: toJson({
             ...est,
             avg: Math.round(avg * 10) / 10,
             source: 'demo',
             updatedAt: new Date().toISOString(),
-          } as object,
+          }),
         },
       });
       updated++;
@@ -935,7 +938,7 @@ export class ScoresService {
           : null;
         const pl = r.placement as Record<string, unknown> | null;
         // 누백 모드는 과목별 표점이 없어 avg=null → placement.nb(전국 누백)를 추이 지표로 노출.
-        const nb = pl && typeof pl.nb === 'number' ? (pl.nb as number) : null;
+        const nb = pl && typeof pl.nb === 'number' ? pl.nb : null;
         return {
           period: r.period,
           examType: r.exam_type,
@@ -1053,11 +1056,11 @@ export class ScoresService {
       where: { key: ScoresService.POLICY_KEY },
       create: {
         key: ScoresService.POLICY_KEY,
-        value: next as object,
+        value: toJson(next),
         updated_by: actor.id,
       },
       update: {
-        value: next as object,
+        value: toJson(next),
         updated_by: actor.id,
         updated_at: new Date(),
       },
@@ -1279,7 +1282,7 @@ export class ScoresService {
           student_id: studentId,
           kind: report.kind,
           status: 'final',
-          payload: report as unknown as object,
+          payload: toJson(report),
           score_report_id: src?.id ?? null,
         },
       });
@@ -1369,7 +1372,7 @@ export class ScoresService {
       '배치',
     ];
     const esc = (v: unknown) => {
-      const s = String(v ?? '');
+      const s = toText(v);
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const lines = [head.join(',')];
@@ -1383,7 +1386,7 @@ export class ScoresService {
         ...subjects.map((s) => byS.get(s) ?? ''),
         r.avg ?? '',
         r.placement
-          ? `${r.placement.tier ?? ''} ${r.placement.line ?? ''}`.trim()
+          ? `${toText(r.placement.tier)} ${toText(r.placement.line)}`.trim()
           : '',
       ];
       lines.push(cells.map(esc).join(','));

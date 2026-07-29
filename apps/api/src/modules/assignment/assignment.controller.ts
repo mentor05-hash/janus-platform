@@ -57,7 +57,7 @@ export class AssignmentController {
 
   /** GET /assignment/dashboard — 관리자: 자동배정 큐·배치 결과·전임 부하(센터 스코프). */
   @Get('dashboard')
-  @Roles('admin', 'hr')
+  @Roles('admin') // N37: 화면 `assignment` 는 관리자 전용
   dashboard(@CurrentUser() user: AuthUser) {
     return this.svc.dashboard(user);
   }

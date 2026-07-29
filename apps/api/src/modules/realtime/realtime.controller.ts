@@ -46,16 +46,16 @@ export class RealtimeController {
     return this.svc.featureAccess(user, studentId);
   }
 
-  /** GET /admin/realtime/policy — 정책 조회(관리자/HR). */
+  /** GET /admin/realtime/policy — 정책 조회(관리자 — 화면 `infra`). N37 로 HR 제거. */
   @Get('admin/realtime/policy')
-  @Roles('admin', 'hr')
+  @Roles('admin')
   getPolicy() {
     return this.svc.getFeatures();
   }
 
   /** PUT /admin/realtime/policy — 정책 변경(본사 마스터, 서비스 가드). */
   @Put('admin/realtime/policy')
-  @Roles('admin', 'hr')
+  @Roles('admin')
   setPolicy(@CurrentUser() user: AuthUser, @Body() dto: FeaturePolicyDto) {
     return this.svc.setFeatures(user, dto);
   }

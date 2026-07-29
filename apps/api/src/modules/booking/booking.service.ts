@@ -1383,7 +1383,7 @@ export class BookingService {
     const endMin = dto.slotEnd * SLOT_GRANULARITY_MINUTES;
     const startAt = utcFromKst(dto.date, startMin);
     const endAt = utcFromKst(dto.date, endMin);
-    const mode = b.mode as ConsultMode;
+    const mode = b.mode;
 
     try {
       const updated = await this.bookingTx(async (tx) => {

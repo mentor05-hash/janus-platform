@@ -9,6 +9,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccountRole } from '../../config/enums';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { DongResolver } from './dong-resolver';
+import { toJson } from '../../common/prisma/json';
 import type {
   BusRouteUpsertDto,
   ClaimReviewDto,
@@ -198,7 +199,7 @@ export class ClaimService {
         subject: dto.subject,
         target_grades: dto.targetGrades ?? [],
         level: dto.level ?? 'regular',
-        schedule: (dto.schedule ?? []) as object,
+        schedule: toJson(dto.schedule ?? []),
         capacity: dto.capacity ?? null,
         tuition_krw: dto.tuitionKrw ?? null,
         tuition_source: 'claimed', // 운영자 입력 → 미검증 라벨
@@ -226,7 +227,7 @@ export class ClaimService {
         subject: dto.subject,
         target_grades: dto.targetGrades ?? [],
         level: dto.level ?? 'regular',
-        schedule: (dto.schedule ?? []) as object,
+        schedule: toJson(dto.schedule ?? []),
         capacity: dto.capacity ?? null,
         tuition_krw: dto.tuitionKrw ?? null,
         entry_test: dto.entryTest ?? false,
@@ -410,7 +411,7 @@ export class ClaimService {
       summary.reply = { text: dto.reply, at: new Date().toISOString() };
     await this.prisma.academy_lead.update({
       where: { id: leadId },
-      data: { status: dto.status, summary_json: summary as object },
+      data: { status: dto.status, summary_json: toJson(summary) },
     });
     return { ok: true, status: dto.status };
   }

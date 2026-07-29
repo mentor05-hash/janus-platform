@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
+import { toJson } from '../../common/prisma/json';
 
 /**
  * 진단 기반 매칭(PR-1 코어) — 학생의 진단·성적(읽기 전용)에서 적합 상담사 카드 N인을 추천.
@@ -185,7 +186,7 @@ export class DiagnosticMatchService {
   private async recordFunnel(event: string, meta: Record<string, unknown>) {
     try {
       await this.prisma.funnel_event.create({
-        data: { page: 'diag_match', event, cta: event, meta: meta as object },
+        data: { page: 'diag_match', event, cta: event, meta: toJson(meta) },
       });
     } catch {
       /* 계측 실패 비차단 */
