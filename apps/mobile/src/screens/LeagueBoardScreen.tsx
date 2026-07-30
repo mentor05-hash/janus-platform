@@ -11,6 +11,10 @@ import { useWebBack } from '../webBack';
  * 무료·전원 답변(학생 포함)·무정산·단일 채택·신고 숨김. 답변이 **채택**되면 실적이 쌓이고
  * 요건을 넘으면 자동 승급한다 — 크레딧·승급이 걸린 동선이라 모바일에 없으면 그만큼이 빈다.
  *
+ * `canAsk` — 질문 등록은 서버가 `@Roles('student')` 로 막는다(답변·채택은 로그인 전원).
+ * 학부모는 이 화면을 **읽고 답변**할 수 있지만 질문은 올릴 수 없으므로 버튼 자체를 내린다
+ * (확정 403 은 호출 자체를 막는다 — O185·O192 와 같은 원칙).
+ *
  * ⚠ 웹과 다른 점 하나: **실시간 소켓 구독을 넣지 않았다.** 웹은 `community:answer`·
  * `community:accepted` 를 구독해 다른 사람의 답변이 즉시 뜨는데, 폰에서 상시 소켓은
  * 배터리·재연결·백그라운드 복귀를 모두 다뤄야 한다. 이 화면은 대개 짧게 머무는 곳이라
@@ -30,7 +34,7 @@ const fmtDate = (s: string) => { const d = new Date(s); return `${d.getMonth() +
 const roleLabel = (r: string | null) => (r === 'teacher' ? '선생님' : r === 'student' ? '학생' : r === 'guardian' ? '학부모' : (r ?? ''));
 const tierIcon = (t: number) => (t === 1 ? '👑' : t === 2 ? '🏅' : '🌱');
 
-export function LeagueBoardScreen({ onBack, backLabel = '‹ 실행' }: { onBack: () => void; backLabel?: string }) {
+export function LeagueBoardScreen({ onBack, backLabel = '‹ 실행', canAsk = true }: { onBack: () => void; backLabel?: string; canAsk?: boolean }) {
   const { C } = useTheme();
   const ui = useUI();
   const s = useMemo(() => mk(C), [C]);
@@ -85,8 +89,8 @@ export function LeagueBoardScreen({ onBack, backLabel = '‹ 실행' }: { onBack
 
       <LeaguePanel />
 
-      {/* 질문 올리기 */}
-      {writing ? (
+      {/* 질문 올리기 — 학생만(서버 역할 가드와 같은 조건) */}
+      {!canAsk ? null : writing ? (
         <View style={[ui.card, { marginBottom: SP.md }]}>
           <Text style={s.cardT}>질문 올리기</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, marginTop: 8 }}>

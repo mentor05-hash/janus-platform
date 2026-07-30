@@ -7,6 +7,7 @@ import { useWebBack } from '../webBack';
 import { ScoreTrendView, type Trend } from './ScoreTrendView';
 import { AcademicUpcoming } from './AcademicUpcoming';
 import { GuardianPlanScreen } from './GuardianPlanScreen';
+import { LeagueBoardScreen } from './LeagueBoardScreen';
 import { GuardianLinkScreen } from './GuardianLinkScreen';
 import { LegalScreen } from './LegalScreen';
 
@@ -531,6 +532,10 @@ export function GuardianConsult({ children, activeId, setActiveId }: Props) {
   const [report, setReport] = useState<WeeklyReport | null>(null);
   // 자녀 계획(O106) 하위 화면 + 자녀 산출물 이력(O104·O105 게이트).
   const [planOpen, setPlanOpen] = useState(false);
+  // 커뮤니티 Q&A — 웹 학부모 nav 도 '상담' 대항목에 둔다(`/guardian/community`).
+  // 학부모는 읽기·답변만 되고 질문 등록은 서버가 학생으로 막는다 → `canAsk={false}`.
+  const [qnaOpen, setQnaOpen] = useState(false);
+  useWebBack(qnaOpen, () => setQnaOpen(false)); // 웹 뒤로가기로 상담 화면 복귀
   const [gapHist, setGapHist] = useState<GapHist[] | null>(null);
   const [gapGate, setGapGate] = useState('');
   const [trend, setTrend] = useState<Trend | null>(null);
@@ -544,10 +549,22 @@ export function GuardianConsult({ children, activeId, setActiveId }: Props) {
     if (access?.showTrend) api.get<Trend>(`/guardian/scores/trend?studentId=${activeId}`).then(setTrend).catch(() => setTrend(null));
   }, [activeId, access]);
 
+  if (qnaOpen) return <LeagueBoardScreen onBack={() => setQnaOpen(false)} backLabel="‹ 상담" canAsk={false} />;
+
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
       <Text style={ui.h}>자녀 상세 리포트</Text>
       <KidSwitcher children={children} activeId={activeId} setActiveId={setActiveId} />
+
+      {/* 커뮤니티 Q&A — 자녀가 쓰는 게시판을 학부모도 보고 답할 수 있다(웹 파리티). */}
+      <TouchableOpacity style={[ui.card, s.hubRow, { marginBottom: 8 }]} activeOpacity={0.75} onPress={() => setQnaOpen(true)}>
+        <Text style={s.hubIc}>🏅</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={s.hubT}>커뮤니티 Q&A</Text>
+          <Text style={s.hubD}>자녀가 쓰는 공개 게시판 — 읽고 답변할 수 있어요</Text>
+        </View>
+        <Text style={s.hubCh}>›</Text>
+      </TouchableOpacity>
 
       {/* 주간 요약 */}
       {report && (
