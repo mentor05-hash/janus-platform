@@ -33,7 +33,17 @@ describe('SEARCH_HREFS — 검색 결과 링크 경로', () => {
    */
   it('모바일 해석표가 4개 경로를 모두 알고 있다(routes.ts)', () => {
     const routes = readFileSync(
-      join(__dirname, '..', '..', '..', '..', 'mobile', 'src', 'nav', 'routes.ts'),
+      join(
+        __dirname,
+        '..',
+        '..',
+        '..',
+        '..',
+        'mobile',
+        'src',
+        'nav',
+        'routes.ts',
+      ),
       'utf8',
     );
     const missing = Object.values(SEARCH_HREFS).filter(
