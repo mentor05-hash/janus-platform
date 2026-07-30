@@ -219,7 +219,7 @@ function AppInner() {
           (tab === 'h' ? (
             <HomeScreen name={me.name} goTab={goTab} />
           ) : tab === 'dg' ? (
-            <DiagnosticScreen onGoQna={() => goTab('c')} />
+            <DiagnosticScreen onGoQna={() => goTab('c')} goTab={goTab} />
           ) : tab === 'a' ? (
             teacher ? (
               booking ? (
@@ -231,7 +231,7 @@ function AppInner() {
               <SearchScreen onPick={(t, m, ct, sub) => openTeacher(t, m, ct, sub)} onGoQna={() => goTab('c')} />
             )
           ) : tab === 'b' ? (
-            <BookingsScreen myId={me.id} />
+            <BookingsScreen myId={me.id} goTab={goTab} />
           ) : tab === 'ac' ? (
             <AcademyFinderScreen />
           ) : tab === 'r' ? (

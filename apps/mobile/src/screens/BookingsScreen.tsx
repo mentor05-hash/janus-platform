@@ -4,6 +4,7 @@ import { api, ApiError, Booking, Note, Teacher } from '../api';
 import { R, SP, useTheme, useUI, type Palette } from '../theme';
 import { showAlert } from '../lib/alertHost';
 import { useWebBack } from '../webBack';
+import { HubMenu, useHub } from '../nav/hubMenu';
 import { RescheduleScreen } from './RescheduleScreen';
 import { SessionChatScreen } from './SessionChatScreen';
 import { SessionWhiteboardScreen } from './SessionWhiteboardScreen';
@@ -100,7 +101,7 @@ function Detail({ id, status }: { id: string; status: string }) {
   );
 }
 
-export function BookingsScreen({ myId }: { myId?: string }) {
+export function BookingsScreen({ myId, goTab }: { myId?: string; goTab?: (t: string) => void }) {
   const { C } = useTheme();
   const ui = useUI();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -119,6 +120,8 @@ export function BookingsScreen({ myId }: { myId?: string }) {
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
   useWebBack(reschedule !== null, () => setReschedule(null));
+  // 일정 탭은 **시간을 쓰는 일** 전부다(웹 '일정' 대항목과 같은 축) — 채팅·자동매칭·자동배정·할 일·기록·리포트.
+  const hub = useHub('b', { goTab, onReload: () => load(), onMessage: setMsg });
 
   function load() {
     api.get<{ data?: Booking[] } | Booking[]>('/bookings?role=student')
@@ -185,6 +188,8 @@ export function BookingsScreen({ myId }: { myId?: string }) {
       onBack={() => setReschedule(null)} onDone={() => { setReschedule(null); setMsg('시간이 변경되었습니다. 선생님 재확인 후 확정됩니다.'); load(); }} />
   );
 
+  if (hub.screen) return hub.screen;
+
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
       <Text style={ui.h}>내 예약·상담</Text>
@@ -206,6 +211,13 @@ export function BookingsScreen({ myId }: { myId?: string }) {
           ))}
         </>
       )}
+
+      <HubMenu
+        items={hub.items}
+        onPick={hub.open}
+        badges={{ chats: Object.values(unread).reduce((a, b) => a + b, 0) }}
+        title="상담 관련"
+      />
 
       <Text style={styles.sec}>예약 현황 · 상담내역</Text>
       <View style={styles.tabs}>

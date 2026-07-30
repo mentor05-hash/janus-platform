@@ -2,19 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { api, ApiError, CreditAccount } from '../api';
 import { R, SP, useTheme, useUI, type Palette } from '../theme';
-import { useWebBack } from '../webBack';
-import { AutomatchScreen } from './AutomatchScreen';
-import { AutoAssignScreen } from './AutoAssignScreen';
-import { RecordsScreen } from './RecordsScreen';
-import { ChatInboxScreen } from './ChatInboxScreen';
-import { ReportsScreen } from './ReportsScreen';
-import { ClassifyScreen } from './ClassifyScreen';
-import { LegalScreen } from './LegalScreen';
-import { ScoresScreen } from './ScoresScreen';
-import { TasksScreen } from './TasksScreen';
-import { GapReportScreen } from './GapReportScreen';
-import { GoalScreen } from './GoalScreen';
-import { ScoreInputScreen } from './ScoreInputScreen';
+import { HubMenu, useHub } from '../nav/hubMenu';
 
 type Plan = { id: string; name: string; price: number; membership_grade?: { name: string; weekly_credits: number } | null };
 type Pay = { id: string; amount: number; created_at: string };
@@ -31,29 +19,12 @@ const makeTxMeta = (C: Palette): Record<Tx['type'], { label: string; sign: 1 | -
   weekly_expire: { label: '주간 크레딧 소멸', sign: -1, color: C.confirmed },
 });
 
-type Sub = 'automatch' | 'autoassign' | 'records' | 'reports' | 'classify' | 'legal' | 'scores' | 'scoreInput' | 'chats' | 'tasks' | 'gap' | 'goal';
-const MENU: { key: Sub; icon: string; title: string; desc: string }[] = [
-  // 성적 입력이 맨 앞이다 — 아래 격차·목표·할 일이 **전부 성적에 의존**해서, 입력 경로가 없으면 그 화면들이 빈다.
-  { key: 'scoreInput', icon: '📝', title: '성적진단', desc: '성적 한 번 입력 → 배치·격차·할 일 자동 반영' },
-  { key: 'gap', icon: '🎯', title: '격차 리포트', desc: '지금 위치 → 목표까지 과목별 격차와 처방' },
-  { key: 'goal', icon: '🏁', title: '목표 설정', desc: '목표 대학·학과·평균 — 격차·할 일 기준' },
-  { key: 'tasks', icon: '✅', title: '할 일', desc: '약점·학사일정 자동 제안 + 직접 추가' },
-  { key: 'chats', icon: '💬', title: '채팅', desc: '상담 대화 모아보기 — 안 읽은 메시지 확인' },
-  { key: 'automatch', icon: '⚡', title: '30분 자동 매칭', desc: '유형·방식만 고르면 7일 내 가장 빠른 30분' },
-  { key: 'autoassign', icon: '🗓', title: '자동배정 신청', desc: '시간 안 정해도 전임 선생님 근무시간에 배정' },
-  { key: 'scores', icon: '📈', title: '내 성적·배치', desc: '성적 추이 + 예상 대학·학과 라인' },
-  { key: 'records', icon: '📝', title: '내 상담 기록', desc: '공개된 핵심요약·숙제·향후방향 확인' },
-  { key: 'reports', icon: '📋', title: '상담 리포트', desc: '녹음 동의 상담의 검수된 요약 리포트' },
-  { key: 'classify', icon: '💚', title: '선생님 분류', desc: '나와 맞는 / 맞지 않는 선생님 관리' },
-  { key: 'legal', icon: '🔒', title: '약관·개인정보', desc: '약관·방침·동의·데이터 내보내기·회원 탈퇴' },
-];
 
 export function MyScreen({ goTab }: { goTab?: (t: string) => void } = {}) {
   const { C } = useTheme();
   const ui = useUI();
   const styles = useMemo(() => makeStyles(C), [C]);
   const TX_META = makeTxMeta(C);
-  const [sub, setSub] = useState<Sub | null>(null);
   const [acc, setAcc] = useState<CreditAccount | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [subId, setSubId] = useState<string | null>(null);
@@ -66,6 +37,8 @@ export function MyScreen({ goTab }: { goTab?: (t: string) => void } = {}) {
   const [chatUnread, setChatUnread] = useState(0);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  // 내정보 허브는 이제 계정에 관한 것만 담는다 — 나머지는 진단·일정 탭으로 옮겼다(hubMenu.tsx).
+  const hub = useHub('d', { goTab, onReload: () => load(), onMessage: setMsg });
   const [error, setError] = useState('');
 
   function load() {
@@ -80,20 +53,7 @@ export function MyScreen({ goTab }: { goTab?: (t: string) => void } = {}) {
     api.get<Record<string, number>>('/chat/unread').then((u) => setChatUnread(Object.values(u).reduce((a, b) => a + b, 0))).catch(() => {});
   }
   useEffect(load, []);
-  useWebBack(sub !== null, () => setSub(null));
 
-  if (sub === 'chats') return <ChatInboxScreen onBack={() => { setSub(null); load(); }} />;
-  if (sub === 'automatch') return <AutomatchScreen onBack={() => setSub(null)} onBooked={() => { setSub(null); setMsg('자동 매칭으로 예약이 신청되었습니다. 내 예약에서 확인하세요.'); load(); }} />;
-  if (sub === 'autoassign') return <AutoAssignScreen onBack={() => setSub(null)} />;
-  if (sub === 'records') return <RecordsScreen onBack={() => setSub(null)} />;
-  if (sub === 'reports') return <ReportsScreen onBack={() => setSub(null)} />;
-  if (sub === 'classify') return <ClassifyScreen onBack={() => setSub(null)} />;
-  if (sub === 'legal') return <LegalScreen onBack={() => setSub(null)} onWithdrawn={() => { if (typeof window !== 'undefined') window.location.reload(); }} />;
-  if (sub === 'scores') return <ScoresScreen onBack={() => setSub(null)} showPlacement={access?.showPlacement ?? false} />;
-  if (sub === 'tasks') return <TasksScreen onBack={() => setSub(null)} goTab={goTab} />;
-  if (sub === 'gap') return <GapReportScreen onBack={() => setSub(null)} showPlacement={access?.showPlacement ?? false} goTab={goTab} />;
-  if (sub === 'goal') return <GoalScreen onBack={() => { setSub(null); load(); }} />;
-  if (sub === 'scoreInput') return <ScoreInputScreen onBack={() => { setSub(null); load(); }} />;
 
   async function charge(amount: number) {
     setBusy(true); setError(''); setMsg('');
@@ -109,6 +69,8 @@ export function MyScreen({ goTab }: { goTab?: (t: string) => void } = {}) {
     setReverse(v);
     try { await api.patch('/bookings/reverse/self', { value: v }); } catch { setReverse(!v); }
   }
+
+  if (hub.screen) return hub.screen;
 
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
@@ -132,19 +94,8 @@ export function MyScreen({ goTab }: { goTab?: (t: string) => void } = {}) {
         </View>
       </View>
 
-      {/* 메뉴 */}
-      <Text style={styles.sec}>메뉴</Text>
-      {/* 격차 리포트도 성적 데이터(/me/scores/trend) 소비 → 성적 노출 정책 OFF 면 숨긴다(403 막다른 길 방지). */}
-      {MENU.filter((m) => (m.key !== 'scores' && m.key !== 'gap') || access?.showTrend).map((m) => (
-        <TouchableOpacity key={m.key} style={[ui.card, styles.menuRow]} onPress={() => setSub(m.key)} activeOpacity={0.7}>
-          <Text style={styles.menuIc}>{m.icon}</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.menuT}>{m.title}{m.key === 'chats' && chatUnread > 0 ? `  🔴 ${chatUnread > 99 ? '99+' : chatUnread}` : ''}</Text>
-            <Text style={styles.sub}>{m.desc}</Text>
-          </View>
-          <Text style={styles.chev}>›</Text>
-        </TouchableOpacity>
-      ))}
+      {/* 메뉴 — 계정에 관한 것만. 성적·격차는 진단 탭, 채팅·예약 계열은 일정 탭으로 옮겼다. */}
+      <HubMenu items={hub.items} onPick={hub.open} title="메뉴" />
 
       {/* 크레딧 내역 */}
       <Text style={styles.sec}>크레딧 내역</Text>
