@@ -140,7 +140,7 @@ export const TEACHER_NAV: NavItem[] = [
   { group: '오늘' },
   { to: '/app/dashboard', label: '대시보드' },
   { to: '/app/schedule', label: '근무·슬롯' },
-  { to: '/app/classes', label: '강의실' },
+  { to: '/app/classes', label: '실시간 수업' },
 
   { group: '상담' },
   { to: '/app/bookings', label: '예약' },

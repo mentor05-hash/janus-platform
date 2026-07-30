@@ -38,7 +38,7 @@ export function HomeScreen({ name, goTab }: { name?: string; goTab: (t: string) 
     { icon: '◇', label: '선생님 찾기', tab: 'a' },
     { icon: '🏫', label: '학원찾기', tab: 'ac' },
     { icon: '▤', label: '내 예약·일정', tab: 'b' },
-    { icon: '▶', label: '강의실', tab: 'r' },
+    { icon: '▶', label: '실시간 수업', tab: 'r' },
     { icon: '◫', label: '자료실', tab: 'e' },
     { icon: '👥', label: '커뮤니티', tab: 'f' },
     { icon: '◯', label: '내정보·채팅', tab: 'd', badge: chatUnread },

@@ -8,7 +8,8 @@ interface StudentHit { studentId: string; name: string; loginId: string | null; 
 
 const STATUS_LABEL: Record<string, string> = { scheduled: '예정', live: '진행 중', ended: '종료', canceled: '취소' };
 
-// 선생님 강의실 — 개설 · 목록 · 시작/종료 · 입장(판서+음성) · 학생 명단/초대.
+// 선생님 실시간 수업 — 개설 · 목록 · 시작/종료 · 입장(판서+음성) · 학생 명단/초대.
+// (이름을 '강의실'에서 바꿨다 — 녹화 강의인 '강좌'와 혼동돼 검색이 실제로 잘못 보냈다: O186 ①)
 export function ClassroomPage() {
   const [rows, setRows] = useState<ClassRow[]>([]);
   const [title, setTitle] = useState('');
@@ -91,7 +92,7 @@ export function ClassroomPage() {
 
   return (
     <div style={{ maxWidth: 760 }}>
-      <h2 style={{ margin: '0 0 4px' }}>온라인 강의실</h2>
+      <h2 style={{ margin: '0 0 4px' }}>실시간 수업</h2>
       <p style={{ fontSize: 13, color: 'var(--muted)', margin: '0 0 16px' }}>여러 학생에게 판서 강의를 진행합니다. 개설 후 학생을 등록하고, 입장하면 판서·음성이 열립니다.</p>
 
       <form onSubmit={create} className="card" style={{ display: 'flex', gap: 10, alignItems: 'flex-end', marginBottom: 18 }}>

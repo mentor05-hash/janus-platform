@@ -38,7 +38,7 @@ const TO_TAB: Record<string, { tab: string; label: string }> = {
 const WEB_ONLY: Record<string, { label: string; why: string }> = {
   '/student/lectures': {
     label: '강좌',
-    why: '강좌(VOD)는 아직 모바일에 없어요. 앱의 ‘강의실’은 실시간 수업이라 다른 화면이에요.',
+    why: '강좌(녹화 강의)는 아직 모바일에 없어요. 앱의 ‘실시간 수업’은 예약된 수업 입장이라 다른 화면이에요.',
   },
   '/student/community/board': {
     label: '리그 Q&A',

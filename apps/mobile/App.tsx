@@ -177,7 +177,7 @@ function AppInner() {
   //   북극성(진단→처방→실행→통과)이 메뉴에서 보이지 않았다. 질문은 실행 허브 첫 줄 + 홈 타일로 남는다.
   const tabs = isGuardian ? ['a', 'b', 'c', 'd'] : isTeacher ? ['ti', 'to', 'ts', 'tr', 'tm'] : ['h', 'dg', 'rx', 'b', 'd'];
   const guardianLabel: Record<string, string> = { a: '홈', b: '상담', c: '결제', d: '내정보' };
-  const studentLabel: Record<string, string> = { h: '홈', dg: '진단', rx: '처방', b: '실행', a: '선생님 찾기', r: '강의실', e: '자료실', c: '질문', f: '라운지', d: '내정보' };
+  const studentLabel: Record<string, string> = { h: '홈', dg: '진단', rx: '처방', b: '실행', a: '선생님 찾기', r: '실시간 수업', e: '자료실', c: '질문', f: '라운지', d: '내정보' };
   const teacherLabel: Record<string, string> = { ti: '인박스', to: '오늘', ts: '상담', tr: '기록', tm: '마이' };
   // 시안(janus_app_v1) 하단 탭: 아이콘+라벨 — 도메인 아이콘 슬롯 규칙
   const guardianIcon: Record<string, string> = { a: '⌂', b: '◇', c: '₩', d: '◯' };

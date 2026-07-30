@@ -58,7 +58,9 @@ export const HUB_ITEMS: HubItem[] = [
   // ── 진단 — 내 위치를 아는 일 ──
   { key: 'scoreInput', tab: 'dg', icon: '📝', title: '성적진단', desc: '성적 한 번 입력 → 배치·격차·할 일 자동 반영' },
   { key: 'scores', tab: 'dg', icon: '📈', title: '내 성적·배치', desc: '성적 추이 + 예상 대학·학과 라인' },
-  { key: 'gap', tab: 'dg', icon: '🎯', title: '격차 리포트', desc: '지금 위치 → 목표까지 과목별 격차와 처방' },
+  // 이름을 웹과 맞춘다 — '격차 리포트'는 서버 산출물(janus_report kind=gap, 목표 대학 컷 대비)의
+  // 제품명이라, 과목 점수 기반 화면이 그 이름을 쓰면 두 층이 한 이름으로 뭉개진다(O102 고도 원칙).
+  { key: 'gap', tab: 'dg', icon: '🎯', title: '과목별 점수 격차', desc: '과목마다 목표까지 몇 점 남았는지 + 처방' },
   // 목표는 격차 계산의 **기준값**이라 진단에 둔다(웹 사이드바와 같은 판단).
   { key: 'goal', tab: 'dg', icon: '🏁', title: '목표 설정', desc: '목표 대학·학과·평균 — 격차·할 일 기준' },
 
@@ -67,14 +69,14 @@ export const HUB_ITEMS: HubItem[] = [
   // 빈 탭으로 두면 '처방 층이 비어 있다'는 사실이 아무에게도 안 보인다.
   { key: 'toMaterials', tab: 'rx', jump: 'e', icon: '▦', title: '자료실', desc: '진단 결과에 맞는 학습 자료' },
   { key: 'planWeb', tab: 'rx', icon: '🗒', title: '학습 플랜', desc: '격차 기반 주간 계획', webOnly: '학습 플랜은 아직 모바일에 없어요.' },
-  { key: 'lectureWeb', tab: 'rx', icon: '▶', title: '강좌', desc: '약점 과목 인강·강의', webOnly: '강좌(VOD)는 아직 모바일에 없어요. 앱의 ‘강의실’은 실시간 수업이라 다른 화면이에요.' },
+  { key: 'lectureWeb', tab: 'rx', icon: '🎬', title: '강좌', desc: '약점 과목 인강 — 원하는 때 보는 녹화 강의', webOnly: '강좌(녹화 강의)는 아직 모바일에 없어요. 앱의 ‘실시간 수업’은 예약된 수업 입장이라 다른 화면이에요.' },
 
   // ── 실행 — 시간을 쓰는 일 ──
   { key: 'toQna', tab: 'b', jump: 'c', icon: '✎', title: '질문 게시판', desc: 'AI 초안 즉시 · 선생님 검토' },
   { key: 'toLounge', tab: 'b', jump: 'f', icon: '◫', title: '라운지', desc: '같은 고민을 하는 학생들의 글' },
   { key: 'toSearch', tab: 'b', jump: 'a', icon: '◇', title: '선생님 찾기', desc: '상담·과외 1:1 매칭' },
   { key: 'toAcademy', tab: 'b', jump: 'ac', icon: '🏫', title: '학원찾기', desc: '동네·과목별 학원 비교' },
-  { key: 'toClassroom', tab: 'b', jump: 'r', icon: '▶', title: '강의실', desc: '예약된 실시간 수업 입장' },
+  { key: 'toClassroom', tab: 'b', jump: 'r', icon: '▶', title: '실시간 수업', desc: '예약된 수업에 입장 — 판서·음성' },
   { key: 'automatch', tab: 'b', icon: '⚡', title: '30분 자동 매칭', desc: '유형·방식만 고르면 7일 내 가장 빠른 30분' },
   { key: 'autoassign', tab: 'b', icon: '🗓', title: '자동배정 신청', desc: '시간 안 정해도 전임 선생님 근무시간에 배정' },
   { key: 'tasks', tab: 'b', icon: '✅', title: '할 일', desc: '약점·학사일정 자동 제안 + 직접 추가' },

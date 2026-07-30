@@ -79,7 +79,7 @@ export function ScoreInputScreen({ onBack, backLabel = '‹ 뒤로' }: { onBack:
     setBusy(true);
     try {
       await api.post('/scores/me', { period: p, examType: '수능/모의', mode, gye, nb: nbVal, items });
-      setMsg('저장했어요 — 격차 리포트·과목별 격차·할 일에 바로 반영됩니다.');
+      setMsg('저장했어요 — 과목별 점수 격차·할 일에 바로 반영됩니다.');
     } catch (e) {
       setError(e instanceof ApiError ? e.message : '저장 실패');
     } finally { setBusy(false); }
@@ -93,7 +93,7 @@ export function ScoreInputScreen({ onBack, backLabel = '‹ 뒤로' }: { onBack:
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
       <TouchableOpacity onPress={onBack}><Text style={{ color: C.teal, fontWeight: '700', marginBottom: 8 }}>{backLabel}</Text></TouchableOpacity>
       <Text style={ui.h}>성적진단</Text>
-      <Text style={[ui.sub, { marginBottom: SP.md }]}>한 번 입력하면 배치표·격차 리포트·할 일이 함께 채워져요(성적 단일 규약).</Text>
+      <Text style={[ui.sub, { marginBottom: SP.md }]}>한 번 입력하면 배치표·과목별 점수 격차·할 일이 함께 채워져요(성적 단일 규약).</Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}
       {msg ? <Text style={{ color: C.teal, fontSize: 13, marginBottom: 8 }}>{msg}</Text> : null}
 

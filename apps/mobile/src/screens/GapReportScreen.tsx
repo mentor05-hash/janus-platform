@@ -7,7 +7,12 @@ import { GapReportView, type Rx } from './GapReportView';
 import { computeGapModel, summarizeReport, REL_TIER_LABEL, BAND_COLOR, type JanusReportRow } from '../lib/gap';
 
 /**
- * 격차 리포트(학생 본인) — 진단 탭 하위.
+ * 과목별 점수 격차(학생 본인) — 진단 탭 하위.
+ *
+ * 이름을 '격차 리포트'에서 바꾼 이유: **'격차 리포트'는 서버 산출물의 제품명**이다
+ * (`janus_report` kind=gap — 목표 학과 컷 대비 누백·등급). 과목 점수 기반 화면이 그 이름을
+ * 쓰면 두 층이 한 이름으로 뭉개져, 사용자가 무엇이 다른지 구분할 수 없다(O102 고도 원칙).
+ * 웹은 이미 '과목별 점수 격차'/'목표 대학 격차' 두 이름으로 나뉘어 있었다.
  *
  * 두 층을 함께 보여준다(단위가 달라 합칠 수 없다 — `lib/gap.ts` 타입 주석 참조):
  *   · 전략층 — 서버 산출물 `GET /me/reports?kind=gap&limit=1`(목표 학과 컷 대비 누백·등급, C5 근거)
@@ -54,8 +59,8 @@ export function GapReportScreen({ onBack, showPlacement, goTab, backLabel = '‹
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
       <TouchableOpacity onPress={onBack}><Text style={{ color: C.teal, fontWeight: '700', marginBottom: 8 }}>{backLabel}</Text></TouchableOpacity>
-      <Text style={ui.h}>격차 리포트</Text>
-      <Text style={[ui.sub, { marginBottom: SP.md }]}>지금 위치에서 목표까지, 얼마나 남았고 무엇부터 좁힐지 한눈에 봐요.</Text>
+      <Text style={ui.h}>과목별 점수 격차</Text>
+      <Text style={[ui.sub, { marginBottom: SP.md }]}>과목마다 목표까지 몇 점 남았는지, 무엇부터 좁힐지 봐요.</Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}
 
       {/* 전략층 — 서버 산출물이 있을 때만. 없으면 카드 자체를 생략한다(빈 카드는 오류로 읽힌다). */}
