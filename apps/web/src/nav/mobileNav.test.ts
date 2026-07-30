@@ -127,10 +127,14 @@ describe('경로 해석 — 서버 href 가 정본', () => {
     }
   });
 
-  it('모바일에 없는 화면은 이유와 함께 web-only 로 표시된다', () => {
-    // `/student/lectures`(O191)·`/student/community/board`(O192) 는 모바일 화면이 생겨 빠졌다
-    // — 아래 '허브까지 연다' 검사로 옮겼다.
-    for (const path of ['/student/placement/hub']) {
+  /**
+   * `web-only` 목록은 **2026-07-30 기준 비어 있다** — 강좌(O191)·리그 Q&A(O192)·학습 플랜(O194)·
+   * 배치표 허브(O196)가 차례로 모바일에 생기면서 하나씩 빠졌다. 비었다고 규칙을 지우지는 않는다:
+   * 다음에 '웹에만 있는 화면'이 생기면 **이유와 함께** 등록되어야 하고, 그때 이 검사가 지킨다.
+   */
+  it('web-only 로 등록된 것이 있다면 이유가 함께 있다', () => {
+    const WEB_ONLY_PATHS: string[] = []; // 비면 이 검사는 통과(빈 목록이 현재의 사실이다)
+    for (const path of WEB_ONLY_PATHS) {
       const r = resolveWebPath(path);
       expect(r.kind).toBe('web-only');
       if (r.kind === 'web-only') expect(r.why.length).toBeGreaterThan(15);
@@ -141,6 +145,7 @@ describe('경로 해석 — 서버 href 가 정본', () => {
     ['/student/lectures', 'lectures'],
     ['/student/community/board', 'league'],
     ['/student/curriculum', 'curriculum'],
+    ['/student/placement/hub', 'placement'],
   ])('%s 는 hub 까지 준다(탭만 주면 목록을 다시 찾아야 한다)', (path, hub) => {
     const r = resolveWebPath(path);
     expect(r.kind).toBe('mobile');

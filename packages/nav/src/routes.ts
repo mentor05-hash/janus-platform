@@ -36,6 +36,7 @@ const TO_TAB: Record<string, { tab: string; hub?: string; label: string }> = {
   '/student/automatch': { tab: 'b', hub: 'automatch', label: '30분 자동 매칭' },
   '/student/records': { tab: 'b', hub: 'records', label: '내 상담 기록' },
   '/student/classify': { tab: 'b', hub: 'classify', label: '선생님 분류' },
+  '/student/placement/hub': { tab: 'dg', hub: 'placement', label: '배치표 허브' },
   '/student/search': { tab: 'a', label: '선생님 찾기' },
   '/student/academies': { tab: 'ac', label: '학원찾기' },
   '/student/bookings': { tab: 'b', label: '일정' },
@@ -46,7 +47,6 @@ const TO_TAB: Record<string, { tab: string; hub?: string; label: string }> = {
  * 여기 없으면 `unknown` 이 되고, 그건 "표가 낡았다"는 신호로 읽어야 한다.
  */
 const WEB_ONLY: Record<string, { label: string; why: string }> = {
-  '/student/placement/hub': { label: '배치표 허브', why: '배치표 허브는 아직 모바일에 없어요.' },
 };
 
 /** 쿼리·해시를 떼고 끝 슬래시를 정리한다(서버가 붙여 보내도 표와 맞도록). */

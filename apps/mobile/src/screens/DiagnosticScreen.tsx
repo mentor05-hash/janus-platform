@@ -15,7 +15,7 @@ type HistoryRow = { id: string; subject: string | null; total: number; correct: 
 const SUBJECTS = ['', '국어', '수학', '영어'];
 const fmtDate = (s: string) => { const d = new Date(s); return `${d.getMonth() + 1}/${d.getDate()}`; };
 
-export function DiagnosticScreen({ onGoQna, goTab }: { onGoQna?: () => void; goTab?: (t: string) => void }) {
+export function DiagnosticScreen({ onGoQna, goTab, role }: { onGoQna?: () => void; goTab?: (t: string) => void; role?: string }) {
   const { C } = useTheme();
   const ui = useUI();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -31,7 +31,7 @@ export function DiagnosticScreen({ onGoQna, goTab }: { onGoQna?: () => void; goT
   // 진단 탭은 실력진단 한 화면이 아니라 **내 위치를 아는 일** 전부다(웹 '진단' 대항목과 같은 축).
   const [access, setAccess] = useState<{ showTrend: boolean; showPlacement: boolean } | null>(null);
   useEffect(() => { api.get<{ showTrend: boolean; showPlacement: boolean }>('/me/scores/access').then(setAccess).catch(() => setAccess({ showTrend: false, showPlacement: false })); }, []);
-  const hub = useHub('dg', { showPlacement: access?.showPlacement ?? false, goTab });
+  const hub = useHub('dg', { showPlacement: access?.showPlacement ?? false, goTab, role });
 
   const loadHistory = () => api.get<{ attempts: HistoryRow[] }>('/diagnostics/me').then((r) => setHistory(r.attempts)).catch(() => {});
   useEffect(() => { loadHistory(); }, []);

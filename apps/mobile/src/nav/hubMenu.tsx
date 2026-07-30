@@ -14,6 +14,7 @@ import { GoalScreen } from '../screens/GoalScreen';
 import { LeagueBoardScreen } from '../screens/LeagueBoardScreen';
 import { LectureScreen } from '../screens/LectureScreen';
 import { LegalScreen } from '../screens/LegalScreen';
+import { PlacementHubScreen } from '../screens/PlacementHubScreen';
 import { RecordsScreen } from '../screens/RecordsScreen';
 import { ReportsScreen } from '../screens/ReportsScreen';
 import { ScoreInputScreen } from '../screens/ScoreInputScreen';
@@ -41,6 +42,8 @@ type HostArgs = {
   goTab?: (t: string) => void;
   /** 다른 탭의 **허브 하위 화면**까지 여는 이동(처방 → 실행 › 리그 Q&A 처럼). */
   goHub?: (tab: string, hub: string) => void;
+  /** 뷰어 티어 표시용(배치표 허브) — 실제 게이트는 서버다. */
+  role?: string;
   /** 서브화면에서 돌아올 때 부모 데이터를 다시 읽어야 하는 경우. */
   onReload?: () => void;
   onMessage?: (m: string) => void;
@@ -86,6 +89,7 @@ export function useHub(tab: HubTab, args: HostArgs = {}) {
       case 'league': return <LeagueBoardScreen onBack={back} backLabel={bl} />;
       case 'curriculum': return <CurriculumScreen onBack={back} backLabel={bl} goTab={args.goTab} goHub={args.goHub} />;
       case 'lectures': return <LectureScreen onBack={back} backLabel={bl} />;
+      case 'placement': return <PlacementHubScreen onBack={back} backLabel={bl} role={args.role} />;
       case 'legal': return <LegalScreen onBack={back} backLabel={bl} onWithdrawn={() => { if (typeof window !== 'undefined') window.location.reload(); }} />;
       default: return null;
     }

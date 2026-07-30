@@ -20,7 +20,7 @@ export type HubKey =
   | 'classify' | 'legal'
   // 아래는 서브화면이 아니라 **다른 탭으로 보내는 항목**이다(`jump` 참조).
   | 'toSearch' | 'toAcademy' | 'toClassroom' | 'toMaterials' | 'toQna' | 'toLounge'
-  | 'lectures' | 'league' | 'curriculum';
+  | 'lectures' | 'league' | 'curriculum' | 'placement';
 
 /** 허브를 가진 모바일 탭 키 — `App.tsx` 의 학생 탭과 같다(dg 진단 · rx 처방 · b 실행 · d 내정보). */
 export type HubTab = 'dg' | 'rx' | 'b' | 'd';
@@ -62,6 +62,8 @@ export const HUB_ITEMS: HubItem[] = [
   { key: 'gap', tab: 'dg', icon: '🎯', title: '과목별 점수 격차', desc: '과목마다 목표까지 몇 점 남았는지 + 처방' },
   // 목표는 격차 계산의 **기준값**이라 진단에 둔다(웹 사이드바와 같은 판단).
   { key: 'goal', tab: 'dg', icon: '🏁', title: '목표 설정', desc: '목표 대학·학과·평균 — 격차·할 일 기준' },
+  // 2026-07-30 신설(O196). 웹은 '진단 › 내 위치'에 둔다 — 같은 자리.
+  { key: 'placement', tab: 'dg', icon: '▦', title: '배치표 허브', desc: '대학·학과 검색 — 지원 가능선 확인' },
 
   // ── 처방 — 진단 결과로 받는 것 ──
   // 2026-07-30: 셋 다 모바일에 있다(자료실·강좌 O191·학습 플랜 O193 후속). `webOnly` 자리는 비었다 —

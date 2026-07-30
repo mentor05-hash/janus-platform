@@ -241,7 +241,7 @@ function AppInner() {
           (tab === 'h' ? (
             <HomeScreen name={me.name} goTab={goTab} />
           ) : tab === 'dg' ? (
-            <DiagnosticScreen onGoQna={() => goTab('c')} goTab={goTab} />
+            <DiagnosticScreen onGoQna={() => goTab('c')} goTab={goTab} role={me.role} />
           ) : tab === 'rx' ? (
             <PrescriptionScreen goTab={goTab} goHub={goHub} initial={pendingHub} key={pendingHub ?? 'rx'} />
           ) : tab === 'a' ? (
