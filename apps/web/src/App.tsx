@@ -217,6 +217,7 @@ export function App() {
         <Route path="pay" element={<GuardianPayPage />} />
         <Route path="community" element={<CommunityBoardPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="legal" element={<LegalPage />} />
       </Route>
 
       <Route

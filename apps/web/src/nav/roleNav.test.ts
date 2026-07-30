@@ -100,7 +100,7 @@ describe('사이드바 정본 — 모바일 탭과 축 통일', () => {
     // 이 숫자가 줄면 어딘가에서 항목을 흘린 것이고, 늘면 근거 없이 추가한 것이다.
     expect(leavesOf(STUDENT_NAV)).toHaveLength(27);
     expect(leavesOf(TEACHER_NAV)).toHaveLength(20);
-    expect(leavesOf(GUARDIAN_NAV)).toHaveLength(7);
+    expect(leavesOf(GUARDIAN_NAV)).toHaveLength(8); // 2026-07-30 약관·개인정보 신설(+1)
   });
 
   it('예외 목록은 이유를 적는다 — 조용히 빠지는 것을 막는다', () => {

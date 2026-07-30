@@ -8,6 +8,7 @@ import { ScoreTrendView, type Trend } from './ScoreTrendView';
 import { AcademicUpcoming } from './AcademicUpcoming';
 import { GuardianPlanScreen } from './GuardianPlanScreen';
 import { GuardianLinkScreen } from './GuardianLinkScreen';
+import { LegalScreen } from './LegalScreen';
 
 const won = (n: number) => `${n.toLocaleString()}원`;
 const fmt = (n: number) => n.toLocaleString();
@@ -846,12 +847,35 @@ export function GuardianWallet(props: Props) {
  * 상담 리포트를 보러 들어가야 만나는 위치였다 — 자기 자리를 준다.
  */
 export function GuardianMy({ children, activeId, setActiveId }: Props) {
+  const { C } = useTheme();
   const ui = useUI();
+  const s = useMemo(() => makeStyles(C), [C]);
+  // 약관·개인정보는 학생·선생님에만 있었다 — 학부모는 웹·모바일 양쪽 모두 도달 경로가 없어
+  // 처리방침·데이터 내보내기·회원 탈퇴를 볼 수 없었다(O185 갭). 여기서 잇는다.
+  const [legal, setLegal] = useState(false);
+  useWebBack(legal, () => setLegal(false));
+  if (legal) {
+    return (
+      <LegalScreen
+        isStudent={false}
+        onBack={() => setLegal(false)}
+        onWithdrawn={() => { if (typeof window !== 'undefined') window.location.reload(); }}
+      />
+    );
+  }
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
       <Text style={ui.h}>내정보</Text>
       <KidSwitcher children={children} activeId={activeId} setActiveId={setActiveId} />
       <GuardianConsentSection studentId={activeId} />
+      <TouchableOpacity style={[ui.card, s.hubRow]} activeOpacity={0.75} onPress={() => setLegal(true)}>
+        <Text style={s.hubIc}>{'\uD83D\uDD12'}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={s.hubT}>약관·개인정보</Text>
+          <Text style={s.hubD}>약관·방침·동의 · 데이터 내보내기 · 회원 탈퇴</Text>
+        </View>
+        <Text style={s.hubCh}>{'\u203A'}</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
