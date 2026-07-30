@@ -18,14 +18,20 @@ export type HubKey =
   | 'scoreInput' | 'gap' | 'goal' | 'scores'
   | 'chats' | 'automatch' | 'autoassign' | 'tasks' | 'records' | 'reports'
   | 'classify' | 'legal'
-  // 아래 넷은 서브화면이 아니라 **다른 탭으로 보내는 항목**이다(`jump` 참조).
-  | 'toSearch' | 'toAcademy' | 'toClassroom' | 'toMaterials';
+  // 아래는 서브화면이 아니라 **다른 탭으로 보내는 항목**이다(`jump` 참조).
+  | 'toSearch' | 'toAcademy' | 'toClassroom' | 'toMaterials' | 'toQna' | 'toLounge'
+  // 웹에만 있는 화면의 자리(`webOnly`) — 눌리면 안내한다.
+  | 'planWeb' | 'lectureWeb';
 
-/** 모바일 탭 키 — `App.tsx` 의 학생 탭과 같다(dg 진단 · b 일정 · d 내정보). */
-export type HubTab = 'dg' | 'b' | 'd';
+/** 허브를 가진 모바일 탭 키 — `App.tsx` 의 학생 탭과 같다(dg 진단 · rx 처방 · b 실행 · d 내정보). */
+export type HubTab = 'dg' | 'rx' | 'b' | 'd';
 
-/** `jump` 가 있으면 하위 화면을 여는 대신 그 탭으로 이동한다. */
-export type HubItem = { key: HubKey; tab: HubTab; icon: string; title: string; desc: string; jump?: string };
+/**
+ * `jump` 가 있으면 하위 화면을 여는 대신 그 탭으로 이동한다.
+ * `webOnly` 가 있으면 **모바일에 화면이 없다**는 뜻 — 누르면 이유를 안내한다(O186 ① 원칙).
+ * 자리를 비워 두지 않는 이유: 대항목에 무엇이 들어와야 하는지 보이지 않으면 결손이 잊힌다.
+ */
+export type HubItem = { key: HubKey; tab: HubTab; icon: string; title: string; desc: string; jump?: string; webOnly?: string };
 
 /**
  * **탭 밖 화면의 소속 탭**(위성 → 대항목).
@@ -37,11 +43,12 @@ export type HubItem = { key: HubKey; tab: HubTab; icon: string; title: string; d
  * 강의실(실시간 수업)만 웹 학생 nav 에 짝이 없는데, 예약의 실행이므로 일정에 둔다.
  */
 export const SATELLITE_PARENT: Record<string, string> = {
-  a: 'b', ac: 'b', r: 'b', e: 'dg', f: 'c',
+  // 선생님 찾기·학원찾기·강의실·질문·라운지 → 실행 / 자료실 → 처방
+  a: 'b', ac: 'b', r: 'b', c: 'b', f: 'b', e: 'rx',
 };
 
 /** 하위 화면의 '뒤로' 라벨 — 어느 탭에서 들어왔는지 말해 준다. */
-export const TAB_LABEL: Record<HubTab, string> = { dg: '진단', b: '일정', d: '내정보' };
+export const TAB_LABEL: Record<HubTab, string> = { dg: '진단', rx: '처방', b: '실행', d: '내정보' };
 
 /**
  * 순서가 곧 우선순위다. 성적 입력이 '진단' 맨 앞인 이유는 그대로다 —
@@ -52,17 +59,26 @@ export const HUB_ITEMS: HubItem[] = [
   { key: 'scoreInput', tab: 'dg', icon: '📝', title: '성적진단', desc: '성적 한 번 입력 → 배치·격차·할 일 자동 반영' },
   { key: 'scores', tab: 'dg', icon: '📈', title: '내 성적·배치', desc: '성적 추이 + 예상 대학·학과 라인' },
   { key: 'gap', tab: 'dg', icon: '🎯', title: '격차 리포트', desc: '지금 위치 → 목표까지 과목별 격차와 처방' },
+  // 목표는 격차 계산의 **기준값**이라 진단에 둔다(웹 사이드바와 같은 판단).
   { key: 'goal', tab: 'dg', icon: '🏁', title: '목표 설정', desc: '목표 대학·학과·평균 — 격차·할 일 기준' },
-  { key: 'toMaterials', tab: 'dg', jump: 'e', icon: '▦', title: '자료실', desc: '진단 결과에 맞는 학습 자료' },
 
-  // ── 일정 — 시간을 쓰는 일 ──
+  // ── 처방 — 진단 결과로 받는 것 ──
+  // 지금은 자료실 하나만 모바일에 있다. 나머지 둘은 **자리를 비워 두지 않고** 웹 안내로 남긴다 —
+  // 빈 탭으로 두면 '처방 층이 비어 있다'는 사실이 아무에게도 안 보인다.
+  { key: 'toMaterials', tab: 'rx', jump: 'e', icon: '▦', title: '자료실', desc: '진단 결과에 맞는 학습 자료' },
+  { key: 'planWeb', tab: 'rx', icon: '🗒', title: '학습 플랜', desc: '격차 기반 주간 계획', webOnly: '학습 플랜은 아직 모바일에 없어요.' },
+  { key: 'lectureWeb', tab: 'rx', icon: '▶', title: '강좌', desc: '약점 과목 인강·강의', webOnly: '강좌(VOD)는 아직 모바일에 없어요. 앱의 ‘강의실’은 실시간 수업이라 다른 화면이에요.' },
+
+  // ── 실행 — 시간을 쓰는 일 ──
+  { key: 'toQna', tab: 'b', jump: 'c', icon: '✎', title: '질문 게시판', desc: 'AI 초안 즉시 · 선생님 검토' },
+  { key: 'toLounge', tab: 'b', jump: 'f', icon: '◫', title: '라운지', desc: '같은 고민을 하는 학생들의 글' },
   { key: 'toSearch', tab: 'b', jump: 'a', icon: '◇', title: '선생님 찾기', desc: '상담·과외 1:1 매칭' },
   { key: 'toAcademy', tab: 'b', jump: 'ac', icon: '🏫', title: '학원찾기', desc: '동네·과목별 학원 비교' },
   { key: 'toClassroom', tab: 'b', jump: 'r', icon: '▶', title: '강의실', desc: '예약된 실시간 수업 입장' },
-  { key: 'chats', tab: 'b', icon: '💬', title: '채팅', desc: '상담 대화 모아보기 — 안 읽은 메시지 확인' },
   { key: 'automatch', tab: 'b', icon: '⚡', title: '30분 자동 매칭', desc: '유형·방식만 고르면 7일 내 가장 빠른 30분' },
   { key: 'autoassign', tab: 'b', icon: '🗓', title: '자동배정 신청', desc: '시간 안 정해도 전임 선생님 근무시간에 배정' },
   { key: 'tasks', tab: 'b', icon: '✅', title: '할 일', desc: '약점·학사일정 자동 제안 + 직접 추가' },
+  { key: 'chats', tab: 'b', icon: '💬', title: '채팅', desc: '상담 대화 모아보기 — 안 읽은 메시지 확인' },
   { key: 'records', tab: 'b', icon: '📝', title: '내 상담 기록', desc: '공개된 핵심요약·숙제·향후방향 확인' },
   { key: 'reports', tab: 'b', icon: '📋', title: '상담 리포트', desc: '녹음 동의 상담의 검수된 요약 리포트' },
 
@@ -75,3 +91,6 @@ export const itemsOf = (tab: HubTab): HubItem[] => HUB_ITEMS.filter((i) => i.tab
 
 /** 하위 화면이 아니라 다른 탭으로 보내는 항목인가. */
 export const jumpOf = (key: HubKey): string | undefined => HUB_ITEMS.find((i) => i.key === key)?.jump;
+
+/** 모바일에 화면이 없는 항목인가 — 있으면 그 사유(안내 문구). */
+export const webOnlyOf = (key: HubKey): string | undefined => HUB_ITEMS.find((i) => i.key === key)?.webOnly;

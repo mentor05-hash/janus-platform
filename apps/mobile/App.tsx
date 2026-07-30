@@ -16,6 +16,7 @@ import { QnaScreen } from './src/screens/QnaScreen';
 import { MaterialsScreen } from './src/screens/MaterialsScreen';
 import { CommunityScreen } from './src/screens/CommunityScreen';
 import { MyScreen } from './src/screens/MyScreen';
+import { PrescriptionScreen } from './src/screens/PrescriptionScreen';
 import { ClassroomScreen } from './src/screens/ClassroomScreen';
 import { AcademyFinderScreen } from './src/screens/AcademyFinderScreen';
 import { GuardianConsult, GuardianHome, GuardianMy, GuardianWallet } from './src/screens/GuardianScreens';
@@ -171,13 +172,16 @@ function AppInner() {
   // 학부모 탭 5 → 4(O185): 결제 계열 3개(멤버십·결제·충전)를 '결제' 하나로 합치고 '내정보'를 신설했다.
   //   웹에서 그 셋은 `결제·충전` 한 화면인데 모바일만 3탭이라 결제에 과대 대표돼 있었고,
   //   그만큼 동의·본인확인이 탭에서 밀려나 상담 탭 안에 묻혀 있었다.
-  const tabs = isGuardian ? ['a', 'b', 'c', 'd'] : isTeacher ? ['ti', 'to', 'ts', 'tr', 'tm'] : ['h', 'c', 'dg', 'b', 'd'];
+  // 학생 탭을 **관문 축**으로(O189): 홈·진단·처방·실행·내정보.
+  //   이전 `홈·질문·진단·일정·내정보` 는 '질문'과 '일정'이 둘 다 실행인데 도구 이름이라
+  //   북극성(진단→처방→실행→통과)이 메뉴에서 보이지 않았다. 질문은 실행 허브 첫 줄 + 홈 타일로 남는다.
+  const tabs = isGuardian ? ['a', 'b', 'c', 'd'] : isTeacher ? ['ti', 'to', 'ts', 'tr', 'tm'] : ['h', 'dg', 'rx', 'b', 'd'];
   const guardianLabel: Record<string, string> = { a: '홈', b: '상담', c: '결제', d: '내정보' };
-  const studentLabel: Record<string, string> = { h: '홈', dg: '진단', a: '선생님 찾기', b: '일정', r: '강의실', e: '자료실', c: '질문', f: '커뮤니티', d: '내정보' };
+  const studentLabel: Record<string, string> = { h: '홈', dg: '진단', rx: '처방', b: '실행', a: '선생님 찾기', r: '강의실', e: '자료실', c: '질문', f: '라운지', d: '내정보' };
   const teacherLabel: Record<string, string> = { ti: '인박스', to: '오늘', ts: '상담', tr: '기록', tm: '마이' };
   // 시안(janus_app_v1) 하단 탭: 아이콘+라벨 — 도메인 아이콘 슬롯 규칙
   const guardianIcon: Record<string, string> = { a: '⌂', b: '◇', c: '₩', d: '◯' };
-  const studentIcon: Record<string, string> = { h: '⌂', dg: '◱', a: '◇', b: '▤', r: '▶', e: '▦', c: '✎', f: '◫', d: '◯' };
+  const studentIcon: Record<string, string> = { h: '⌂', dg: '◱', rx: '◈', b: '▤', a: '◇', r: '▶', e: '▦', c: '✎', f: '◫', d: '◯' };
   const teacherIcon: Record<string, string> = { ti: '✎', to: '▤', ts: '◇', tr: '▦', tm: '◯' };
   const tabLabel = (t: string) => (isGuardian ? guardianLabel[t] ?? '' : isTeacher ? teacherLabel[t] ?? '' : studentLabel[t] ?? '');
   const tabIcon = (t: string) => (isGuardian ? guardianIcon[t] ?? '' : isTeacher ? teacherIcon[t] ?? '' : studentIcon[t] ?? '');
@@ -231,6 +235,8 @@ function AppInner() {
             <HomeScreen name={me.name} goTab={goTab} />
           ) : tab === 'dg' ? (
             <DiagnosticScreen onGoQna={() => goTab('c')} goTab={goTab} />
+          ) : tab === 'rx' ? (
+            <PrescriptionScreen goTab={goTab} />
           ) : tab === 'a' ? (
             teacher ? (
               booking ? (

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { HUB_ITEMS, TAB_LABEL, itemsOf, jumpOf, type HubKey, type HubItem, type HubTab } from '@mentoring/nav';
+import { TAB_LABEL, itemsOf, jumpOf, webOnlyOf, type HubKey, type HubItem, type HubTab } from '@mentoring/nav';
+import { showAlert } from '../lib/alertHost';
 import { R, SP, useTheme, useUI, type Palette } from '../theme';
 import { useWebBack } from '../webBack';
 import { AutomatchScreen } from '../screens/AutomatchScreen';
@@ -47,10 +48,12 @@ export function useHub(tab: HubTab, args: HostArgs = {}) {
   // 웹 빌드에서 브라우저 뒤로가기가 허브로 복귀하게 한다(하위 화면 우선).
   useWebBack(key !== null, back);
 
-  /** 항목 선택 — `jump` 항목은 하위 화면이 아니라 다른 탭으로 보낸다. */
+  /** 항목 선택 — `jump` 는 다른 탭으로, `webOnly` 는 안내로. 없는 화면을 여는 척하지 않는다. */
   const open = (k: HubKey) => {
     const jump = jumpOf(k);
     if (jump) { args.goTab?.(jump); return; }
+    const web = webOnlyOf(k);
+    if (web) { showAlert('웹에서 확인해 주세요', web); return; }
     setKey(k);
   };
 
@@ -103,6 +106,7 @@ export function HubMenu({
               <Text style={s.title}>
                 {m.title}
                 {n > 0 ? `  🔴 ${n > 99 ? '99+' : n}` : ''}
+                {m.webOnly ? '  웹' : ''}
               </Text>
               <Text style={s.desc}>{m.desc}</Text>
             </View>

@@ -113,8 +113,9 @@ describe('모바일 정본 — 탭·허브·경로', () => {
   });
 
   it('허브 탭 키는 TAB_LABEL 이 아는 값만 쓴다', () => {
-    const known: HubTab[] = ['dg', 'b', 'd'];
-    expect(HUB_ITEMS.filter((i) => !known.includes(i.tab))).toEqual([]);
+    // 목록을 여기 베껴 두면 탭이 늘 때마다 두 곳을 고쳐야 하고, 한쪽을 잊으면 검사가 거짓이 된다.
+    const known = Object.keys(TAB_LABEL) as HubTab[];
+    expect(HUB_ITEMS.filter((i) => !known.includes(i.tab)).map((i) => i.key)).toEqual([]);
   });
 });
 

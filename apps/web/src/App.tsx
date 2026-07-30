@@ -96,8 +96,6 @@ const StudentGoalPage = lazy(() => import('./pages/StudentGoalPage').then((m) =>
 const StudentGapPage = lazy(() => import('./pages/StudentGapPage').then((m) => ({ default: m.StudentGapPage })));
 const GuardianPlanPage = lazy(() => import('./pages/GuardianPlanPage').then((m) => ({ default: m.GuardianPlanPage })));
 const LecturePage = lazy(() => import('./pages/LecturePage').then((m) => ({ default: m.LecturePage })));
-const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage').then((m) => ({ default: m.LeaderboardPage })));
-const LeagueRulesPage = lazy(() => import('./pages/LeagueRulesPage').then((m) => ({ default: m.LeagueRulesPage })));
 const LegalDocPage = lazy(() => import('./pages/LegalDocPage').then((m) => ({ default: m.LegalDocPage })));
 const LegalPage = lazy(() => import('./pages/LegalPage').then((m) => ({ default: m.LegalPage })));
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })));
@@ -293,8 +291,6 @@ export function App() {
         <Route path="qna" element={<StudentQnaPage />} />
         <Route path="community" element={<StudentCommunityPage />} />
         <Route path="community/board" element={<CommunityBoardPage />} />
-        <Route path="league" element={<LeaderboardPage />} />
-        <Route path="league/rules" element={<LeagueRulesPage />} />
         <Route path="scores" element={<StudentScoresPage />} />
         <Route path="academic" element={<StudentAcademicPage />} />
         <Route path="tasks" element={<StudentTasksPage />} />

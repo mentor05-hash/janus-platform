@@ -45,7 +45,17 @@ export const groupsOf = (nav: NavItem[]): string[] =>
  * 테스트가 이 값과 대항목을 대조하므로, 모바일 탭이 바뀌면 여기도 바뀌어야 한다(의도).
  */
 export const MOBILE_TABS = {
-  student: ['홈', '질문', '진단', '일정', '내정보'],
+  /**
+   * 학생 탭을 **관문 축**으로 바꿨다(2026-07-30). 이전 `홈·질문·진단·일정·내정보` 는
+   * '질문'과 '일정'이 둘 다 **실행**인데 도구 이름이라, 북극성(진단→처방→실행→통과)이
+   * 메뉴에서 보이지 않았다. 이름이 흐름을 말하게 한다.
+   *
+   * ⚠ 대가: 질문이 한 단계 깊어진다(실행 안). 크레딧·리그가 걸린 동선이라
+   *   홈의 '질문 올리기' 타일을 고정 진입점으로 남겨 보상한다.
+   * ⚠ 선생님·학부모는 바꾸지 않는다 — 그들의 일은 전부 실행 층이라 진단/처방으로
+   *   나누면 **빈 대항목**이 생긴다. 관문 축은 학생 전용이다.
+   */
+  student: ['홈', '진단', '처방', '실행', '내정보'],
   teacher: ['인박스', '오늘', '상담', '기록', '마이'],
   /**
    * 모바일 학부모 탭도 4개로 맞췄다(2026-07-30). 이전에는 홈·상담·**멤버십·결제·충전** 5개로
@@ -63,15 +73,14 @@ export const STUDENT_NAV: NavItem[] = [
   { group: '홈' },
   { to: '/student', label: '나의 관문', end: true },
 
-  { group: '질문' },
-  { to: '/student/qna', label: '질문 게시판' },
-  { to: '/student/community', label: '라운지', end: true },
-  { to: '/student/community/board', label: '리그 Q&A' },
-
+  // ── 진단 — 내 위치를 아는 일 ──
   { group: '진단' },
   { sub: '진단하기' },
   { to: '/student/diagnostic', label: '실력진단' },
   { to: '/student/scores/input', label: '성적진단' },
+  // 목표는 **처방이 아니라 진단의 입력값**이다 — 목표가 없으면 '목표 대학 격차'가 빈다.
+  // (초안에서는 처방에 뒀다가 이 이유로 옮겼다.)
+  { to: '/student/goal', label: '목표 설정' },
   { sub: '내 위치' },
   { to: '/student/scores', label: '내 성적·배치', flag: 'scores', end: true },
   // 이름은 **고도**를 드러낸다(O102) — 전략층(목표 대학 컷 대비)과 실행층(과목 점수 대비)은
@@ -81,16 +90,23 @@ export const STUDENT_NAV: NavItem[] = [
   //   '내 성적·배치'의 격차 탭은 flag:'scores' 라 성적 노출 정책이 OFF 면 유일한 경로마저 사라졌다.
   { to: '/student/placement/gap', label: '목표 대학 격차(격차 리포트)' },
   { to: '/student/placement/hub', label: '배치표 허브' },
-  // 강좌·자료실이 '처방'에 있는 이유: 진단 결과로 **받는 학습 자원**이다.
-  // (초안에서는 '일정 › 배우기'였다 — 상담처럼 시간을 쓰는 활동으로 봤다. 사용자 판단으로
-  //  진단→처방 흐름 쪽으로 옮겼다: 무엇을 볼지는 격차·목표가 정하므로 그 옆에 있어야 한다.)
-  { sub: '처방' },
-  { to: '/student/goal', label: '목표 설정' },
+
+  // ── 처방 — 진단 결과로 받는 것 ──
+  // 무엇을 볼지는 격차·목표가 정한다. 그래서 학습 자원은 진단 바로 다음이다.
+  { group: '처방' },
   { to: '/student/curriculum', label: '학습 플랜' },
   { to: '/student/lectures', label: '강좌' },
   { to: '/student/materials', label: '자료실' },
 
-  { group: '일정' },
+  // ── 실행 — 시간을 쓰는 일 ──
+  // 질문(Q&A·리그)과 상담·일정이 여기 함께 있는 이유: 둘 다 **격차를 좁히려고 지금 하는 행동**이다.
+  // 도구별로 대항목을 나누면 사용자가 "질문할까 예약할까"를 먼저 정해야 하는데,
+  // 실제 순서는 "무엇을 어떻게 메울까"가 먼저다.
+  { group: '실행' },
+  { sub: '질문' },
+  { to: '/student/qna', label: '질문 게시판' },
+  { to: '/student/community', label: '라운지', end: true },
+  { to: '/student/community/board', label: '리그 Q&A' },
   { sub: '상담 잡기' },
   { to: '/student/search', label: '선생님 찾기' },
   { to: '/student/academies', label: '학원찾기' },
@@ -104,6 +120,7 @@ export const STUDENT_NAV: NavItem[] = [
   { to: '/student/chats', label: '채팅' },
   { to: '/student/reports', label: '상담 리포트' },
 
+  // ── 내정보 — 계정에 관한 일 ──
   { group: '내정보' },
   { to: '/student/membership', label: '멤버십·결제' },
   { to: '/student/credits', label: '크레딧' },
@@ -184,12 +201,9 @@ export const GUARDIAN_NAV: NavItem[] = [
  */
 export const NAV_EXEMPT: Record<string, string> = {
   '/student/search-all': '통합검색 결과 — 사이드바 검색 입력으로만 도달한다(질의가 있어야 의미가 있는 화면).',
-  // ⚠ 발견(2026-07-30): 이 둘은 nav·페이지 어디에서도 링크되지 않아 URL 직접 입력 외에 길이 없었다.
-  //   그런데 '리그 Q&A'(`/student/community/board`)가 순위표·승급 규칙을 **인라인으로 이미 보여준다**
-  //   (`/qna/league/leaderboard`·`/qna/league/rules` 호출). 중복 항목을 nav 에 새로 만드는 대신
-  //   여기 근거를 남긴다 — **삭제할지 인라인을 떼어낼지는 별도 결정**이다.
-  '/student/league': '리그 순위표 — 리그 Q&A 안에 인라인으로 있다(중복). 존치/삭제는 후속 결정.',
-  '/student/league/rules': '리그 승급 규칙 — 같은 이유. `/student/league` 에서만 링크된다.',
+  // (2026-07-30) `/student/league`·`/student/league/rules` 는 여기 있었으나 **삭제**했다 —
+  // '리그 Q&A'가 순위표·승급 규칙을 인라인으로 이미 보여줘 중복이었다. 예외로 남겨 두면
+  // "언젠가 정리"가 영원히 오지 않는다.
 };
 
 /** 상세·하위 화면은 목록에 둘 것이 아니다 — 부모 화면에서 진입한다. */
