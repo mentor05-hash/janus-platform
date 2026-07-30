@@ -103,9 +103,10 @@ describe('모바일 정본 — 탭·허브·경로', () => {
     const webLabels = new Set(leavesOf(STUDENT_NAV).map((l) => l.label));
     // 웹에 짝이 없는 항목 — O186 감사에서 확인된 '모바일에만 있는 기능'. 늘어나면 이 목록을 고쳐야 한다.
     //   · 30분 자동 매칭·내 상담 기록·선생님 분류는 O195 에서 웹에도 생겨 이 목록에서 빠졌다.
-    //   · 실시간 수업(`/classes`) — 웹에서는 **선생님 전용**(`/app/classes`)이고 학생 사이드바에는 없다.
-    //     학생이 실시간 수업에 들어가는 경로가 웹에 없다는 뜻이라, 지우지 말고 결손으로 남긴다.
-    const MOBILE_ONLY = new Set(['실시간 수업']);
+    //   · 실시간 수업은 O197 에서 학생용 `/student/classes` 가 생겨 마지막으로 빠졌다.
+    // **2026-07-30 기준 비어 있다.** 비었다고 규칙을 지우지는 않는다 — 다음에 모바일 전용 화면이
+    // 생기면 여기에 이유와 함께 올라와야 하고, 안 올리면 이 검사가 막는다.
+    const MOBILE_ONLY = new Set<string>([]);
     const extra = HUB_ITEMS.map((i) => i.title).filter((t) => !webLabels.has(t) && !MOBILE_ONLY.has(t));
     expect(extra).toEqual([]);
   });

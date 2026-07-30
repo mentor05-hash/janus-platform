@@ -40,6 +40,8 @@ const TO_TAB: Record<string, { tab: string; hub?: string; label: string }> = {
   '/student/search': { tab: 'a', label: '선생님 찾기' },
   '/student/academies': { tab: 'ac', label: '학원찾기' },
   '/student/bookings': { tab: 'b', label: '일정' },
+  // 위성 화면(`SATELLITE_PARENT.r === 'b'`) — 실행 탭 안에서 열린다.
+  '/student/classes': { tab: 'r', label: '실시간 수업' },
 };
 
 /**

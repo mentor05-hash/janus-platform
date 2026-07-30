@@ -84,6 +84,7 @@ const StudentReversePage = lazy(() => import('./pages/StudentReversePage').then(
 const StudentAutomatchPage = lazy(() => import('./pages/StudentAutomatchPage').then((m) => ({ default: m.StudentAutomatchPage })));
 const StudentRecordsPage = lazy(() => import('./pages/StudentRecordsPage').then((m) => ({ default: m.StudentRecordsPage })));
 const StudentClassifyPage = lazy(() => import('./pages/StudentClassifyPage').then((m) => ({ default: m.StudentClassifyPage })));
+const StudentClassroomPage = lazy(() => import('./pages/StudentClassroomPage').then((m) => ({ default: m.StudentClassroomPage })));
 const StudentAutoAssignPage = lazy(() => import('./pages/StudentAutoAssignPage').then((m) => ({ default: m.StudentAutoAssignPage })));
 const StudentQnaPage = lazy(() => import('./pages/StudentQnaPage').then((m) => ({ default: m.StudentQnaPage })));
 const StudentCommunityPage = lazy(() => import('./pages/StudentCommunityPage').then((m) => ({ default: m.StudentCommunityPage })));
@@ -315,6 +316,7 @@ export function App() {
         <Route path="automatch" element={<StudentAutomatchPage />} />
         <Route path="records" element={<StudentRecordsPage />} />
         <Route path="classify" element={<StudentClassifyPage />} />
+        <Route path="classes" element={<StudentClassroomPage />} />
         <Route path="legal" element={<LegalPage />} />
       </Route>
 

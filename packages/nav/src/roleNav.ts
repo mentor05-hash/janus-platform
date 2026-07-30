@@ -120,6 +120,9 @@ export const STUDENT_NAV: NavItem[] = [
   { to: '/student/reverse', label: '역상담' },
   { sub: '내 일정' },
   { to: '/student/bookings', label: '내 예약·상담' },
+  // 2026-07-30 신설(O197) — 모바일에만 있던 마지막 화면. 선생님이 등록해 준 온라인 강의에
+  // 학생이 웹에서 들어갈 문이 없었다(개설·시작은 선생님 전용이라 여기 없다).
+  { to: '/student/classes', label: '실시간 수업' },
   { to: '/student/academic', label: '학사일정' },
   { to: '/student/tasks', label: '할 일' },
   { sub: '상담 후' },

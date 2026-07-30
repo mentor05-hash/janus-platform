@@ -95,11 +95,12 @@ describe('사이드바 정본 — 모바일 탭과 축 통일', () => {
     expect(orphans).toEqual([]);
   });
 
-  it('항목 수 래칫 — 학생 30 · 선생님 20 · 학부모 8', () => {
+  it('항목 수 래칫 — 학생 31 · 선생님 20 · 학부모 8', () => {
     // 이 숫자가 줄면 어딘가에서 항목을 흘린 것이고, 늘면 **근거를 여기 적어야** 한다.
     // 27 → 30 (2026-07-30, O195): 모바일에만 있던 30분 자동 매칭·내 상담 기록·선생님 분류를
     // 웹에도 만들었다. 재편(O185·O189)은 그룹핑만 바꿔 27을 유지했고, 이번 증가는 **신규 화면**이다.
-    expect(leavesOf(STUDENT_NAV)).toHaveLength(30);
+    // 30 → 31 (2026-07-30, O197): 학생 실시간 수업(`/student/classes`) — 모바일에만 있던 마지막 화면.
+    expect(leavesOf(STUDENT_NAV)).toHaveLength(31);
     expect(leavesOf(TEACHER_NAV)).toHaveLength(20);
     expect(leavesOf(GUARDIAN_NAV)).toHaveLength(8); // 2026-07-30 약관·개인정보 신설(+1)
   });
