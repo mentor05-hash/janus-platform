@@ -52,6 +52,8 @@ function AppInner() {
   const [activeChild, setActiveChild] = useState<string | null>(null);
   const [childState, setChildState] = useState<'loading' | 'ok' | 'error'>('loading');
   const [searchOpen, setSearchOpen] = useState(false); // 전역 통합검색 오버레이(학생)
+  // 검색이 허브 **안쪽**(예: 처방 › 강좌)을 가리킬 때 그 화면까지 열어 준다. 한 번 쓰고 비운다.
+  const [pendingHub, setPendingHub] = useState<string | null>(null);
   const [exitHint, setExitHint] = useState(false); // 홈에서 '한 번 더 누르면 종료' 토스트
   const exitArmed = useRef(false);
   const exitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -223,7 +225,10 @@ function AppInner() {
       <View style={styles.body}>
         {searchOpen && isStudent && (
           <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20 }}>
-            <GlobalSearchScreen onClose={() => setSearchOpen(false)} goTab={(t) => { setTeacher(null); setBooking(false); goTab(t); }} />
+            <GlobalSearchScreen
+              onClose={() => setSearchOpen(false)}
+              goTab={(t, hub) => { setTeacher(null); setBooking(false); setPendingHub(hub ?? null); goTab(t); }}
+            />
           </View>
         )}
         {!isStudent && !isGuardian && !isTeacher && <Text style={styles.notice}>이 역할은 웹(apps/web)을 이용하세요.</Text>}
@@ -236,7 +241,7 @@ function AppInner() {
           ) : tab === 'dg' ? (
             <DiagnosticScreen onGoQna={() => goTab('c')} goTab={goTab} />
           ) : tab === 'rx' ? (
-            <PrescriptionScreen goTab={goTab} />
+            <PrescriptionScreen goTab={goTab} initial={pendingHub} key={pendingHub ?? 'rx'} />
           ) : tab === 'a' ? (
             teacher ? (
               booking ? (

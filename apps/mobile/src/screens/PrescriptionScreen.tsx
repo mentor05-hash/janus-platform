@@ -9,13 +9,14 @@ import { HubMenu, useHub } from '../nav/hubMenu';
  * 에는 처방이 아예 없었다. 학습 자원이 '일정' 안에 섞여 있으면 "무엇을 볼지는 격차가 정한다"는
  * 순서가 메뉴에서 사라진다.
  *
- * ⚠ 지금 모바일에 실제로 있는 것은 자료실 하나다. 나머지 둘(학습 플랜·강좌)은 **자리를 비우지
- * 않고** 웹 안내 행으로 남긴다 — 빈 탭으로 두면 '처방 층이 비어 있다'는 사실이 아무에게도
- * 안 보이고, 결손은 보이지 않으면 채워지지 않는다.
+ * 자리를 비워 두지 않는다: 아직 모바일에 없는 화면(학습 플랜)은 `webOnly` 행으로 남기고
+ * 누르면 사유를 안내한다 — 빈 탭으로 두면 '처방 층이 비어 있다'는 사실이 아무에게도 안 보이고,
+ * 결손은 보이지 않으면 채워지지 않는다. (강좌는 그렇게 남겨 뒀다가 O191 에서 실제로 채웠다.)
  */
-export function PrescriptionScreen({ goTab }: { goTab?: (t: string) => void }) {
+export function PrescriptionScreen({ goTab, initial }: { goTab?: (t: string) => void; initial?: string | null }) {
   const ui = useUI();
-  const hub = useHub('rx', { goTab });
+  // 검색이 '처방 › 강좌'를 가리키면 허브를 건너뛰고 그 화면부터 연다.
+  const hub = useHub('rx', { goTab, initial });
   if (hub.screen) return hub.screen;
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>

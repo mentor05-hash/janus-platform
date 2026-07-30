@@ -21,7 +21,8 @@ export type HubKey =
   // 아래는 서브화면이 아니라 **다른 탭으로 보내는 항목**이다(`jump` 참조).
   | 'toSearch' | 'toAcademy' | 'toClassroom' | 'toMaterials' | 'toQna' | 'toLounge'
   // 웹에만 있는 화면의 자리(`webOnly`) — 눌리면 안내한다.
-  | 'planWeb' | 'lectureWeb';
+  | 'planWeb'
+  | 'lectures';
 
 /** 허브를 가진 모바일 탭 키 — `App.tsx` 의 학생 탭과 같다(dg 진단 · rx 처방 · b 실행 · d 내정보). */
 export type HubTab = 'dg' | 'rx' | 'b' | 'd';
@@ -69,7 +70,8 @@ export const HUB_ITEMS: HubItem[] = [
   // 빈 탭으로 두면 '처방 층이 비어 있다'는 사실이 아무에게도 안 보인다.
   { key: 'toMaterials', tab: 'rx', jump: 'e', icon: '▦', title: '자료실', desc: '진단 결과에 맞는 학습 자료' },
   { key: 'planWeb', tab: 'rx', icon: '🗒', title: '학습 플랜', desc: '격차 기반 주간 계획', webOnly: '학습 플랜은 아직 모바일에 없어요.' },
-  { key: 'lectureWeb', tab: 'rx', icon: '🎬', title: '강좌', desc: '약점 과목 인강 — 원하는 때 보는 녹화 강의', webOnly: '강좌(녹화 강의)는 아직 모바일에 없어요. 앱의 ‘실시간 수업’은 예약된 수업 입장이라 다른 화면이에요.' },
+  // 2026-07-30: `webOnly` 자리였다가 실제 화면이 됐다(O191). 검색의 강좌 결과도 여기로 온다.
+  { key: 'lectures', tab: 'rx', icon: '🎬', title: '강좌', desc: '약점 과목 인강 — 원하는 때 보는 녹화 강의' },
 
   // ── 실행 — 시간을 쓰는 일 ──
   { key: 'toQna', tab: 'b', jump: 'c', icon: '✎', title: '질문 게시판', desc: 'AI 초안 즉시 · 선생님 검토' },

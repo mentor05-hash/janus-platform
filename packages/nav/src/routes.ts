@@ -4,7 +4,8 @@
  * 왜 필요한가: 통합검색은 결과마다 `href` 를 실어 보낸다(API `search.hrefs.ts` — 스펙까지 있다).
  * 웹은 그 값을 그대로 쓰는데(`<Link to={h.href}>`) 모바일만 **자체 표**로 이동하고 있었고,
  * 그 표가 서버와 갈라져 4유형 중 2유형이 **다른 화면으로** 갔다:
- *   · 강좌(`/student/lectures`, VOD)      → 강의실(`/classes`, 실시간 수업) — 다른 도메인
+ *   · 강좌(`/student/lectures`, 녹화 강의) → 실시간 수업(`/classes`) — 다른 도메인
+ *     (그 뒤 O190 에서 이름을 갈랐고, O191 에서 모바일 강좌 화면이 생겨 이제 제자리로 간다)
  *   · 커뮤니티(`/student/community/board`) → 라운지(`/community/feed`)      — 다른 게시판
  * 서버 값을 버리고 자기 표를 들면 어긋나도 아무도 못 본다. 그래서 **해석만** 여기서 한다 —
  * 목적지의 정본은 계속 서버다.
@@ -15,17 +16,20 @@
 
 /** 모바일 탭 키 — `App.tsx` 의 학생 탭·위성 화면 키와 같다. */
 export type Resolution =
-  | { kind: 'mobile'; tab: string; label: string }
+  /** `hub` 가 있으면 그 탭의 **허브 항목까지** 열어야 목적지에 닿는다(예: 처방 › 강좌). */
+  | { kind: 'mobile'; tab: string; hub?: string; label: string }
   | { kind: 'web-only'; label: string; why: string }
   | { kind: 'unknown' };
 
 /** 모바일에 대응 화면이 있는 경로. 값은 `App.tsx` 가 렌더하는 탭 키다. */
-const TO_TAB: Record<string, { tab: string; label: string }> = {
+const TO_TAB: Record<string, { tab: string; hub?: string; label: string }> = {
   '/student': { tab: 'h', label: '홈' },
   '/student/diagnostic': { tab: 'dg', label: '진단' },
   '/student/qna': { tab: 'c', label: '질문' },
   '/student/community': { tab: 'f', label: '라운지' },
   '/student/materials': { tab: 'e', label: '자료실' },
+  // 탭이 아니라 허브 하위 화면이다 — 탭만 주면 목록에서 한 번 더 찾아야 한다.
+  '/student/lectures': { tab: 'rx', hub: 'lectures', label: '강좌' },
   '/student/search': { tab: 'a', label: '선생님 찾기' },
   '/student/academies': { tab: 'ac', label: '학원찾기' },
   '/student/bookings': { tab: 'b', label: '일정' },
@@ -36,10 +40,6 @@ const TO_TAB: Record<string, { tab: string; label: string }> = {
  * 여기 없으면 `unknown` 이 되고, 그건 "표가 낡았다"는 신호로 읽어야 한다.
  */
 const WEB_ONLY: Record<string, { label: string; why: string }> = {
-  '/student/lectures': {
-    label: '강좌',
-    why: '강좌(녹화 강의)는 아직 모바일에 없어요. 앱의 ‘실시간 수업’은 예약된 수업 입장이라 다른 화면이에요.',
-  },
   '/student/community/board': {
     label: '리그 Q&A',
     why: '리그 Q&A(순위표·승급)는 아직 모바일에 없어요. 앱의 ‘라운지’는 다른 게시판이에요.',

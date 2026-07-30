@@ -23,7 +23,7 @@ const ORDER = ['teacher', 'lecture', 'community', 'material'];
  * 이동은 **서버가 준 `href`** 를 해석해서 한다(`nav/routes.ts`). 이전에는 유형별 탭을 이 파일이
  * 직접 들고 있었고, 그 표가 서버와 갈라져 강좌·커뮤니티가 엉뚱한 화면으로 갔다.
  */
-export function GlobalSearchScreen({ onClose, goTab }: { onClose: () => void; goTab: (t: string) => void }) {
+export function GlobalSearchScreen({ onClose, goTab }: { onClose: () => void; goTab: (t: string, hub?: string) => void }) {
   const { C } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const [term, setTerm] = useState('');
@@ -77,7 +77,7 @@ export function GlobalSearchScreen({ onClose, goTab }: { onClose: () => void; go
                         key={h.id}
                         style={s.row}
                         onPress={() => {
-                          if (r.kind === 'mobile') { goTab(r.tab); onClose(); return; }
+                          if (r.kind === 'mobile') { goTab(r.tab, r.hub); onClose(); return; }
                           // 비슷한 화면으로 대신 보내지 않는다 — 없으면 없다고 말한다.
                           showAlert(
                             r.kind === 'web-only' ? r.label : '이동할 수 없어요',

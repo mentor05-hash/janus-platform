@@ -10,6 +10,7 @@ import { ChatInboxScreen } from '../screens/ChatInboxScreen';
 import { ClassifyScreen } from '../screens/ClassifyScreen';
 import { GapReportScreen } from '../screens/GapReportScreen';
 import { GoalScreen } from '../screens/GoalScreen';
+import { LectureScreen } from '../screens/LectureScreen';
 import { LegalScreen } from '../screens/LegalScreen';
 import { RecordsScreen } from '../screens/RecordsScreen';
 import { ReportsScreen } from '../screens/ReportsScreen';
@@ -28,6 +29,11 @@ import { TasksScreen } from '../screens/TasksScreen';
 export { HUB_ITEMS, SATELLITE_PARENT, TAB_LABEL, itemsOf, type HubKey, type HubItem, type HubTab } from '@mentoring/nav';
 
 type HostArgs = {
+  /**
+   * 처음부터 열어 둘 하위 화면 — 통합검색이 '처방 › 강좌' 처럼 **허브 안쪽**을 가리킬 때 쓴다.
+   * 탭만 열고 목록을 다시 찾게 하면 서버가 준 목적지의 절반만 지킨 것이다.
+   */
+  initial?: string | null;
   /** 성적 노출 정책 — 격차·성적 화면이 배치 표시 여부를 이 값으로 정한다. */
   showPlacement?: boolean;
   goTab?: (t: string) => void;
@@ -41,7 +47,10 @@ type HostArgs = {
  * 서브화면이 열려 있으면 `screen` 이 채워지고, 호출측은 그것만 그리면 된다.
  */
 export function useHub(tab: HubTab, args: HostArgs = {}) {
-  const [key, setKey] = useState<HubKey | null>(null);
+  // 바깥에서 온 값(검색 결과)이라 **이 탭에 실제로 있는 항목인지 확인하고** 받는다 —
+  // 캐스팅으로 밀어 넣으면 오타 하나가 빈 화면이 된다.
+  const valid = itemsOf(tab).some((i) => i.key === args.initial) ? (args.initial as HubKey) : null;
+  const [key, setKey] = useState<HubKey | null>(valid);
   const back = () => setKey(null);
   const reload = () => { setKey(null); args.onReload?.(); };
   const bl = `‹ ${TAB_LABEL[tab]}`; // 하위 화면이 "어디로 돌아가는지"를 이 탭에서 정한다
@@ -70,6 +79,7 @@ export function useHub(tab: HubTab, args: HostArgs = {}) {
       case 'records': return <RecordsScreen onBack={back} backLabel={bl} />;
       case 'reports': return <ReportsScreen onBack={back} backLabel={bl} />;
       case 'classify': return <ClassifyScreen onBack={back} backLabel={bl} />;
+      case 'lectures': return <LectureScreen onBack={back} backLabel={bl} />;
       case 'legal': return <LegalScreen onBack={back} backLabel={bl} onWithdrawn={() => { if (typeof window !== 'undefined') window.location.reload(); }} />;
       default: return null;
     }
