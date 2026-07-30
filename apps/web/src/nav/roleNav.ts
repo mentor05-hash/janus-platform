@@ -80,9 +80,14 @@ export const STUDENT_NAV: NavItem[] = [
   //   '내 성적·배치'의 격차 탭은 flag:'scores' 라 성적 노출 정책이 OFF 면 유일한 경로마저 사라졌다.
   { to: '/student/placement/gap', label: '목표 대학 격차(격차 리포트)' },
   { to: '/student/placement/hub', label: '배치표 허브' },
+  // 강좌·자료실이 '처방'에 있는 이유: 진단 결과로 **받는 학습 자원**이다.
+  // (초안에서는 '일정 › 배우기'였다 — 상담처럼 시간을 쓰는 활동으로 봤다. 사용자 판단으로
+  //  진단→처방 흐름 쪽으로 옮겼다: 무엇을 볼지는 격차·목표가 정하므로 그 옆에 있어야 한다.)
   { sub: '처방' },
   { to: '/student/goal', label: '목표 설정' },
   { to: '/student/curriculum', label: '학습 플랜' },
+  { to: '/student/lectures', label: '강좌' },
+  { to: '/student/materials', label: '자료실' },
 
   { group: '일정' },
   { sub: '상담 잡기' },
@@ -97,11 +102,6 @@ export const STUDENT_NAV: NavItem[] = [
   { sub: '상담 후' },
   { to: '/student/chats', label: '채팅' },
   { to: '/student/reports', label: '상담 리포트' },
-  // 강좌·자료실을 '배우기'로 둔 이유: 상담처럼 **시간을 쓰는 활동**이라 일정 축에 붙는다.
-  // (대안은 '진단 › 처방' — 진단 결과로 받는 학습 자원으로 보는 관점.)
-  { sub: '배우기' },
-  { to: '/student/lectures', label: '강좌' },
-  { to: '/student/materials', label: '자료실' },
 
   { group: '내정보' },
   { to: '/student/membership', label: '멤버십·결제' },
