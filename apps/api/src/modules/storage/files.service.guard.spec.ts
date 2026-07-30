@@ -24,7 +24,7 @@ function makeService() {
   const guard = new SchoolRecordGuardService({
     get: () => undefined,
   } as unknown as ConfigService);
-  const service = new FilesService(prisma, storage as any, guard);
+  const service = new FilesService(prisma, storage, guard);
   return { service, storage, create };
 }
 

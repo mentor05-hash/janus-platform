@@ -36,12 +36,15 @@ function SignalChip({ band, text }: { band: Band; text: string }) {
   return <View style={{ backgroundColor: SIGNAL_SOFT[band], borderRadius: 999, paddingHorizontal: 9, paddingVertical: 3 }}><Text style={{ color: SIGNAL[band], fontSize: 11, fontWeight: '800' }}>{text}</Text></View>;
 }
 
-export function GapReportView({ trend, showPlacement, prescriptions, whoLabel, model }: { trend: Trend; showPlacement: boolean; prescriptions: Rx[]; whoLabel?: string; model?: GapModel | null }) {
+export function GapReportView({ trend, showPlacement, prescriptions, whoLabel }: { trend: Trend; showPlacement: boolean; prescriptions: Rx[]; whoLabel?: string }) {
   const { C } = useTheme();
   const ui = useUI();
   const s = useMemo(() => makeStyles(C), [C]);
-  // 서버 표준 payload(model)가 있으면 우선, 없으면 trend 로 클라 계산(폴백).
-  const m = useMemo(() => model ?? computeGapModel(trend), [model, trend]);
+  /* 과목별 격차는 **회차 과목 점수(0~100)** 로만 계산된다.
+     서버 격차 리포트(janus_report)는 누백·등급 단위라 여기 끼워 넣을 수 없다 — 그 층은
+     GapReportScreen 이 별도 카드로 보여준다. 이전에 있던 `model` 주입 경로는 실제로는
+     한 번도 채워지지 않는 가상 계약이었어서 제거했다(2026-07-30). */
+  const m = useMemo(() => computeGapModel(trend), [trend]);
   const goalLabel = m ? [m.tier, m.university, m.department].filter(Boolean).join(' · ') : '';
 
   if (!m || !m.last) return <Text style={ui.sub}>아직 진단 결과가 없어요. 상담으로 현재 위치를 진단하면 격차가 보여요.</Text>;

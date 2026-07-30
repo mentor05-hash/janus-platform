@@ -5,31 +5,11 @@ import { JanusLogo } from './JanusLogo';
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { ThemeToggle } from './ThemeToggle';
+import { TEACHER_NAV, isGroup, isSub } from '@mentoring/nav';
+import { NavGroupHeading, NavSubHeading } from './NavHeading';
 
 const navCls = ({ isActive }: { isActive: boolean }) => (isActive ? 'nav-item active' : 'nav-item');
 
-const NAV = [
-  { to: '/app/dashboard', label: '대시보드' },
-  { to: '/app/inbox', label: '인박스' },
-  { to: '/app/profile', label: '내 프로필' },
-  { to: '/app/bookings', label: '예약' },
-  { to: '/app/chats', label: '채팅' },
-  { to: '/app/schedule', label: '근무·슬롯' },
-  { to: '/app/evaluations', label: '받은 평가' },
-  { to: '/app/reverse', label: '역상담 제안' },
-  { to: '/app/qna', label: '질문 답변' },
-  { to: '/app/community', label: '커뮤니티 Q&A' },
-  { to: '/app/placement/hub', label: '배치표 허브' },
-  { to: '/app/payroll', label: '예상급여' },
-  { to: '/app/materials', label: '자료실' },
-  { to: '/app/lectures', label: '내 강좌' },
-  { to: '/app/classes', label: '강의실' },
-  { to: '/app/academy-manage', label: '학원 관리' },
-  { to: '/app/records', label: '상담 기록' },
-  { to: '/app/reports', label: '상담 리포트' },
-  { to: '/app/notifications', label: '알림' },
-  { to: '/app/legal', label: '약관·개인정보' },
-];
 
 export function AppLayout() {
   const { user, logout } = useAuth();
@@ -76,7 +56,11 @@ export function AppLayout() {
           </div>
         </Link>
         <nav className="sidebar-nav">
-          {NAV.map((n) => (
+          {TEACHER_NAV.map((n, i) => (isGroup(n) ? (
+            <NavGroupHeading key={`grp-${n.group}`} label={n.group} first={i === 0} />
+          ) : isSub(n) ? (
+            <NavSubHeading key={`sub-${n.sub}`} label={n.sub} />
+          ) : (
             <NavLink key={n.to} to={n.to} className={navCls}
               onClick={() => { if (window.location.pathname === n.to) window.dispatchEvent(new CustomEvent('janus:refresh')); }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6, ...(n.to === '/app/bookings' && immLabel ? { background: '#FEE2E2', borderRadius: 8, padding: '2px 8px', margin: '-2px -8px' } : {}) }}>
@@ -110,7 +94,7 @@ export function AppLayout() {
                 )}
               </span>
             </NavLink>
-          ))}
+          )))}
         </nav>
         <div className="sidebar-foot">
           <span className="avatar">{initial}</span>

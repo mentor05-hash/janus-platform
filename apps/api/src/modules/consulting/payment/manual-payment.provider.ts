@@ -11,24 +11,24 @@ import {
 export class ManualPaymentProvider implements PaymentProvider {
   private readonly logger = new Logger('PaymentProvider:manual');
 
-  async createCharge(input: ChargeInput): Promise<{ providerRef: string }> {
+  createCharge(input: ChargeInput): Promise<{ providerRef: string }> {
     const providerRef = `manual:${randomUUID()}`;
     this.logger.log(
       `createCharge app=${input.applicationId} ${input.amountWon}원 → ${providerRef}`,
     );
-    return { providerRef };
+    return Promise.resolve({ providerRef });
   }
 
-  async confirm(providerRef: string): Promise<PaymentProviderStatus> {
+  confirm(providerRef: string): Promise<PaymentProviderStatus> {
     this.logger.log(`confirm ${providerRef} → paid`);
-    return 'paid';
+    return Promise.resolve('paid');
   }
 
-  async refund(
+  refund(
     providerRef: string,
     amountWon: number,
   ): Promise<PaymentProviderStatus> {
     this.logger.log(`refund ${providerRef} ${amountWon}원 → refunded`);
-    return 'refunded';
+    return Promise.resolve('refunded');
   }
 }

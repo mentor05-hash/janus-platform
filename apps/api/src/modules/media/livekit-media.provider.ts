@@ -31,7 +31,7 @@ export class LiveKitMediaProvider implements MediaProvider {
     return Math.floor(Date.now() / 1000);
   }
 
-  async issueToken(
+  issueToken(
     roomRef: string,
     identity: string,
     role: MediaRole,
@@ -53,7 +53,7 @@ export class LiveKitMediaProvider implements MediaProvider {
         canPublishData: canPublish,
       },
     });
-    return { provider: 'livekit', url: this.url, token, role };
+    return Promise.resolve({ provider: 'livekit', url: this.url, token, role });
   }
 
   // ── 서버 API(twirp) ──

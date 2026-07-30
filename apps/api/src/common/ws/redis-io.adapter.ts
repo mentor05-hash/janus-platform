@@ -21,13 +21,14 @@ export class RedisIoAdapter extends IoAdapter {
     super(app);
   }
 
-  async connect(): Promise<void> {
+  connect(): Promise<void> {
     const pub = new Redis(this.url, { maxRetriesPerRequest: 1 });
     const sub = pub.duplicate();
     pub.on('error', (e) => this.logger.warn(`pub error: ${e.message}`));
     sub.on('error', (e) => this.logger.warn(`sub error: ${e.message}`));
     this.adapterConstructor = createAdapter(pub, sub);
     this.logger.log('socket.io Redis 어댑터 준비 완료(수평확장)');
+    return Promise.resolve();
   }
 
   createIOServer(port: number, options?: ServerOptions): Server {

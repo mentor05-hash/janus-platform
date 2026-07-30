@@ -33,7 +33,7 @@ const dday = (d: string | null) => {
 type Proposal = { id: string; title: string; subject: string | null; dueDate: string | null; guardianName: string | null };
 
 /** 맞춤 할 일(모바일) — 격차·학사 자동 제안 + 수동 + 학부모 제안 수락. CTA는 관련 탭으로. */
-export function TasksScreen({ onBack, goTab }: { onBack: () => void; goTab?: (t: string) => void }) {
+export function TasksScreen({ onBack, goTab, backLabel = '‹ 뒤로' }: { onBack: () => void; goTab?: (t: string) => void; backLabel?: string }) {
   const { C } = useTheme();
   const ui = useUI();
   const s = useMemo(() => makeStyles(C), [C]);
@@ -101,7 +101,7 @@ export function TasksScreen({ onBack, goTab }: { onBack: () => void; goTab?: (t:
 
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
-      <TouchableOpacity onPress={onBack}><Text style={{ color: C.teal, fontWeight: '700', marginBottom: 8 }}>‹ 마이</Text></TouchableOpacity>
+      <TouchableOpacity onPress={onBack}><Text style={{ color: C.teal, fontWeight: '700', marginBottom: 8 }}>{backLabel}</Text></TouchableOpacity>
       <Text style={ui.h}>할 일</Text>
       <Text style={[ui.sub, { marginBottom: SP.md }]}>약점·학사일정에서 자동 제안된 할 일. 직접 추가도 가능해요.</Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}

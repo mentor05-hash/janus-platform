@@ -427,7 +427,7 @@ export class GuardianService {
     });
     const children = await Promise.all(
       links.map(async (l) => {
-        const [acc, sp, ca, weeklyGrant, nextBooking] = await Promise.all([
+        const [acc, sp, ca, nextBooking] = await Promise.all([
           this.prisma.account.findUnique({
             where: { id: l.student_id },
             select: { name: true },
@@ -447,7 +447,6 @@ export class GuardianService {
             where: { student_id: l.student_id },
             select: { purchased_balance: true, granted_balance: true },
           }),
-          undefined,
           this.prisma.booking.findFirst({
             where: {
               student_id: l.student_id,

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { toText } from '../../common/text/to-text';
 
 /**
  * 공공데이터 적재 — 스펙 세션 1. 교육청 학원·교습소 공개데이터를 academy(source=public)로 upsert.
@@ -43,8 +44,8 @@ export class PublicSyncService {
     const name = pick('name', 'ACA_NM', 'academyName');
     if (!extKey || !name) return null;
     return {
-      ext_key: String(extKey),
-      name: String(name),
+      ext_key: toText(extKey),
+      name: toText(name),
       addr: (pick('addr', 'FA_RDNMA', 'address') as string) ?? null,
       dong_code:
         (pick('dong_code', 'ADMST_ZONE_NM', 'dongCode') as string) ?? null,

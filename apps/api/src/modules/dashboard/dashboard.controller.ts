@@ -30,13 +30,22 @@ import type { PivotView } from './dto/dashboard.dto';
 /**
  * 대시보드 API (§D 권한 매트릭스). @Roles 로 1차 차단, 서비스 계층에서 센터 스코프 강제(fail-closed).
  * 설정 계열(가중치·원장)은 @MinPerm('L2') 본사급 이상.
+ *
+ * 클래스 기본은 **관리자 전용**이다(N37). 이전 기본값 `admin,hr` 한 줄이 메서드 6개
+ * (`admin/dashboard/policy` 2 · `admin/teachers/*` 4 · `ops/*` 3)를 한꺼번에 HR 에게 열었는데,
+ * 대응 화면(`infra`·`evaluation`·`analytics`)은 전부 관리자 전용이었다. 월간 시수·원장 지정은
+ * 급여 산정의 기초값이라 O127(HR 은 급여에 권한이 없다)과도 어긋난다.
  */
 @Controller()
-@Roles('admin', 'hr')
+@Roles('admin')
 export class DashboardController {
   constructor(private readonly dash: DashboardService) {}
 
-  /** GET /dashboard/access — 내게 열린 대시보드 범위·탭(3형태 라우팅). 선생님 포함. */
+  /**
+   * GET /dashboard/access — 내게 열린 대시보드 범위·탭(3형태 라우팅). 선생님 포함.
+   * n37: 자기 범위 조회다 — 데이터가 아니라 "무엇이 열려 있는가"만 돌려준다. HR 의 착지
+   *      화면(`dashboard`)이 탭을 그릴 때 필요하므로 화면 표 대신 이 성격으로 판정한다.
+   */
   @Get('dashboard/access')
   @Roles('admin', 'hr', 'teacher')
   access(@CurrentUser() user: AuthUser) {
@@ -63,7 +72,8 @@ export class DashboardController {
     return this.dash.setVisibility(user, dto);
   }
 
-  // 화면 `evaluation` 은 관리자 전용 — 클래스 기본(admin,hr)을 여기서 좁힌다(N37).
+  // 화면 `evaluation` 은 관리자 전용(O181). 클래스 기본이 admin 이 된 뒤로 이 세 줄은
+  // 중복이지만, 좁힌 근거가 O181 에 있으므로 명시를 남긴다.
   @Get('admin/evaluation/weights')
   @Roles('admin')
   getWeights(

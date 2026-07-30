@@ -1,21 +1,29 @@
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api, ApiError } from '../api';
+import { showAlert } from '../lib/alertHost';
+import { resolveWebPath } from '@mentoring/nav';
 import { R, SP, useTheme, type Palette } from '../theme';
 
-type Hit = { type: 'lecture' | 'material' | 'community' | 'teacher'; id: string; title: string; subtitle?: string | null; subject?: string | null };
+/** `href` 는 서버가 정하는 목적지다(API `search.hrefs.ts`) — 웹과 같은 값을 그대로 받는다. */
+type Hit = { type: 'lecture' | 'material' | 'community' | 'teacher'; id: string; title: string; subtitle?: string | null; subject?: string | null; href?: string };
 type Result = { q: string; total: number; groups: Record<string, Hit[]> };
 
-const GROUP: Record<string, { label: string; icon: string; tab: string }> = {
-  teacher: { label: '선생님', icon: '◇', tab: 'a' },
-  lecture: { label: '강좌', icon: '▶', tab: 'r' },
-  community: { label: '커뮤니티 Q&A', icon: '◫', tab: 'f' },
-  material: { label: '자료실', icon: '▦', tab: 'e' },
+const GROUP: Record<string, { label: string; icon: string }> = {
+  teacher: { label: '선생님', icon: '◇' },
+  lecture: { label: '강좌', icon: '▶' },
+  community: { label: '커뮤니티 Q&A', icon: '◫' },
+  material: { label: '자료실', icon: '▦' },
 };
 const ORDER = ['teacher', 'lecture', 'community', 'material'];
 
-/** 모바일 전역 통합검색 — 강좌·자료·커뮤니티·선생님을 한 번에. 결과 탭으로 이동. */
-export function GlobalSearchScreen({ onClose, goTab }: { onClose: () => void; goTab: (t: string) => void }) {
+/**
+ * 모바일 전역 통합검색 — 강좌·자료·커뮤니티·선생님을 한 번에.
+ *
+ * 이동은 **서버가 준 `href`** 를 해석해서 한다(`nav/routes.ts`). 이전에는 유형별 탭을 이 파일이
+ * 직접 들고 있었고, 그 표가 서버와 갈라져 강좌·커뮤니티가 엉뚱한 화면으로 갔다.
+ */
+export function GlobalSearchScreen({ onClose, goTab }: { onClose: () => void; goTab: (t: string, hub?: string) => void }) {
   const { C } = useTheme();
   const s = useMemo(() => makeStyles(C), [C]);
   const [term, setTerm] = useState('');
@@ -62,13 +70,28 @@ export function GlobalSearchScreen({ onClose, goTab }: { onClose: () => void; go
               {ORDER.filter((g) => result.groups[g]?.length).map((g) => (
                 <View key={g} style={s.card}>
                   <Text style={s.cardTitle}>{GROUP[g].icon} {GROUP[g].label} {result.groups[g].length}</Text>
-                  {result.groups[g].map((h) => (
-                    <TouchableOpacity key={h.id} style={s.row} onPress={() => { goTab(GROUP[g].tab); onClose(); }}>
-                      {h.subject ? <Text style={s.chip}>{h.subject}</Text> : null}
-                      <Text style={s.rowTitle} numberOfLines={1}>{h.title}</Text>
-                      {h.subtitle ? <Text style={s.rowSub} numberOfLines={1}>{h.subtitle}</Text> : null}
-                    </TouchableOpacity>
-                  ))}
+                  {result.groups[g].map((h) => {
+                    const r = resolveWebPath(h.href);
+                    return (
+                      <TouchableOpacity
+                        key={h.id}
+                        style={s.row}
+                        onPress={() => {
+                          if (r.kind === 'mobile') { goTab(r.tab, r.hub); onClose(); return; }
+                          // 비슷한 화면으로 대신 보내지 않는다 — 없으면 없다고 말한다.
+                          showAlert(
+                            r.kind === 'web-only' ? r.label : '이동할 수 없어요',
+                            r.kind === 'web-only' ? `${r.why} 웹에서 확인해 주세요.` : '이 결과의 목적지를 앱에서 찾지 못했어요. 웹에서 확인해 주세요.',
+                          );
+                        }}
+                      >
+                        {h.subject ? <Text style={s.chip}>{h.subject}</Text> : null}
+                        <Text style={s.rowTitle} numberOfLines={1}>{h.title}</Text>
+                        {r.kind === 'mobile' ? null : <Text style={s.webChip}>웹</Text>}
+                        {h.subtitle ? <Text style={s.rowSub} numberOfLines={1}>{h.subtitle}</Text> : null}
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               ))}
             </>
@@ -94,5 +117,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 9, borderTopWidth: 1, borderTopColor: C.line },
   chip: { fontSize: 11, color: C.blue, backgroundColor: C.blueSoft, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6, overflow: 'hidden' },
   rowTitle: { flex: 1, fontSize: 14, fontWeight: '600', color: C.ink },
+  // 앱에 화면이 없는 결과 표식 — 눌러 보고 나서 알게 되는 것보다 목록에서 미리 보이는 편이 낫다.
+  webChip: { fontSize: 10.5, fontWeight: '800', color: C.muted, borderWidth: 1, borderColor: C.line, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 5, overflow: 'hidden' },
   rowSub: { fontSize: 12, color: C.muted },
 });

@@ -30,6 +30,7 @@ import {
 } from '../../common/dto/pagination.dto';
 import { AccountRole, AccountStatus } from '../../config/enums';
 import { NotifyService } from '../notification/notify.service';
+import { toTrimmedText } from '../../common/text/to-text';
 import {
   BulkStudentsDto,
   CreateTeacherDto,
@@ -180,7 +181,8 @@ export class HrController {
   private cell(row: Record<string, unknown>, ...keys: string[]): string {
     for (const k of keys) {
       const v = row[k];
-      if (v != null && String(v).trim()) return String(v).trim();
+      const t = toTrimmedText(v);
+      if (t) return t;
     }
     return '';
   }
@@ -261,7 +263,7 @@ export class HrController {
         ['S', 'A', 'B'].includes(gradeRaw) ? gradeRaw : 'B'
       ) as $Enums.teacher_grade_t;
       const subjects = this.cell(norm, '과목', 'subjects')
-        .split(/[,·\/]/)
+        .split(/[,·/]/)
         .map((s) => s.trim())
         .filter(Boolean);
       try {
@@ -446,7 +448,7 @@ export class HrController {
           center_id: user.centerId ?? null,
           subjects: dto.subjects,
           sub_subjects: [],
-          grade: dto.grade as $Enums.teacher_grade_t,
+          grade: dto.grade,
           career: dto.career ?? null,
           teacher_category: dto.category ?? null,
         },
@@ -555,8 +557,13 @@ export class HrController {
     return { id: updated.account_id, permLevel: updated.perm_level };
   }
 
-  /** GET /hr/limits — 분류 한도(센터). */
+  /**
+   * GET /hr/limits — 분류 한도(센터, 관리자).
+   * N37: HR 은 이 한도의 **적용 대상**이지 설정 주체가 아니다 — 자기 상한을 스스로
+   * 올릴 수 있으면 한도가 아니다. 유일한 호출 화면 `membership` 도 관리자 전용이다.
+   */
   @Get('limits')
+  @Roles('admin')
   async getLimits(@CurrentUser() user: AuthUser) {
     if (!user.centerId)
       return {
@@ -574,8 +581,9 @@ export class HrController {
     };
   }
 
-  /** POST /hr/limits — 분류 한도 저장(센터). */
+  /** POST /hr/limits — 분류 한도 저장(센터, 관리자). */
   @Post('limits')
+  @Roles('admin')
   async putLimits(@Body() dto: HrLimitsDto, @CurrentUser() user: AuthUser) {
     if (!user.centerId)
       throw new BadRequestException(

@@ -171,7 +171,30 @@ export class MaterialService {
     return m.center_id != null && centers.has(m.center_id);
   }
 
-  private shape(m: Record<string, any>) {
+  /**
+   * `shape` 가 실제로 읽는 필드만 적은 구조 타입.
+   *
+   * 이전 시그니처는 `Record<string, any>` 라 오타(`m.viewCount`)나 include 누락
+   * (`teacher` 를 안 붙이고 호출)이 **컴파일도 테스트도 통과한 뒤 런타임에 null 로** 나왔다.
+   * Prisma 결과 타입을 그대로 쓰면 include 조합마다 타입이 달라 재사용이 안 되므로,
+   * 이 함수가 요구하는 최소 모양을 여기 적는다 — 호출부가 이 모양을 못 만족하면 그 자리에서 깨진다.
+   */
+  private shape(m: {
+    id: string;
+    title: string;
+    description?: string | null;
+    subject?: string | null;
+    category?: string | null;
+    visibility: string;
+    view_count?: number | null;
+    teacher_id: string;
+    center_id: string | null;
+    file_id: string | null;
+    created_at: Date;
+    teacher?: { account?: { name: string } | null } | null;
+    center?: { name: string } | null;
+    file?: { filename: string; size: number } | null;
+  }) {
     return {
       id: m.id,
       title: m.title,

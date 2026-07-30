@@ -216,7 +216,7 @@ describe('학부모 계획 트랙', () => {
   it('타인 계획은 수정·삭제 불가(소유권)', async () => {
     const [item] = await plan.list(guardian, student.id);
     const other = { ...guardian, id: '00000000-0000-4000-8000-0000000000fc' };
-    await expect(plan.remove(other as any, item.id)).rejects.toThrow();
+    await expect(plan.remove(other, item.id)).rejects.toThrow();
   });
 
   it('내게 오지 않은 제안은 응답 불가', async () => {
@@ -226,7 +226,7 @@ describe('학부모 계획 트랙', () => {
         ...student,
         id: '00000000-0000-4000-8000-0000000000fb',
       };
-      await expect(plan.accept(stranger as any, props[0].id)).rejects.toThrow();
+      await expect(plan.accept(stranger, props[0].id)).rejects.toThrow();
     }
   });
 

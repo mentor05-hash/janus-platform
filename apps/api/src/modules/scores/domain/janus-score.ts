@@ -63,7 +63,7 @@ function pick(
 const intIn = (v: unknown, min: number, max: number): number | null => {
   const n = typeof v === 'string' ? Number(v) : (v as number);
   if (!Number.isFinite(n)) return null;
-  const r = Math.round(n as number);
+  const r = Math.round(n);
   return r >= min && r <= max ? r : null;
 };
 

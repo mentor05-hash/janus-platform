@@ -23,7 +23,13 @@ function decodeToken(t: string): { participantId?: string } | null {
   } catch { return null; }
 }
 
-/** 학생 모바일 강의실 — 등록된 강의 목록 + 입장(판서 열람). 선생님 개설은 웹 전용. */
+/**
+ * 학생 모바일 **실시간 수업** — 등록된 수업 목록 + 입장(판서 열람). 선생님 개설은 웹 전용.
+ *
+ * 이름을 '강의실'에서 바꾼 이유: 녹화 강의인 '강좌'(`/lectures`)와 한 글자 차이라 실제로
+ * 혼동을 일으켰다 — 통합검색이 강좌 결과를 이 화면으로 보내고 있었다(O186 ①).
+ * 도메인이 다르면 이름도 달라야 한다.
+ */
 export function ClassroomScreen() {
   const { C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -72,7 +78,7 @@ export function ClassroomScreen() {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={{ paddingBottom: SP.xl }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.teal} />}>
-      <Text style={styles.title}>강의실</Text>
+      <Text style={styles.title}>실시간 수업</Text>
       <Text style={styles.sub}>등록된 온라인 강의입니다. 선생님이 시작하면 입장해 판서를 함께 봅니다.</Text>
 
       {err ? <Text style={styles.err}>{err}</Text> : null}

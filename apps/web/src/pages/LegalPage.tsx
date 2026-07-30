@@ -52,7 +52,11 @@ export function LegalPage() {
   const [shareBusy, setShareBusy] = useState(false);
   const [shareErr, setShareErr] = useState('');
   const loadShare = () => api.get<ShareConsents>('/me/share-consents').then(setShare).catch(() => setShare(null));
-  useEffect(() => { loadShare(); loadLinks(); }, []);
+  // 보호자 연결·공유 동의는 **학생 쪽 게이트**다(`@Roles('student')`). 선생님·학부모가 부르면
+  // 확정적으로 403 이라, 역할로 걸러 무의미한 요청을 내지 않는다(섹션은 어차피 빈 값이면 숨는다).
+  const { user: me } = useAuth();
+  const isStudent = me?.role === 'student';
+  useEffect(() => { if (isStudent) { loadShare(); loadLinks(); } }, [isStudent]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function toggleShare(guardianId: string, next: boolean) {
     setShareBusy(true); setShareErr('');

@@ -79,7 +79,7 @@ export class BookingController {
 
   /** GET /bookings/reverse/policy — 역상담 전사 정책(오프라인 한정·크레딧 미소모) 조회. */
   @Get('reverse/policy')
-  @Roles('admin', 'hr')
+  @Roles('admin') // N37: 호출 화면 `infra` 는 관리자 전용
   getReversePolicy() {
     return this.booking.getReversePolicy();
   }
@@ -130,7 +130,7 @@ export class BookingController {
 
   /** GET /bookings/external/policy — 외부학생 전사 정책(온라인 한정·할증·주간크레딧·상담제한) 조회. */
   @Get('external/policy')
-  @Roles('admin', 'hr')
+  @Roles('admin') // N37: 호출 화면 `infra` 는 관리자 전용 · 할증률·주간크레딧은 매출 조건
   getExternalPolicy() {
     return this.booking.getExternalPolicy();
   }
@@ -161,14 +161,14 @@ export class BookingController {
 
   /** GET /bookings/reverse/admin-students — 관리자: 센터 학생 + 역상담 지정/신청 플래그. */
   @Get('reverse/admin-students')
-  @Roles('admin', 'hr')
+  @Roles('admin') // N37: 호출 화면 `reverse` 는 관리자 전용
   reverseAdminStudents(@CurrentUser() user: AuthUser) {
     return this.booking.adminListReverseStudents(user);
   }
 
   /** PATCH /bookings/reverse/admin/{studentId} — 관리자: 학생 역상담 대상 지정/해제. */
   @Patch('reverse/admin/:studentId')
-  @Roles('admin', 'hr')
+  @Roles('admin') // N37: 호출 화면 `reverse` 는 관리자 전용
   reverseAdminSet(
     @Param('studentId', ParseUUIDPipe) studentId: string,
     @Body() dto: ReverseFlagDto,

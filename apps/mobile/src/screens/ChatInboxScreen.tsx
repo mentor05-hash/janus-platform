@@ -25,7 +25,7 @@ const T = (iso: string) => {
   return `${d.getMonth() + 1}/${d.getDate()}`;
 };
 
-export function ChatInboxScreen({ onBack }: { onBack: () => void }) {
+export function ChatInboxScreen({ onBack, backLabel = '‹ 뒤로' }: { onBack: () => void; backLabel?: string }) {
   const { C } = useTheme();
   const ui = useUI();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -55,7 +55,7 @@ export function ChatInboxScreen({ onBack }: { onBack: () => void }) {
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
       <View style={styles.head}>
-        <TouchableOpacity onPress={onBack}><Text style={styles.back}>‹ 뒤로</Text></TouchableOpacity>
+        <TouchableOpacity onPress={onBack}><Text style={styles.back}>{backLabel}</Text></TouchableOpacity>
         <Text style={ui.h}>채팅</Text>
       </View>
       <Text style={styles.sub}>상담 대화를 최신순으로 모아 봅니다. 안 읽은 대화는 배지로 표시돼요.</Text>

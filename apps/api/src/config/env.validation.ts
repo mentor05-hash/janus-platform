@@ -207,7 +207,11 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
-  STT_DAILY_LIMIT?: string; // 일 음성 전사 상한(유료 STT). 기본 60
+  STT_DAILY_LIMIT?: string; // 일 음성 전사 **호출** 상한(유료 STT). 기본 60
+
+  @IsOptional()
+  @IsString()
+  STT_DAILY_MINUTE_LIMIT?: string; // 일 음성 전사 **분** 상한(분당 과금 축). 기본 1800
 }
 
 /** 대시보드 권한 ENV 플래그 — 'true' 만 활성, 그 외/부재는 false(fail-closed). */

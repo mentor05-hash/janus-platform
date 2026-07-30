@@ -81,8 +81,14 @@ export class ConsultingController {
     return this.consulting.createPayment(id, dto, user);
   }
 
+  /**
+   * POST /consulting/applications/{id}/payment/confirm — 결제 확정(관리자).
+   * N37: 현재 provider 는 `ManualPaymentProvider` 로 **무조건 'paid' 를 돌려준다** —
+   * 즉 이 호출은 "돈을 받았다"는 사람의 선언이고, 확정되면 유료 분석(외부 LLM 과금)이
+   * 열리며 되돌리는 API 가 없다. 급여에서 HR 을 뺀 O127 과 같은 비가역성 문제다.
+   */
   @Post('applications/:id/payment/confirm')
-  @Roles('admin', 'hr')
+  @Roles('admin')
   @HttpCode(200)
   confirmPayment(
     @Param('id', ParseUUIDPipe) id: string,

@@ -84,7 +84,7 @@ describe('회차 변동성 판정(O108) — 한 점으로 단정하지 않기', 
 
   it('밴드가 뒤집히면 consistent=false 와 구간을 알려준다', () => {
     // 컷 1.5 · 회차 0.9(delta -0.6 → 안정)~2.4(delta +0.9 → 상향) → 회차에 따라 판정이 갈린다
-    const v = buildGapReport(withRecent(2.4, 1.5, [0.9, 2.4]))!.volatility!;
+    const v = buildGapReport(withRecent(2.4, 1.5, [0.9, 2.4])).volatility!;
     expect(v.count).toBe(2);
     expect(v.best).toBe(0.9);
     expect(v.worst).toBe(2.4);
@@ -97,7 +97,7 @@ describe('회차 변동성 판정(O108) — 한 점으로 단정하지 않기', 
 
   it('변동이 있어도 같은 구간이면 consistent=true', () => {
     // 컷 1.5 · 회차 2.1~2.4 → 둘 다 상향
-    const v = buildGapReport(withRecent(2.4, 1.5, [2.1, 2.4]))!.volatility!;
+    const v = buildGapReport(withRecent(2.4, 1.5, [2.1, 2.4])).volatility!;
     expect(v.bestBand).toBe('상향');
     expect(v.worstBand).toBe('상향');
     expect(v.consistent).toBe(true);
@@ -106,10 +106,10 @@ describe('회차 변동성 판정(O108) — 한 점으로 단정하지 않기', 
 
   it('3회 미만이면 smallSample=true (해석 주의)', () => {
     expect(
-      buildGapReport(withRecent(2.0, 1.5, [1.8, 2.0]))!.volatility!.smallSample,
+      buildGapReport(withRecent(2.0, 1.5, [1.8, 2.0])).volatility!.smallSample,
     ).toBe(true);
     expect(
-      buildGapReport(withRecent(2.0, 1.5, [1.8, 1.9, 2.0]))!.volatility!
+      buildGapReport(withRecent(2.0, 1.5, [1.8, 1.9, 2.0])).volatility!
         .smallSample,
     ).toBe(false);
   });
@@ -124,14 +124,14 @@ describe('회차 변동성 판정(O108) — 한 점으로 단정하지 않기', 
     const v = buildGapReport({
       ...susi(2.3, 1.8),
       recent: [1.7, 2.3],
-    })!.volatility!;
+    }).volatility!;
     expect(v.best).toBe(1.7);
     expect(v.bestBand).toBe('적정');
     expect(v.message).toContain('등급');
   });
 
   it('σ·신뢰구간 같은 정밀 수치를 만들지 않는다(표본 과소 — C5 과대표기 방지)', () => {
-    const v = buildGapReport(withRecent(2.0, 1.5, [1.8, 2.0]))!.volatility!;
+    const v = buildGapReport(withRecent(2.0, 1.5, [1.8, 2.0])).volatility!;
     // ⚠ 이 배열은 **σ 가드**다 — 필드를 추가할 때 배열만 확장하고, 표준편차·신뢰구간·가중평균 종류의
     //    키를 넣으려는 순간 여기서 막히도록 남겨둔다(삭제 금지).
     expect(Object.keys(v).sort()).toEqual(
@@ -155,9 +155,7 @@ describe('회차 변동성 판정(O108) — 한 점으로 단정하지 않기', 
   it('꾸준히 향상한 이력은 변동이 아니라 향상으로 서술한다(사실과 다른 운 프레이밍 방지)', () => {
     // 컷 2.0 · 2.4 → 2.1 → 1.8 (누백은 낮을수록 상위 = 계속 향상). best 1.8/worst 2.4 로 밴드는 갈리지만
     // "회차에 따라 갈립니다 · 한 회차로 단정하지 마세요" 는 사실과 다르다.
-    const v = buildGapReport(
-      withRecent(1.8, 2.0, [2.4, 2.1, 1.8]),
-    )!.volatility!;
+    const v = buildGapReport(withRecent(1.8, 2.0, [2.4, 2.1, 1.8])).volatility!;
     expect(v.consistent).toBe(false);
     expect(v.direction).toBe('improving');
     expect(v.message).toContain('꾸준히 올랐어요');
@@ -168,31 +166,25 @@ describe('회차 변동성 판정(O108) — 한 점으로 단정하지 않기', 
   });
 
   it('계속 하락한 이력은 최근 회차가 지금 위치라고 말한다', () => {
-    const v = buildGapReport(
-      withRecent(2.4, 2.0, [1.8, 2.1, 2.4]),
-    )!.volatility!;
+    const v = buildGapReport(withRecent(2.4, 2.0, [1.8, 2.1, 2.4])).volatility!;
     expect(v.direction).toBe('worsening');
     expect(v.message).toContain('계속 내려갔어요');
   });
 
   it('오르내림이 섞이면 mixed — 이때만 "한 회차로 단정하지 마세요"', () => {
-    const v = buildGapReport(
-      withRecent(2.2, 2.0, [1.7, 2.5, 2.2]),
-    )!.volatility!;
+    const v = buildGapReport(withRecent(2.2, 2.0, [1.7, 2.5, 2.2])).volatility!;
     expect(v.direction).toBe('mixed');
     expect(v.message).toContain('단정하지 마세요');
   });
 
   it('2회뿐이면 방향을 판정하지 않는다 — 2점으로 추세를 말하는 건 smallSample 경고와 모순', () => {
     expect(
-      buildGapReport(withRecent(1.8, 2.0, [2.4, 1.8]))!.volatility!.direction,
+      buildGapReport(withRecent(1.8, 2.0, [2.4, 1.8])).volatility!.direction,
     ).toBeNull();
   });
 
   it('전 회차 동일값이면 변동 없음으로 서술하고 방향도 없다', () => {
-    const v = buildGapReport(
-      withRecent(2.3, 2.0, [2.3, 2.3, 2.3]),
-    )!.volatility!;
+    const v = buildGapReport(withRecent(2.3, 2.0, [2.3, 2.3, 2.3])).volatility!;
     expect(v.spread).toBe(0);
     expect(v.direction).toBeNull();
     expect(v.consistent).toBe(true);
@@ -201,7 +193,7 @@ describe('회차 변동성 판정(O108) — 한 점으로 단정하지 않기', 
   });
 
   it('best·worst 를 소수 2자리로 반올림한다(꼬리 숫자가 문장에 새지 않게)', () => {
-    const v = buildGapReport(withRecent(3.4, 2.0, [2.9994, 3.4]))!.volatility!;
+    const v = buildGapReport(withRecent(3.4, 2.0, [2.9994, 3.4])).volatility!;
     expect(v.best).toBe(3); // 2.9994 → 3
     expect(v.message).not.toContain('2.9994');
   });

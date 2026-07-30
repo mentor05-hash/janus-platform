@@ -6,6 +6,8 @@ import { useSessionHost, SessionHost } from './SessionHost';
 import { ChatInboxScreen } from './ChatInboxScreen';
 import { TeacherReportPanel } from './TeacherReportPanel';
 import { queueNote, flushNotes, queuedCount, onlineFlush } from '../offlineQueue';
+import { TeacherScheduleScreen } from './TeacherScheduleScreen';
+import { useWebBack } from '../webBack';
 
 // ── 공통 ──
 const KST = (iso?: string | null) => (iso ? new Date(iso).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '');
@@ -383,10 +385,14 @@ export function TeacherToday({ myId }: { myId: string }) {
   const [bookings, setBookings] = useState<Booking[] | null>(null);
   const host = useSessionHost();
   const [work, setWork] = useState<string>('on');
+  // 근무·슬롯 — 웹 사이드바에서도 '오늘' 대항목에 있다(예약의 공급원이라 오늘 화면과 짝이다).
+  const [schedule, setSchedule] = useState(false);
+  useWebBack(schedule, () => setSchedule(false));
   const load = useCallback(() => { api.get<{ data?: Booking[] } | Booking[]>('/bookings?role=teacher').then((r) => setBookings(unwrap(r))).catch(() => setBookings([])); }, []);
   useEffect(() => { load(); api.get<{ workStatus?: string }>('/teachers/me/profile').then((p) => setWork(p.workStatus ?? 'on')).catch(() => {}); }, [load]);
   async function setStatus(k: string) { setWork(k); api.patch('/teachers/me/status', { status: k }).catch(() => {}); }
   if (host.activeId) return <SessionHost host={host} myId={myId} onClosed={load} />;
+  if (schedule) return <TeacherScheduleScreen myId={myId} onBack={() => { setSchedule(false); load(); }} />;
   if (bookings === null) return <Center C={C} />;
   const now = new Date();
   const all = bookings ?? [];
@@ -407,6 +413,14 @@ export function TeacherToday({ myId }: { myId: string }) {
           </TouchableOpacity>
         ))}
       </View>
+      <TouchableOpacity style={[s.card, { flexDirection: 'row', alignItems: 'center', gap: 10 }]} activeOpacity={0.75} onPress={() => setSchedule(true)}>
+        <Text style={{ fontSize: 18 }}>🗓</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={s.title}>근무·슬롯</Text>
+          <Text style={s.body}>여기서 연 시간이 학생에게 보이는 예약 슬롯이 돼요</Text>
+        </View>
+        <Text style={{ fontSize: 20, color: C.muted }}>›</Text>
+      </TouchableOpacity>
       <View style={[s.card, { backgroundColor: ongoing ? C.teal : C.white, borderColor: ongoing ? C.teal : C.line }]}>
         <Text style={{ fontSize: 12.5, color: ongoing ? '#CDE7F0' : C.muted }}>{ongoing ? '상담 진행 중' : nextSession ? '다음 상담' : '오늘 상태'}</Text>
         <Text style={{ fontSize: 18, fontWeight: '800', color: ongoing ? '#fff' : C.ink, marginTop: 3 }}>

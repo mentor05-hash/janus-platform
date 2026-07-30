@@ -18,6 +18,9 @@ class BrokenCache implements CacheProvider {
   incr(): Promise<number> {
     return Promise.resolve(0);
   }
+  incrBy(): Promise<number> {
+    return Promise.resolve(0);
+  }
   acquireLock(): Promise<boolean> {
     return Promise.resolve(true);
   }
@@ -32,6 +35,25 @@ describe('UsageQuota (유료 API 일 호출 상한)', () => {
     await expect(q.consume('ocr', 3)).rejects.toBeInstanceOf(
       QuotaExceededError,
     );
+  });
+
+  it('consumeUnits — 한 번에 여러 단위를 소모한다(분 단위 과금)', async () => {
+    const q = new UsageQuota(new MemoryCacheProvider(), 'stt');
+    await q.consumeUnits('minutes', 40, 100, '분');
+    await q.consumeUnits('minutes', 55, 100, '분'); // 누적 95
+    // 96번째 분부터 넘는다 — 호출 수가 아니라 길이가 상한을 결정한다.
+    await expect(
+      q.consumeUnits('minutes', 10, 100, '분'),
+    ).rejects.toBeInstanceOf(QuotaExceededError);
+  });
+
+  it('consumeUnits — 소수 단위는 올리고 최소 1을 센다', async () => {
+    const q = new UsageQuota(new MemoryCacheProvider(), 'stt');
+    await q.consumeUnits('minutes', 0.2, 2, '분'); // → 1
+    await q.consumeUnits('minutes', 0.2, 2, '분'); // → 2
+    await expect(
+      q.consumeUnits('minutes', 0.2, 2, '분'),
+    ).rejects.toBeInstanceOf(QuotaExceededError);
   });
 
   it('스코프별로 따로 센다 — 한 용도가 다 써도 다른 용도는 살아있다', async () => {
@@ -78,7 +100,7 @@ describe('UsageQuota (유료 API 일 호출 상한)', () => {
     expect(await q.peek('없는스코프')).toBe(0);
   });
 
-  it('일자 경계는 KST — 카운터 키가 KST 일자로 갈린다', async () => {
+  it('일자 경계는 KST — 카운터 키가 KST 일자로 갈린다', () => {
     // 2026-07-26 14:30 UTC = KST 07-26 23:30 (같은 날)
     expect(kstDay(new Date('2026-07-26T14:30:00Z'))).toBe('20260726');
     // 2026-07-26 15:30 UTC = KST 07-27 00:30 (다음 날로 넘어감)

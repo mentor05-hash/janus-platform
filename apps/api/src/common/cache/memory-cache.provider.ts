@@ -14,43 +14,52 @@ interface Entry {
 export class MemoryCacheProvider implements CacheProvider {
   private store = new Map<string, Entry>();
 
-  async get<T>(key: string): Promise<T | null> {
+  get<T>(key: string): Promise<T | null> {
     const e = this.store.get(key);
-    if (!e) return null;
+    if (!e) return Promise.resolve(null);
     if (e.expiresAt <= Date.now()) {
       this.store.delete(key);
-      return null;
+      return Promise.resolve(null);
     }
-    return e.value as T;
+    return Promise.resolve(e.value as T);
   }
 
-  async set<T>(key: string, value: T, ttlSeconds: number): Promise<void> {
+  set<T>(key: string, value: T, ttlSeconds: number): Promise<void> {
     this.store.set(key, { value, expiresAt: Date.now() + ttlSeconds * 1000 });
+    return Promise.resolve();
   }
 
-  async del(key: string): Promise<void> {
+  del(key: string): Promise<void> {
     this.store.delete(key);
+    return Promise.resolve();
   }
 
-  async incr(key: string, ttlSeconds: number): Promise<number> {
+  incr(key: string, ttlSeconds: number): Promise<number> {
+    return this.incrBy(key, 1, ttlSeconds);
+  }
+
+  incrBy(key: string, amount: number, ttlSeconds: number): Promise<number> {
     // 단일 스레드 JS — get/set 사이 경합 없음(원자적).
     const e = this.store.get(key);
     const now = Date.now();
     if (!e || e.expiresAt <= now) {
-      this.store.set(key, { value: 1, expiresAt: now + ttlSeconds * 1000 });
-      return 1;
+      this.store.set(key, {
+        value: amount,
+        expiresAt: now + ttlSeconds * 1000,
+      });
+      return Promise.resolve(amount);
     }
-    const next = (e.value as number) + 1;
+    const next = (e.value as number) + amount;
     e.value = next; // 만료시각은 최초 증가 기준 유지(고정 윈도우)
-    return next;
+    return Promise.resolve(next);
   }
 
-  async acquireLock(key: string, ttlSeconds: number): Promise<boolean> {
+  acquireLock(key: string, ttlSeconds: number): Promise<boolean> {
     // 단일 인스턴스(메모리) — NX 의미: 미만료 키 있으면 실패, 없으면 획득.
     const e = this.store.get(key);
     const now = Date.now();
-    if (e && e.expiresAt > now) return false;
+    if (e && e.expiresAt > now) return Promise.resolve(false);
     this.store.set(key, { value: 1, expiresAt: now + ttlSeconds * 1000 });
-    return true;
+    return Promise.resolve(true);
   }
 }

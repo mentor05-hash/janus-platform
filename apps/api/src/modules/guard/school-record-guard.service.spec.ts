@@ -20,7 +20,7 @@ function configStub(env: Record<string, string> = {}): ConfigService {
 }
 function llmStub(label: 'yes' | 'no' | 'unsure'): LlmProvider {
   return {
-    classifySchoolRecord: async () => ({ label }),
+    classifySchoolRecord: () => ({ label }),
   } as unknown as LlmProvider;
 }
 function textFile(text: string, name = 'q.txt') {

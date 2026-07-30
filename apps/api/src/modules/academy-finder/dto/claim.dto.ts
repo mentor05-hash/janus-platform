@@ -6,7 +6,6 @@ import {
   IsInt,
   IsOptional,
   IsString,
-  Max,
   Min,
   MaxLength,
   ValidateNested,

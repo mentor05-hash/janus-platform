@@ -47,7 +47,7 @@ export class MediaRecordingService {
     return {
       ...MediaRecordingService.FLAG_DEFAULT,
       ...((row?.value as object) ?? {}),
-    } as typeof MediaRecordingService.FLAG_DEFAULT;
+    };
   }
 
   /** 예약 당사자 검증(booking 상태머신 무변경 — 읽기만). */
@@ -74,7 +74,7 @@ export class MediaRecordingService {
       },
     });
     const granted = g != null && g.revoked_at == null;
-    return { granted, grantedAt: granted ? g!.granted_at : null };
+    return { granted, grantedAt: granted ? g.granted_at : null };
   }
 
   /** 동의 상태 조회(상담룸 UI 초기화). enabled=false 면 UI 는 녹음 요소 자체를 숨긴다. */
@@ -84,7 +84,7 @@ export class MediaRecordingService {
     const r = await this.prisma.consult_recording.findUnique({
       where: { booking_id: bookingId },
     });
-    const guardian = await this.guardianGranted(b.student_id!);
+    const guardian = await this.guardianGranted(b.student_id);
     return {
       enabled: f.enabled,
       policyVersion: f.policyVersion,
@@ -249,7 +249,7 @@ export class MediaRecordingService {
       const expiresAt = new Date(Date.now() + f.retentionDays * 24 * 3600_000);
       // 보호자 동의 스탬프(본부 결정) — 녹음 시점의 동의 상태를 원장에 고정(사후 철회와 무관한 증빙).
       const { b } = await this.assertParticipant(user, bookingId);
-      const guardian = await this.guardianGranted(b.student_id!);
+      const guardian = await this.guardianGranted(b.student_id);
       await this.prisma.consult_recording.update({
         where: { booking_id: bookingId },
         data: {

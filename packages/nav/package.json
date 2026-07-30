@@ -1,0 +1,8 @@
+{
+  "name": "@mentoring/nav",
+  "version": "0.1.0",
+  "private": true,
+  "description": "역할별 메뉴(대항목·항목)의 단일 정본 — 웹 사이드바·모바일 탭/허브·경로 해석을 한 곳에서 정의(O185·O186 드리프트 방지)",
+  "main": "src/index.ts",
+  "types": "src/index.ts"
+}

@@ -16,11 +16,13 @@ import { QnaScreen } from './src/screens/QnaScreen';
 import { MaterialsScreen } from './src/screens/MaterialsScreen';
 import { CommunityScreen } from './src/screens/CommunityScreen';
 import { MyScreen } from './src/screens/MyScreen';
+import { PrescriptionScreen } from './src/screens/PrescriptionScreen';
 import { ClassroomScreen } from './src/screens/ClassroomScreen';
 import { AcademyFinderScreen } from './src/screens/AcademyFinderScreen';
-import { GuardianHome, GuardianConsult, GuardianPay, GuardianCharge, GuardianMembership } from './src/screens/GuardianScreens';
+import { GuardianConsult, GuardianHome, GuardianMy, GuardianWallet } from './src/screens/GuardianScreens';
 import { GuardianLinkScreen } from './src/screens/GuardianLinkScreen';
 import { TeacherInbox, TeacherToday, TeacherSessions, TeacherRecords, TeacherMy } from './src/screens/TeacherScreens';
+import { SATELLITE_PARENT } from './src/nav/hubMenu';
 import { ThemeProvider, useTheme, type Palette, SP } from './src/theme';
 import { AlertHost } from './src/lib/alertHost';
 import { APP_NAME } from './src/branding.generated';
@@ -50,6 +52,8 @@ function AppInner() {
   const [activeChild, setActiveChild] = useState<string | null>(null);
   const [childState, setChildState] = useState<'loading' | 'ok' | 'error'>('loading');
   const [searchOpen, setSearchOpen] = useState(false); // 전역 통합검색 오버레이(학생)
+  // 검색이 허브 **안쪽**(예: 처방 › 강좌)을 가리킬 때 그 화면까지 열어 준다. 한 번 쓰고 비운다.
+  const [pendingHub, setPendingHub] = useState<string | null>(null);
   const [exitHint, setExitHint] = useState(false); // 홈에서 '한 번 더 누르면 종료' 토스트
   const exitArmed = useRef(false);
   const exitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -66,6 +70,8 @@ function AppInner() {
     setTeacher(null);
     setBooking(false);
   };
+  /** 탭 이동 + 그 탭의 허브 하위 화면까지 연다(검색·처방 CTA 가 같은 길을 쓴다). */
+  const goHub = (t: string, hub: string) => { setPendingHub(hub); goTab(t); };
   const openTeacher = (t: Teacher, m?: string, ct?: string, sub?: string) => { setTeacher(t); setBooking(false); setBookMode(m); setBookType(ct); setBookSub(sub); pushGuard(); };
   const openBooking = () => { setBooking(true); pushGuard(); };
 
@@ -167,18 +173,31 @@ function AppInner() {
   const isStudent = me.role === 'student';
   const isTeacher = me.role === 'teacher';
   // N30 — 학생 하단 탭 7→5(홈/질문/진단/일정/내정보). 탭에서 빠진 화면(a/r/e/f)은 홈 바로가기로 보존(기능 보존).
-  const tabs = isGuardian ? ['a', 'b', 'g', 'c', 'd'] : isTeacher ? ['ti', 'to', 'ts', 'tr', 'tm'] : ['h', 'c', 'dg', 'b', 'd'];
-  const guardianLabel: Record<string, string> = { a: '홈', b: '상담', g: '멤버십', c: '결제', d: '충전' };
-  const studentLabel: Record<string, string> = { h: '홈', dg: '진단', a: '선생님 찾기', b: '일정', r: '강의실', e: '자료실', c: '질문', f: '커뮤니티', d: '내정보' };
+  // 학부모 탭 5 → 4(O185): 결제 계열 3개(멤버십·결제·충전)를 '결제' 하나로 합치고 '내정보'를 신설했다.
+  //   웹에서 그 셋은 `결제·충전` 한 화면인데 모바일만 3탭이라 결제에 과대 대표돼 있었고,
+  //   그만큼 동의·본인확인이 탭에서 밀려나 상담 탭 안에 묻혀 있었다.
+  // 학생 탭을 **관문 축**으로(O189): 홈·진단·처방·실행·내정보.
+  //   이전 `홈·질문·진단·일정·내정보` 는 '질문'과 '일정'이 둘 다 실행인데 도구 이름이라
+  //   북극성(진단→처방→실행→통과)이 메뉴에서 보이지 않았다. 질문은 실행 허브 첫 줄 + 홈 타일로 남는다.
+  const tabs = isGuardian ? ['a', 'b', 'c', 'd'] : isTeacher ? ['ti', 'to', 'ts', 'tr', 'tm'] : ['h', 'dg', 'rx', 'b', 'd'];
+  const guardianLabel: Record<string, string> = { a: '홈', b: '상담', c: '결제', d: '내정보' };
+  const studentLabel: Record<string, string> = { h: '홈', dg: '진단', rx: '처방', b: '실행', a: '선생님 찾기', r: '실시간 수업', e: '자료실', c: '질문', f: '라운지', d: '내정보' };
   const teacherLabel: Record<string, string> = { ti: '인박스', to: '오늘', ts: '상담', tr: '기록', tm: '마이' };
   // 시안(janus_app_v1) 하단 탭: 아이콘+라벨 — 도메인 아이콘 슬롯 규칙
-  const guardianIcon: Record<string, string> = { a: '⌂', b: '◇', g: '◈', c: '₩', d: '⊕' };
-  const studentIcon: Record<string, string> = { h: '⌂', dg: '◱', a: '◇', b: '▤', r: '▶', e: '▦', c: '✎', f: '◫', d: '◯' };
+  const guardianIcon: Record<string, string> = { a: '⌂', b: '◇', c: '₩', d: '◯' };
+  const studentIcon: Record<string, string> = { h: '⌂', dg: '◱', rx: '◈', b: '▤', a: '◇', r: '▶', e: '▦', c: '✎', f: '◫', d: '◯' };
   const teacherIcon: Record<string, string> = { ti: '✎', to: '▤', ts: '◇', tr: '▦', tm: '◯' };
   const tabLabel = (t: string) => (isGuardian ? guardianLabel[t] ?? '' : isTeacher ? teacherLabel[t] ?? '' : studentLabel[t] ?? '');
   const tabIcon = (t: string) => (isGuardian ? guardianIcon[t] ?? '' : isTeacher ? teacherIcon[t] ?? '' : studentIcon[t] ?? '');
   // 선생님은 탭키가 다르므로 기본 진입 탭 보정('a' → 'ti')
   const tTab = isTeacher && !['ti', 'to', 'ts', 'tr', 'tm'].includes(tab) ? 'ti' : tab;
+  /**
+   * 하단 탭 활성 표시는 **소속 탭** 기준이다.
+   * 탭 배열 밖 화면(선생님 찾기·학원찾기·강의실·자료실·라운지)에 들어가면 `tTab === t` 가
+   * 어디서도 참이 아니라 활성 표시가 전부 꺼졌다 — 5개 화면에서 자기 위치를 잃는 상태였다.
+   * 소속은 `SATELLITE_PARENT`(웹 사이드바가 정한 대항목)를 따른다.
+   */
+  const activeTab = SATELLITE_PARENT[tTab] ?? tTab;
 
   return (
     <SafeAreaView style={styles.app}>
@@ -208,7 +227,10 @@ function AppInner() {
       <View style={styles.body}>
         {searchOpen && isStudent && (
           <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20 }}>
-            <GlobalSearchScreen onClose={() => setSearchOpen(false)} goTab={(t) => { setTeacher(null); setBooking(false); goTab(t); }} />
+            <GlobalSearchScreen
+              onClose={() => setSearchOpen(false)}
+              goTab={(t, hub) => { setTeacher(null); setBooking(false); setPendingHub(hub ?? null); goTab(t); }}
+            />
           </View>
         )}
         {!isStudent && !isGuardian && !isTeacher && <Text style={styles.notice}>이 역할은 웹(apps/web)을 이용하세요.</Text>}
@@ -219,7 +241,9 @@ function AppInner() {
           (tab === 'h' ? (
             <HomeScreen name={me.name} goTab={goTab} />
           ) : tab === 'dg' ? (
-            <DiagnosticScreen onGoQna={() => goTab('c')} />
+            <DiagnosticScreen onGoQna={() => goTab('c')} goTab={goTab} role={me.role} />
+          ) : tab === 'rx' ? (
+            <PrescriptionScreen goTab={goTab} goHub={goHub} initial={pendingHub} key={pendingHub ?? 'rx'} />
           ) : tab === 'a' ? (
             teacher ? (
               booking ? (
@@ -231,7 +255,7 @@ function AppInner() {
               <SearchScreen onPick={(t, m, ct, sub) => openTeacher(t, m, ct, sub)} onGoQna={() => goTab('c')} />
             )
           ) : tab === 'b' ? (
-            <BookingsScreen myId={me.id} />
+            <BookingsScreen myId={me.id} goTab={goTab} initial={pendingHub} key={pendingHub ?? 'b'} />
           ) : tab === 'ac' ? (
             <AcademyFinderScreen />
           ) : tab === 'r' ? (
@@ -266,11 +290,9 @@ function AppInner() {
           ) : tab === 'b' ? (
             <GuardianConsult children={children} activeId={activeChild} setActiveId={setActiveChild} />
           ) : tab === 'c' ? (
-            <GuardianPay children={children} activeId={activeChild} setActiveId={setActiveChild} goTab={goTab} />
-          ) : tab === 'g' ? (
-            <GuardianMembership children={children} activeId={activeChild} setActiveId={setActiveChild} goTab={goTab} />
+            <GuardianWallet children={children} activeId={activeChild} setActiveId={setActiveChild} goTab={goTab} />
           ) : (
-            <GuardianCharge children={children} activeId={activeChild} setActiveId={setActiveChild} />
+            <GuardianMy children={children} activeId={activeChild} setActiveId={setActiveChild} />
           )
         )}
       </View>
@@ -281,11 +303,11 @@ function AppInner() {
           {tabs.map((t) => (
             <TouchableOpacity
               key={t}
-              style={[styles.tab, tTab === t && styles.tabActiveBox]}
+              style={[styles.tab, activeTab === t && styles.tabActiveBox]}
               onPress={() => goTab(t)}
             >
-              <Text style={[styles.tabIcon, tTab === t && styles.tabIconActive]}>{tabIcon(t)}</Text>
-              <Text style={[styles.tabLabel, tTab === t && styles.tabActive]}>{tabLabel(t)}</Text>
+              <Text style={[styles.tabIcon, activeTab === t && styles.tabIconActive]}>{tabIcon(t)}</Text>
+              <Text style={[styles.tabLabel, activeTab === t && styles.tabActive]}>{tabLabel(t)}</Text>
             </TouchableOpacity>
           ))}
         </View>

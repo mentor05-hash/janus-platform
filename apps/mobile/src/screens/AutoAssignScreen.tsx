@@ -16,7 +16,7 @@ const STATUS: Record<string, { label: string; color: string }> = {
   cancelled: { label: '취소됨', color: '#8B95A1' },
 };
 
-export function AutoAssignScreen({ onBack }: { onBack: () => void }) {
+export function AutoAssignScreen({ onBack, backLabel = '‹ 뒤로' }: { onBack: () => void; backLabel?: string }) {
   const { C } = useTheme();
   const ui = useUI();
   const s = useMemo(() => mk(C), [C]);
@@ -47,7 +47,7 @@ export function AutoAssignScreen({ onBack }: { onBack: () => void }) {
 
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
-      <TouchableOpacity onPress={onBack}><Text style={s.back}>‹ 마이</Text></TouchableOpacity>
+      <TouchableOpacity onPress={onBack}><Text style={s.back}>{backLabel}</Text></TouchableOpacity>
       <Text style={s.h1}>자동배정 신청</Text>
       <Text style={s.sub}>시간을 정하지 않아도 돼요. 전임 선생님의 근무시간 빈 자리에 자동으로 배정됩니다.</Text>
 

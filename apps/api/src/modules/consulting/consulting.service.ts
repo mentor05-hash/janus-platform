@@ -89,7 +89,7 @@ export class ConsultingService {
     if (!dto.agree) {
       throw new BadRequestException('개인정보 수집·이용 동의가 필요합니다.');
     }
-    const pkg = dto.package as ConsultingPackage;
+    const pkg = dto.package;
     const now = new Date();
     const row = await this.prisma.consulting_application.create({
       data: {

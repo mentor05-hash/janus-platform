@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { api, ApiError } from '../api';
 import { SP, useTheme, useUI, type Palette } from '../theme';
+import { HubMenu, useHub } from '../nav/hubMenu';
 
 /* 실력진단 모바일 뷰(N30) — 웹 DiagnosticPage 파리티: 시작 → 문항 풀이 → 채점 → 유형별 약점 → 처방 → 약점 클리닉. */
 
@@ -14,7 +15,7 @@ type HistoryRow = { id: string; subject: string | null; total: number; correct: 
 const SUBJECTS = ['', '국어', '수학', '영어'];
 const fmtDate = (s: string) => { const d = new Date(s); return `${d.getMonth() + 1}/${d.getDate()}`; };
 
-export function DiagnosticScreen({ onGoQna }: { onGoQna?: () => void }) {
+export function DiagnosticScreen({ onGoQna, goTab, role }: { onGoQna?: () => void; goTab?: (t: string) => void; role?: string }) {
   const { C } = useTheme();
   const ui = useUI();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -27,6 +28,10 @@ export function DiagnosticScreen({ onGoQna }: { onGoQna?: () => void }) {
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // 진단 탭은 실력진단 한 화면이 아니라 **내 위치를 아는 일** 전부다(웹 '진단' 대항목과 같은 축).
+  const [access, setAccess] = useState<{ showTrend: boolean; showPlacement: boolean } | null>(null);
+  useEffect(() => { api.get<{ showTrend: boolean; showPlacement: boolean }>('/me/scores/access').then(setAccess).catch(() => setAccess({ showTrend: false, showPlacement: false })); }, []);
+  const hub = useHub('dg', { showPlacement: access?.showPlacement ?? false, goTab, role });
 
   const loadHistory = () => api.get<{ attempts: HistoryRow[] }>('/diagnostics/me').then((r) => setHistory(r.attempts)).catch(() => {});
   useEffect(() => { loadHistory(); }, []);
@@ -60,11 +65,22 @@ export function DiagnosticScreen({ onGoQna }: { onGoQna?: () => void }) {
 
   const answered = questions.filter((q) => answers[q.id] != null).length;
 
+  if (hub.screen) return hub.screen;
+
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
       <Text style={ui.h}>실력진단</Text>
       <Text style={styles.sub}>문항을 풀면 유형별 약점을 진단하고, 무엇을 보완할지 처방해줘요. (문항은 데모 샘플)</Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}
+
+      {/* 격차·성적은 성적 데이터를 소비한다 → 노출 정책 OFF 면 숨긴다(403 막다른 길 방지). */}
+      {phase === 'intro' && (
+        <HubMenu
+          items={hub.items.filter((m) => (m.key !== 'scores' && m.key !== 'gap') || access?.showTrend)}
+          onPick={hub.open}
+          title="진단 · 내 위치"
+        />
+      )}
 
       {phase === 'intro' && (
         <>

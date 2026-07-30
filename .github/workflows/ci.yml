@@ -236,3 +236,33 @@ jobs:
         run: npm run typecheck
       - name: Unit tests
         run: npm test
+
+  mobile:
+    name: Mobile (typecheck · expo export)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install
+        run: npm ci
+        working-directory: .
+      - name: Typecheck
+        run: npm run typecheck
+      # 왜 export 까지 하나: `tsc` 는 **웹 빌드에서만 드러나는 결함**을 못 잡는다.
+      # O123 이 그 예다 — `react-native-web` 의 Alert 가 빈 함수라 안내 22곳이 무음이었는데
+      # 타입은 멀쩡했다. metro 번들이 실제로 만들어지는지까지 확인해야 의미가 있다.
+      #
+      # ⚠ 이 잡이 없던 동안 모바일 변경은 **로컬 실측이 유일한 증빙**이었다(O185 재편 3커밋).
+      #   CI 는 모바일이 깨져도 초록이었다.
+      - name: Expo web export (번들 생성 확인)
+        run: npm run export:web
+        env:
+          # export 스크립트가 읽는 값 — 실제 서빙은 nginx 프록시 뒤 상대경로다.
+          EXPO_PUBLIC_API_BASE: /api/v1
+          EXPO_PUBLIC_DEMO_MODE: 'false'

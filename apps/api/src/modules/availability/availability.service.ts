@@ -24,6 +24,7 @@ import {
   rangeBlockReason,
 } from './domain/slots';
 import { consultModeBlocked, pairModesWithOpenStudent } from './consult-modes';
+import { toJson } from '../../common/prisma/json';
 
 export interface DayWindow {
   start: string; // "HH:MM"
@@ -503,11 +504,11 @@ export class AvailabilityService {
     if (ws) {
       await this.prisma.work_schedule.update({
         where: { id: ws.id },
-        data: { week_plans: clean as unknown as object },
+        data: { week_plans: toJson(clean) },
       });
     } else {
       await this.prisma.work_schedule.create({
-        data: { teacher_id: teacherId, week_plans: clean as unknown as object },
+        data: { teacher_id: teacherId, week_plans: toJson(clean) },
       });
     }
     return { weekPlans: clean };
@@ -540,10 +541,7 @@ export class AvailabilityService {
       (wsRow?.recurring_template as unknown as WeeklyTemplate) ?? {};
     // 부분 override 반영: 계획 요일만 덮고 미지정 요일은 기본
     const planByWeek = new Map(
-      clean.map((p) => [
-        p.weekStart,
-        { ...recurring, ...p.template } as WeeklyTemplate,
-      ]),
+      clean.map((p) => [p.weekStart, { ...recurring, ...p.template }]),
     );
     const conflicts: {
       bookingId: string;

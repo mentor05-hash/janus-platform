@@ -3,10 +3,13 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOp
 import { api, ApiError, Child, ChildCredits, Note, PaymentRequest } from '../api';
 import { R, SP, useTheme, useUI, type Palette } from '../theme';
 import { showAlert } from '../lib/alertHost';
+import { useWebBack } from '../webBack';
 import { ScoreTrendView, type Trend } from './ScoreTrendView';
 import { AcademicUpcoming } from './AcademicUpcoming';
 import { GuardianPlanScreen } from './GuardianPlanScreen';
+import { LeagueBoardScreen } from './LeagueBoardScreen';
 import { GuardianLinkScreen } from './GuardianLinkScreen';
+import { LegalScreen } from './LegalScreen';
 
 const won = (n: number) => `${n.toLocaleString()}원`;
 const fmt = (n: number) => n.toLocaleString();
@@ -529,6 +532,10 @@ export function GuardianConsult({ children, activeId, setActiveId }: Props) {
   const [report, setReport] = useState<WeeklyReport | null>(null);
   // 자녀 계획(O106) 하위 화면 + 자녀 산출물 이력(O104·O105 게이트).
   const [planOpen, setPlanOpen] = useState(false);
+  // 커뮤니티 Q&A — 웹 학부모 nav 도 '상담' 대항목에 둔다(`/guardian/community`).
+  // 학부모는 읽기·답변만 되고 질문 등록은 서버가 학생으로 막는다 → `canAsk={false}`.
+  const [qnaOpen, setQnaOpen] = useState(false);
+  useWebBack(qnaOpen, () => setQnaOpen(false)); // 웹 뒤로가기로 상담 화면 복귀
   const [gapHist, setGapHist] = useState<GapHist[] | null>(null);
   const [gapGate, setGapGate] = useState('');
   const [trend, setTrend] = useState<Trend | null>(null);
@@ -542,13 +549,22 @@ export function GuardianConsult({ children, activeId, setActiveId }: Props) {
     if (access?.showTrend) api.get<Trend>(`/guardian/scores/trend?studentId=${activeId}`).then(setTrend).catch(() => setTrend(null));
   }, [activeId, access]);
 
+  if (qnaOpen) return <LeagueBoardScreen onBack={() => setQnaOpen(false)} backLabel="‹ 상담" canAsk={false} />;
+
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
       <Text style={ui.h}>자녀 상세 리포트</Text>
       <KidSwitcher children={children} activeId={activeId} setActiveId={setActiveId} />
 
-      {/* 본부 결정 ① 동의·본인확인 게이트 */}
-      <GuardianConsentSection studentId={activeId} />
+      {/* 커뮤니티 Q&A — 자녀가 쓰는 게시판을 학부모도 보고 답할 수 있다(웹 파리티). */}
+      <TouchableOpacity style={[ui.card, s.hubRow, { marginBottom: 8 }]} activeOpacity={0.75} onPress={() => setQnaOpen(true)}>
+        <Text style={s.hubIc}>🏅</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={s.hubT}>커뮤니티 Q&A</Text>
+          <Text style={s.hubD}>자녀가 쓰는 공개 게시판 — 읽고 답변할 수 있어요</Text>
+        </View>
+        <Text style={s.hubCh}>›</Text>
+      </TouchableOpacity>
 
       {/* 주간 요약 */}
       {report && (
@@ -802,7 +818,91 @@ export function GuardianMembership({ children, activeId, setActiveId, goTab }: P
   );
 }
 
+/**
+ * 결제 탭 — 결제요청·충전·멤버십을 **한 탭**에 담는다.
+ *
+ * 왜 합쳤나: 모바일 학부모 탭 5개 중 **3개가 결제 계열**(멤버십·결제·충전)이었는데,
+ * 웹에서는 이 셋이 `결제·충전` 한 화면이다. 탭 배분이 결제에 과대 대표돼 있었고,
+ * 그만큼 다른 축(동의·본인확인)이 탭에서 밀려나 상담 탭 안에 묻혀 있었다.
+ * 화면 구현은 그대로 두고 **어느 탭에서 들어가는지**만 바꾼다(O185).
+ */
+export function GuardianWallet(props: Props) {
+  const { C } = useTheme();
+  const ui = useUI();
+  const s = useMemo(() => makeStyles(C), [C]);
+  const [sub, setSub] = useState<'charge' | 'membership' | null>(null);
+  useWebBack(sub !== null, () => setSub(null));
+
+  if (sub === 'charge') return <GuardianCharge {...props} />;
+  if (sub === 'membership') return <GuardianMembership {...props} />;
+
+  return (
+    <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
+      <Text style={ui.h}>결제</Text>
+      <Text style={s.sec}>충전 · 멤버십</Text>
+      {([['charge', '\u2295', '크레딧 충전', '자녀 크레딧을 충전해요'],
+         ['membership', '\u25C8', '멤버십 구독', '등급별 주간 크레딧·혜택을 봐요']] as const).map(([k, icon, title, desc]) => (
+        <TouchableOpacity key={k} style={[ui.card, s.hubRow]} activeOpacity={0.75} onPress={() => setSub(k)}>
+          <Text style={s.hubIc}>{icon}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={s.hubT}>{title}</Text>
+            <Text style={s.hubD}>{desc}</Text>
+          </View>
+          <Text style={s.hubCh}>{'\u203A'}</Text>
+        </TouchableOpacity>
+      ))}
+      <Text style={s.sec}>결제 요청</Text>
+      <GuardianPay {...props} />
+    </ScrollView>
+  );
+}
+
+/**
+ * 내정보 탭 — 동의·본인확인. 웹 학부모 `내정보` 대항목과 같은 내용이다(O185).
+ *
+ * 이전에는 이 게이트가 **상담 탭 안**에 묻혀 있었다. 미성년 자녀 정보 전달의 법적 관문인데
+ * 상담 리포트를 보러 들어가야 만나는 위치였다 — 자기 자리를 준다.
+ */
+export function GuardianMy({ children, activeId, setActiveId }: Props) {
+  const { C } = useTheme();
+  const ui = useUI();
+  const s = useMemo(() => makeStyles(C), [C]);
+  // 약관·개인정보는 학생·선생님에만 있었다 — 학부모는 웹·모바일 양쪽 모두 도달 경로가 없어
+  // 처리방침·데이터 내보내기·회원 탈퇴를 볼 수 없었다(O185 갭). 여기서 잇는다.
+  const [legal, setLegal] = useState(false);
+  useWebBack(legal, () => setLegal(false));
+  if (legal) {
+    return (
+      <LegalScreen
+        isStudent={false}
+        onBack={() => setLegal(false)}
+        onWithdrawn={() => { if (typeof window !== 'undefined') window.location.reload(); }}
+      />
+    );
+  }
+  return (
+    <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
+      <Text style={ui.h}>내정보</Text>
+      <KidSwitcher children={children} activeId={activeId} setActiveId={setActiveId} />
+      <GuardianConsentSection studentId={activeId} />
+      <TouchableOpacity style={[ui.card, s.hubRow]} activeOpacity={0.75} onPress={() => setLegal(true)}>
+        <Text style={s.hubIc}>{'\uD83D\uDD12'}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={s.hubT}>약관·개인정보</Text>
+          <Text style={s.hubD}>약관·방침·동의 · 데이터 내보내기 · 회원 탈퇴</Text>
+        </View>
+        <Text style={s.hubCh}>{'\u203A'}</Text>
+      </TouchableOpacity>
+    </ScrollView>
+  );
+}
+
 const makeStyles = (C: Palette) => StyleSheet.create({
+  hubRow: { flexDirection: 'row', alignItems: 'center', gap: SP.md, marginBottom: SP.sm },
+  hubIc: { fontSize: 20, width: 26, textAlign: 'center', color: C.teal },
+  hubT: { fontSize: 14.5, fontWeight: '700', color: C.ink },
+  hubD: { fontSize: 12, color: C.muted, marginTop: 2 },
+  hubCh: { fontSize: 20, color: C.muted },
   promo: { backgroundColor: C.teal, borderRadius: R.card, padding: 16, marginTop: 4 },
   promoH: { fontSize: 17, fontWeight: '800', color: '#fff' },
   promoS: { fontSize: 13, color: '#EAF4F8', marginTop: 6, lineHeight: 19 },

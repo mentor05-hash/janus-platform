@@ -5,48 +5,11 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { ThemeToggle } from './ThemeToggle';
+import { STUDENT_NAV, isGroup, isSub } from '@mentoring/nav';
+import { NavGroupHeading, NavSubHeading } from './NavHeading';
 
 const navCls = ({ isActive }: { isActive: boolean }) => (isActive ? 'nav-item active' : 'nav-item');
 
-type NavItem = { to: string; label: string; end?: boolean; flag?: 'scores' } | { section: string };
-const NAV: NavItem[] = [
-  { to: '/student', label: '나의 관문', end: true },
-  { section: '진단' },
-  { to: '/student/diagnostic', label: '실력진단' },
-  { to: '/student/scores/input', label: '성적진단' },
-  { to: '/student/curriculum', label: '학습 플랜' },
-  { to: '/student/goal', label: '목표 설정' },
-  // 이름은 **고도**를 드러낸다(O102) — 전략층(목표 대학 컷 대비)과 실행층(과목 점수 대비)은 다른 화면이다.
-  //   두 이름이 '격차'만 공유하면 사용자가 무엇이 다른지 구분할 수 없다.
-  { to: '/student/gap', label: '과목별 점수 격차' },
-  { to: '/student/tasks', label: '할 일' },
-  { to: '/student/academic', label: '학사일정' },
-  { section: '배치·성적' },
-  { to: '/student/placement/hub', label: '배치표 허브' },
-  // ⚠ flag 없이 둔다. 제품 전면(랜딩·홈)이 가장 많이 쓰는 이름인데 nav 진입점이 **0개**였고,
-  //   '내 성적·배치'의 격차 탭은 flag:'scores' 라 성적 노출 정책이 OFF 면 유일한 경로마저 사라졌다.
-  { to: '/student/placement/gap', label: '목표 대학 격차(격차 리포트)' },
-  { to: '/student/scores', label: '내 성적·배치', flag: 'scores', end: true },
-  { section: '학습·상담' },
-  { to: '/student/lectures', label: '강좌' },
-  { to: '/student/academies', label: '학원찾기' },
-  { to: '/student/search', label: '선생님 찾기' },
-  { to: '/student/bookings', label: '내 예약·상담' },
-  { to: '/student/chats', label: '채팅' },
-  { to: '/student/reports', label: '상담 리포트' },
-  { to: '/student/materials', label: '자료실' },
-  { to: '/student/qna', label: '질문 게시판' },
-  { section: '커뮤니티' },
-  { to: '/student/community', label: '라운지', end: true },
-  { to: '/student/community/board', label: '리그 Q&A' },
-  { section: '내 계정' },
-  { to: '/student/membership', label: '멤버십·결제' },
-  { to: '/student/credits', label: '크레딧' },
-  { to: '/student/notifications', label: '알림' },
-  { to: '/student/reverse', label: '역상담' },
-  { to: '/student/auto-assign', label: '자동배정 신청' },
-  { to: '/student/legal', label: '약관·개인정보' },
-];
 
 export function StudentLayout() {
   const { user, logout } = useAuth();
@@ -79,7 +42,7 @@ export function StudentLayout() {
     window.addEventListener('janus:notif', h);
     return () => window.removeEventListener('janus:notif', h);
   }, []);
-  const nav = NAV.filter((n) => !('flag' in n) || n.flag !== 'scores' || showScores);
+  const nav = STUDENT_NAV.filter((n) => !('flag' in n) || n.flag !== 'scores' || showScores);
   const navigate = useNavigate();
   const [gq, setGq] = useState('');
   function submitSearch(e: React.FormEvent) { e.preventDefault(); const q = gq.trim(); if (q) { navigate(`/student/search-all?q=${encodeURIComponent(q)}`); setGq(''); } }
@@ -104,10 +67,10 @@ export function StudentLayout() {
           />
         </form>
         <nav className="sidebar-nav">
-          {nav.map((n) => ('section' in n ? (
-            <div key={`sec-${n.section}`} className="nav-section" style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.04em', color: 'var(--caption)', padding: '14px 16px 4px', textTransform: 'none' }}>
-              {n.section}
-            </div>
+          {nav.map((n, i) => (isGroup(n) ? (
+            <NavGroupHeading key={`grp-${n.group}`} label={n.group} first={i === 0} />
+          ) : isSub(n) ? (
+            <NavSubHeading key={`sub-${n.sub}`} label={n.sub} />
           ) : (
             <NavLink key={n.to} to={n.to} className={navCls} end={'end' in n && n.end}
               onClick={() => { if (window.location.pathname === n.to) window.dispatchEvent(new CustomEvent('janus:refresh')); }}>

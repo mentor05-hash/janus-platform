@@ -13,6 +13,7 @@ import type { CacheProvider } from '../../common/cache/cache.types';
 import { withCronLock } from '../../common/cache/cron-lock';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import { AuditService } from '../audit/audit.service';
+import { toJson } from '../../common/prisma/json';
 import {
   CONSULTING_UPLOAD_DISABLED_KEY,
   DEFAULT_ACTIVATION_AT,
@@ -74,11 +75,11 @@ export class SchoolRecordGuardPolicyService {
       where: { key: CONSULTING_UPLOAD_DISABLED_KEY },
       create: {
         key: CONSULTING_UPLOAD_DISABLED_KEY,
-        value: value as object,
+        value: toJson(value),
         updated_by: value.updatedBy ?? null,
       },
       update: {
-        value: value as object,
+        value: toJson(value),
         updated_by: value.updatedBy ?? null,
         updated_at: new Date(),
       },

@@ -81,6 +81,10 @@ const AcademyDetailPage = lazy(() => import('./pages/AcademyDetailPage').then((m
 const GlobalSearchPage = lazy(() => import('./pages/GlobalSearchPage').then((m) => ({ default: m.GlobalSearchPage })));
 const StudentCreditsPage = lazy(() => import('./pages/StudentCreditsPage').then((m) => ({ default: m.StudentCreditsPage })));
 const StudentReversePage = lazy(() => import('./pages/StudentReversePage').then((m) => ({ default: m.StudentReversePage })));
+const StudentAutomatchPage = lazy(() => import('./pages/StudentAutomatchPage').then((m) => ({ default: m.StudentAutomatchPage })));
+const StudentRecordsPage = lazy(() => import('./pages/StudentRecordsPage').then((m) => ({ default: m.StudentRecordsPage })));
+const StudentClassifyPage = lazy(() => import('./pages/StudentClassifyPage').then((m) => ({ default: m.StudentClassifyPage })));
+const StudentClassroomPage = lazy(() => import('./pages/StudentClassroomPage').then((m) => ({ default: m.StudentClassroomPage })));
 const StudentAutoAssignPage = lazy(() => import('./pages/StudentAutoAssignPage').then((m) => ({ default: m.StudentAutoAssignPage })));
 const StudentQnaPage = lazy(() => import('./pages/StudentQnaPage').then((m) => ({ default: m.StudentQnaPage })));
 const StudentCommunityPage = lazy(() => import('./pages/StudentCommunityPage').then((m) => ({ default: m.StudentCommunityPage })));
@@ -96,8 +100,6 @@ const StudentGoalPage = lazy(() => import('./pages/StudentGoalPage').then((m) =>
 const StudentGapPage = lazy(() => import('./pages/StudentGapPage').then((m) => ({ default: m.StudentGapPage })));
 const GuardianPlanPage = lazy(() => import('./pages/GuardianPlanPage').then((m) => ({ default: m.GuardianPlanPage })));
 const LecturePage = lazy(() => import('./pages/LecturePage').then((m) => ({ default: m.LecturePage })));
-const LeaderboardPage = lazy(() => import('./pages/LeaderboardPage').then((m) => ({ default: m.LeaderboardPage })));
-const LeagueRulesPage = lazy(() => import('./pages/LeagueRulesPage').then((m) => ({ default: m.LeagueRulesPage })));
 const LegalDocPage = lazy(() => import('./pages/LegalDocPage').then((m) => ({ default: m.LegalDocPage })));
 const LegalPage = lazy(() => import('./pages/LegalPage').then((m) => ({ default: m.LegalPage })));
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })));
@@ -217,6 +219,7 @@ export function App() {
         <Route path="pay" element={<GuardianPayPage />} />
         <Route path="community" element={<CommunityBoardPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="legal" element={<LegalPage />} />
       </Route>
 
       <Route
@@ -292,8 +295,6 @@ export function App() {
         <Route path="qna" element={<StudentQnaPage />} />
         <Route path="community" element={<StudentCommunityPage />} />
         <Route path="community/board" element={<CommunityBoardPage />} />
-        <Route path="league" element={<LeaderboardPage />} />
-        <Route path="league/rules" element={<LeagueRulesPage />} />
         <Route path="scores" element={<StudentScoresPage />} />
         <Route path="academic" element={<StudentAcademicPage />} />
         <Route path="tasks" element={<StudentTasksPage />} />
@@ -312,6 +313,10 @@ export function App() {
         <Route path="notifications" element={<StudentNotificationsPage />} />
         <Route path="reverse" element={<StudentReversePage />} />
         <Route path="auto-assign" element={<StudentAutoAssignPage />} />
+        <Route path="automatch" element={<StudentAutomatchPage />} />
+        <Route path="records" element={<StudentRecordsPage />} />
+        <Route path="classify" element={<StudentClassifyPage />} />
+        <Route path="classes" element={<StudentClassroomPage />} />
         <Route path="legal" element={<LegalPage />} />
       </Route>
 

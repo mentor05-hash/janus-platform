@@ -67,8 +67,8 @@ export class RoomsBridgeService {
       existed ??
       (await this.ensureRoom(
         bookingId,
-        b.student_id!,
-        b.teacher_id!,
+        b.student_id,
+        b.teacher_id,
         features,
         opensAt,
         closesAt,

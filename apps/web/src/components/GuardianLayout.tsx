@@ -6,18 +6,11 @@ import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
 import { JanusLogo } from './JanusLogo';
 import { APP_NAME } from '../branding.generated';
+import { GUARDIAN_NAV, isGroup, isSub } from '@mentoring/nav';
+import { NavGroupHeading, NavSubHeading } from './NavHeading';
 
 const navCls = ({ isActive }: { isActive: boolean }) => (isActive ? 'nav-item active' : 'nav-item');
 
-const NAV = [
-  { to: '/guardian/report', label: '주간 리포트' },
-  { to: '/guardian/consult-reports', label: '상담 리포트' },
-  { to: '/guardian/plan', label: '자녀 계획' },
-  { to: '/guardian/consent', label: '동의·본인확인' },
-  { to: '/guardian/pay', label: '결제·충전' },
-  { to: '/guardian/community', label: '커뮤니티 Q&A' },
-  { to: '/guardian/notifications', label: '알림' },
-];
 
 export function GuardianLayout() {
   const { user, logout } = useAuth();
@@ -41,7 +34,11 @@ export function GuardianLayout() {
           </div>
         </Link>
         <nav className="sidebar-nav">
-          {NAV.map((n) => (
+          {GUARDIAN_NAV.map((n, i) => (isGroup(n) ? (
+            <NavGroupHeading key={`grp-${n.group}`} label={n.group} first={i === 0} />
+          ) : isSub(n) ? (
+            <NavSubHeading key={`sub-${n.sub}`} label={n.sub} />
+          ) : (
             <NavLink key={n.to} to={n.to} className={navCls}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 {n.label}
@@ -52,7 +49,7 @@ export function GuardianLayout() {
                 )}
               </span>
             </NavLink>
-          ))}
+          )))}
         </nav>
         <div className="sidebar-foot">
           <span className="avatar">{initial}</span>

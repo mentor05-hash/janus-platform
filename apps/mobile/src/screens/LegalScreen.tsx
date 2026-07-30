@@ -31,7 +31,14 @@ const LINK_STATUS: Record<string, string> = {
   pending: '승인 대기 중', approved: '연결됨', rejected: '거절함', revoked: '연결 해제됨',
 };
 
-export function LegalScreen({ onBack, onWithdrawn }: { onBack: () => void; onWithdrawn: () => void }) {
+/**
+ * `isStudent` 를 두는 이유: 보호자 연결·공유 동의는 **학생 쪽 게이트**다
+ * (`/me/guardian-links`·`/me/share-consents` 모두 `@Roles('student')`).
+ * 학부모가 이 화면을 열면 그 둘이 확정적으로 403 이고, 이 화면은 조회 실패를 **빈 배열로
+ * 삼키지 않고** '다시 시도' UI 로 보여준다 — 학생에게는 맞는 설계지만(대기 중 신청을 놓치면 안 된다)
+ * 학부모에게는 **적용되지도 않는 섹션의 오류**가 뜬다. 그래서 역할로 아예 부르지 않는다.
+ */
+export function LegalScreen({ onBack, onWithdrawn, isStudent = true, backLabel = '‹ 뒤로' }: { onBack: () => void; onWithdrawn: () => void; isStudent?: boolean; backLabel?: string }) {
   const { C } = useTheme();
   const ui = useUI();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -129,7 +136,7 @@ export function LegalScreen({ onBack, onWithdrawn }: { onBack: () => void; onWit
     </View>
   );
 
-  useEffect(() => { loadShare(); loadLinks(); }, []);
+  useEffect(() => { if (isStudent) { loadShare(); loadLinks(); } }, [isStudent]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function respondLink(id: string, action: 'approve' | 'reject' | 'revoke') {
     setLinkBusy(true); setLinkErr('');
@@ -162,7 +169,7 @@ export function LegalScreen({ onBack, onWithdrawn }: { onBack: () => void; onWit
 
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
-      <TouchableOpacity onPress={onBack}><Text style={styles.back}>‹ 뒤로</Text></TouchableOpacity>
+      <TouchableOpacity onPress={onBack}><Text style={styles.back}>{backLabel}</Text></TouchableOpacity>
       <Text style={ui.h}>약관·개인정보</Text>
 
       {/* 보호자 연결 — 공유 동의의 **선결조건**이라 위에 둔다(연결 승인 → 그 다음 공유 동의). */}

@@ -58,7 +58,7 @@ export function aggregateAxisStats(
       axis,
       label: AXIS_LABEL[axis],
       count: a?.n ?? 0,
-      avg: gated ? Math.round((a!.sum / a!.n) * 10) / 10 : null,
+      avg: gated ? Math.round((a.sum / a.n) * 10) / 10 : null,
     };
   });
 }

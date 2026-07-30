@@ -11,6 +11,8 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { BookingStatus } from '../../config/enums';
 import { permAtLeast } from '../../config/perm';
 import { dashFlag } from '../../config/env.validation';
+import { toJson } from '../../common/prisma/json';
+import { toText, toTrimmedText } from '../../common/text/to-text';
 import {
   DirectorDto,
   MonthlyHoursDto,
@@ -149,17 +151,17 @@ export class DashboardService {
     for (let i = 0; i < rows.length; i++) {
       const norm: Record<string, unknown> = {};
       for (const k of Object.keys(rows[i])) norm[k.trim()] = rows[i][k];
-      const loginId = String(
+      const loginId = toTrimmedText(
         norm['아이디'] ?? norm['로그인아이디'] ?? norm['id'] ?? '',
-      ).trim();
-      const name = String(norm['이름'] ?? norm['성명'] ?? '').trim();
+      );
+      const name = toTrimmedText(norm['이름'] ?? norm['성명'] ?? '');
       const ym = this.normYearMonth(
-        String(norm['기간'] ?? norm['월'] ?? norm['년월'] ?? '').trim(),
+        toTrimmedText(norm['기간'] ?? norm['월'] ?? norm['년월'] ?? ''),
       );
       const hoursRaw =
         norm['시수'] ?? norm['근무시수'] ?? norm['시간'] ?? norm['hours'];
       const empType =
-        String(norm['고용형태'] ?? norm['근무형태'] ?? '').trim() || null;
+        toTrimmedText(norm['고용형태'] ?? norm['근무형태'] ?? '') || null;
       // 근무자별 단가(선택): 건당단가·시급·기본급 — 있으면 정책보다 우선 적용.
       const perCase = this.parseWon(norm['건당단가'] ?? norm['건당']);
       const hourly = this.parseWon(norm['시급']);
@@ -201,7 +203,8 @@ export class DashboardService {
             where: { account_id: teacher.account_id },
             data: prof,
           });
-        existing ? result.updated++ : result.created++;
+        if (existing) result.updated++;
+        else result.created++;
       } catch (e) {
         result.skipped++;
         result.errors.push(
@@ -215,7 +218,7 @@ export class DashboardService {
   /** 금액 셀 파싱(원). 빈 칸/비수치 → null(미변경). "30,000"·"30000원" 허용. */
   private parseWon(v: unknown): number | null {
     if (v == null || v === '') return null;
-    const n = Number(String(v).replace(/[^\d.-]/g, ''));
+    const n = Number(toText(v).replace(/[^\d.-]/g, ''));
     return Number.isFinite(n) && n >= 0 ? Math.round(n) : null;
   }
 
@@ -879,11 +882,11 @@ export class DashboardService {
       where: { key: DashboardService.VIS_KEY },
       create: {
         key: DashboardService.VIS_KEY,
-        value: next as object,
+        value: toJson(next),
         updated_by: actor.id,
       },
       update: {
-        value: next as object,
+        value: toJson(next),
         updated_by: actor.id,
         updated_at: new Date(),
       },

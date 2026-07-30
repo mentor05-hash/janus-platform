@@ -28,16 +28,19 @@ export class ReportController {
     return this.reports.create(user, dto);
   }
 
-  /** GET /reports — 신고 목록(관리자/HR). */
+  /**
+   * GET /reports — 신고 목록(관리자). N37 로 HR 제거: 화면 `reports` 가 관리자 전용이고,
+   * 목록에는 신고 사유 원문(당사자 지목·대화 인용)이 그대로 담긴다.
+   */
   @Get('reports')
-  @Roles('admin', 'hr')
+  @Roles('admin')
   listReports(@CurrentUser() user: AuthUser) {
     return this.reports.list(user);
   }
 
-  /** PATCH /reports/{id} — 신고 처리(관리자/HR). */
+  /** PATCH /reports/{id} — 신고 처리(관리자). 제재 판단이라 등록·승인 직무보다 무겁다. */
   @Patch('reports/:id')
-  @Roles('admin', 'hr')
+  @Roles('admin')
   handleReport(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: HandleReportDto,

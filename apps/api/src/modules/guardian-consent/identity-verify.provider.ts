@@ -37,48 +37,48 @@ export class IdentityVerifyProvider {
     return `${'*'.repeat(Math.max(4, digits.length - 3))}${tail}`;
   }
 
-  async verify(input: IdentityVerifyInput): Promise<IdentityVerifyResult> {
+  verify(input: IdentityVerifyInput): Promise<IdentityVerifyResult> {
     const name = (input.name ?? '').trim();
     if (this.mode() === 'real') {
       // 실 연동 지점 — provider SDK 호출 후 결과 매핑. 미연동 상태에서는 실패 반환(무단 통과 금지).
       this.logger.warn(
         'IDENTITY_VERIFY_PROVIDER=real 이지만 실 연동 미구현 — 검증 실패 처리.',
       );
-      return {
+      return Promise.resolve({
         ok: false,
         name,
         refMasked: '****',
         provider: 'real',
         reason: 'provider_not_wired',
-      };
+      });
     }
     // stub: 이름 + (휴대폰 또는 인증서 사용자) 형식만 확인.
     if (name.length < 2) {
-      return {
+      return Promise.resolve({
         ok: false,
         name,
         refMasked: '****',
         provider: 'stub',
         reason: 'invalid_name',
-      };
+      });
     }
     if (
       input.method === 'phone' &&
       !(input.phone ?? '').replace(/[^0-9]/g, '')
     ) {
-      return {
+      return Promise.resolve({
         ok: false,
         name,
         refMasked: '****',
         provider: 'stub',
         reason: 'phone_required',
-      };
+      });
     }
-    return {
+    return Promise.resolve({
       ok: true,
       name,
       refMasked: `stub:${this.mask(input.phone ?? input.birth)}`,
       provider: 'stub',
-    };
+    });
   }
 }

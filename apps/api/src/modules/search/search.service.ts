@@ -47,7 +47,7 @@ export class SearchService {
         .catch(() => ({ data: [] as Array<Record<string, unknown>> })),
       this.qna.listCommunity(user, { q: term }).catch(() => []),
       this.people
-        .listTeachers({ q: term, page: 1, size: N } as never, user)
+        .listTeachers({ q: term, page: 1, size: N }, user)
         .catch(() => ({ data: [] as Array<Record<string, unknown>> })),
     ]);
     const materials =

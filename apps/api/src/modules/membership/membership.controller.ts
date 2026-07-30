@@ -24,16 +24,20 @@ export class MembershipController {
     return this.membership.listPlans();
   }
 
-  /** GET /hr/membership-grades — 회원 등급·주간 부여량(HR/관리자). */
+  /**
+   * GET /hr/membership-grades — 회원 등급·주간 부여량(관리자).
+   * N37: 경로에 `hr/` 가 붙어 있을 뿐 내용은 **판매 조건**이다 — 등급별 부여 크레딧은
+   * O175 가 가격과 함께 확정한 값이고, 화면 `membership` 도 관리자 전용이다.
+   */
   @Get('hr/membership-grades')
-  @Roles('hr', 'admin')
+  @Roles('admin')
   grades() {
     return this.membership.listGrades();
   }
 
-  /** PATCH /hr/membership-grades/{id} — 주간 부여 크레딧·활성 편집(HR/관리자). */
+  /** PATCH /hr/membership-grades/{id} — 주간 부여 크레딧·활성 편집(관리자). */
   @Patch('hr/membership-grades/:id')
-  @Roles('hr', 'admin')
+  @Roles('admin')
   updateGrade(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateGradeDto,

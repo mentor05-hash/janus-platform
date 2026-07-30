@@ -8,6 +8,11 @@ export interface SttInput {
   audio: Buffer;
   mime?: string; // audio/ogg 등 — egress 산출물 기준
   lang?: string; // 기본 ko
+  /**
+   * 녹음 길이(초). 과금이 길이 비례라 **분 단위 상한**의 입력이 된다(QuotaSttProvider).
+   * 없으면 바이트 수로 추정하므로, 아는 값이면 반드시 넘길 것.
+   */
+  durationSec?: number | null;
 }
 
 export interface SttResult {

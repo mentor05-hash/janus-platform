@@ -6,7 +6,6 @@ import {
 } from '@nestjs/common';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
-import { BillingCycle } from '../../config/enums';
 import { EntitlementService } from '../entitlement/entitlement.service';
 import { computeNextBilling } from './domain/billing-cycle';
 

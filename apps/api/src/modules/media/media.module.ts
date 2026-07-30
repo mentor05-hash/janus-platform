@@ -34,8 +34,14 @@ import { LiveKitMediaProvider } from './livekit-media.provider';
 const DEFAULT_TOKEN_LIMIT = 600;
 /** 일 녹화 시작 상한 — egress 단가가 높아 더 낮게. */
 const DEFAULT_RECORDING_LIMIT = 40;
-/** 일 음성 전사 상한 — 유료 STT. 녹음 길이 비례 과금이라 보수적으로. */
+/** 일 음성 전사 **호출** 상한 — 남용 방지 축. */
 const DEFAULT_STT_LIMIT = 60;
+/**
+ * 일 음성 전사 **분** 상한 — 비용 축. Whisper 는 분당 과금이라 호출 수만으로는
+ * 상한이 되지 않는다(60건이 30분일 수도 90시간일 수도 있다).
+ * 기본값은 호출 상한 60건 × 상담 1회 30분을 가정한 1,800분.
+ */
+const DEFAULT_STT_MINUTE_LIMIT = 1800;
 @Module({
   imports: [
     RealtimeModule,
@@ -71,6 +77,10 @@ const DEFAULT_STT_LIMIT = 60;
               inner,
               new UsageQuota(cache, 'stt', true),
               envInt(config.get<string>('STT_DAILY_LIMIT'), DEFAULT_STT_LIMIT),
+              envInt(
+                config.get<string>('STT_DAILY_MINUTE_LIMIT'),
+                DEFAULT_STT_MINUTE_LIMIT,
+              ),
             );
           }
           new Logger('MediaModule').warn(

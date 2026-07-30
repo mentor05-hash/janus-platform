@@ -8,7 +8,7 @@ import { MediaProvider, MediaRole, MediaTokenResult } from './media.types';
 export class MockMediaProvider implements MediaProvider {
   private readonly logger = new Logger('MediaProvider:mock');
 
-  async issueToken(
+  issueToken(
     roomRef: string,
     identity: string,
     role: MediaRole,
@@ -16,30 +16,31 @@ export class MockMediaProvider implements MediaProvider {
     this.logger.log(
       `issueToken room=${roomRef} identity=${identity} role=${role} (mock)`,
     );
-    return {
+    return Promise.resolve({
       provider: 'mock',
       url: null,
       token: null,
       role,
       note: '미디어 SFU 미설정 — 실제 음성은 SFU(LiveKit 등) 연동 시 활성화됩니다.',
-    };
+    });
   }
-  async startRecording(
+  startRecording(
     roomRef: string,
     _opts?: { pathPrefix?: string },
   ): Promise<{ provider: string; recordingRef: string }> {
     const recordingRef = `mock:${randomUUID()}`;
     this.logger.log(`startRecording room=${roomRef} → ${recordingRef} (mock)`);
-    return { provider: 'mock', recordingRef };
+    return Promise.resolve({ provider: 'mock', recordingRef });
   }
-  async stopRecording(
+  stopRecording(
     roomRef: string,
     recordingRef: string,
   ): Promise<{ url: string | null; durationSec?: number }> {
     this.logger.log(`stopRecording ${recordingRef} (mock)`);
-    return { url: null };
+    return Promise.resolve({ url: null });
   }
-  async closeRoom(roomRef: string): Promise<void> {
+  closeRoom(roomRef: string): Promise<void> {
     this.logger.log(`closeRoom ${roomRef} (mock)`);
+    return Promise.resolve();
   }
 }

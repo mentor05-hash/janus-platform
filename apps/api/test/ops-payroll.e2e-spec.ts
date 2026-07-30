@@ -156,7 +156,7 @@ describe('2.6 운영·예상급여 통합', () => {
     // 스냅샷 후 afterAll 에서 원복(원래 없던 키는 삭제)한다.
     for (const key of POLICY_KEYS) {
       const row = await prisma.system_setting.findUnique({ where: { key } });
-      prevPolicies.set(key, row ? (row.value as unknown) : null);
+      prevPolicies.set(key, row ? row.value : null);
     }
     await prisma.system_setting.upsert({
       where: { key: 'payroll_share_policy' },

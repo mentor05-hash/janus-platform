@@ -450,16 +450,20 @@ export class QnaController {
     return this.qna.leagueRules();
   }
 
-  /** GET /qna/league/policy — 승급 정책값(admin/hr). */
+  /**
+   * GET /qna/league/policy — 승급 정책값(관리자).
+   * N37: 대응 화면이 없다. 다른 정책 쓰기(예약 정책 계열·화면 `policy`)가 모두
+   * 관리자 전용이므로 같은 기준으로 좁힌다 — 승급 요건은 크레딧 소비량에 직결된다.
+   */
   @Get('league/policy')
-  @Roles('admin', 'hr')
+  @Roles('admin')
   leaguePolicy() {
     return this.qna.getLeaguePolicy();
   }
 
-  /** PUT /qna/league/policy — 승급 정책 설정(admin/hr·N27 조정). */
+  /** PUT /qna/league/policy — 승급 정책 설정(관리자·N27 조정). */
   @Put('league/policy')
-  @Roles('admin', 'hr')
+  @Roles('admin')
   setLeaguePolicy(@Body() dto: LeaguePolicyDto) {
     return this.qna.setLeaguePolicy(dto);
   }

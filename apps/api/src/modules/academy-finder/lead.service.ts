@@ -8,6 +8,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { FunnelService } from '../funnel/funnel.service';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
 import type { LeadSubmitDto } from './dto/lead.dto';
+import { toJson } from '../../common/prisma/json';
 
 type LeadSummary = {
   message: string | null;
@@ -96,7 +97,7 @@ export class LeadService {
         user_id: user.id,
         academy_id: academyId,
         class_id: dto.classId ?? null,
-        summary_json: summary as object,
+        summary_json: toJson(summary),
         status: 'sent',
       },
     });
