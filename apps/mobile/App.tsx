@@ -253,7 +253,7 @@ function AppInner() {
               <SearchScreen onPick={(t, m, ct, sub) => openTeacher(t, m, ct, sub)} onGoQna={() => goTab('c')} />
             )
           ) : tab === 'b' ? (
-            <BookingsScreen myId={me.id} goTab={goTab} />
+            <BookingsScreen myId={me.id} goTab={goTab} initial={pendingHub} key={pendingHub ?? 'b'} />
           ) : tab === 'ac' ? (
             <AcademyFinderScreen />
           ) : tab === 'r' ? (

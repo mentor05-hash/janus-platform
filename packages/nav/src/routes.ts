@@ -7,6 +7,7 @@
  *   · 강좌(`/student/lectures`, 녹화 강의) → 실시간 수업(`/classes`) — 다른 도메인
  *     (그 뒤 O190 에서 이름을 갈랐고, O191 에서 모바일 강좌 화면이 생겨 이제 제자리로 간다)
  *   · 커뮤니티(`/student/community/board`) → 라운지(`/community/feed`)      — 다른 게시판
+ *     (O192 에서 모바일 리그 Q&A 화면이 생겨 이제 제자리로 간다)
  * 서버 값을 버리고 자기 표를 들면 어긋나도 아무도 못 본다. 그래서 **해석만** 여기서 한다 —
  * 목적지의 정본은 계속 서버다.
  *
@@ -30,6 +31,7 @@ const TO_TAB: Record<string, { tab: string; hub?: string; label: string }> = {
   '/student/materials': { tab: 'e', label: '자료실' },
   // 탭이 아니라 허브 하위 화면이다 — 탭만 주면 목록에서 한 번 더 찾아야 한다.
   '/student/lectures': { tab: 'rx', hub: 'lectures', label: '강좌' },
+  '/student/community/board': { tab: 'b', hub: 'league', label: '리그 Q&A' },
   '/student/search': { tab: 'a', label: '선생님 찾기' },
   '/student/academies': { tab: 'ac', label: '학원찾기' },
   '/student/bookings': { tab: 'b', label: '일정' },
@@ -40,10 +42,6 @@ const TO_TAB: Record<string, { tab: string; hub?: string; label: string }> = {
  * 여기 없으면 `unknown` 이 되고, 그건 "표가 낡았다"는 신호로 읽어야 한다.
  */
 const WEB_ONLY: Record<string, { label: string; why: string }> = {
-  '/student/community/board': {
-    label: '리그 Q&A',
-    why: '리그 Q&A(순위표·승급)는 아직 모바일에 없어요. 앱의 ‘라운지’는 다른 게시판이에요.',
-  },
   '/student/placement/hub': { label: '배치표 허브', why: '배치표 허브는 아직 모바일에 없어요.' },
   '/student/curriculum': { label: '학습 플랜', why: '학습 플랜은 아직 모바일에 없어요.' },
 };

@@ -22,7 +22,7 @@ export type HubKey =
   | 'toSearch' | 'toAcademy' | 'toClassroom' | 'toMaterials' | 'toQna' | 'toLounge'
   // 웹에만 있는 화면의 자리(`webOnly`) — 눌리면 안내한다.
   | 'planWeb'
-  | 'lectures';
+  | 'lectures' | 'league';
 
 /** 허브를 가진 모바일 탭 키 — `App.tsx` 의 학생 탭과 같다(dg 진단 · rx 처방 · b 실행 · d 내정보). */
 export type HubTab = 'dg' | 'rx' | 'b' | 'd';
@@ -76,6 +76,8 @@ export const HUB_ITEMS: HubItem[] = [
   // ── 실행 — 시간을 쓰는 일 ──
   { key: 'toQna', tab: 'b', jump: 'c', icon: '✎', title: '질문 게시판', desc: 'AI 초안 즉시 · 선생님 검토' },
   { key: 'toLounge', tab: 'b', jump: 'f', icon: '◫', title: '라운지', desc: '같은 고민을 하는 학생들의 글' },
+  // 2026-07-30 신설(O192). 검색의 커뮤니티 결과도 여기로 온다 — 이전에는 라운지로 잘못 갔다(O186 ①).
+  { key: 'league', tab: 'b', icon: '🏅', title: '리그 Q&A', desc: '누구나 답변 · 채택되면 등급이 오른다' },
   { key: 'toSearch', tab: 'b', jump: 'a', icon: '◇', title: '선생님 찾기', desc: '상담·과외 1:1 매칭' },
   { key: 'toAcademy', tab: 'b', jump: 'ac', icon: '🏫', title: '학원찾기', desc: '동네·과목별 학원 비교' },
   { key: 'toClassroom', tab: 'b', jump: 'r', icon: '▶', title: '실시간 수업', desc: '예약된 수업에 입장 — 판서·음성' },

@@ -101,7 +101,7 @@ function Detail({ id, status }: { id: string; status: string }) {
   );
 }
 
-export function BookingsScreen({ myId, goTab }: { myId?: string; goTab?: (t: string) => void }) {
+export function BookingsScreen({ myId, goTab, initial }: { myId?: string; goTab?: (t: string) => void; initial?: string | null }) {
   const { C } = useTheme();
   const ui = useUI();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -121,7 +121,8 @@ export function BookingsScreen({ myId, goTab }: { myId?: string; goTab?: (t: str
   const [error, setError] = useState('');
   useWebBack(reschedule !== null, () => setReschedule(null));
   // 일정 탭은 **시간을 쓰는 일** 전부다(웹 '일정' 대항목과 같은 축) — 채팅·자동매칭·자동배정·할 일·기록·리포트.
-  const hub = useHub('b', { goTab, onReload: () => load(), onMessage: setMsg });
+  // 검색이 '실행 › 리그 Q&A' 처럼 허브 안쪽을 가리키면 그 화면부터 연다.
+  const hub = useHub('b', { goTab, initial, onReload: () => load(), onMessage: setMsg });
 
   function load() {
     api.get<{ data?: Booking[] } | Booking[]>('/bookings?role=student')

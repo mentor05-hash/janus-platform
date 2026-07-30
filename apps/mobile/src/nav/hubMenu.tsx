@@ -10,6 +10,7 @@ import { ChatInboxScreen } from '../screens/ChatInboxScreen';
 import { ClassifyScreen } from '../screens/ClassifyScreen';
 import { GapReportScreen } from '../screens/GapReportScreen';
 import { GoalScreen } from '../screens/GoalScreen';
+import { LeagueBoardScreen } from '../screens/LeagueBoardScreen';
 import { LectureScreen } from '../screens/LectureScreen';
 import { LegalScreen } from '../screens/LegalScreen';
 import { RecordsScreen } from '../screens/RecordsScreen';
@@ -79,6 +80,7 @@ export function useHub(tab: HubTab, args: HostArgs = {}) {
       case 'records': return <RecordsScreen onBack={back} backLabel={bl} />;
       case 'reports': return <ReportsScreen onBack={back} backLabel={bl} />;
       case 'classify': return <ClassifyScreen onBack={back} backLabel={bl} />;
+      case 'league': return <LeagueBoardScreen onBack={back} backLabel={bl} />;
       case 'lectures': return <LectureScreen onBack={back} backLabel={bl} />;
       case 'legal': return <LegalScreen onBack={back} backLabel={bl} onWithdrawn={() => { if (typeof window !== 'undefined') window.location.reload(); }} />;
       default: return null;

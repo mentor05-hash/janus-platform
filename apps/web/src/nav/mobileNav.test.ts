@@ -130,19 +130,24 @@ describe('경로 해석 — 서버 href 가 정본', () => {
   });
 
   it('모바일에 없는 화면은 이유와 함께 web-only 로 표시된다', () => {
-    // `/student/lectures` 는 O191 에서 모바일 화면이 생겨 이 목록에서 빠졌다 — 아래 '허브까지 연다' 검사로 옮겼다.
-    for (const path of ['/student/community/board', '/student/placement/hub', '/student/curriculum']) {
+    // `/student/lectures`(O191)·`/student/community/board`(O192) 는 모바일 화면이 생겨 빠졌다
+    // — 아래 '허브까지 연다' 검사로 옮겼다.
+    for (const path of ['/student/placement/hub', '/student/curriculum']) {
       const r = resolveWebPath(path);
       expect(r.kind).toBe('web-only');
       if (r.kind === 'web-only') expect(r.why.length).toBeGreaterThan(15);
     }
   });
 
-  it('허브 안쪽을 가리키는 목적지는 hub 까지 준다(탭만 주면 목록을 다시 찾아야 한다)', () => {
-    const r = resolveWebPath('/student/lectures');
+  it.each([
+    ['/student/lectures', 'lectures'],
+    ['/student/community/board', 'league'],
+  ])('%s 는 hub 까지 준다(탭만 주면 목록을 다시 찾아야 한다)', (path, hub) => {
+    const r = resolveWebPath(path);
     expect(r.kind).toBe('mobile');
     if (r.kind === 'mobile') {
-      expect(r.hub).toBe('lectures');
+      expect(r.hub).toBe(hub);
+      // 그 hub 는 그 탭의 실제 허브 항목이어야 한다.
       expect(HUB_ITEMS.some((i) => i.key === r.hub && i.tab === r.tab)).toBe(true);
     }
   });
