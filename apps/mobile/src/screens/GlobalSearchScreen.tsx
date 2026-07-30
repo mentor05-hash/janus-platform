@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api, ApiError } from '../api';
 import { showAlert } from '../lib/alertHost';
-import { resolveWebPath } from '../nav/routes';
+import { resolveWebPath } from '@mentoring/nav';
 import { R, SP, useTheme, type Palette } from '../theme';
 
 /** `href` 는 서버가 정하는 목적지다(API `search.hrefs.ts`) — 웹과 같은 값을 그대로 받는다. */

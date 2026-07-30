@@ -5,7 +5,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { ThemeToggle } from './ThemeToggle';
-import { STUDENT_NAV, isGroup, isSub } from '../nav/roleNav';
+import { STUDENT_NAV, isGroup, isSub } from '@mentoring/nav';
 import { NavGroupHeading, NavSubHeading } from './NavHeading';
 
 const navCls = ({ isActive }: { isActive: boolean }) => (isActive ? 'nav-item active' : 'nav-item');

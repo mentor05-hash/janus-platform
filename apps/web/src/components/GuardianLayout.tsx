@@ -6,7 +6,7 @@ import { useAuth } from '../auth/AuthContext';
 import { api } from '../api/client';
 import { JanusLogo } from './JanusLogo';
 import { APP_NAME } from '../branding.generated';
-import { GUARDIAN_NAV, isGroup, isSub } from '../nav/roleNav';
+import { GUARDIAN_NAV, isGroup, isSub } from '@mentoring/nav';
 import { NavGroupHeading, NavSubHeading } from './NavHeading';
 
 const navCls = ({ isActive }: { isActive: boolean }) => (isActive ? 'nav-item active' : 'nav-item');

@@ -24,7 +24,8 @@
     "react-native-web": "~0.19.10",
     "socket.io-client": "^4.8.3",
     "react-native-webview": "13.8.6",
-    "@mentoring/board-core": "*"
+    "@mentoring/board-core": "*",
+    "@mentoring/nav": "*"
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",

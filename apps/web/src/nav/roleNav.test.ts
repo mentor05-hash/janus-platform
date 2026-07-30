@@ -11,7 +11,7 @@ import {
   isDetailRoute,
   leavesOf,
   type NavItem,
-} from './roleNav';
+} from '@mentoring/nav';
 
 /**
  * 사이드바 ↔ 라우트 ↔ 모바일 탭 **드리프트 검출**.
