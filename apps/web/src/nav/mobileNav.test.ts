@@ -132,7 +132,7 @@ describe('경로 해석 — 서버 href 가 정본', () => {
   it('모바일에 없는 화면은 이유와 함께 web-only 로 표시된다', () => {
     // `/student/lectures`(O191)·`/student/community/board`(O192) 는 모바일 화면이 생겨 빠졌다
     // — 아래 '허브까지 연다' 검사로 옮겼다.
-    for (const path of ['/student/placement/hub', '/student/curriculum']) {
+    for (const path of ['/student/placement/hub']) {
       const r = resolveWebPath(path);
       expect(r.kind).toBe('web-only');
       if (r.kind === 'web-only') expect(r.why.length).toBeGreaterThan(15);
@@ -142,6 +142,7 @@ describe('경로 해석 — 서버 href 가 정본', () => {
   it.each([
     ['/student/lectures', 'lectures'],
     ['/student/community/board', 'league'],
+    ['/student/curriculum', 'curriculum'],
   ])('%s 는 hub 까지 준다(탭만 주면 목록을 다시 찾아야 한다)', (path, hub) => {
     const r = resolveWebPath(path);
     expect(r.kind).toBe('mobile');

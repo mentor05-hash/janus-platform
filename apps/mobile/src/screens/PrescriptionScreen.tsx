@@ -13,10 +13,10 @@ import { HubMenu, useHub } from '../nav/hubMenu';
  * 누르면 사유를 안내한다 — 빈 탭으로 두면 '처방 층이 비어 있다'는 사실이 아무에게도 안 보이고,
  * 결손은 보이지 않으면 채워지지 않는다. (강좌는 그렇게 남겨 뒀다가 O191 에서 실제로 채웠다.)
  */
-export function PrescriptionScreen({ goTab, initial }: { goTab?: (t: string) => void; initial?: string | null }) {
+export function PrescriptionScreen({ goTab, goHub, initial }: { goTab?: (t: string) => void; goHub?: (tab: string, hub: string) => void; initial?: string | null }) {
   const ui = useUI();
   // 검색이 '처방 › 강좌'를 가리키면 허브를 건너뛰고 그 화면부터 연다.
-  const hub = useHub('rx', { goTab, initial });
+  const hub = useHub('rx', { goTab, goHub, initial });
   if (hub.screen) return hub.screen;
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>

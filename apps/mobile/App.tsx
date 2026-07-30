@@ -70,6 +70,8 @@ function AppInner() {
     setTeacher(null);
     setBooking(false);
   };
+  /** 탭 이동 + 그 탭의 허브 하위 화면까지 연다(검색·처방 CTA 가 같은 길을 쓴다). */
+  const goHub = (t: string, hub: string) => { setPendingHub(hub); goTab(t); };
   const openTeacher = (t: Teacher, m?: string, ct?: string, sub?: string) => { setTeacher(t); setBooking(false); setBookMode(m); setBookType(ct); setBookSub(sub); pushGuard(); };
   const openBooking = () => { setBooking(true); pushGuard(); };
 
@@ -241,7 +243,7 @@ function AppInner() {
           ) : tab === 'dg' ? (
             <DiagnosticScreen onGoQna={() => goTab('c')} goTab={goTab} />
           ) : tab === 'rx' ? (
-            <PrescriptionScreen goTab={goTab} initial={pendingHub} key={pendingHub ?? 'rx'} />
+            <PrescriptionScreen goTab={goTab} goHub={goHub} initial={pendingHub} key={pendingHub ?? 'rx'} />
           ) : tab === 'a' ? (
             teacher ? (
               booking ? (

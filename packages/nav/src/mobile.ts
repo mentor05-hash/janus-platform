@@ -20,9 +20,7 @@ export type HubKey =
   | 'classify' | 'legal'
   // 아래는 서브화면이 아니라 **다른 탭으로 보내는 항목**이다(`jump` 참조).
   | 'toSearch' | 'toAcademy' | 'toClassroom' | 'toMaterials' | 'toQna' | 'toLounge'
-  // 웹에만 있는 화면의 자리(`webOnly`) — 눌리면 안내한다.
-  | 'planWeb'
-  | 'lectures' | 'league';
+  | 'lectures' | 'league' | 'curriculum';
 
 /** 허브를 가진 모바일 탭 키 — `App.tsx` 의 학생 탭과 같다(dg 진단 · rx 처방 · b 실행 · d 내정보). */
 export type HubTab = 'dg' | 'rx' | 'b' | 'd';
@@ -66,10 +64,10 @@ export const HUB_ITEMS: HubItem[] = [
   { key: 'goal', tab: 'dg', icon: '🏁', title: '목표 설정', desc: '목표 대학·학과·평균 — 격차·할 일 기준' },
 
   // ── 처방 — 진단 결과로 받는 것 ──
-  // 지금은 자료실 하나만 모바일에 있다. 나머지 둘은 **자리를 비워 두지 않고** 웹 안내로 남긴다 —
-  // 빈 탭으로 두면 '처방 층이 비어 있다'는 사실이 아무에게도 안 보인다.
+  // 2026-07-30: 셋 다 모바일에 있다(자료실·강좌 O191·학습 플랜 O193 후속). `webOnly` 자리는 비었다 —
+  // 자리를 남겨 두는 방식이 실제로 채워지는 데 쓰였다.
   { key: 'toMaterials', tab: 'rx', jump: 'e', icon: '▦', title: '자료실', desc: '진단 결과에 맞는 학습 자료' },
-  { key: 'planWeb', tab: 'rx', icon: '🗒', title: '학습 플랜', desc: '격차 기반 주간 계획', webOnly: '학습 플랜은 아직 모바일에 없어요.' },
+  { key: 'curriculum', tab: 'rx', icon: '🗒', title: '학습 플랜', desc: '이번 주 무엇부터 — 약점 순서대로 처방' },
   // 2026-07-30: `webOnly` 자리였다가 실제 화면이 됐다(O191). 검색의 강좌 결과도 여기로 온다.
   { key: 'lectures', tab: 'rx', icon: '🎬', title: '강좌', desc: '약점 과목 인강 — 원하는 때 보는 녹화 강의' },
 

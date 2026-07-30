@@ -7,6 +7,7 @@ import { useWebBack } from '../webBack';
 import { AutomatchScreen } from '../screens/AutomatchScreen';
 import { AutoAssignScreen } from '../screens/AutoAssignScreen';
 import { ChatInboxScreen } from '../screens/ChatInboxScreen';
+import { CurriculumScreen } from '../screens/CurriculumScreen';
 import { ClassifyScreen } from '../screens/ClassifyScreen';
 import { GapReportScreen } from '../screens/GapReportScreen';
 import { GoalScreen } from '../screens/GoalScreen';
@@ -38,6 +39,8 @@ type HostArgs = {
   /** 성적 노출 정책 — 격차·성적 화면이 배치 표시 여부를 이 값으로 정한다. */
   showPlacement?: boolean;
   goTab?: (t: string) => void;
+  /** 다른 탭의 **허브 하위 화면**까지 여는 이동(처방 → 실행 › 리그 Q&A 처럼). */
+  goHub?: (tab: string, hub: string) => void;
   /** 서브화면에서 돌아올 때 부모 데이터를 다시 읽어야 하는 경우. */
   onReload?: () => void;
   onMessage?: (m: string) => void;
@@ -81,6 +84,7 @@ export function useHub(tab: HubTab, args: HostArgs = {}) {
       case 'reports': return <ReportsScreen onBack={back} backLabel={bl} />;
       case 'classify': return <ClassifyScreen onBack={back} backLabel={bl} />;
       case 'league': return <LeagueBoardScreen onBack={back} backLabel={bl} />;
+      case 'curriculum': return <CurriculumScreen onBack={back} backLabel={bl} goTab={args.goTab} goHub={args.goHub} />;
       case 'lectures': return <LectureScreen onBack={back} backLabel={bl} />;
       case 'legal': return <LegalScreen onBack={back} backLabel={bl} onWithdrawn={() => { if (typeof window !== 'undefined') window.location.reload(); }} />;
       default: return null;

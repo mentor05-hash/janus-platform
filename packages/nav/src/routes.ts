@@ -32,6 +32,7 @@ const TO_TAB: Record<string, { tab: string; hub?: string; label: string }> = {
   // 탭이 아니라 허브 하위 화면이다 — 탭만 주면 목록에서 한 번 더 찾아야 한다.
   '/student/lectures': { tab: 'rx', hub: 'lectures', label: '강좌' },
   '/student/community/board': { tab: 'b', hub: 'league', label: '리그 Q&A' },
+  '/student/curriculum': { tab: 'rx', hub: 'curriculum', label: '학습 플랜' },
   '/student/search': { tab: 'a', label: '선생님 찾기' },
   '/student/academies': { tab: 'ac', label: '학원찾기' },
   '/student/bookings': { tab: 'b', label: '일정' },
@@ -43,7 +44,6 @@ const TO_TAB: Record<string, { tab: string; hub?: string; label: string }> = {
  */
 const WEB_ONLY: Record<string, { label: string; why: string }> = {
   '/student/placement/hub': { label: '배치표 허브', why: '배치표 허브는 아직 모바일에 없어요.' },
-  '/student/curriculum': { label: '학습 플랜', why: '학습 플랜은 아직 모바일에 없어요.' },
 };
 
 /** 쿼리·해시를 떼고 끝 슬래시를 정리한다(서버가 붙여 보내도 표와 맞도록). */
