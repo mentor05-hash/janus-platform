@@ -95,10 +95,11 @@ describe('사이드바 정본 — 모바일 탭과 축 통일', () => {
     expect(orphans).toEqual([]);
   });
 
-  it('학생 재편으로 항목이 사라지지 않았다 — 27개가 그대로다', () => {
-    // 재편은 **그룹핑만** 바꾼다(N30 의 기능 보존 원칙과 같은 태도).
-    // 이 숫자가 줄면 어딘가에서 항목을 흘린 것이고, 늘면 근거 없이 추가한 것이다.
-    expect(leavesOf(STUDENT_NAV)).toHaveLength(27);
+  it('항목 수 래칫 — 학생 30 · 선생님 20 · 학부모 8', () => {
+    // 이 숫자가 줄면 어딘가에서 항목을 흘린 것이고, 늘면 **근거를 여기 적어야** 한다.
+    // 27 → 30 (2026-07-30, O195): 모바일에만 있던 30분 자동 매칭·내 상담 기록·선생님 분류를
+    // 웹에도 만들었다. 재편(O185·O189)은 그룹핑만 바꿔 27을 유지했고, 이번 증가는 **신규 화면**이다.
+    expect(leavesOf(STUDENT_NAV)).toHaveLength(30);
     expect(leavesOf(TEACHER_NAV)).toHaveLength(20);
     expect(leavesOf(GUARDIAN_NAV)).toHaveLength(8); // 2026-07-30 약관·개인정보 신설(+1)
   });

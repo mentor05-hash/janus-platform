@@ -77,6 +77,8 @@ export const HUB_ITEMS: HubItem[] = [
   // 2026-07-30 신설(O192). 검색의 커뮤니티 결과도 여기로 온다 — 이전에는 라운지로 잘못 갔다(O186 ①).
   { key: 'league', tab: 'b', icon: '🏅', title: '리그 Q&A', desc: '누구나 답변 · 채택되면 등급이 오른다' },
   { key: 'toSearch', tab: 'b', jump: 'a', icon: '◇', title: '선생님 찾기', desc: '상담·과외 1:1 매칭' },
+  // 내정보 → 실행으로 이동(O195). 계정 설정이 아니라 **다음 상담을 고를 때 쓰는 재료**다.
+  { key: 'classify', tab: 'b', icon: '💚', title: '선생님 분류', desc: '나와 맞는 / 맞지 않는 선생님 관리' },
   { key: 'toAcademy', tab: 'b', jump: 'ac', icon: '🏫', title: '학원찾기', desc: '동네·과목별 학원 비교' },
   { key: 'toClassroom', tab: 'b', jump: 'r', icon: '▶', title: '실시간 수업', desc: '예약된 수업에 입장 — 판서·음성' },
   { key: 'automatch', tab: 'b', icon: '⚡', title: '30분 자동 매칭', desc: '유형·방식만 고르면 7일 내 가장 빠른 30분' },
@@ -87,7 +89,6 @@ export const HUB_ITEMS: HubItem[] = [
   { key: 'reports', tab: 'b', icon: '📋', title: '상담 리포트', desc: '녹음 동의 상담의 검수된 요약 리포트' },
 
   // ── 내정보 — 계정에 관한 일 ──
-  { key: 'classify', tab: 'd', icon: '💚', title: '선생님 분류', desc: '나와 맞는 / 맞지 않는 선생님 관리' },
   { key: 'legal', tab: 'd', icon: '🔒', title: '약관·개인정보', desc: '약관·방침·동의·데이터 내보내기·회원 탈퇴' },
 ];
 

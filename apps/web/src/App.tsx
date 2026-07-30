@@ -81,6 +81,9 @@ const AcademyDetailPage = lazy(() => import('./pages/AcademyDetailPage').then((m
 const GlobalSearchPage = lazy(() => import('./pages/GlobalSearchPage').then((m) => ({ default: m.GlobalSearchPage })));
 const StudentCreditsPage = lazy(() => import('./pages/StudentCreditsPage').then((m) => ({ default: m.StudentCreditsPage })));
 const StudentReversePage = lazy(() => import('./pages/StudentReversePage').then((m) => ({ default: m.StudentReversePage })));
+const StudentAutomatchPage = lazy(() => import('./pages/StudentAutomatchPage').then((m) => ({ default: m.StudentAutomatchPage })));
+const StudentRecordsPage = lazy(() => import('./pages/StudentRecordsPage').then((m) => ({ default: m.StudentRecordsPage })));
+const StudentClassifyPage = lazy(() => import('./pages/StudentClassifyPage').then((m) => ({ default: m.StudentClassifyPage })));
 const StudentAutoAssignPage = lazy(() => import('./pages/StudentAutoAssignPage').then((m) => ({ default: m.StudentAutoAssignPage })));
 const StudentQnaPage = lazy(() => import('./pages/StudentQnaPage').then((m) => ({ default: m.StudentQnaPage })));
 const StudentCommunityPage = lazy(() => import('./pages/StudentCommunityPage').then((m) => ({ default: m.StudentCommunityPage })));
@@ -309,6 +312,9 @@ export function App() {
         <Route path="notifications" element={<StudentNotificationsPage />} />
         <Route path="reverse" element={<StudentReversePage />} />
         <Route path="auto-assign" element={<StudentAutoAssignPage />} />
+        <Route path="automatch" element={<StudentAutomatchPage />} />
+        <Route path="records" element={<StudentRecordsPage />} />
+        <Route path="classify" element={<StudentClassifyPage />} />
         <Route path="legal" element={<LegalPage />} />
       </Route>
 

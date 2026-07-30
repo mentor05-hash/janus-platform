@@ -102,12 +102,10 @@ describe('모바일 정본 — 탭·허브·경로', () => {
   it('모바일 허브 항목은 전부 웹 사이드바에도 있다(모바일에만 있는 것은 목록으로 관리)', () => {
     const webLabels = new Set(leavesOf(STUDENT_NAV).map((l) => l.label));
     // 웹에 짝이 없는 항목 — O186 감사에서 확인된 '모바일에만 있는 기능'. 늘어나면 이 목록을 고쳐야 한다.
-    //   · 30분 자동 매칭(`/match/auto`) · 내 상담 기록(`/me/notes`) · 선생님 분류(`/me/teacher-lists`)
-    //     — 웹에 호출부가 0곳이다(웹 쪽 결손).
-    //   · 격차 리포트 — 웹은 O102 고도 원칙대로 '과목별 점수 격차'/'목표 대학 격차' 두 이름으로 나뉘어 있다.
+    //   · 30분 자동 매칭·내 상담 기록·선생님 분류는 O195 에서 웹에도 생겨 이 목록에서 빠졌다.
     //   · 실시간 수업(`/classes`) — 웹에서는 **선생님 전용**(`/app/classes`)이고 학생 사이드바에는 없다.
     //     학생이 실시간 수업에 들어가는 경로가 웹에 없다는 뜻이라, 지우지 말고 결손으로 남긴다.
-    const MOBILE_ONLY = new Set(['30분 자동 매칭', '내 상담 기록', '선생님 분류', '실시간 수업']);
+    const MOBILE_ONLY = new Set(['실시간 수업']);
     const extra = HUB_ITEMS.map((i) => i.title).filter((t) => !webLabels.has(t) && !MOBILE_ONLY.has(t));
     expect(extra).toEqual([]);
   });

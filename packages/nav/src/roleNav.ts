@@ -111,6 +111,12 @@ export const STUDENT_NAV: NavItem[] = [
   { to: '/student/search', label: '선생님 찾기' },
   { to: '/student/academies', label: '학원찾기' },
   { to: '/student/auto-assign', label: '자동배정 신청' },
+  // 2026-07-30 신설(O195) — 모바일에만 있던 셋을 웹으로 옮겼다.
+  // 자동 매칭은 '시간을 대신 골라 주는' 예약이라 상담 잡기 안에 둔다.
+  { to: '/student/automatch', label: '30분 자동 매칭' },
+  // 선생님 분류는 계정 설정이 아니라 **다음 상담을 고를 때 꺼내 쓰는 재료**라 여기다
+  // (모바일은 내정보에 있었는데 같은 이유로 함께 옮겼다 — 이름만 같고 자리가 다르면 O185 로 되돌아간다).
+  { to: '/student/classify', label: '선생님 분류' },
   { to: '/student/reverse', label: '역상담' },
   { sub: '내 일정' },
   { to: '/student/bookings', label: '내 예약·상담' },
@@ -118,6 +124,8 @@ export const STUDENT_NAV: NavItem[] = [
   { to: '/student/tasks', label: '할 일' },
   { sub: '상담 후' },
   { to: '/student/chats', label: '채팅' },
+  // '상담 리포트'(검수 산출물)와 다른 것 — 선생님이 공개한 노트다(O190 용어 정리).
+  { to: '/student/records', label: '내 상담 기록' },
   { to: '/student/reports', label: '상담 리포트' },
 
   // ── 내정보 — 계정에 관한 일 ──
