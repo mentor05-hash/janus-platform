@@ -5,7 +5,7 @@ import { R, SP, useTheme, useUI, type Palette } from '../theme';
 
 type Lists = { fit: string[]; unfit: string[] };
 
-export function ClassifyScreen({ onBack }: { onBack: () => void }) {
+export function ClassifyScreen({ onBack, backLabel = '‹ 뒤로' }: { onBack: () => void; backLabel?: string }) {
   const { C } = useTheme();
   const ui = useUI();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -49,7 +49,7 @@ export function ClassifyScreen({ onBack }: { onBack: () => void }) {
 
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
-      <TouchableOpacity onPress={onBack}><Text style={styles.back}>‹ 마이</Text></TouchableOpacity>
+      <TouchableOpacity onPress={onBack}><Text style={styles.back}>{backLabel}</Text></TouchableOpacity>
       <Text style={ui.h}>선생님 분류</Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}
       {lists === null ? <ActivityIndicator color={C.teal} /> : (

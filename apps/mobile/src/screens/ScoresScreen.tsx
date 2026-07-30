@@ -9,7 +9,7 @@ type ClinicSummary = { attempts: ClinicAttempt[]; count: number; avgScore: numbe
 const fmtDate = (s: string) => { const d = new Date(s); return `${d.getMonth() + 1}/${d.getDate()}`; };
 
 /** 학생 본인 성적·배치 추이(정책 노출 시) + 약점 클리닉 추이. */
-export function ScoresScreen({ onBack, showPlacement }: { onBack: () => void; showPlacement: boolean }) {
+export function ScoresScreen({ onBack, showPlacement, backLabel = '‹ 뒤로' }: { onBack: () => void; showPlacement: boolean; backLabel?: string }) {
   const { C } = useTheme();
   const ui = useUI();
   const s = useMemo(() => makeStyles(C), [C]);
@@ -24,7 +24,7 @@ export function ScoresScreen({ onBack, showPlacement }: { onBack: () => void; sh
 
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
-      <TouchableOpacity onPress={onBack}><Text style={{ color: C.teal, fontWeight: '700', marginBottom: 8 }}>‹ 마이</Text></TouchableOpacity>
+      <TouchableOpacity onPress={onBack}><Text style={{ color: C.teal, fontWeight: '700', marginBottom: 8 }}>{backLabel}</Text></TouchableOpacity>
       <Text style={ui.h}>내 성적·배치</Text>
       <Text style={[ui.sub, { marginBottom: SP.md }]}>회차별 성적 추이와 예상 대학·학과 라인 변화를 확인하세요.</Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}

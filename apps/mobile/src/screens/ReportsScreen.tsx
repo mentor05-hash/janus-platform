@@ -9,7 +9,7 @@ type Detail = { bookingId: string; covered: string[]; diagnosis: string; nextAct
 const KST = (iso: string | null) => (iso ? new Date(iso).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—');
 
 /** R4 파리티 — 학생: 발송된 상담 요약 리포트 열람(첫 열람 시 서버가 opened_at 스탬프). */
-export function ReportsScreen({ onBack }: { onBack: () => void }) {
+export function ReportsScreen({ onBack, backLabel = '‹ 뒤로' }: { onBack: () => void; backLabel?: string }) {
   const { C } = useTheme();
   const ui = useUI();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -54,7 +54,7 @@ export function ReportsScreen({ onBack }: { onBack: () => void }) {
 
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
-      <TouchableOpacity onPress={onBack}><Text style={styles.back}>‹ 마이</Text></TouchableOpacity>
+      <TouchableOpacity onPress={onBack}><Text style={styles.back}>{backLabel}</Text></TouchableOpacity>
       <Text style={ui.h}>상담 리포트</Text>
       <Text style={styles.note}>녹음 동의한 상담의 요약 리포트예요. 선생님이 검수한 뒤에 도착합니다.</Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}

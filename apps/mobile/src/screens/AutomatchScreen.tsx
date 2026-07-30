@@ -20,7 +20,7 @@ const SUBJECTS = ['국어', '수학', '영어', '탐구'];
 const MODES: [string, string][] = [['online', '온라인'], ['offline', '오프라인'], ['any', '상관없음']];
 const KST = (d: string) => new Date(d + 'T00:00:00+09:00').toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: 'long', day: 'numeric', weekday: 'short' });
 
-export function AutomatchScreen({ onBack, onBooked }: { onBack: () => void; onBooked: () => void }) {
+export function AutomatchScreen({ onBack, onBooked, backLabel = '‹ 뒤로' }: { onBack: () => void; onBooked: () => void; backLabel?: string }) {
   const { C } = useTheme();
   const ui = useUI();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -75,7 +75,7 @@ export function AutomatchScreen({ onBack, onBooked }: { onBack: () => void; onBo
 
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
-      <TouchableOpacity onPress={onBack}><Text style={styles.back}>‹ 마이</Text></TouchableOpacity>
+      <TouchableOpacity onPress={onBack}><Text style={styles.back}>{backLabel}</Text></TouchableOpacity>
       <Text style={ui.h}>30분 자동 매칭 ⚡</Text>
 
       {phase === 'loading' && (

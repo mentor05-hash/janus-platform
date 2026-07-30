@@ -21,6 +21,7 @@ import { AcademyFinderScreen } from './src/screens/AcademyFinderScreen';
 import { GuardianConsult, GuardianHome, GuardianMy, GuardianWallet } from './src/screens/GuardianScreens';
 import { GuardianLinkScreen } from './src/screens/GuardianLinkScreen';
 import { TeacherInbox, TeacherToday, TeacherSessions, TeacherRecords, TeacherMy } from './src/screens/TeacherScreens';
+import { SATELLITE_PARENT } from './src/nav/hubMenu';
 import { ThemeProvider, useTheme, type Palette, SP } from './src/theme';
 import { AlertHost } from './src/lib/alertHost';
 import { APP_NAME } from './src/branding.generated';
@@ -182,6 +183,13 @@ function AppInner() {
   const tabIcon = (t: string) => (isGuardian ? guardianIcon[t] ?? '' : isTeacher ? teacherIcon[t] ?? '' : studentIcon[t] ?? '');
   // 선생님은 탭키가 다르므로 기본 진입 탭 보정('a' → 'ti')
   const tTab = isTeacher && !['ti', 'to', 'ts', 'tr', 'tm'].includes(tab) ? 'ti' : tab;
+  /**
+   * 하단 탭 활성 표시는 **소속 탭** 기준이다.
+   * 탭 배열 밖 화면(선생님 찾기·학원찾기·강의실·자료실·라운지)에 들어가면 `tTab === t` 가
+   * 어디서도 참이 아니라 활성 표시가 전부 꺼졌다 — 5개 화면에서 자기 위치를 잃는 상태였다.
+   * 소속은 `SATELLITE_PARENT`(웹 사이드바가 정한 대항목)를 따른다.
+   */
+  const activeTab = SATELLITE_PARENT[tTab] ?? tTab;
 
   return (
     <SafeAreaView style={styles.app}>
@@ -282,11 +290,11 @@ function AppInner() {
           {tabs.map((t) => (
             <TouchableOpacity
               key={t}
-              style={[styles.tab, tTab === t && styles.tabActiveBox]}
+              style={[styles.tab, activeTab === t && styles.tabActiveBox]}
               onPress={() => goTab(t)}
             >
-              <Text style={[styles.tabIcon, tTab === t && styles.tabIconActive]}>{tabIcon(t)}</Text>
-              <Text style={[styles.tabLabel, tTab === t && styles.tabActive]}>{tabLabel(t)}</Text>
+              <Text style={[styles.tabIcon, activeTab === t && styles.tabIconActive]}>{tabIcon(t)}</Text>
+              <Text style={[styles.tabLabel, activeTab === t && styles.tabActive]}>{tabLabel(t)}</Text>
             </TouchableOpacity>
           ))}
         </View>

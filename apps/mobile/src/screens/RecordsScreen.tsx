@@ -14,7 +14,7 @@ type Note = {
 };
 const KST = (iso: string) => new Date(iso).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit' });
 
-export function RecordsScreen({ onBack }: { onBack: () => void }) {
+export function RecordsScreen({ onBack, backLabel = '‹ 뒤로' }: { onBack: () => void; backLabel?: string }) {
   const { C } = useTheme();
   const ui = useUI();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -32,7 +32,7 @@ export function RecordsScreen({ onBack }: { onBack: () => void }) {
 
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
-      <TouchableOpacity onPress={onBack}><Text style={styles.back}>‹ 마이</Text></TouchableOpacity>
+      <TouchableOpacity onPress={onBack}><Text style={styles.back}>{backLabel}</Text></TouchableOpacity>
       <Text style={ui.h}>내 상담 기록</Text>
       <Text style={styles.note}>공개된 핵심 요약·숙제·향후 방향만 보여요. (선생님 내부 메모는 비공개, 완료된 상담만 열람)</Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}

@@ -34,12 +34,31 @@ import { TasksScreen } from '../screens/TasksScreen';
 export type HubKey =
   | 'scoreInput' | 'gap' | 'goal' | 'scores'
   | 'chats' | 'automatch' | 'autoassign' | 'tasks' | 'records' | 'reports'
-  | 'classify' | 'legal';
+  | 'classify' | 'legal'
+  // 아래 넷은 서브화면이 아니라 **다른 탭으로 보내는 항목**이다(`jump` 참조).
+  | 'toSearch' | 'toAcademy' | 'toClassroom' | 'toMaterials';
 
 /** 모바일 탭 키 — `App.tsx` 의 학생 탭과 같다(dg 진단 · b 일정 · d 내정보). */
 export type HubTab = 'dg' | 'b' | 'd';
 
-export type HubItem = { key: HubKey; tab: HubTab; icon: string; title: string; desc: string };
+/** `jump` 가 있으면 하위 화면을 여는 대신 그 탭으로 이동한다. */
+export type HubItem = { key: HubKey; tab: HubTab; icon: string; title: string; desc: string; jump?: string };
+
+/**
+ * **탭 밖 화면의 소속 탭**(위성 → 대항목).
+ *
+ * `App.tsx` 는 이 다섯을 렌더하지만 하단 탭 배열에는 없다 — 홈 바로가기·검색으로만 들어간다.
+ * 그 결과 들어가면 하단 탭 활성 표시가 **전부 꺼져** 사용자가 자기 위치를 잃었다.
+ * 웹에서는 다섯 모두 정식 사이드바 항목이므로, 웹이 정한 대항목을 그대로 소속으로 삼는다:
+ *   선생님 찾기·학원찾기 → 일정(상담 잡기) · 자료실 → 진단(처방) · 라운지 → 질문
+ * 강의실(실시간 수업)만 웹 학생 nav 에 짝이 없는데, 예약의 실행이므로 일정에 둔다.
+ */
+export const SATELLITE_PARENT: Record<string, string> = {
+  a: 'b', ac: 'b', r: 'b', e: 'dg', f: 'c',
+};
+
+/** 하위 화면의 '뒤로' 라벨 — 어느 탭에서 들어왔는지 말해 준다. */
+export const TAB_LABEL: Record<HubTab, string> = { dg: '진단', b: '일정', d: '내정보' };
 
 /**
  * 순서가 곧 우선순위다. 성적 입력이 '진단' 맨 앞인 이유는 그대로다 —
@@ -51,8 +70,12 @@ export const HUB_ITEMS: HubItem[] = [
   { key: 'scores', tab: 'dg', icon: '📈', title: '내 성적·배치', desc: '성적 추이 + 예상 대학·학과 라인' },
   { key: 'gap', tab: 'dg', icon: '🎯', title: '격차 리포트', desc: '지금 위치 → 목표까지 과목별 격차와 처방' },
   { key: 'goal', tab: 'dg', icon: '🏁', title: '목표 설정', desc: '목표 대학·학과·평균 — 격차·할 일 기준' },
+  { key: 'toMaterials', tab: 'dg', jump: 'e', icon: '▦', title: '자료실', desc: '진단 결과에 맞는 학습 자료' },
 
   // ── 일정 — 시간을 쓰는 일 ──
+  { key: 'toSearch', tab: 'b', jump: 'a', icon: '◇', title: '선생님 찾기', desc: '상담·과외 1:1 매칭' },
+  { key: 'toAcademy', tab: 'b', jump: 'ac', icon: '🏫', title: '학원찾기', desc: '동네·과목별 학원 비교' },
+  { key: 'toClassroom', tab: 'b', jump: 'r', icon: '▶', title: '강의실', desc: '예약된 실시간 수업 입장' },
   { key: 'chats', tab: 'b', icon: '💬', title: '채팅', desc: '상담 대화 모아보기 — 안 읽은 메시지 확인' },
   { key: 'automatch', tab: 'b', icon: '⚡', title: '30분 자동 매칭', desc: '유형·방식만 고르면 7일 내 가장 빠른 30분' },
   { key: 'autoassign', tab: 'b', icon: '🗓', title: '자동배정 신청', desc: '시간 안 정해도 전임 선생님 근무시간에 배정' },
@@ -84,28 +107,36 @@ export function useHub(tab: HubTab, args: HostArgs = {}) {
   const [key, setKey] = useState<HubKey | null>(null);
   const back = () => setKey(null);
   const reload = () => { setKey(null); args.onReload?.(); };
+  const bl = `‹ ${TAB_LABEL[tab]}`; // 하위 화면이 "어디로 돌아가는지"를 이 탭에서 정한다
   // 웹 빌드에서 브라우저 뒤로가기가 허브로 복귀하게 한다(하위 화면 우선).
   useWebBack(key !== null, back);
 
+  /** 항목 선택 — `jump` 항목은 하위 화면이 아니라 다른 탭으로 보낸다. */
+  const open = (k: HubKey) => {
+    const jump = HUB_ITEMS.find((i) => i.key === k)?.jump;
+    if (jump) { args.goTab?.(jump); return; }
+    setKey(k);
+  };
+
   const screen = (() => {
     switch (key) {
-      case 'scoreInput': return <ScoreInputScreen onBack={reload} />;
-      case 'scores': return <ScoresScreen onBack={back} showPlacement={args.showPlacement ?? false} />;
-      case 'gap': return <GapReportScreen onBack={back} showPlacement={args.showPlacement ?? false} goTab={args.goTab} />;
-      case 'goal': return <GoalScreen onBack={reload} />;
-      case 'chats': return <ChatInboxScreen onBack={reload} />;
-      case 'automatch': return <AutomatchScreen onBack={back} onBooked={() => { reload(); args.onMessage?.('자동 매칭으로 예약이 신청되었습니다. 내 예약에서 확인하세요.'); }} />;
-      case 'autoassign': return <AutoAssignScreen onBack={back} />;
-      case 'tasks': return <TasksScreen onBack={back} goTab={args.goTab} />;
-      case 'records': return <RecordsScreen onBack={back} />;
-      case 'reports': return <ReportsScreen onBack={back} />;
-      case 'classify': return <ClassifyScreen onBack={back} />;
-      case 'legal': return <LegalScreen onBack={back} onWithdrawn={() => { if (typeof window !== 'undefined') window.location.reload(); }} />;
+      case 'scoreInput': return <ScoreInputScreen onBack={reload} backLabel={bl} />;
+      case 'scores': return <ScoresScreen onBack={back} showPlacement={args.showPlacement ?? false} backLabel={bl} />;
+      case 'gap': return <GapReportScreen onBack={back} showPlacement={args.showPlacement ?? false} goTab={args.goTab} backLabel={bl} />;
+      case 'goal': return <GoalScreen onBack={reload} backLabel={bl} />;
+      case 'chats': return <ChatInboxScreen onBack={reload} backLabel={bl} />;
+      case 'automatch': return <AutomatchScreen onBack={back} backLabel={bl} onBooked={() => { reload(); args.onMessage?.('자동 매칭으로 예약이 신청되었습니다. 내 예약에서 확인하세요.'); }} />;
+      case 'autoassign': return <AutoAssignScreen onBack={back} backLabel={bl} />;
+      case 'tasks': return <TasksScreen onBack={back} goTab={args.goTab} backLabel={bl} />;
+      case 'records': return <RecordsScreen onBack={back} backLabel={bl} />;
+      case 'reports': return <ReportsScreen onBack={back} backLabel={bl} />;
+      case 'classify': return <ClassifyScreen onBack={back} backLabel={bl} />;
+      case 'legal': return <LegalScreen onBack={back} backLabel={bl} onWithdrawn={() => { if (typeof window !== 'undefined') window.location.reload(); }} />;
       default: return null;
     }
   })();
 
-  return { items: itemsOf(tab), open: setKey, screen, isOpen: key !== null };
+  return { items: itemsOf(tab), open, screen, isOpen: key !== null };
 }
 
 /** 허브 항목 목록. `badge` 는 채팅 미확인 수처럼 항목에 붙는 숫자. */

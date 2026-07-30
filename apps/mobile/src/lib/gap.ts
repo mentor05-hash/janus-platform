@@ -87,39 +87,61 @@ export type GapModel = {
   department?: string | null;
 };
 
-/** 서버 격차 리포트 payload(janus_report kind=gap) — /me/reports/gap 응답 계약. */
-export type GapPayload = {
-  version: number;
-  period: string | null;
-  goal: { tier: string | null; avg: number | null; university: string | null; department: string | null };
-  current: { avg: number | null; tier: string | null; line: string | null };
+/**
+ * 서버 격차 리포트(janus_report kind=gap) — **트렁크 `JanusReport` 봉투 그대로**.
+ *
+ * ⚠ 2026-07-30 정정. 이전 타입(`GapPayload`: goal/current/gap.bySubject/prescriptions)은
+ * `GET /me/reports/gap` 이라는 **없는 경로**의 가상 계약이었다. 호출은 항상 실패했고
+ * `.catch(() => setReport(null))` 이 삼켜서, 모바일 격차 화면은 만들어진 날부터 계속
+ * 클라이언트 계산 폴백으로만 돌았다. 서버는 그 사이 **다른 이름·다른 모양**으로 구현돼 있었다:
+ *   · 생성 `POST /scores/gap-report` (웹 '목표 대학 격차'가 호출)
+ *   · 이력 `GET /me/reports?kind=gap&limit=N` — 행의 `payload` 가 이 타입
+ *
+ * 이 봉투에는 **과목별 격차가 없다**. 단위가 다르기 때문이다 — 서버 리포트는 목표 학과 컷 대비
+ * 전국누백(정시)·내신등급(수시) 한 값이고, 과목별 바는 회차 과목 점수(0~100)에서 나온다.
+ * 그래서 둘은 대체 관계가 아니라 **층이 다르다**: 전략층(목표 대학 대비)은 서버, 실행층(과목별)은
+ * `computeGapModel`. 한쪽으로 억지로 합치면 척도가 섞여 숫자가 거짓이 된다.
+ */
+export type JanusGapReport = {
+  kind: 'gap';
+  version: string;
+  mode: 'jeongsi' | 'susi';
+  unit: { label: string; suffix: string };
+  generatedFor: { gye: string | null; value: number };
+  target: { univ: string; dept: string; cut: number; track?: string };
   // band 는 구 포크 어휘(영문)일 수 있어 string 으로 받고 normalizeBand 로 정본화한다.
-  gap: { value: number | null; band: string | null; bySubject: { subject: string; score: number; value: number | null; band: string | null }[] };
-  prescriptions: { title: string; description: string; service: string; href: string; ctaLabel: string; primary?: boolean }[];
+  gap: { delta: number; shortfall: number; band: string; admitProbHint: number | null; message: string };
+  volatility: { count: number; consistent: boolean; smallSample: boolean; direction: string | null; message: string } | null;
+  evidence: { claim: string; source: string; relTier: string }[];
+  prescription: { headline: string; actions: { label: string; to: string; ctaId?: string; free?: boolean }[] };
+  disclaimer?: string;
 };
+
+/** `GET /me/reports?kind=gap` 이력 행. */
+export type JanusReportRow = { id: string; kind: string; status: string; created_at: string; payload: JanusGapReport };
 
 const widthPct = (score: number, goalAvg: number | null) =>
   goalAvg != null && goalAvg > 0 ? Math.max(6, Math.min(100, (score / goalAvg) * 100)) : 100;
 
-/** 서버 payload → 격차 모델(클라 계산과 동일 형태). last(추세 최신점)는 차트/배치표시용으로 trend 에서 보완. */
-export function modelFromPayload(p: GapPayload, last?: TrendPoint): GapModel {
-  const goalAvg = p.goal.avg;
-  // 정렬은 computeGapModel 과 동일(격차 큰 순) — weakest 가 '응답 순서상 첫 항목' 이 아니라 '격차 최대' 를 가리키게.
-  const subjects = p.gap.bySubject
-    .map((s) => ({ subject: s.subject, score: s.score, gap: s.value, band: normalizeBand(s.band), pct: widthPct(s.score, goalAvg) }))
-    .sort((a, b) => (b.gap ?? -Infinity) - (a.gap ?? -Infinity));
+/**
+ * 서버 리포트 → 표시용 요약(전략층). **GapModel 로 변환하지 않는다** —
+ * 위 타입 주석대로 단위가 달라, 과목 점수 기반 모델에 끼워 넣으면 숫자가 거짓이 된다.
+ */
+export function summarizeReport(p: JanusGapReport) {
+  const goal = [p.target.univ, p.target.dept, p.target.track].filter(Boolean).join(' · ');
   return {
-    last,
-    goalAvg,
-    lastAvg: p.current.avg,
-    overallGap: p.gap.value,
-    overallBand: normalizeBand(p.gap.band),
-    subjects,
-    scaleMismatch: false, // 서버 payload 는 avg 기준으로 산출되므로 척도 불일치 없음
-    weakest: subjects.find((s) => (s.gap ?? 0) > 0) ?? null,
-    tier: p.goal.tier,
-    university: p.goal.university,
-    department: p.goal.department,
+    goal,
+    band: normalizeBand(p.gap.band),
+    /** 목표 컷까지 부족분(0 이면 도달). 단위는 `unit.suffix`(정시 %, 수시 등급). */
+    shortfall: p.gap.shortfall,
+    unit: p.unit,
+    myValue: p.generatedFor.value,
+    cut: p.target.cut,
+    message: p.gap.message,
+    /** 회차가 흔들려 판정이 갈리는 경우에만 문장이 있다(O108). */
+    volatility: p.volatility && !p.volatility.consistent ? p.volatility.message : null,
+    evidence: p.evidence,
+    headline: p.prescription.headline,
   };
 }
 

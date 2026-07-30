@@ -18,7 +18,7 @@ type Mode = 'nb' | 'std';
 const STD_SUBJECTS = ['국어', '수학', '탐구1', '탐구2'] as const;
 const GRADE_SUBJECTS = ['영어', '한국사'] as const;
 
-export function ScoreInputScreen({ onBack }: { onBack: () => void }) {
+export function ScoreInputScreen({ onBack, backLabel = '‹ 뒤로' }: { onBack: () => void; backLabel?: string }) {
   const { C } = useTheme();
   const ui = useUI();
   const s = useMemo(() => makeStyles(C), [C]);
@@ -91,7 +91,7 @@ export function ScoreInputScreen({ onBack }: { onBack: () => void }) {
 
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
-      <TouchableOpacity onPress={onBack}><Text style={{ color: C.teal, fontWeight: '700', marginBottom: 8 }}>‹ 마이</Text></TouchableOpacity>
+      <TouchableOpacity onPress={onBack}><Text style={{ color: C.teal, fontWeight: '700', marginBottom: 8 }}>{backLabel}</Text></TouchableOpacity>
       <Text style={ui.h}>성적진단</Text>
       <Text style={[ui.sub, { marginBottom: SP.md }]}>한 번 입력하면 배치표·격차 리포트·할 일이 함께 채워져요(성적 단일 규약).</Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}

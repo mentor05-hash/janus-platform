@@ -38,7 +38,7 @@ const LINK_STATUS: Record<string, string> = {
  * 삼키지 않고** '다시 시도' UI 로 보여준다 — 학생에게는 맞는 설계지만(대기 중 신청을 놓치면 안 된다)
  * 학부모에게는 **적용되지도 않는 섹션의 오류**가 뜬다. 그래서 역할로 아예 부르지 않는다.
  */
-export function LegalScreen({ onBack, onWithdrawn, isStudent = true }: { onBack: () => void; onWithdrawn: () => void; isStudent?: boolean }) {
+export function LegalScreen({ onBack, onWithdrawn, isStudent = true, backLabel = '‹ 뒤로' }: { onBack: () => void; onWithdrawn: () => void; isStudent?: boolean; backLabel?: string }) {
   const { C } = useTheme();
   const ui = useUI();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -169,7 +169,7 @@ export function LegalScreen({ onBack, onWithdrawn, isStudent = true }: { onBack:
 
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
-      <TouchableOpacity onPress={onBack}><Text style={styles.back}>‹ 뒤로</Text></TouchableOpacity>
+      <TouchableOpacity onPress={onBack}><Text style={styles.back}>{backLabel}</Text></TouchableOpacity>
       <Text style={ui.h}>약관·개인정보</Text>
 
       {/* 보호자 연결 — 공유 동의의 **선결조건**이라 위에 둔다(연결 승인 → 그 다음 공유 동의). */}

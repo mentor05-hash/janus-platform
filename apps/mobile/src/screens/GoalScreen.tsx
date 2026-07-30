@@ -12,7 +12,7 @@ type Goal = { tier: string | null; avg: number | null; university: string | null
 
 const TIERS = ['최상위', '상위', '중상위', '중위', '중하위', '기초'];
 
-export function GoalScreen({ onBack }: { onBack: () => void }) {
+export function GoalScreen({ onBack, backLabel = '‹ 뒤로' }: { onBack: () => void; backLabel?: string }) {
   const { C } = useTheme();
   const ui = useUI();
   const s = useMemo(() => makeStyles(C), [C]);
@@ -103,7 +103,7 @@ export function GoalScreen({ onBack }: { onBack: () => void }) {
 
   return (
     <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
-      <TouchableOpacity onPress={onBack}><Text style={{ color: C.teal, fontWeight: '700', marginBottom: 8 }}>‹ 마이</Text></TouchableOpacity>
+      <TouchableOpacity onPress={onBack}><Text style={{ color: C.teal, fontWeight: '700', marginBottom: 8 }}>{backLabel}</Text></TouchableOpacity>
       <Text style={ui.h}>목표 설정</Text>
       <Text style={[ui.sub, { marginBottom: SP.md }]}>목표 대학·학과·평균을 정하면 격차 리포트에서 과목별로 얼마나 남았는지 보여요.</Text>
       {error ? <Text style={ui.error}>{error}</Text> : null}
