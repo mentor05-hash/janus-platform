@@ -3,6 +3,7 @@ import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOp
 import { api, ApiError, Child, ChildCredits, Note, PaymentRequest } from '../api';
 import { R, SP, useTheme, useUI, type Palette } from '../theme';
 import { showAlert } from '../lib/alertHost';
+import { useWebBack } from '../webBack';
 import { ScoreTrendView, type Trend } from './ScoreTrendView';
 import { AcademicUpcoming } from './AcademicUpcoming';
 import { GuardianPlanScreen } from './GuardianPlanScreen';
@@ -547,9 +548,6 @@ export function GuardianConsult({ children, activeId, setActiveId }: Props) {
       <Text style={ui.h}>자녀 상세 리포트</Text>
       <KidSwitcher children={children} activeId={activeId} setActiveId={setActiveId} />
 
-      {/* 본부 결정 ① 동의·본인확인 게이트 */}
-      <GuardianConsentSection studentId={activeId} />
-
       {/* 주간 요약 */}
       {report && (
         <View style={[ui.card, { marginBottom: 8 }]}>
@@ -802,7 +800,68 @@ export function GuardianMembership({ children, activeId, setActiveId, goTab }: P
   );
 }
 
+/**
+ * 결제 탭 — 결제요청·충전·멤버십을 **한 탭**에 담는다.
+ *
+ * 왜 합쳤나: 모바일 학부모 탭 5개 중 **3개가 결제 계열**(멤버십·결제·충전)이었는데,
+ * 웹에서는 이 셋이 `결제·충전` 한 화면이다. 탭 배분이 결제에 과대 대표돼 있었고,
+ * 그만큼 다른 축(동의·본인확인)이 탭에서 밀려나 상담 탭 안에 묻혀 있었다.
+ * 화면 구현은 그대로 두고 **어느 탭에서 들어가는지**만 바꾼다(O185).
+ */
+export function GuardianWallet(props: Props) {
+  const { C } = useTheme();
+  const ui = useUI();
+  const s = useMemo(() => makeStyles(C), [C]);
+  const [sub, setSub] = useState<'charge' | 'membership' | null>(null);
+  useWebBack(sub !== null, () => setSub(null));
+
+  if (sub === 'charge') return <GuardianCharge {...props} />;
+  if (sub === 'membership') return <GuardianMembership {...props} />;
+
+  return (
+    <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
+      <Text style={ui.h}>결제</Text>
+      <Text style={s.sec}>충전 · 멤버십</Text>
+      {([['charge', '\u2295', '크레딧 충전', '자녀 크레딧을 충전해요'],
+         ['membership', '\u25C8', '멤버십 구독', '등급별 주간 크레딧·혜택을 봐요']] as const).map(([k, icon, title, desc]) => (
+        <TouchableOpacity key={k} style={[ui.card, s.hubRow]} activeOpacity={0.75} onPress={() => setSub(k)}>
+          <Text style={s.hubIc}>{icon}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={s.hubT}>{title}</Text>
+            <Text style={s.hubD}>{desc}</Text>
+          </View>
+          <Text style={s.hubCh}>{'\u203A'}</Text>
+        </TouchableOpacity>
+      ))}
+      <Text style={s.sec}>결제 요청</Text>
+      <GuardianPay {...props} />
+    </ScrollView>
+  );
+}
+
+/**
+ * 내정보 탭 — 동의·본인확인. 웹 학부모 `내정보` 대항목과 같은 내용이다(O185).
+ *
+ * 이전에는 이 게이트가 **상담 탭 안**에 묻혀 있었다. 미성년 자녀 정보 전달의 법적 관문인데
+ * 상담 리포트를 보러 들어가야 만나는 위치였다 — 자기 자리를 준다.
+ */
+export function GuardianMy({ children, activeId, setActiveId }: Props) {
+  const ui = useUI();
+  return (
+    <ScrollView style={ui.screen} contentContainerStyle={{ paddingBottom: 40 }}>
+      <Text style={ui.h}>내정보</Text>
+      <KidSwitcher children={children} activeId={activeId} setActiveId={setActiveId} />
+      <GuardianConsentSection studentId={activeId} />
+    </ScrollView>
+  );
+}
+
 const makeStyles = (C: Palette) => StyleSheet.create({
+  hubRow: { flexDirection: 'row', alignItems: 'center', gap: SP.md, marginBottom: SP.sm },
+  hubIc: { fontSize: 20, width: 26, textAlign: 'center', color: C.teal },
+  hubT: { fontSize: 14.5, fontWeight: '700', color: C.ink },
+  hubD: { fontSize: 12, color: C.muted, marginTop: 2 },
+  hubCh: { fontSize: 20, color: C.muted },
   promo: { backgroundColor: C.teal, borderRadius: R.card, padding: 16, marginTop: 4 },
   promoH: { fontSize: 17, fontWeight: '800', color: '#fff' },
   promoS: { fontSize: 13, color: '#EAF4F8', marginTop: 6, lineHeight: 19 },
