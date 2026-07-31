@@ -1,0 +1,14 @@
+{
+  // 이미지 빌드 전용 타입체크 — 테스트 파일을 제외한다.
+  //
+  // 왜 나누나: 테스트(`*.test.ts`)는 `node:fs`·`__dirname` 같은 Node API 를 쓰므로 `@types/node`
+  // 가 필요하다. 그 타입은 `apps/api` 의 devDependency 이고, 호스트에서는 루트 설치의 호이스팅
+  // 덕분에 우연히 잡혔지만 **web 이미지 빌더에는 apps/api 가 COPY 되지 않아** 사라진다
+  // (TS2307 'node:fs' / TS2304 '__dirname' 로 이미지 빌드가 막혔다).
+  //
+  // 배포 산출물에 테스트는 들어가지 않으므로 빌드 시 타입체크할 이유가 없다. 테스트의 타입은
+  // CI 의 `Web (typecheck · unit)` 잡이 `npm run typecheck`(= 루트 tsconfig, 테스트 포함)로
+  // 계속 검사하고 vitest 가 실제로 실행하므로 커버리지 손실은 없다.
+  "extends": "./tsconfig.json",
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/**/*.spec.ts", "src/**/*.spec.tsx"]
+}
