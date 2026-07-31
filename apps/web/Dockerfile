@@ -10,6 +10,10 @@ COPY packages/shared/package.json packages/shared/
 COPY packages/pricing/package.json packages/pricing/
 COPY packages/media-kit/package.json packages/media-kit/
 COPY packages/board-core/package.json packages/board-core/
+# ⚠ apps/web/package.json 이 의존하는 워크스페이스는 **빠짐없이** 여기에 있어야 한다.
+#    빠지면 npm 이 로컬 워크스페이스가 아니라 공개 레지스트리에서 찾다가 404 로 죽는다
+#    (O188 에서 packages/nav 를 신설하고 이 줄을 빠뜨려 이미지 빌드가 막혔다).
+COPY packages/nav/package.json packages/nav/
 # macOS 에서 생성된 lock 은 linux/musl rollup 바이너리를 누락(npm optional-deps 버그).
 # lock 을 지우고 install 하면 컨테이너 플랫폼에 맞는 optional 을 새로 해석한다.
 RUN rm -f package-lock.json && npm install --no-audit --no-fund

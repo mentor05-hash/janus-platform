@@ -15,6 +15,11 @@ COPY packages/media-kit/package.json packages/media-kit/
 COPY packages/board-core/package.json packages/board-core/
 COPY packages/guard-school-record/package.json packages/guard-school-record/
 COPY packages/janus-planner/package.json packages/janus-planner/
+# ⚠ apps/api/package.json 이 의존하는 워크스페이스는 빠짐없이 여기에 있어야 한다.
+#    빠지면 npm 이 공개 레지스트리에서 찾다가 404 로 죽는다(O188 packages/nav 신설 시 누락).
+COPY packages/nav/package.json packages/nav/
+# 워크스페이스 `prepare` 는 소스 유무를 스스로 확인한다(각 package.json 참조) — 이 시점에는
+# 소스가 아직 COPY 전이라 건너뛰고, 실제 빌드는 아래 COPY . . 뒤에서 명시적으로 한다.
 RUN npm ci
 
 # 소스 복사 후 Prisma client 생성 + 빌드 → 런타임 의존성만 남김
@@ -43,6 +48,7 @@ COPY --from=builder /app/node_modules ./node_modules
 # 워크스페이스 실파일(dist 포함) — node_modules/@mentoring 심링크 대상.
 COPY --from=builder /app/packages/guard-school-record ./packages/guard-school-record
 COPY --from=builder /app/packages/janus-planner ./packages/janus-planner
+COPY --from=builder /app/packages/nav ./packages/nav
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/dist-seed ./apps/api/dist-seed
 COPY --from=builder /app/apps/api/prisma ./apps/api/prisma

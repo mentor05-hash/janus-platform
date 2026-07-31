@@ -266,3 +266,81 @@ jobs:
           # export 스크립트가 읽는 값 — 실제 서빙은 nginx 프록시 뒤 상대경로다.
           EXPO_PUBLIC_API_BASE: /api/v1
           EXPO_PUBLIC_DEMO_MODE: 'false'
+
+  images:
+    name: 이미지 빌드 (web · api · mobile · rooms)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      # 왜 이 잡이 필요한가: 나머지 잡은 전부 **호스트에서** npm ci 를 돌린다. 호스트에는 모든
+      # 워크스페이스가 한 트리에 설치되므로, 어떤 패키지가 자기가 선언하지 않은 것에
+      # **호이스팅으로 얹혀 있어도** 통과한다. 이미지는 워크스페이스를 쪼개 필요한 것만 COPY 하므로
+      # 그 우연한 결합이 그때서야 드러난다 — 즉 CI 는 초록인데 배포가 불가능한 상태가 된다.
+      #
+      # 실제로 2026-07-31 에 그 상태였고 다섯 군데가 한꺼번에 나왔다:
+      #   ① Dockerfile 워크스페이스 COPY 에 packages/nav 누락 → npm 이 레지스트리에서 찾다 404
+      #   ② 워크스페이스 prepare 가 소스 COPY 전에 tsc 실행 → TS5058
+      #   ③ web 테스트가 api 의 @types/node 에 얹힘 → TS2307
+      #   ④⑤ 순수 도메인 패키지가 web 의 @types/react 에 얹힘 → TS2688
+      # 다섯 건 모두 이 잡이 있었으면 PR 단계에서 잡혔다.
+
+      # 모바일 이미지는 Dockerfile 이 `apps/mobile/dist`(expo export 산출물)를 전제한다.
+      # 그래서 이미지 빌드 전에 여기서 한 번 만든다 — 이 단계가 없으면 clean checkout 에서
+      # 모바일 이미지는 아예 빌드되지 않는다(로컬에 dist 가 남아 있으면 통과해 보인다).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Expo web export (모바일 이미지 입력)
+        run: npm run export:web
+        working-directory: apps/mobile
+        env:
+          EXPO_PUBLIC_API_BASE: /api/v1
+          EXPO_PUBLIC_DEMO_MODE: 'false'
+
+      # 빌드 컨텍스트는 모노레포 루트다(각 Dockerfile 주석 참조). push 는 하지 않는다 —
+      # 레지스트리가 정해지기 전까지는 "빌드가 되는가"만 검증한다.
+      - name: web 이미지
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: false
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max
+
+      - name: api 이미지
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: false
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+
+      # ⚠ 파일명이 Dockerfile 이 아니라 Dockerfile.web 이다(compose 와 동일 경로를 써야 한다).
+      #    처음에 apps/mobile/Dockerfile 로 적었다가 CI 에서 "no such file" 로 실패했다 —
+      #    로컬 검증을 `docker compose build mobile` 로 해서 compose 가 아는 경로를 탔고,
+      #    잡이 쓰는 경로는 검증되지 않았다. 경로는 compose 정의와 맞춰 둘 것.
+      - name: mobile 이미지
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/mobile/Dockerfile.web
+          push: false
+          cache-from: type=gha,scope=mobile
+          cache-to: type=gha,scope=mobile,mode=max
+
+      # 룸 서비스(:3100)도 배포 대상이다 — 빠뜨리면 같은 구멍이 그대로 남는다.
+      - name: rooms 이미지
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/realtime-rooms/Dockerfile
+          push: false
+          cache-from: type=gha,scope=rooms
+          cache-to: type=gha,scope=rooms,mode=max
