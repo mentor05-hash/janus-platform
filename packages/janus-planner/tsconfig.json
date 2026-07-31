@@ -9,8 +9,15 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "types": []  // 빌드를 밀폐(hermetic)로 유지한다. types 를 비우지 않으면 TypeScript 가 node_modules/@types 전체를 자동 포함해, 형제 워크스페이스(web 의 @types/react 등)의 타입에 얹히게 된다. 그 워크스페이스가 없는 컨텍스트(api 이미지 빌더)에서는 TS2688 로 죽는다. 이 패키지는 의존성 0 순수 도메인이라 앰비언트 타입이 필요 없다.
   },
-  "include": ["src"],
-  "exclude": ["src/**/*.test.ts", "dist", "node_modules"]
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "src/**/*.test.ts",
+    "dist",
+    "node_modules"
+  ]
 }
