@@ -1,30 +1,63 @@
 {
   "_comment": "티어 빌드 규약 — 배치표 마스터(HTML) → dist-tier/{tier}. 저작권 데이터는 repo 밖(JANUS_DATA_DIR), 이 파일은 '무엇을 어느 티어에 남길지'의 선언만 담는다. 접합계약 C4(4종)·C6(데이터 경계) 준수. 실행: python3 ops/placement/tier_build.py --src <마스터.html> --tier free|member|paid|consultant [--out dist-tier]",
-  "levels": ["free", "member", "paid", "consultant"],
+  "levels": [
+    "free",
+    "member",
+    "paid",
+    "consultant"
+  ],
   "watermark": "야누스 · 예측 면책 — 모든 수치는 지난 입시 데이터 기반 추정치이며 실제 합격을 보장하지 않습니다. 재배포 금지.",
   "access_log_endpoint": "/api/v1/funnel/event",
   "tiers": {
     "free": {
       "label": "무료판",
-      "flags": { "fullTable": false, "filters": false, "advanced": false, "showNumbers": false, "recPerBand": 4 },
-      "strip_assignments": ["__JANUS_RAWDATA__", "__JANUS_CUTS__"],
+      "flags": {
+        "fullTable": false,
+        "filters": false,
+        "advanced": false,
+        "showNumbers": false,
+        "recPerBand": 4
+      },
+      "strip_assignments": [
+        "__JANUS_RAWDATA__",
+        "__JANUS_CUTS__"
+      ],
       "access_log": true
     },
     "member": {
       "label": "회원판",
-      "flags": { "fullTable": true, "filters": true, "advanced": false, "showNumbers": true, "recPerBand": 999 },
+      "flags": {
+        "fullTable": true,
+        "filters": true,
+        "advanced": false,
+        "showNumbers": true,
+        "recPerBand": 999
+      },
       "strip_assignments": [],
       "access_log": false
     },
     "paid": {
       "label": "유료판",
-      "flags": { "fullTable": true, "filters": true, "advanced": true, "showNumbers": true, "recPerBand": 999 },
+      "flags": {
+        "fullTable": true,
+        "filters": true,
+        "advanced": true,
+        "showNumbers": true,
+        "recPerBand": 999
+      },
       "strip_assignments": [],
       "access_log": false
     },
     "consultant": {
       "label": "컨설턴트판",
-      "flags": { "fullTable": true, "filters": true, "advanced": true, "showNumbers": true, "recPerBand": 999, "consultantTools": true },
+      "flags": {
+        "fullTable": true,
+        "filters": true,
+        "advanced": true,
+        "showNumbers": true,
+        "recPerBand": 999,
+        "consultantTools": true
+      },
       "strip_assignments": [],
       "access_log": false
     }
@@ -33,21 +66,57 @@
     "_comment": "티어별 검증. tiers.{t}.forbidden=그 판에 있으면 안 되는 패턴, required=반드시 있어야 하는 표식. free=저작권 원천·컷·상위티어 전부 부재(공개판). member=상위(유료/컨설턴트) 전용만 부재(회원 데이터는 정상 보유 — 비공개 게이트 뒤). 실제 마스터용 원천 파일명 토큰은 free·member 공통 방어선.",
     "tiers": {
       "free": {
-        "forbidden": ["cut70", "cut50", "70%컷 1.2", "회원 전용", "유료 전용", "컨설턴트 전용", "고속_어디가", "esteacher", "adiga_정시", "_INTERNAL", "보정_calib"],
-        "required": ["data-janus-watermark", "__JANUS_TIER"]
+        "forbidden": [
+          "cut70",
+          "cut50",
+          "70%컷 1.2",
+          "회원 전용",
+          "유료 전용",
+          "컨설턴트 전용",
+          "고속_어디가",
+          "esteacher",
+          "adiga_정시",
+          "_INTERNAL",
+          "보정_calib"
+        ],
+        "required": [
+          "data-janus-watermark",
+          "__JANUS_TIER"
+        ],
+        "require_stripping": true
       },
       "member": {
-        "forbidden": ["유료 전용", "컨설턴트 전용", "고속_어디가", "esteacher", "adiga_정시", "_INTERNAL", "보정_calib"],
-        "required": ["data-janus-watermark", "__JANUS_TIER"]
+        "forbidden": [
+          "유료 전용",
+          "컨설턴트 전용",
+          "고속_어디가",
+          "esteacher",
+          "adiga_정시",
+          "_INTERNAL",
+          "보정_calib"
+        ],
+        "required": [
+          "data-janus-watermark",
+          "__JANUS_TIER"
+        ]
       },
       "paid": {
-        "forbidden": ["컨설턴트 전용"],
-        "required": ["data-janus-watermark", "__JANUS_TIER"]
+        "forbidden": [
+          "컨설턴트 전용"
+        ],
+        "required": [
+          "data-janus-watermark",
+          "__JANUS_TIER"
+        ]
       },
       "consultant": {
         "forbidden": [],
-        "required": ["data-janus-watermark", "__JANUS_TIER"]
+        "required": [
+          "data-janus-watermark",
+          "__JANUS_TIER"
+        ]
       }
-    }
+    },
+    "_structural": "require_stripping: 빌드가 실제로 제거한 영역/페이로드가 0 이면 실패시킨다. 금지 토큰 목록은 마스터가 그 이름을 쓸 때만 걸리는 2차 방어라, 센티넬이 없는 마스터에서는 \"아무것도 안 지웠는데 통과\"가 나온다(2026-07-31 실측)."
   }
 }

@@ -10,9 +10,23 @@
 
 사용: python3 ops/placement/tier_verify.py <파일 또는 디렉토리> [--tier free|member|paid|consultant] [--config ...]
 """
-import argparse, json, os, sys
+import argparse, json, os, re, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+BUILD_MARKER = re.compile(r'<!--JANUS-BUILD:(\{.*?\})-->', re.DOTALL)
+
+
+def read_build_marker(html):
+    """tier_build 가 남긴 제거 통계를 읽는다. 없으면 None."""
+    m = BUILD_MARKER.search(html)
+    if not m:
+        return None
+    try:
+        return json.loads(m.group(1))
+    except ValueError:
+        return None
 
 
 def iter_html(target):
@@ -56,6 +70,31 @@ def main():
         with open(path, encoding='utf-8', errors='replace') as f:
             html = f.read()
         print('· 검증:', path)
+
+        # ── 구조 검사(1차 방어) ────────────────────────────────────────────
+        # 금지 토큰 목록은 **마스터가 그 이름을 쓸 때만** 걸린다. 센티넬도 strip 대상도 없는
+        # 마스터는 아무것도 제거되지 않은 채 토큰도 없으므로 목록만으로는 초록이 난다.
+        # 그래서 "빌드가 실제로 무엇을 제거했는가"를 먼저 본다.
+        marker = read_build_marker(html)
+        if marker is None:
+            print('  ❌ 빌드 마커 없음 — 무엇이 제거됐는지 증명할 수 없어 통과시키지 않는다')
+            print('     (tier_build.py 로 다시 빌드할 것)')
+            ok = False
+        else:
+            removed = int(marker.get('regions_removed', 0)) + int(marker.get('payloads_stripped', 0))
+            print('  · 빌드 마커: 영역 %s · 페이로드 %s · %s→%s bytes'
+                  % (marker.get('regions_removed'), marker.get('payloads_stripped'),
+                     marker.get('src_bytes'), marker.get('masked_bytes')))
+            if marker.get('tier') != a.tier:
+                print('  ❌ 티어 불일치: 마커=%s, 검증=%s' % (marker.get('tier'), a.tier))
+                ok = False
+            if tconf.get('require_stripping') and removed == 0:
+                print('  ❌ 제거 0건 — 이 티어는 상위 데이터가 물리적으로 빠져야 한다.')
+                print('     마스터에 JANUS-TIER 센티넬이 없거나 strip_assignments 대상이 없다는 뜻이다.')
+                print('     이 상태로 배포하면 원본이 그대로 공개된다(금지 토큰이 안 걸려도 마찬가지).')
+                ok = False
+
+        # ── 토큰 검사(2차 방어) ────────────────────────────────────────────
         for pat in forbidden:
             if pat in html:
                 cnt = html.count(pat)

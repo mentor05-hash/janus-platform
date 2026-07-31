@@ -94,6 +94,17 @@ def strip_assignment(html, name):
 
 
 # ── 3~5) 주입(FLAGS·워터마크·접속로그) ────────────────────────────────────
+def build_marker(stats):
+    """빌드가 **실제로 무엇을 제거했는지**를 산출물에 남긴다(tier_verify 가 읽는다).
+
+    왜 필요한가: 금지 토큰 목록만으로는 "제거가 0건인데 통과"를 막지 못한다. 목록은 마스터가
+    그 이름을 쓸 때만 걸리는데, 센티넬·strip 대상이 없는 마스터는 아무것도 제거되지 않은 채
+    토큰도 없으므로 게이트가 초록을 낸다(2026-07-31 실측: 4.7MB 원본이 그대로 '공개 배포 가능').
+    제거량을 기록해 두면 검증기가 그 상태를 **구조적으로** 실패시킬 수 있다.
+    """
+    return '<!--JANUS-BUILD:' + json.dumps(stats, ensure_ascii=False, sort_keys=True) + '-->'
+
+
 def flags_script(tier, flags):
     return ('<script>window.__JANUS_TIER=' + json.dumps(tier) +
             ';window.__JANUS_FLAGS=' + json.dumps(flags, ensure_ascii=False) + ';</script>')
@@ -145,12 +156,21 @@ def build(src, tier, cfg, out_dir):
     with open(src, encoding='utf-8') as f:
         html = f.read()
 
+    src_bytes = len(html)
     html, n_regions = mask_regions(html, levels, tier)
     n_assign = 0
     for name in tconf.get('strip_assignments', []):
         html, ok = strip_assignment(html, name)
         n_assign += 1 if ok else 0
+    masked_bytes = len(html)
 
+    html = inject(html, build_marker({
+        'tier': tier,
+        'regions_removed': n_regions,
+        'payloads_stripped': n_assign,
+        'src_bytes': src_bytes,
+        'masked_bytes': masked_bytes,
+    }), 'body_start')
     html = inject(html, flags_script(tier, tconf['flags']), 'body_start')
     html = inject_before_body_end(html, watermark_html(cfg['watermark'], tconf['label']))
     if tconf.get('access_log'):
