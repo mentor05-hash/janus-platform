@@ -268,7 +268,7 @@ jobs:
           EXPO_PUBLIC_DEMO_MODE: 'false'
 
   images:
-    name: 이미지 빌드 (web · api · mobile)
+    name: 이미지 빌드 (web · api · mobile · rooms)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -322,11 +322,25 @@ jobs:
           cache-from: type=gha,scope=api
           cache-to: type=gha,scope=api,mode=max
 
+      # ⚠ 파일명이 Dockerfile 이 아니라 Dockerfile.web 이다(compose 와 동일 경로를 써야 한다).
+      #    처음에 apps/mobile/Dockerfile 로 적었다가 CI 에서 "no such file" 로 실패했다 —
+      #    로컬 검증을 `docker compose build mobile` 로 해서 compose 가 아는 경로를 탔고,
+      #    잡이 쓰는 경로는 검증되지 않았다. 경로는 compose 정의와 맞춰 둘 것.
       - name: mobile 이미지
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: apps/mobile/Dockerfile
+          file: apps/mobile/Dockerfile.web
           push: false
           cache-from: type=gha,scope=mobile
           cache-to: type=gha,scope=mobile,mode=max
+
+      # 룸 서비스(:3100)도 배포 대상이다 — 빠뜨리면 같은 구멍이 그대로 남는다.
+      - name: rooms 이미지
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/realtime-rooms/Dockerfile
+          push: false
+          cache-from: type=gha,scope=rooms
+          cache-to: type=gha,scope=rooms,mode=max
