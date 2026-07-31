@@ -33,6 +33,8 @@ RESTORE_DB=janus_restore_test ./ops/restore-db.sh <최신백업> --yes
 
 ## 오프사이트 백업 (`backup-offsite.sh`) — §2-4
 
+> **운용 규약·위협 모델은 `docs/20_exec/야누스_백업_운용_런북_2026-07-31.md`** 에 있다 — 어떤 사본이 어떤 사고를 막는지, 외장 디스크를 왜 뽑아 둬야 하는지, `RESTIC_PASSWORD` 보관 규약, 복원 리허설 주기. 이 절은 명령 사용법만 다룬다.
+
 `backup-db.sh` 로 DB 덤프를 새로 만든 뒤, 그 덤프 + `janus-data` + `.env` 금고를
 **restic 으로 암호화**해 Cloudflare R2 로 올린다. 로컬 백업을 **대체하지 않고 위에 얹는다** —
 로컬은 빠른 복구용, R2 는 기기 분실·디스크 사망·랜섬웨어 대비 오프사이트 사본이다.
