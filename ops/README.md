@@ -48,6 +48,7 @@ RESTORE_DB=janus_restore_test ./ops/restore-db.sh <최신백업> --yes
 
 > ⚠ **`RESTIC_PASSWORD` 를 잃으면 백업을 영원히 복호화할 수 없다.** restic 은 복구 수단이
 > 없다. 이 파일 하나에만 두지 말고 비밀번호 관리자에 사본을 반드시 따로 보관할 것.
+> 보관했다면 **`verify-restic-password.sh` 로 그 사본이 실제로 여는지 확인**한다(아래).
 
 보존 정책은 **일 14 · 주 8 · 월 12**(`restic forget --prune`), 매 실행 끝에 `restic check`
 구조 검사를 돌린다. postgres 컨테이너가 떠 있지 않으면 DB 덤프만 건너뛰고 나머지는 백업한다.
@@ -63,6 +64,28 @@ launchctl list | grep com.janus.backup   # 확인 (2번째 열이 마지막 종�
 
 매일 03:00 실행. 맥이 잠들어 그 시각을 놓치면 `RunAtLoad` 로 로그인 시 1회 보정한다.
 로그는 저장소 밖 `~/janus/backup-offsite.log`.
+
+### `RESTIC_PASSWORD` 사본 검증 (`verify-restic-password.sh`) — 런북 §4
+
+비밀번호 관리자에 옮겨 적은 **사본**이 실제로 R2 저장소를 여는지 확인한다.
+**대화식으로 실행하고, 관리자에서 복사한 값을 붙여넣는다** — 화면에 표시되지 않고
+셸 히스토리·argv·디스크 어디에도 남지 않는다.
+
+```bash
+./ops/verify-restic-password.sh
+```
+
+> ⚠ **`backup.env` 의 값으로 `restic snapshots` 를 돌리는 것은 이 검증이 아니다.**
+> 그것은 *원본*을 확인한 것이고, 원본이 동작한다는 사실은 launchd 백업이 매일 증명한다.
+> 미검증인 명제는 "관리자의 사본이 원본과 같은가" 하나뿐이라, 사본을 손으로 입력해야 한다.
+> 스크립트가 파일에서 읽힌 `RESTIC_PASSWORD` 를 명시적으로 `unset` 하는 이유가 이것이다 —
+> 남겨 두면 무엇을 입력하든 통과하는 무의미한 의식이 된다.
+
+판정은 `--no-cache` 로 R2 에 실제 접속해서 한다(로컬 캐시의 키 파일로 거짓 통과 방지).
+실패하면 값·길이는 출력하지 않고 흔한 전사 실수의 *형태*만 알린다(앞뒤 공백·대소문자).
+
+**이 스크립트 자체의 판별력은 양성·음성 대조로 확인돼 있다**(2026-07-31):
+틀린 값 → `wrong password or no key found`(종료 12) · 원본 → 스냅샷 3개(종료 0).
 
 ### R2 복원 리허설 (§2-4 — 백업은 복원이 검증돼야 백업)
 
