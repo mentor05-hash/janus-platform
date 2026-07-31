@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  야누스 오프사이트 백업 스케줄 — 실행계획서 §2-4 "일 1회 자동".
+  매일 03:00 에 ops/backup-offsite.sh 실행(기존 README 의 크론 예시와 같은 시각).
+
+  설치:
+    sed "s#__REPO__#$(pwd)#g" ops/launchd/com.janus.backup.plist \
+      > ~/Library/LaunchAgents/com.janus.backup.plist
+    launchctl load ~/Library/LaunchAgents/com.janus.backup.plist
+
+  확인:  launchctl list | grep com.janus.backup
+  즉시 1회: launchctl start com.janus.backup
+  해제:  launchctl unload ~/Library/LaunchAgents/com.janus.backup.plist
+
+  ⚠ 자격증명은 plist 에 넣지 않는다 — 스크립트가 ~/.config/janus/backup.env 에서 읽는다.
+  ⚠ 맥이 잠들어 있으면 그 시각을 건너뛴다. RunAtLoad 로 로그인 시 1회 보정한다.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.janus.backup</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>-lc</string>
+    <string>__REPO__/ops/backup-offsite.sh</string>
+  </array>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key><integer>3</integer>
+    <key>Minute</key><integer>0</integer>
+  </dict>
+
+  <!-- 잠들어서 03:00 을 놓쳤을 때 로그인 시 1회 보정 실행. -->
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>__REPO__/../../backup-offsite.log</string>
+  <key>StandardErrorPath</key>
+  <string>__REPO__/../../backup-offsite.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <!-- launchd 는 로그인 셸 PATH 를 상속하지 않는다 — docker·restic 경로를 명시. -->
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+</dict>
+</plist>
