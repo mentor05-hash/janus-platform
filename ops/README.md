@@ -31,6 +31,50 @@ RESTORE_DB=janus_restore_test ./ops/restore-db.sh <최신백업> --yes
 # 검증 카운트(accounts/bookings/credit_accounts)가 0이 아니면 정상. 끝나면 DROP DATABASE.
 ```
 
+## 오프사이트 백업 (`backup-offsite.sh`) — §2-4
+
+`backup-db.sh` 로 DB 덤프를 새로 만든 뒤, 그 덤프 + `janus-data` + `.env` 금고를
+**restic 으로 암호화**해 Cloudflare R2 로 올린다. 로컬 백업을 **대체하지 않고 위에 얹는다** —
+로컬은 빠른 복구용, R2 는 기기 분실·디스크 사망·랜섬웨어 대비 오프사이트 사본이다.
+
+```bash
+./ops/backup-offsite.sh
+```
+
+자격증명은 **저장소 밖** `~/.config/janus/backup.env`(권한 600)에서만 읽는다. 커밋 금지.
+필요한 키: `R2_ACCOUNT_ID` `R2_BUCKET` `AWS_ACCESS_KEY_ID` `AWS_SECRET_ACCESS_KEY` `RESTIC_PASSWORD`.
+
+> ⚠ **`RESTIC_PASSWORD` 를 잃으면 백업을 영원히 복호화할 수 없다.** restic 은 복구 수단이
+> 없다. 이 파일 하나에만 두지 말고 비밀번호 관리자에 사본을 반드시 따로 보관할 것.
+
+보존 정책은 **일 14 · 주 8 · 월 12**(`restic forget --prune`), 매 실행 끝에 `restic check`
+구조 검사를 돌린다. postgres 컨테이너가 떠 있지 않으면 DB 덤프만 건너뛰고 나머지는 백업한다.
+
+### 일 1회 자동 실행 (launchd)
+
+```bash
+sed "s#__REPO__#$(pwd)#g" ops/launchd/com.janus.backup.plist \
+  > ~/Library/LaunchAgents/com.janus.backup.plist
+launchctl load ~/Library/LaunchAgents/com.janus.backup.plist
+launchctl list | grep com.janus.backup   # 확인 (2번째 열이 마지막 종료코드)
+```
+
+매일 03:00 실행. 맥이 잠들어 그 시각을 놓치면 `RunAtLoad` 로 로그인 시 1회 보정한다.
+로그는 저장소 밖 `~/janus/backup-offsite.log`.
+
+### R2 복원 리허설 (§2-4 — 백업은 복원이 검증돼야 백업)
+
+로컬 덤프가 아니라 **R2 에서 실제로 받아** 되살아나는지 확인한다. `--no-cache` 로 로컬
+캐시를 우회해야 진짜 오프사이트를 검증하는 것이 된다.
+
+```bash
+set -a; . ~/.config/janus/backup.env; set +a
+export RESTIC_REPOSITORY="s3:https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET}"
+restic restore latest --tag janus --no-cache --include "*/janus-backups/*.sql.gz" --target /tmp/r2drill
+RESTORE_DB=janus_r2_restore ./ops/restore-db.sh /tmp/r2drill/**/janus-*.sql.gz --yes
+# 검증 후: DROP DATABASE janus_r2_restore; rm -rf /tmp/r2drill  (실데이터라 반드시 삭제)
+```
+
 ## 데모 터널 재부팅 자동시작 (선택)
 현재 터널 감시자는 `~/mentoring-tunnels/run.sh`(nohup)로 떠 있어 세션을 닫아도 유지되지만
 **컴퓨터를 재부팅하면 멈춥니다.** 재부팅에도 자동 시작하려면 LaunchAgent 등록:
