@@ -6,17 +6,15 @@ import { roleHome } from '../auth/roleHome';
 import { Button, ErrorText, TextField, PasswordField } from '../components/ui';
 import { APP_NAME } from '../branding.generated';
 import { JanusLogo } from '../components/JanusLogo';
+import { DEMO_PW, DEMO_RESTRICTED_MSG, isDemoRestricted } from '../auth/demoAccounts';
 
-const DEMO_PW = 'dev-password!';
 // 데모 모드에서만 로그인 편의(자동로그인·역할 원터치·기본 비번 노출) 활성. 실서비스=false.
 const DEMO = import.meta.env.VITE_DEMO_MODE === 'true';
 // 역할별 대표 데모 계정 — 클릭하면 아이디·비번 자동 채움.
+// 관리자·본사·마스터·HR 은 제외 — 체험 입구(/demo)와 같은 판정(demoAccounts).
+// 칩은 /demo 카드와 똑같은 원터치 동선이라, 한쪽만 막으면 게이트가 형식적이 된다.
 const ROLES = [
   { label: '선생님', id: 'teacher01' },
-  { label: '센터관리자', id: 'admin01' },
-  { label: '본사관리자', id: 'hq01' },
-  { label: '마스터', id: 'master01' },
-  { label: 'HR', id: 'hr01' },
   { label: '학생', id: 'student01' },
   { label: '유료회원', id: 'paid01' },
   { label: '학부모', id: 'guardian01' },
@@ -44,6 +42,11 @@ export function LoginPage() {
     const p = q.get('p');
     if (!u || !p) return;
     setLoginId(u);
+    // 관리자 콘솔 계정은 자동 로그인 대상에서 제외 — /demo 의 잠금을 딥링크로 우회하지 못하게.
+    if (isDemoRestricted(u)) {
+      setError(`${DEMO_RESTRICTED_MSG} — 이 계정은 링크로 자동 로그인되지 않습니다.`);
+      return;
+    }
     setPassword(p);
     (async () => {
       setBusy(true);
@@ -62,6 +65,12 @@ export function LoginPage() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
+    // 데모 빌드에서만 — 관리자 콘솔 계정은 폼으로도 막는다. 이걸 빼면 /demo 잠금이
+    // "아이디는 채워져 있고 비번은 화면에 적혀 있으니 버튼만 누르면 됨"이 되어 무의미해진다.
+    if (DEMO && isDemoRestricted(loginId)) {
+      setError(`${DEMO_RESTRICTED_MSG} — 데모 빌드에서는 관리자 계정으로 로그인할 수 없습니다.`);
+      return;
+    }
     setBusy(true);
     try {
       const me = await login(loginId, password);

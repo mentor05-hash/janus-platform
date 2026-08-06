@@ -6,8 +6,8 @@ import { roleHome } from '../auth/roleHome';
 import { Badge, Button, ErrorText } from '../components/ui';
 import { APP_NAME } from '../branding.generated';
 import { JanusLogo } from '../components/JanusLogo';
+import { DEMO_PW, DEMO_RESTRICTED_MSG, isDemoRestricted } from '../auth/demoAccounts';
 
-const DEMO_PW = 'dev-password!';
 // 데모 모드에서만 노출. 실서비스 빌드(VITE_DEMO_MODE≠true)에선 라우트 자체가 /login 으로 튕긴다.
 const DEMO = import.meta.env.VITE_DEMO_MODE === 'true';
 
@@ -44,7 +44,7 @@ const GROUPS: Group[] = [
   {
     role: '관리자',
     home: '/admin/dashboard',
-    hint: '대시보드 · 상품 권한 · 학생/직원 · 감사 · 지표',
+    hint: '체험 링크로는 열 수 없습니다 — 계정 체계 참고용',
     members: [
       { id: 'admin01', name: '센터관리자', note: '센터 소속 — 자기 센터 범위' },
       { id: 'hq01', name: '본사관리자', note: '센터 미소속 — 전 센터 범위' },
@@ -54,7 +54,7 @@ const GROUPS: Group[] = [
   {
     role: 'HR',
     home: '/admin/dashboard',
-    hint: '선생님·직원 인사 화면',
+    hint: '관리자와 같은 콘솔 — 체험 링크로는 열 수 없습니다',
     members: [{ id: 'hr01', name: 'HR더미', note: '인사 전용 권한' }],
   },
   {
@@ -76,12 +76,20 @@ export function DemoEntryPage() {
   const [busyId, setBusyId] = useState('');
   const [copied, setCopied] = useState('');
   const [error, setError] = useState('');
+  // 잠긴 카드를 누른 계정 — 그 카드 아래에만 안내를 띄운다.
+  const [lockedId, setLockedId] = useState('');
 
   // 실서비스 빌드에서 이 주소로 들어오면 평범한 로그인 화면으로.
   if (!DEMO) return <Navigate to="/login" replace />;
 
   async function enter(m: Member) {
     setError('');
+    // 관리자 콘솔 계정은 체험 입구에서 진입시키지 않는다 — 공개 링크로 열리는 범위를 좁힌다.
+    if (isDemoRestricted(m.id)) {
+      setLockedId(m.id);
+      return;
+    }
+    setLockedId('');
     setBusyId(m.id);
     try {
       const me = await login(m.id, DEMO_PW);
@@ -116,6 +124,7 @@ export function DemoEntryPage() {
             </div>
             <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 3 }}>
               {APP_NAME} 체험용 입구 — 아이디·비밀번호는 이미 채워져 있어요. 이름을 누르기만 하면 됩니다.
+              <br />관리자·HR 계정은 잠겨 있습니다(🔒 표시).
             </div>
           </div>
         </div>
@@ -146,24 +155,34 @@ export function DemoEntryPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
               {g.members.map((m) => {
                 const on = user?.login_id === m.id;
+                const locked = isDemoRestricted(m.id);
                 return (
-                  <div key={m.id} className="card" style={{ padding: 14, borderColor: on ? 'var(--teal)' : undefined }}>
+                  <div key={m.id} className="card" style={{ padding: 14, borderColor: on ? 'var(--teal)' : undefined, opacity: locked ? 0.72 : 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <strong style={{ fontSize: 15, color: 'var(--ink)' }}>{m.name}</strong>
                       {on && <Badge kind="new">접속 중</Badge>}
+                      {locked && <Badge kind="soft">🔒 관리자 전용</Badge>}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--muted)', margin: '4px 0 2px' }}>{m.note}</div>
+                    {/* 잠긴 계정은 비밀번호를 노출하지 않는다 — 안내만 하고 막는 게 앞뒤가 맞는다. */}
                     <div style={{ fontSize: 11, color: 'var(--caption)', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
-                      {m.id} / {DEMO_PW}
+                      {locked ? m.id : `${m.id} / ${DEMO_PW}`}
                     </div>
                     <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                      <Button size="sm" loading={busyId === m.id} onClick={() => enter(m)} style={{ flex: 1 }}>
-                        바로 로그인
+                      <Button size="sm" variant={locked ? 'ghost' : 'primary'} loading={busyId === m.id} onClick={() => enter(m)} style={{ flex: 1 }}>
+                        {locked ? '🔒 관리자 전용' : '바로 로그인'}
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => copy(m.id)}>
-                        {copied === m.id ? '복사됨' : '링크 복사'}
-                      </Button>
+                      {!locked && (
+                        <Button size="sm" variant="ghost" onClick={() => copy(m.id)}>
+                          {copied === m.id ? '복사됨' : '링크 복사'}
+                        </Button>
+                      )}
                     </div>
+                    {locked && lockedId === m.id && (
+                      <p role="status" style={{ fontSize: 12, color: 'var(--danger)', margin: '8px 0 0', lineHeight: 1.5 }}>
+                        {DEMO_RESTRICTED_MSG} — 체험 링크로는 관리자 콘솔에 들어갈 수 없습니다.
+                      </p>
+                    )}
                   </div>
                 );
               })}

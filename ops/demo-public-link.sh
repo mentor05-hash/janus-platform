@@ -91,7 +91,9 @@ cat <<EOF
 
 ● 회원별 바로가기(누르면 로그인 화면을 안 거치고 진입)
 EOF
-for id in student01 paidall teacher01 admin01 hq01 master01 hr01 guardian01; do
+# 관리자 콘솔 계정(admin01·hq01·master01·hr01)은 제외 — 데모 빌드가 이 계정들의
+# 원터치/딥링크 진입을 막으므로 링크를 뿌려봐야 안 열린다(apps/web/src/auth/demoAccounts.ts).
+for id in student01 paidall teacher01 guardian01; do
   printf '  %-11s %s/login?u=%s&p=dev-password%%21\n' "$id" "$WEB_URL" "$id"
 done
 cat <<EOF
