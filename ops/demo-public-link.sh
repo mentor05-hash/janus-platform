@@ -35,9 +35,10 @@ done
 curl -fsS http://localhost:3000/api/v1/health >/dev/null || { echo "✗ API 가 뜨지 않음 — docker compose logs api"; exit 1; }
 
 # ── 1-2) 프런트 최신화 ──────────────────────────────────────────
-# 이미지 재빌드(docker build) 대신 호스트에서 빌드해 컨테이너에 넣는다 — Docker Hub 가
-# 막힌 망에서도 동작하고 훨씬 빠르다. 컨테이너를 새로 만들면(up --force-recreate) 이미지의
-# 옛 산출물로 돌아가므로, 이 스크립트를 다시 돌려 최신화한다. --no-build 로 건너뛸 수 있음.
+# 호스트에서 빌드해 컨테이너에 넣는다 — docker build 보다 훨씬 빠르고, 작업 중인 워킹트리가
+# 그대로 반영된다. 이 반영은 컨테이너 수명 동안만 유효하므로(up --force-recreate 하면 이미지의
+# 산출물로 돌아감) 소스를 이미지에 굳히려면 `docker compose -f docker-compose.full.yml build
+# web mobile` 을 따로 돌린다. --no-build 로 이 단계를 건너뛸 수 있음.
 if [[ "${1:-}" != "--no-build" ]]; then
   echo "▸ 웹·모바일 빌드 후 컨테이너에 반영…"
   VITE_DEMO_MODE=true npm run build --workspace apps/web >/dev/null
