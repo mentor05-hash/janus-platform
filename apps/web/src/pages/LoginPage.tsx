@@ -102,7 +102,12 @@ export function LoginPage() {
         )}
         <TextField label="아이디" value={loginId} onChange={(e) => setLoginId(e.target.value)} />
         <PasswordField label="비밀번호" value={password} onChange={(e) => setPassword(e.target.value)} />
-        {DEMO && <p style={{ fontSize: 11, color: 'var(--caption)', margin: '4px 0 0' }}>데모 비밀번호 공통: <b>{DEMO_PW}</b> · 아이디 숫자만 바꿔 다른 계정 사용</p>}
+        {DEMO && (
+          <p style={{ fontSize: 11, color: 'var(--caption)', margin: '4px 0 0' }}>
+            데모 비밀번호 공통: <b>{DEMO_PW}</b> · 아이디 숫자만 바꿔 다른 계정 사용
+            {' · '}<Link to="/demo" style={{ color: 'var(--blue)', fontWeight: 700 }}>회원 목록에서 고르기</Link>
+          </p>
+        )}
         <ErrorText>{error}</ErrorText>
         <Button type="submit" block loading={busy} style={{ marginTop: 12 }}>
           로그인

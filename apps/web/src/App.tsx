@@ -8,6 +8,7 @@ import { roleHome } from './auth/roleHome';
 import { AppLayout } from './components/AppLayout';
 import { AdminLayout } from './components/AdminLayout';
 import { LoginPage } from './pages/LoginPage';
+const DemoEntryPage = lazy(() => import('./pages/DemoEntryPage').then((m) => ({ default: m.DemoEntryPage })));
 const SignupPage = lazy(() => import('./pages/SignupPage').then((m) => ({ default: m.SignupPage })));
 const ConsultingApplyPage = lazy(() => import('./pages/ConsultingApplyPage').then((m) => ({ default: m.ConsultingApplyPage })));
 const TeacherBookingsPage = lazy(() => import('./pages/TeacherBookingsPage').then((m) => ({ default: m.TeacherBookingsPage })));
@@ -143,6 +144,8 @@ export function App() {
       <Route path="/legacy/services" element={<Navigate to="/services" replace />} />
       <Route path="/legacy/services/:slug" element={<Navigate to="/services" replace />} />
       <Route path="/login" element={<LoginPage />} />
+      {/* 체험 입구 — 회원을 고르면 아이디·비번 자동 입력 후 바로 로그인(데모 빌드 전용, 아니면 /login 으로) */}
+      <Route path="/demo" element={<DemoEntryPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/consulting/apply" element={<ConsultingApplyPage />} />
       <Route path="/forgot" element={<ForgotPasswordPage />} />
