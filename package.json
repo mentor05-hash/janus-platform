@@ -20,6 +20,7 @@
     "api:seed": "npm run seed --workspace apps/api",
     "gen:types": "openapi-typescript ./openapi.yaml -o ./packages/shared/src/api-types.ts",
     "gen:marketing": "node scripts/gen-marketing.mjs",
+    "gen:calendar": "node packages/exam-calendar/scripts/gen-events.mjs",
     "hooks:setup": "bash scripts/setup-hooks.sh"
   },
   "devDependencies": {

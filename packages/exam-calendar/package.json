@@ -1,0 +1,12 @@
+{
+  "name": "@mentoring/exam-calendar",
+  "version": "0.1.0",
+  "private": true,
+  "description": "입시 캘린더 정적 모듈(A7) — 모평·수능·원서 일정 상수 + 다음 이벤트/D-day 계산. 단일 소스 src/events.json(티어 빌드 파이프라인 공용)",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "gen": "node scripts/gen-events.mjs",
+    "check": "node scripts/gen-events.mjs --check"
+  }
+}
