@@ -38,7 +38,83 @@
   - **무료판**(`--tier free`): 저작권 원천·컷 + 상위(회원/유료/컨설턴트) 전용 **전부 부재** → 공개 배포 가능(W2 D1 ✅기준 자동화, janus-public `/baechi/`).
   - **회원판**(`--tier member`): 상위(유료/컨설턴트) 전용만 부재 — **회원 데이터는 정상 보유**. 회원판은 **공개 배포 대상이 아님**(무료 기준으로 검증하면 실패=정상). `JANUS_DATA_DIR/placement-hub/` 에 두고 **허브 티켓 게이트(C2·회원 티어)** 뒤에서만 서빙한다.
   - 합성 픽스처 4종 전부 자기 티어 검증 통과 + 회원판을 free 기준으로 보면 실패(공개불가 확인) — E2E 실증됨.
-- **파이프라인이 하는 일**: ①티어 게이트 영역 마스킹(마스터가 `<!--JANUS-TIER:member-->…<!--/JANUS-TIER-->` 로 감싼 상위-티어 데이터를 하위 판에서 물리 제거) ②지정 페이로드 제거(`tiers.config.json`의 `strip_assignments` — 센티넬 없는 기존 마스터용 폴백) ③FLAGS 주입(`window.__JANUS_FLAGS` — 마스터 JS 가 전체표·필터·고급·수치노출 게이팅) ④워터마크+면책 배너 전 화면 ⑤무료판 접속 로그 비콘(page `baechi`, C3).
+- **파이프라인이 하는 일**: ①티어 게이트 영역 마스킹(마스터가 `<!--JANUS-TIER:member-->…<!--/JANUS-TIER-->` 로 감싼 상위-티어 데이터를 하위 판에서 물리 제거) ②지정 페이로드 제거(`tiers.config.json`의 `strip_assignments` — 센티넬 없는 기존 마스터용 폴백) ③FLAGS 주입(`window.__JANUS_FLAGS` — 마스터 JS 가 전체표·필터·고급·수치노출 게이팅) ④워터마크+면책 배너 전 화면 ⑤무료판 접속 로그 비콘(page `baechi`, C3) **⑥배포 감지 프로브+오류 링버퍼(A4) ⑦미러 감지(A6) ⑧입시 캘린더 D-day(A7)** — ⑥~⑧은 아래 2-1-1.
+
+### 2-1-1. 무료판 운영 안전판 A4·A6·A7 (벤치마크 노트 §1)
+
+근거: `docs/30_features/야누스_벤치마크노트_엑셀코스피_2026-08-07.md` §1. 티어별로 `tiers.config.json`
+의 `tiers.{t}.{build_probe|mirror_guard|exam_dday}` 플래그로 켠다 — **현재 무료판만 ON**. 세부 설정은
+같은 파일의 `runtime` 섹션. 무료판 `verify.required` 에 `[야누스 A4]`·`[야누스 A6]`·`[야누스 A7]`
+표식이 들어 있어, 주입이 조용히 빠지면 **`tier_verify.py` 가 배포를 막는다**.
+
+- **A4 — 배포 감지 + 오류 링버퍼**
+  `<meta name="janus-build-id">` + 산출 디렉토리의 사이드카 `janus-build.json`. 페이지가 주기적으로
+  (기본 300초, 탭 복귀 시에도) 사이드카를 `no-store` 로 읽어 build-id 가 다르면 **"새 버전이 있습니다"**
+  배너를 띄운다(새로고침 버튼. `auto_reload_sec=0` 이 기본 — 입력 유실 방지). 사이드카 파일명은 고정이라
+  HTML 을 리네임해 배포해도 유지되고, 404 면 조용히 비활성된다.
+  build-id 는 `JANUS_BUILD_ID` 가 있으면 그 값, 없으면 **산출 내용+티어+설정+캘린더 해시**(같은 입력이면
+  같은 id — 재빌드만으로 배너가 뜨지 않는다).
+  클라이언트 오류는 **최근 30건 링버퍼**(`window.__janusErrors()`)로 잡는다 — JS 오류·미처리 프로미스
+  거부·자산 로드 실패. **전송은 스텁**(`window.__JANUS_ERR_SINK = null`), 여기에 함수를 물리는 순간부터
+  전송된다. 시즌 트래픽(W9~10) 중 배포 사고의 완충 장치.
+  ⚠ **배포 시 HTML 과 `janus-build.json` 을 함께 올려야 한다** — 사이드카만 남으면 계속 배너가 뜬다.
+
+- **A6 — 미러(무단 복제본) 감지**
+  허용 호스트 밖에서 열리면 전면 안내 + 원본 리다이렉트. **허용 목록·원본 주소는 repo 에 없고 빌드 시
+  ENV 로만 주입한다**(도메인 미결 — 하드코딩 금지). 산출물엔 호스트가 평문이 아니라 djb2 해시로만 들어간다.
+  - `JANUS_ALLOWED_HOSTS` 미설정 → 스니펫은 들어가되 **런타임 no-op**(오검출 0).
+  - `JANUS_CANONICAL_ORIGIN` 미설정 → **안내만 하고 리다이렉트하지 않음**(오배송 방지).
+  - 판정 불가(`file://` 등 빈 hostname) → 통과.
+  완벽 방어는 아니지만(스크립트 제거 가능) 캐주얼 미러를 원본 트래픽으로 회수한다 — 워터마크와 함께
+  데이터 권리 대응 패키지의 보조 장치.
+
+- **A7 — 입시 캘린더 D-day 1곳**
+  우하단 칩에 다음 일정(`다음 일정 9월 모평 D-26`)을 띄운다. 날짜 단일 소스는
+  `packages/exam-calendar/src/events.json` — 파이썬 빌드와 TS(`@mentoring/exam-calendar`)가 **같은 파일**을
+  읽는다(TS 상수는 `npm run gen:calendar` 생성물, CI 가 `--check` 로 동기화 확인).
+  ⚠ 현재 2027학년도 9건은 전부 `status: provisional`(관례 기반 잠정) — 칩에 **`잠정` 배지**가 함께 나간다.
+  평가원·대교협 공고와 대조해 `confirmed` 로 올리는 것이 공개 배포 조건.
+
+**빌드 ENV(전부 선택 — 미설정이면 위 안전 기본값)**
+
+```bash
+JANUS_ALLOWED_HOSTS="janus.kr,www.janus.kr" \
+JANUS_CANONICAL_ORIGIN="https://janus.kr" \
+  python3 ops/placement/tier_build.py --src <마스터.html> --tier free
+```
+
+| ENV | 없을 때 |
+|---|---|
+| `JANUS_ALLOWED_HOSTS` | 미러 감지 런타임 no-op |
+| `JANUS_CANONICAL_ORIGIN` | 안내만, 리다이렉트 없음 |
+| `JANUS_BUILD_ID` | 내용 해시로 자동 결정 |
+| `JANUS_BUILD_PROBE_SEC` | `runtime.build_probe.interval_sec`(300초) |
+
+**시뮬 테스트**(브라우저 없이, CI `tier-build` 잡에서 자동 실행):
+
+```bash
+node ops/placement/tests/mirror_guard_sim.mjs   # A6 — 허용/비허용 호스트 판정·원본 이동
+node ops/placement/tests/build_probe_sim.mjs    # A4 — 배너 조건·링버퍼 30건·전송 훅 스텁
+node ops/placement/tests/gate_negative_sim.mjs  # 게이트 음성 대조 — 일부러 망가뜨린 빌드로 verify 가 죽는지
+```
+
+**거짓 통과 방지 장치**(세 스크립트 공통) — "통과"만 세는 검사는 검사기가 죽어 있어도 통과한다.
+그래서 다음을 강제한다:
+
+1. **음성 대조** — `gate_negative_sim.mjs` 가 A4/A6/A7 를 하나씩 끈 빌드를 만들어 `tier_verify.py` 가
+   **비-0으로 죽고 누락 표식을 지목하는지** 확인한다. 금지 패턴 검출·빈 디렉토리(검사 대상 0건)도 함께.
+2. **단언 실행 수 하한** — 각 스크립트가 `MIN_CHECKS` 미만으로 끝나면 실패시킨다. 루프가 0회 돌거나
+   단언이 조용히 건너뛰어지면 "0건 통과"가 나오는데, 그걸 통과로 인정하지 않는다.
+3. **스니펫 실물 확인** — 추출한 코드가 빈 문자열이면 "배너 없음"류 단언이 전부 통과해버리므로,
+   길이와 핵심 토큰(`Math.imul`·`__janusErrors` 등) 포함 여부를 못박는다.
+
+돌연변이로 실증(2026-08-07): 링버퍼 상한 30→5 · 미러 허용 판정 무력화 · A7 주입 제거 — **세 경우 모두
+해당 테스트가 비-0으로 실패**했다. 테스트를 고칠 때 이 성질이 깨지지 않았는지 같은 방식으로 확인할 것.
+
+증빙(합성 픽스처): `docs/screenshots/manual/baechi-free-a{4,6,7}-*.png` · `baechi-free-a4a6a7-test.md`.
+브라우저 확인은 무료판을 그대로 서빙해서 한다 — `.claude/launch.json` 의 `baechi-free-preview`
+(`dist-tier/free` 를 :8791 로). `localhost`=허용 호스트, `127.0.0.1`=비허용 호스트로 잡으면
+**같은 서버로 미러 감지까지 실측**된다.
 - **마스터 준비(권장)**: 상위-티어 전용 데이터/UI 를 `<!--JANUS-TIER:LEVEL-->…<!--/JANUS-TIER-->`(LEVEL=member|paid|consultant)로 감싸 두면 티어 분리가 깔끔하다. 대형 데이터 배열은 `const __JANUS_CUTS__=…`처럼 이름을 `strip_assignments`에 등록하면 무료판에서 값이 `[]`/`{}`로 비워진다.
 - **합성 테스트**: `ops/placement/fixtures/master_sample.html`(가짜 데이터·저작권 없음)로 빌드→검증 E2E 가 통과한다(무료판 통과·회원판은 데이터 보유로 검증 실패=공개 불가 확인). 실제 마스터는 이 픽스처 자리에 로컬 경로만 바꿔 물린다.
 
