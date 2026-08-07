@@ -27,8 +27,11 @@ const FIXTURE = join(REPO, 'ops', 'placement', 'fixtures', 'master_sample.html')
 const ALLOWED = ['janus.example', 'www.janus.example'];
 const CANONICAL = 'https://janus.example';
 
+const MIN_CHECKS = 13; // 실측 단언 수. 이 아래면 '공허한 통과'로 보고 실패시킨다(단언이 조용히 건너뛰어진 경우).
+let checksRun = 0;
 let failures = 0;
 function check(label, ok, detail) {
+  checksRun++;
   console.log(`  ${ok ? '✅' : '❌'} ${label}${detail ? ` — ${detail}` : ''}`);
   if (!ok) failures++;
 }
@@ -178,6 +181,15 @@ console.log('\n[djb2 해시 파이썬 ↔ JS 일치]');
   });
   check(`${hosts.length}개 호스트 해시 일치`, JSON.stringify(py) === JSON.stringify(js), `py=${py} js=${js}`);
 }
+
+// ── 5) 공허한 통과 방지 ────────────────────────────────────────────────
+// 스니펫 추출이 빈 문자열이거나 루프가 0회 돌아도 failures 는 0 이라 '통과'로 보인다.
+// 그래서 ①스니펫이 실물인지 ②단언이 실제로 다 돌았는지를 마지막에 못박는다.
+console.log('\n[공허한 통과 방지]');
+check('추출한 스니펫이 실물(허용 판정 로직 포함)',
+  snippet.length > 400 && snippet.includes('Math.imul') && snippet.includes('data-janus-mirror-notice'),
+  `${snippet.length}자`);
+check(`단언 ${checksRun + 1}건 실행(최소 ${MIN_CHECKS})`, checksRun + 1 >= MIN_CHECKS, `${checksRun + 1}건`);
 
 console.log(`\n결과: ${failures === 0 ? '✅ 전체 통과' : `❌ 실패 ${failures}건`}`);
 process.exit(failures === 0 ? 0 : 1);

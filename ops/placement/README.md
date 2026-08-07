@@ -95,7 +95,21 @@ JANUS_CANONICAL_ORIGIN="https://janus.kr" \
 ```bash
 node ops/placement/tests/mirror_guard_sim.mjs   # A6 — 허용/비허용 호스트 판정·원본 이동
 node ops/placement/tests/build_probe_sim.mjs    # A4 — 배너 조건·링버퍼 30건·전송 훅 스텁
+node ops/placement/tests/gate_negative_sim.mjs  # 게이트 음성 대조 — 일부러 망가뜨린 빌드로 verify 가 죽는지
 ```
+
+**거짓 통과 방지 장치**(세 스크립트 공통) — "통과"만 세는 검사는 검사기가 죽어 있어도 통과한다.
+그래서 다음을 강제한다:
+
+1. **음성 대조** — `gate_negative_sim.mjs` 가 A4/A6/A7 를 하나씩 끈 빌드를 만들어 `tier_verify.py` 가
+   **비-0으로 죽고 누락 표식을 지목하는지** 확인한다. 금지 패턴 검출·빈 디렉토리(검사 대상 0건)도 함께.
+2. **단언 실행 수 하한** — 각 스크립트가 `MIN_CHECKS` 미만으로 끝나면 실패시킨다. 루프가 0회 돌거나
+   단언이 조용히 건너뛰어지면 "0건 통과"가 나오는데, 그걸 통과로 인정하지 않는다.
+3. **스니펫 실물 확인** — 추출한 코드가 빈 문자열이면 "배너 없음"류 단언이 전부 통과해버리므로,
+   길이와 핵심 토큰(`Math.imul`·`__janusErrors` 등) 포함 여부를 못박는다.
+
+돌연변이로 실증(2026-08-07): 링버퍼 상한 30→5 · 미러 허용 판정 무력화 · A7 주입 제거 — **세 경우 모두
+해당 테스트가 비-0으로 실패**했다. 테스트를 고칠 때 이 성질이 깨지지 않았는지 같은 방식으로 확인할 것.
 
 증빙(합성 픽스처): `docs/screenshots/manual/baechi-free-a{4,6,7}-*.png` · `baechi-free-a4a6a7-test.md`.
 브라우저 확인은 무료판을 그대로 서빙해서 한다 — `.claude/launch.json` 의 `baechi-free-preview`

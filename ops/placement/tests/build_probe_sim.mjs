@@ -24,8 +24,11 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, '..', '..', '..');
 const FIXTURE = join(REPO, 'ops', 'placement', 'fixtures', 'master_sample.html');
 
+const MIN_CHECKS = 18; // 실측 단언 수. 이 아래면 '공허한 통과'로 보고 실패시킨다(단언이 조용히 건너뛰어진 경우).
+let checksRun = 0;
 let failures = 0;
 function check(label, ok, detail) {
+  checksRun++;
   console.log(`  ${ok ? '✅' : '❌'} ${label}${detail ? ` — ${detail}` : ''}`);
   if (!ok) failures++;
 }
@@ -151,6 +154,15 @@ console.log('\n[오류 링버퍼]');
   check('__janusErrors() 는 복사본 반환(외부 변조 불가)',
     (() => { const s = c.ctx.window.__janusErrors(); s.push({}); return c.ctx.window.__janusErrors().length === 30; })());
 }
+
+// ── 공허한 통과 방지 ──────────────────────────────────────────────────
+// 스니펫이 빈 문자열이어도 "배너 없음"류 단언은 그대로 통과한다. 실물 여부와
+// 단언 실행 수를 마지막에 못박아 0건 통과를 막는다.
+console.log('\n[공허한 통과 방지]');
+check('추출한 스니펫이 실물(프로브·링버퍼 로직 포함)',
+  snippet.length > 800 && snippet.includes('__janusErrors') && snippet.includes('data-janus-update'),
+  `${snippet.length}자`);
+check(`단언 ${checksRun + 1}건 실행(최소 ${MIN_CHECKS})`, checksRun + 1 >= MIN_CHECKS, `${checksRun + 1}건`);
 
 console.log(`\n결과: ${failures === 0 ? '✅ 전체 통과' : `❌ 실패 ${failures}건`}`);
 process.exit(failures === 0 ? 0 : 1);

@@ -239,6 +239,10 @@ jobs:
         run: node ops/placement/tests/mirror_guard_sim.mjs
       - name: A4 배포 감지 + 오류 링버퍼 시뮬
         run: node ops/placement/tests/build_probe_sim.mjs
+      # 게이트가 '살아있는지' 증명 — 기능을 하나씩 끈 빌드로 verify 가 비-0 이 되는지 본다.
+      # 통과만 보는 검사는 게이트가 죽어도 통과하므로 음성 대조를 반드시 함께 돌린다.
+      - name: 검증 게이트 음성 대조 (일부러 망가뜨린 빌드)
+        run: node ops/placement/tests/gate_negative_sim.mjs
 
   web:
     name: Web (typecheck · unit)
