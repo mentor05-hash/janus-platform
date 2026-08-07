@@ -3,12 +3,35 @@
   "levels": ["free", "member", "paid", "consultant"],
   "watermark": "야누스 · 예측 면책 — 모든 수치는 지난 입시 데이터 기반 추정치이며 실제 합격을 보장하지 않습니다. 재배포 금지.",
   "access_log_endpoint": "/api/v1/funnel/event",
+  "runtime": {
+    "_comment": "벤치마크 노트(docs/30_features/야누스_벤치마크노트_엑셀코스피_2026-08-07.md §1) A4·A6·A7 요구사항의 설정. 켜고 끄는 것은 tiers.{t}.{build_probe|mirror_guard|exam_dday} 플래그 — 현재 무료판만 ON. 도메인·호스트는 여기 적지 않는다(빌드 시 ENV 주입).",
+    "build_probe": {
+      "_comment": "A4 — 배포 감지. manifest_name 은 산출 디렉토리에 함께 쓰이는 사이드카(고정 파일명 → HTML 이 리네임돼도 유지). auto_reload_sec=0 이면 배너의 새로고침 버튼으로만 리로드(입력 유실 방지). JANUS_BUILD_PROBE_SEC 로 주기를 강제할 수 있다(테스트).",
+      "manifest_name": "janus-build.json",
+      "interval_sec": 300,
+      "auto_reload_sec": 0
+    },
+    "mirror_guard": {
+      "_comment": "A6 — 미러 감지. 허용 호스트=JANUS_ALLOWED_HOSTS(쉼표 구분), 원본=JANUS_CANONICAL_ORIGIN. 도메인 미결이라 목록·주소를 여기 하드코딩하지 않는다. 목록 미설정 → 런타임 no-op, 원본 미설정 → 안내만 하고 리다이렉트 안 함. preserve_path=false 면 원본 루트로 보낸다(미러의 경로 구조가 다를 수 있어 기본값).",
+      "canonical_placeholder": "https://__JANUS_CANONICAL_ORIGIN__",
+      "grace_sec": 5,
+      "preserve_path": false
+    },
+    "exam_dday": {
+      "_comment": "A7 — 입시 캘린더 D-day 1곳. 날짜 단일 소스는 packages/exam-calendar/src/events.json(TS 상수도 여기서 생성). status!=confirmed 이면 칩에 '잠정' 배지가 함께 나간다.",
+      "calendar_path": "packages/exam-calendar/src/events.json",
+      "label": "다음 일정"
+    }
+  },
   "tiers": {
     "free": {
       "label": "무료판",
       "flags": { "fullTable": false, "filters": false, "advanced": false, "showNumbers": false, "recPerBand": 4 },
       "strip_assignments": ["__JANUS_RAWDATA__", "__JANUS_CUTS__"],
-      "access_log": true
+      "access_log": true,
+      "build_probe": true,
+      "mirror_guard": true,
+      "exam_dday": true
     },
     "member": {
       "label": "회원판",
@@ -34,7 +57,7 @@
     "tiers": {
       "free": {
         "forbidden": ["cut70", "cut50", "70%컷 1.2", "회원 전용", "유료 전용", "컨설턴트 전용", "고속_어디가", "esteacher", "adiga_정시", "_INTERNAL", "보정_calib"],
-        "required": ["data-janus-watermark", "__JANUS_TIER"]
+        "required": ["data-janus-watermark", "__JANUS_TIER", "[야누스 A4]", "[야누스 A6]", "[야누스 A7]"]
       },
       "member": {
         "forbidden": ["유료 전용", "컨설턴트 전용", "고속_어디가", "esteacher", "adiga_정시", "_INTERNAL", "보정_calib"],
