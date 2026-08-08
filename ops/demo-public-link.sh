@@ -144,5 +144,3 @@ fi
 echo
 echo "● 공개 중단:  launchctl unload ~/Library/LaunchAgents/com.janus.cloudflared.plist"
 echo "  ⚠ 맥이 꺼지거나 잠들면 주소도 죽습니다. Docker 스택도 떠 있어야 합니다(없으면 502)."
-echo "  ※ Tailscale Funnel(janus-demo.taildfe36f.ts.net)은 예비 경로로 남아 있습니다 —"
-echo "    정리하려면: launchctl unload ~/Library/LaunchAgents/com.janus.tailscaled.plist"
