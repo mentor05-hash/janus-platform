@@ -27,9 +27,11 @@
   (--out 기본 dist-tier, --config 기본 ops/placement/tiers.config.json)
 
 빌드 시 ENV(전부 선택 — 미설정이면 플레이스홀더/무해 동작):
-  JANUS_ALLOWED_HOSTS    쉼표(또는 공백) 구분 허용 호스트. 예: "janus.kr,www.janus.kr"
+  JANUS_ALLOWED_HOSTS    쉼표(또는 공백) 구분 허용 호스트. `*.` 로 시작하면 그 도메인 + 모든 하위 도메인.
+                         예: "ianuspath.com,www.ianuspath.com,*.janus-public.pages.dev"
+                         (와일드카드는 Pages 미리보기 `<해시>.<프로젝트>.pages.dev` 용)
                          미설정 → 미러 감지 비활성(스니펫은 들어가되 런타임 no-op).
-  JANUS_CANONICAL_ORIGIN 원본 주소. 예: "https://janus.kr"
+  JANUS_CANONICAL_ORIGIN 원본 주소. 예: "https://ianuspath.com"
                          미설정 → 안내만 하고 리다이렉트하지 않음(도메인 미결 상태의 안전 기본값).
   JANUS_BUILD_ID         build-id 고정(미설정 시 마스터·설정·캘린더 내용 해시로 결정).
   JANUS_BUILD_PROBE_SEC  프로브 주기(초) 강제 — 테스트용.
@@ -296,21 +298,45 @@ def djb2(s):
 
 
 def allowed_host_hashes():
-    """허용 호스트는 **ENV 로만** 들어온다(도메인 미결 — 하드코딩 금지). 미설정이면 빈 목록 → 런타임 no-op."""
+    """허용 호스트는 **ENV 로만** 들어온다(값을 repo 에 두지 않는다). 미설정이면 빈 목록 → 런타임 no-op.
+
+    두 형태를 받는다:
+      `example.com`    정확히 그 호스트만.
+      `*.example.com`  그 도메인 **과 모든 하위 도메인**. Cloudflare Pages 미리보기처럼
+                       `<해시>.<프로젝트>.pages.dev` 로 앞 라벨이 매번 바뀌는 주소용이다 —
+                       정확 일치만 쓰면 미리보기 배포가 미러로 판정돼 튕긴다.
+
+    반환은 (표시용 호스트 목록, 정확일치 해시, 접미사 해시). 산출물엔 해시만 들어간다.
+    """
     raw = os.environ.get('JANUS_ALLOWED_HOSTS', '')
     hosts = [h.strip().lower() for h in raw.replace(',', ' ').split() if h.strip()]
-    return hosts, [djb2(h) for h in hosts]
+    exact, suffix = [], []
+    for h in hosts:
+        if h.startswith('*.'):
+            base = h[2:]
+            if base:
+                suffix.append(djb2(base))
+        else:
+            exact.append(djb2(h))
+    return hosts, exact, suffix
 
 
 MIRROR_GUARD_JS = """<script>
 /*[야누스 A6] 미러 감지 — 허용 호스트 목록은 빌드 시 주입(ENV). 목록이 비면 아무 것도 하지 않는다.*/
 (function(){
-  var ALLOW=__ALLOW__, HOME=__HOME__, GRACE=__GRACE__, KEEP=__KEEP__;
-  if(!ALLOW||!ALLOW.length) return;
+  var ALLOW=__ALLOW__, SUFFIX=__SUFFIX__, HOME=__HOME__, GRACE=__GRACE__, KEEP=__KEEP__;
+  if((!ALLOW||!ALLOW.length)&&(!SUFFIX||!SUFFIX.length)) return;
   var host=(location.hostname||'').toLowerCase();
   if(!host) return;                       /* file:// 등 — 판정 불가, 통과 */
   function h32(s){var h=5381,i;for(i=0;i<s.length;i++){h=(Math.imul(h,33)^s.charCodeAt(i))>>>0;}return h;}
-  if(ALLOW.indexOf(h32(host))>=0) return; /* 허용 호스트 — 정상 */
+  if(ALLOW.indexOf(h32(host))>=0) return; /* 정확 일치 허용 호스트 */
+  if(SUFFIX&&SUFFIX.length){
+    /* `*.example.com` — 라벨을 앞에서부터 하나씩 떼며 대조한다. 문자열 끝일치가 아니라
+       **라벨 경계**로 잘라야 한다: `a.b.example.com` 은 example.com 에서 걸리고,
+       `example.com.evil.io` 는 evil.io·io 까지만 가므로 걸리지 않는다. */
+    var p=host.split('.');
+    for(var i=0;i<p.length;i++){ if(SUFFIX.indexOf(h32(p.slice(i).join('.')))>=0) return; }
+  }
   var dest='';
   if(HOME){ dest=HOME; if(KEEP){ while(dest.charAt(dest.length-1)==='/') dest=dest.slice(0,-1); dest=dest+location.pathname+location.search; } }
   console.warn('[janus/mirror] 비허용 호스트: '+host+' -> '+(dest||'(원본 주소 미설정 — 안내만)'));
@@ -341,13 +367,14 @@ MIRROR_GUARD_JS = """<script>
 </script>"""
 
 
-def mirror_guard_script(rcfg, hashes):
+def mirror_guard_script(rcfg, hashes, suffix_hashes=()):
     home = os.environ.get('JANUS_CANONICAL_ORIGIN', '').strip()
     # 도메인 미결이면 원본 주소는 빈 값 → 안내만 하고 리다이렉트하지 않는다(오배송 방지).
     if home.startswith('__') or home == rcfg.get('canonical_placeholder', ''):
         home = ''
     return (MIRROR_GUARD_JS
             .replace('__ALLOW__', json.dumps(hashes))
+            .replace('__SUFFIX__', json.dumps(list(suffix_hashes)))
             .replace('__HOME__', json.dumps(home))
             .replace('__GRACE__', str(int(rcfg.get('grace_sec', 5))))
             .replace('__KEEP__', 'true' if rcfg.get('preserve_path') else 'false')
@@ -444,11 +471,12 @@ def build(src, tier, cfg, out_dir):
         notes.append('A4 build-id ' + build_id)
 
     if tconf.get('mirror_guard'):  # A6
-        hosts, hashes = allowed_host_hashes()
-        html = inject_before_body_end(html, mirror_guard_script(rt.get('mirror_guard', {}), hashes))
+        hosts, hashes, suffixes = allowed_host_hashes()
+        html = inject_before_body_end(html, mirror_guard_script(rt.get('mirror_guard', {}), hashes, suffixes))
         if hosts:
             home = os.environ.get('JANUS_CANONICAL_ORIGIN', '').strip()
-            notes.append('A6 허용호스트 %d개%s' % (len(hosts), '' if home else '(원본 미설정·안내만)'))
+            wild = '·와일드카드 %d' % len(suffixes) if suffixes else ''
+            notes.append('A6 허용호스트 %d개%s%s' % (len(hosts), wild, '' if home else '(원본 미설정·안내만)'))
         else:
             notes.append('A6 비활성(JANUS_ALLOWED_HOSTS 미설정)')
 

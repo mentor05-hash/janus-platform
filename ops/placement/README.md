@@ -77,11 +77,27 @@
 
 **빌드 ENV(전부 선택 — 미설정이면 위 안전 기본값)**
 
+허용 호스트는 두 형태를 받는다. `example.com` 은 **정확히 그 호스트만**, `*.example.com` 은
+**그 도메인과 모든 하위 도메인**이다. 와일드카드는 Cloudflare Pages 미리보기처럼
+`<해시>.<프로젝트>.pages.dev` 로 **앞 라벨이 매번 바뀌는 주소**를 위한 것이다 — 정확 일치만 쓰면
+미리보기 배포가 미러로 판정돼 튕긴다(하필 배포를 검증하는 순간에 걸린다).
+대조는 문자열 끝일치가 아니라 **라벨 경계**로 한다: `*.pv.example` 은 `a.b.pv.example` 을 허용하지만
+`pv.example.evil.io` 는 허용하지 않는다.
+
+**무료 배치표 확정값(2026-08-08 도메인 확보 — O210 의 ENV 자리를 채운 값)**
+
 ```bash
-JANUS_ALLOWED_HOSTS="janus.kr,www.janus.kr" \
-JANUS_CANONICAL_ORIGIN="https://janus.kr" \
+JANUS_ALLOWED_HOSTS="ianuspath.com,www.ianuspath.com,*.<PAGES_PROJECT>.pages.dev" \
+JANUS_CANONICAL_ORIGIN="https://ianuspath.com" \
   python3 ops/placement/tier_build.py --src <마스터.html> --tier free
 ```
+
+- **원본은 apex**(`ianuspath.com`) — 고정주소 배포계획 §52 의 "데모는 `demo.<도메인>`, apex 는
+  마케팅/랜딩" 갈래를 따른다. `demo.ianuspath.com` 은 **Cloudflare Access 뒤의 앱**이라 여기 쓰지 않는다
+  (무료 배치표는 janus-public → Pages 로 나가는 별개 배포다).
+- `<PAGES_PROJECT>` 는 **Pages 프로젝트를 만들 때 확정한다**(W2 D4). 그때까지는 이 자리를 비워 두거나
+  그 항목만 빼고 빌드하면 된다 — 정확일치 2개만으로도 apex·www 는 정상 동작한다.
+- 값은 **repo 에 커밋하지 않는다**. 산출물에도 djb2 해시만 들어간다(평문 호스트 없음 — 시뮬 테스트가 검사).
 
 | ENV | 없을 때 |
 |---|---|
