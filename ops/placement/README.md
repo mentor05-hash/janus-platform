@@ -87,7 +87,7 @@
 **무료 배치표 확정값(2026-08-08 도메인 확보 — O210 의 ENV 자리를 채운 값)**
 
 ```bash
-JANUS_ALLOWED_HOSTS="ianuspath.com,www.ianuspath.com,*.<PAGES_PROJECT>.pages.dev" \
+JANUS_ALLOWED_HOSTS="ianuspath.com,www.ianuspath.com,*.ianuspath.pages.dev" \
 JANUS_CANONICAL_ORIGIN="https://ianuspath.com" \
   python3 ops/placement/tier_build.py --src <마스터.html> --tier free
 ```
@@ -95,8 +95,9 @@ JANUS_CANONICAL_ORIGIN="https://ianuspath.com" \
 - **원본은 apex**(`ianuspath.com`) — 고정주소 배포계획 §52 의 "데모는 `demo.<도메인>`, apex 는
   마케팅/랜딩" 갈래를 따른다. `demo.ianuspath.com` 은 **Cloudflare Access 뒤의 앱**이라 여기 쓰지 않는다
   (무료 배치표는 janus-public → Pages 로 나가는 별개 배포다).
-- `<PAGES_PROJECT>` 는 **Pages 프로젝트를 만들 때 확정한다**(W2 D4). 그때까지는 이 자리를 비워 두거나
-  그 항목만 빼고 빌드하면 된다 — 정확일치 2개만으로도 apex·www 는 정상 동작한다.
+- **Pages 프로젝트 = `ianuspath`**(2026-08-08 확정) → 기본 주소 `ianuspath.pages.dev`, 미리보기
+  `<해시>.ianuspath.pages.dev`. 원천은 **janus-public 저장소 `main`** 브랜치, 커스텀 도메인은
+  `ianuspath.com`·`www.ianuspath.com`(W2 D4).
 - 값은 **repo 에 커밋하지 않는다**. 산출물에도 djb2 해시만 들어간다(평문 호스트 없음 — 시뮬 테스트가 검사).
 
 | ENV | 없을 때 |
