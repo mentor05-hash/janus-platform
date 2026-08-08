@@ -133,10 +133,21 @@ if pgrep -f "cloudflared tunnel run janus-demo" >/dev/null; then
   echo "  ✓ cloudflared janus-demo 실행 중 (launchd: com.janus.cloudflared)"
   # 호스트마다 살아있음을 보여주는 경로가 다르다 — 룸 서비스는 `/` 에 라우트가 없어
   # 404 가 정상이므로 헬스 경로를 찔러야 오해가 없다.
+  # Cloudflare Access 를 씌운 호스트는 curl 이 로그인 화면으로 튕겨 302/403 이 뜬다 —
+  # 그건 정상(게이트 작동)이므로 실패로 읽지 않는다.
   for probe in "demo.ianuspath.com|/demo" "demo-m.ianuspath.com|/" "demo-rooms.ianuspath.com|/api/rt/v1/health"; do
     h="${probe%%|*}"; path="${probe##*|}"
-    printf '    %-26s %-22s %s\n' "$h" "$path" "$(curl -s -o /dev/null -m 15 -w '%{http_code}' "https://$h$path" || echo '---')"
+    code="$(curl -s -o /dev/null -m 15 -w '%{http_code}' "https://$h$path" || echo '---')"
+    case "$code" in
+      200) note="";;
+      301|302|303|307|308|403) note="  ← Access 게이트(정상)";;
+      *)   note="  ← 확인 필요";;
+    esac
+    printf '    %-26s %-22s %s%s\n' "$h" "$path" "$code" "$note"
   done
+  # 게이트 뒤에서도 스택 자체가 건강한지는 로컬로 봐야 확실하다.
+  printf '    %-26s %-22s %s\n' "(로컬) api" "/api/v1/health" \
+    "$(curl -s -o /dev/null -m 10 -w '%{http_code}' http://localhost:3000/api/v1/health || echo '---')"
 else
   echo "  ✗ 터널이 꺼져 있습니다 — 브랜드 주소가 응답하지 않습니다."
   echo "    launchctl load ~/Library/LaunchAgents/com.janus.cloudflared.plist"
