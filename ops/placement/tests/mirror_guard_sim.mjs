@@ -27,7 +27,7 @@ const FIXTURE = join(REPO, 'ops', 'placement', 'fixtures', 'master_sample.html')
 const ALLOWED = ['janus.example', 'www.janus.example'];
 const CANONICAL = 'https://janus.example';
 
-const MIN_CHECKS = 13; // 실측 단언 수. 이 아래면 '공허한 통과'로 보고 실패시킨다(단언이 조용히 건너뛰어진 경우).
+const MIN_CHECKS = 23; // 실측 단언 수. 이 아래면 '공허한 통과'로 보고 실패시킨다(단언이 조용히 건너뛰어진 경우).
 let checksRun = 0;
 let failures = 0;
 function check(label, ok, detail) {
@@ -180,6 +180,27 @@ console.log('\n[djb2 해시 파이썬 ↔ JS 일치]');
     return h;
   });
   check(`${hosts.length}개 호스트 해시 일치`, JSON.stringify(py) === JSON.stringify(js), `py=${py} js=${js}`);
+}
+
+// ── 4-1) 와일드카드 `*.` — Pages 미리보기처럼 앞 라벨이 바뀌는 주소 ──────
+console.log('\n[와일드카드 허용 — `*.pv.example`]');
+const wild = buildAndExtract({
+  JANUS_ALLOWED_HOSTS: 'janus.example,*.pv.example',
+  JANUS_CANONICAL_ORIGIN: CANONICAL,
+});
+check('와일드카드 빌드에도 평문 도메인이 남지 않음', !wild.includes('pv.example'));
+for (const host of ['pv.example', 'proj.pv.example', 'abc123.proj.pv.example']) {
+  const r = run(wild, host);
+  check(`${host} → 통과(기저 도메인·하위 도메인)`, r.notice === false && r.redirected === null);
+}
+check('정확일치 항목도 그대로 통과', (() => {
+  const r = run(wild, 'janus.example');
+  return r.notice === false && r.redirected === null;
+})());
+// 접미사 대조가 라벨 경계를 무시하면 아래가 통과해 버린다 — 그게 바로 위험한 오탐이다.
+for (const host of ['pv.example.evil.io', 'notpv.example', 'evil.io']) {
+  const r = run(wild, host);
+  check(`${host} → 차단(경계 넘는 유사 도메인)`, r.notice === true, `이동=${r.redirected}`);
 }
 
 // ── 5) 공허한 통과 방지 ────────────────────────────────────────────────
