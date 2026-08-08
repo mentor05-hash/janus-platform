@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 # 야누스 데모 공개 운영 스크립트 — 스택을 띄우고 프런트를 최신화한 뒤 공개 주소를 안내한다.
 #
-# 공개 경로는 **Tailscale Funnel 고정 주소**가 기본이다(2026-08-06 전환).
-#   https://janus-demo.taildfe36f.ts.net       :8080 웹   ← /demo 가 체험 입구
-#   https://janus-demo.taildfe36f.ts.net:8443  :8090 모바일
-#   https://janus-demo.taildfe36f.ts.net:10000 :3100 룸  (= .env 의 ROOMS_PUBLIC_URL)
-# 데몬은 launchd(com.janus.tailscaled)가 로그인 시 자동 기동하고 Funnel 설정을 상태에서 복원한다.
+# 공개 경로는 **Cloudflare 명명된 터널(ianuspath.com)**이 기본이다(2026-08-08 전환).
+#   https://demo.ianuspath.com        :8080 웹   ← /demo 가 체험 입구
+#   https://demo-m.ianuspath.com      :8090 모바일
+#   https://demo-rooms.ianuspath.com  :3100 룸  (= .env 의 ROOMS_PUBLIC_URL)
+# 터널은 launchd(com.janus.cloudflared)가 로그인 시 자동 기동한다. 경로는 ~/.cloudflared/config.yml.
+#
+# ⚠ 서브도메인은 **한 단계만** 쓴다(demo-m, demo-rooms). Cloudflare 무료 인증서의 와일드카드가
+#   *.ianuspath.com 한 단계까지라 m.demo.ianuspath.com 같은 2단계는 TLS 가 끊긴다(실측 2026-08-08).
 #
 # 사용:
 #   bash ops/demo-public-link.sh                 스택 기동 + 프런트 최신화 + 공개 상태 출력
@@ -15,7 +18,7 @@
 #
 # ⚠ --quick-tunnel 은 ROOMS_PUBLIC_URL 을 임시 주소로 덮어써 api 를 재기동한다 →
 #   고정 룸 주소가 깨진다. 원복하려면 이 스크립트를 옵션 없이 다시 실행할 것.
-#   Tailscale 을 못 쓰는 자리에서만 쓰는 예외 경로다.
+#   명명된 터널을 못 쓰는 자리에서만 쓰는 예외 경로다.
 #
 # 데이터: 배치표 허브는 docker-compose.hub.yml 로 20_data/placement-hub 하위만 읽기전용 마운트
 #   (CLAUDE.md §4 — raw·internal·dist_restricted 는 컨테이너에 넣지 않는다).
@@ -24,9 +27,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 RUN_DIR="${TMPDIR:-/tmp}/janus-demo-tunnels"
 COMPOSE=(docker compose -f docker-compose.full.yml -f docker-compose.hub.yml)
-TS=(/opt/homebrew/bin/tailscale --socket=/tmp/tailscaled-janus.sock)
-FIXED_WEB="https://janus-demo.taildfe36f.ts.net"
-FIXED_MOBILE="https://janus-demo.taildfe36f.ts.net:8443"
+FIXED_WEB="https://demo.ianuspath.com"
+FIXED_MOBILE="https://demo-m.ianuspath.com"
 export COMPOSE_PROJECT_NAME=janus-platform
 
 MODE="${1:-}"
@@ -114,17 +116,23 @@ done
 echo
 echo "  전 계정 공통 비밀번호: dev-password!"
 echo
-echo "● Funnel 상태"
-# 먼저 변수로 받는다 — `... | grep -q` 는 첫 매치에서 grep 이 끝나며 tailscale 이 SIGPIPE 로
-# 죽고, set -o pipefail 이 그걸 실패로 잡아 켜져 있는데도 꺼진 것처럼 나온다.
-FUNNEL_STATUS="$("${TS[@]}" funnel status 2>/dev/null || true)"
-if [[ "$FUNNEL_STATUS" == *"Funnel on"* ]]; then
-  grep -E "^https|proxy" <<<"$FUNNEL_STATUS" | sed 's/^/  /'
+echo "● 터널 상태"
+# 파이프로 바로 grep -q 하지 않는다 — 첫 매치에서 grep 이 끝나며 상대가 SIGPIPE 로 죽고,
+# set -o pipefail 이 그걸 실패로 잡아 살아있는데도 죽은 것처럼 보고한다(과거 실측 버그).
+if pgrep -f "cloudflared tunnel run janus-demo" >/dev/null; then
+  echo "  ✓ cloudflared janus-demo 실행 중 (launchd: com.janus.cloudflared)"
+  # 호스트마다 살아있음을 보여주는 경로가 다르다 — 룸 서비스는 `/` 에 라우트가 없어
+  # 404 가 정상이므로 헬스 경로를 찔러야 오해가 없다.
+  for probe in "demo.ianuspath.com|/demo" "demo-m.ianuspath.com|/" "demo-rooms.ianuspath.com|/api/rt/v1/health"; do
+    h="${probe%%|*}"; path="${probe##*|}"
+    printf '    %-26s %-22s %s\n' "$h" "$path" "$(curl -s -o /dev/null -m 15 -w '%{http_code}' "https://$h$path" || echo '---')"
+  done
 else
-  echo "  ✗ Funnel 이 꺼져 있습니다 — 고정 주소가 응답하지 않습니다."
-  echo "    launchctl load ~/Library/LaunchAgents/com.janus.tailscaled.plist"
+  echo "  ✗ 터널이 꺼져 있습니다 — 브랜드 주소가 응답하지 않습니다."
+  echo "    launchctl load ~/Library/LaunchAgents/com.janus.cloudflared.plist"
 fi
 echo
-echo "● 공개 중단:  ${TS[*]} funnel --https=443 off      (웹만)"
-echo "              launchctl unload ~/Library/LaunchAgents/com.janus.tailscaled.plist   (전체)"
-echo "  ⚠ 맥이 꺼지거나 잠들면 고정 주소도 죽습니다. Docker 스택도 떠 있어야 합니다(없으면 502)."
+echo "● 공개 중단:  launchctl unload ~/Library/LaunchAgents/com.janus.cloudflared.plist"
+echo "  ⚠ 맥이 꺼지거나 잠들면 주소도 죽습니다. Docker 스택도 떠 있어야 합니다(없으면 502)."
+echo "  ※ Tailscale Funnel(janus-demo.taildfe36f.ts.net)은 예비 경로로 남아 있습니다 —"
+echo "    정리하려면: launchctl unload ~/Library/LaunchAgents/com.janus.tailscaled.plist"
