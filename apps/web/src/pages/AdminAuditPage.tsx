@@ -16,6 +16,8 @@ const GROUPS: { key: string; label: string }[] = [
   { key: 'feature', label: '기능토글' },
   { key: 'payroll', label: '급여' },
   { key: 'org', label: '조직' },
+  // 보호자 연결 강제 복구(O125) — 칩이 없으면 '전체' 200건 안에 묻힌다.
+  { key: 'guardian', label: '보호자 연결' },
 ];
 const kindOf = (a: string): 'new' | 'confirmed' | 'done' | 'soft' =>
   a.startsWith('payroll') ? 'confirmed' : a.startsWith('org') ? 'done' : a.startsWith('pricing') || a.startsWith('feature') ? 'new' : 'soft';

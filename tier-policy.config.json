@@ -1,0 +1,22 @@
+{
+  "_comment": "무료/회원 티어 노출 정책의 단일 소스. 배치표 생성기는 빌드 시 이 파일을 읽어 무료판을 만들고, 플랫폼은 system_setting('free_exposure_policy')으로 런타임 override 한다. 값 변경은 코드 배포 없이 관리자 화면(PUT /api/v1/admin/free-exposure) 또는 이 파일 수정으로 가능 — 되돌릴 수 있게 설계된 값이다.",
+  "_decision": "N24(무료 노출 수) 잠정 확정값. 법률 회신(B007) 전이므로 보수적으로 시작하고, 회신 후 상향/하향한다. 근거: 실행계획서 W2 D2 '추천 4구간 각 3~5개' 범위의 하한.",
+  "freeExposure": {
+    "perBandItems": 3,
+    "maskNumbers": true,
+    "allowSearch": false,
+    "allowDetail": false,
+    "showTrendYears": 0,
+    "showConfidenceBadge": true,
+    "showRelTierBadge": false
+  },
+  "_fieldNotes": {
+    "perBandItems": "추천 4구간(안정/적정/소신/상향) 각각 무료로 보여줄 대표 항목 수. 법률 회신 전 하한값 3.",
+    "maskNumbers": "실측 컷·백분위 등 원본 수치 마스킹. 색상·구간만 노출. false 로 바꾸려면 법률 회신이 선행되어야 한다.",
+    "allowSearch": "대학·학과 검색 허용 여부. 무료에서 검색을 열면 전수 열람에 가까워져 데이터베이스제작자 권리 위험이 커진다.",
+    "allowDetail": "카드 상세(근거 4종 전문) 열람 허용 여부.",
+    "showTrendYears": "다년 추세 노출 연수. 0 = 미노출.",
+    "showConfidenceBadge": "예측 신뢰도 등급 배지. 수치가 아니라 등급이라 무료에서도 노출 — '근거가 곧 신뢰' 원칙(디자인 원칙 2).",
+    "showRelTierBadge": "상대 티어 배지. 원본 컷 추정에 가까워 회원 이상."
+  }
+}

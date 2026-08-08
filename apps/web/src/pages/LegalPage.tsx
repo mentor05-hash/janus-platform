@@ -33,6 +33,8 @@ export function LegalPage() {
   const [links, setLinks] = useState<GuardianLink[] | null>(null);
   const [linkBusy, setLinkBusy] = useState(false);
   const [linkErr, setLinkErr] = useState('');
+  /** 거절·해제 2단계 확인 — 모바일 LegalScreen 과 같은 동작(한쪽만 1클릭이면 웹에서만 오클릭으로 끊긴다). */
+  const [confirming, setConfirming] = useState<{ id: string; action: 'reject' | 'revoke' } | null>(null);
   const loadLinks = () => api.get<GuardianLink[]>('/me/guardian-links').then((r) => setLinks(Array.isArray(r) ? r : [])).catch(() => setLinks([]));
 
   async function respond(id: string, action: 'approve' | 'reject' | 'revoke') {
@@ -254,22 +256,44 @@ export function LegalPage() {
             </p>
             <ErrorText>{linkErr}</ErrorText>
             <div style={{ display: 'grid', gap: 8 }}>
-              {links.map((l) => (
+              {links.map((l) => {
+                const pend = confirming?.id === l.id ? confirming.action : null;
+                return (
                 <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderTop: '1px solid var(--line)' }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 14 }}><b>{l.counterpartName}</b>{l.relation ? <span style={{ color: 'var(--muted)' }}> · {l.relation}</span> : null}</div>
-                    <div style={{ fontSize: 12.5, color: 'var(--muted)' }}>{LINK_STATUS[l.status] ?? l.status}</div>
+                    {/* 숫자(7일·3회)는 API 의 RELINK_COOLDOWN_DAYS·RELINK_MAX_ATTEMPTS 와 짝이다 —
+                        바꾸면 모바일 LegalScreen·GuardianConsentPage 문구도 함께 고쳐야 한다(O124). */}
+                    <div style={{ fontSize: 12.5, color: 'var(--muted)' }}>
+                      {pend === 'revoke'
+                        ? '해제하면 보호자 화면이 바로 닫혀요. 이 보호자는 7일 뒤 다시 신청할 수 있고, 그때도 승인할지는 내가 정해요.'
+                        : pend === 'reject'
+                        ? '거절하면 이 보호자는 7일 뒤 다시 신청할 수 있어요(최대 3회, 관리자가 제한을 풀어 줄 수도 있어요). 그때도 승인할지는 내가 정해요. 정말 거절할까요?'
+                        : (LINK_STATUS[l.status] ?? l.status)}
+                    </div>
+                    {(l.status === 'rejected' || l.status === 'revoked') && !pend ? (
+                      <div style={{ fontSize: 12.5, color: 'var(--muted)' }}>보호자가 7일 뒤 다시 신청할 수 있어요. 더 빨리 연결하려면 관리자에게 문의해 주세요.</div>
+                    ) : null}
                   </div>
-                  {l.canRespond ? (
+                  {pend ? (
+                    <>
+                      <Button size="sm" variant="ghost" onClick={() => setConfirming(null)} disabled={linkBusy}>취소</Button>
+                      <Button size="sm" onClick={() => { setConfirming(null); void respond(l.id, pend); }} disabled={linkBusy}>
+                        {pend === 'revoke' ? '해제 확정' : '거절 확정'}
+                      </Button>
+                    </>
+                  ) : l.canRespond ? (
                     <>
                       <Button size="sm" onClick={() => respond(l.id, 'approve')} disabled={linkBusy}>승인</Button>
-                      <Button size="sm" variant="ghost" onClick={() => respond(l.id, 'reject')} disabled={linkBusy}>거절</Button>
+                      {/* 재신청은 열렸지만 7일을 기다려야 한다 — 오클릭 비용이 커서 해제와 같은 2단계를 쓴다. */}
+                      <Button size="sm" variant="ghost" onClick={() => setConfirming({ id: l.id, action: 'reject' })} disabled={linkBusy}>거절</Button>
                     </>
                   ) : l.status === 'approved' ? (
-                    <Button size="sm" variant="ghost" onClick={() => respond(l.id, 'revoke')} disabled={linkBusy}>연결 해제</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setConfirming({ id: l.id, action: 'revoke' })} disabled={linkBusy}>연결 해제</Button>
                   ) : null}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </Card>
         )}

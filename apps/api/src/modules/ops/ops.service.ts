@@ -2,7 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/com
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { CREDIT_WON_RATIO } from '../../config/constants';
-import { BookingStatus } from '../../config/enums';
+import { AccountRole, BookingStatus } from '../../config/enums';
 
 /**
  * 운영 통계 대시보드 (CLAUDE.md §ops). 관리자/HR 권한. 응답 {data, meta} 규약.
@@ -156,7 +156,11 @@ export class OpsService {
     // 산정에서 폐지됐는데도(payroll.service 는 배분율만 쓴다) 관리자 화면에 남아 있었고, 더 나쁘게는
     // `?? 30000` 폴백이 **DB 에 없는 값을 창작**해 제시했다(실측: payroll_policy 0행인데 '건당 30,000원' 표시).
     // 등급(S/A/B)은 평가·배정에는 쓰이지만 지급액에는 영향이 없어 등급별 행 자체가 오해였다.
-    const payBasis = await this.payrollBasis();
+    // 급여 기준은 **관리자에게만**(O128) — HR 은 급여 무권한이다(O127). 이 필드가 무조건 실려
+    // 배분율·기본급·인센티브율이 HR 대시보드로 새고 있었다. 대시보드 자체는 HR 의 착지 화면이라
+    // 화면을 막는 대신 필드를 뺀다.
+    const payBasis =
+      actor.role === AccountRole.ADMIN ? await this.payrollBasis() : undefined;
 
     const matchRate =
       totalBookings === 0

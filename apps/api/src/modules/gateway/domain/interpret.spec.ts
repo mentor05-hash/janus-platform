@@ -1,4 +1,4 @@
-import { classifyGateway, maskSensitive, normalizeLlmResult, withinDailyBudget } from './interpret';
+import { classifyGateway, classifyGatewayLlmFailure, maskSensitive, normalizeLlmResult } from './interpret';
 
 describe('maskSensitive (LLM 투입 전 민감정보 마스킹)', () => {
   it('휴대전화·이메일·주민번호를 토큰으로 치환', () => {
@@ -64,11 +64,28 @@ describe('normalizeLlmResult (LLM 산출 보정 — 폴백 불변식)', () => {
   });
 });
 
-describe('withinDailyBudget (일 호출 상한)', () => {
-  it('상한 이내 true / 초과 false / 비정상 false', () => {
-    expect(withinDailyBudget(1, 200)).toBe(true);
-    expect(withinDailyBudget(200, 200)).toBe(true);
-    expect(withinDailyBudget(201, 200)).toBe(false);
-    expect(withinDailyBudget(Number.NaN, 200)).toBe(false);
+describe('classifyGatewayLlmFailure (실패 사유 분류)', () => {
+  // 일 상한 도달을 '모델 오류'로 기록하면 운영자가 원인을 잘못 짚는다 — 반드시 구분되어야 한다.
+  it('어댑터 상한 초과는 daily_cap', () => {
+    const e = {
+      getResponse: () => ({ error: { code: 'AI_QUOTA_EXCEEDED' } }),
+      message: 'quota',
+    };
+    expect(classifyGatewayLlmFailure(e)).toBe('daily_cap');
+  });
+
+  it('미구성은 unconfigured', () => {
+    expect(classifyGatewayLlmFailure(new Error('LLM 이 구성되지 않았습니다'))).toBe('unconfigured');
+    expect(classifyGatewayLlmFailure(new Error('지원하지 않는 provider'))).toBe('unconfigured');
+  });
+
+  it('그 밖은 llm_error', () => {
+    expect(classifyGatewayLlmFailure(new Error('timeout'))).toBe('llm_error');
+    expect(classifyGatewayLlmFailure(undefined)).toBe('llm_error');
+  });
+
+  it('다른 코드의 HttpException 은 상한이 아니다', () => {
+    const e = { getResponse: () => ({ error: { code: 'SOMETHING_ELSE' } }) };
+    expect(classifyGatewayLlmFailure(e)).toBe('llm_error');
   });
 });

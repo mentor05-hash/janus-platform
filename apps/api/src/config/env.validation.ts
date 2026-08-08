@@ -136,6 +136,78 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   ROOMS_PUBLIC_URL?: string; // 브라우저가 접속할 공개 URL(예: http://localhost:3100)
+
+  // ── B008 유료 외부 API 일 상한 ──────────────────────────────
+  // 용도별 상한 키는 LLM_DAILY_LIMIT_<PURPOSE> (llm.limits.ts 의 LLM_PURPOSES 와 같은 이름).
+  @IsOptional()
+  @IsString()
+  LLM_DAILY_CALL_LIMIT?: string; // 전 용도 합산
+
+  @IsOptional()
+  @IsString()
+  LLM_DAILY_LIMIT_REPORT?: string;
+
+  @IsOptional()
+  @IsString()
+  LLM_DAILY_LIMIT_SIMILARITY?: string;
+
+  @IsOptional()
+  @IsString()
+  LLM_DAILY_LIMIT_DRAFT?: string;
+
+  @IsOptional()
+  @IsString()
+  LLM_DAILY_LIMIT_OCR?: string;
+
+  @IsOptional()
+  @IsString()
+  LLM_DAILY_LIMIT_VISION?: string;
+
+  @IsOptional()
+  @IsString()
+  LLM_DAILY_LIMIT_CONSULTING?: string;
+
+  @IsOptional()
+  @IsString()
+  LLM_DAILY_LIMIT_GATEWAY?: string;
+
+  @IsOptional()
+  @IsString()
+  LLM_DAILY_LIMIT_CONSULTREPORT?: string;
+
+  @IsOptional()
+  @IsString()
+  LLM_QUOTA_FAIL_OPEN?: string; // 'true' 면 카운터 장애 시 통과(기본은 차단 — 비용 보호)
+
+  // ── B221 층 분리 ──────────────────────────────────────────
+  @IsOptional()
+  @IsString()
+  LLM_ENTITLED_RESERVE_PCT?: string; // 합산 상한 중 매출 연동 용도 예약 비율(0~0.9). 기본 0.4
+
+  @IsOptional()
+  @IsString()
+  LLM_REPORT_REVIEW_PER_USER_DAY?: string; // 사용자 1인 일 신고 AI 검토. 기본 5
+
+  @IsOptional()
+  @IsString()
+  LLM_SIMILARITY_PER_USER_DAY?: string; // 교사 1인 일 답변 유사도 검사. 기본 40
+
+  // ── 미디어(SFU) 일 상한 ───────────────────────────────────
+  @IsOptional()
+  @IsString()
+  MEDIA_DAILY_TOKEN_LIMIT?: string;
+
+  @IsOptional()
+  @IsString()
+  MEDIA_DAILY_RECORDING_LIMIT?: string;
+
+  @IsOptional()
+  @IsString()
+  MEDIA_QUOTA_FAIL_OPEN?: string; // 'false' 면 장애 시 차단(기본은 통과 — 수업 중단 방지)
+
+  @IsOptional()
+  @IsString()
+  STT_DAILY_LIMIT?: string; // 일 음성 전사 상한(유료 STT). 기본 60
 }
 
 /** 대시보드 권한 ENV 플래그 — 'true' 만 활성, 그 외/부재는 false(fail-closed). */

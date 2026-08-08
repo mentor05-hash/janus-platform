@@ -3,11 +3,14 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import { ConsultMode } from '../../../config/enums';
+import type { PlacementTier } from '../domain/grade-benefits';
 
 /** PUT /admin/pricing — 방식별 요금 정책(전사 기본) 수정. */
 export class UpdatePricingDto {
@@ -65,4 +68,82 @@ export class SetFeatureDto {
 
   @IsBoolean()
   enabled!: boolean;
+}
+
+/**
+ * PUT /admin/free-exposure — 무료 티어 노출 범위(N24) 수정.
+ * 전부 optional: 부분 변경을 허용하고 나머지는 현재 정책을 유지한다.
+ */
+export class UpdateFreeExposureDto {
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) perBandItems?: number;
+  @IsOptional() @IsBoolean() maskNumbers?: boolean;
+  @IsOptional() @IsBoolean() allowSearch?: boolean;
+  @IsOptional() @IsBoolean() allowDetail?: boolean;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) showTrendYears?: number;
+  @IsOptional() @IsBoolean() showConfidenceBadge?: boolean;
+  @IsOptional() @IsBoolean() showRelTierBadge?: boolean;
+}
+
+/** 등급 하나의 비크레딧 혜택(B218). 전부 optional — 부분 변경 시 나머지는 현재 값 유지. */
+export class UpdateGradeBenefitDto {
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) qnaQueueWeight?: number;
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  concurrentBookings?: number;
+  @IsOptional() @IsIn(['free', 'member', 'paid']) placementTier?: PlacementTier;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) aiReportsPerMonth?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) matchHorizonDays?: number;
+}
+
+/**
+ * PUT /admin/grade-benefits — 회원 등급별 비크레딧 혜택(B218) 수정.
+ * tier(1~4) 단위로 부분 변경한다. 예: `{ "4": { "aiReportsPerMonth": 8 } }`
+ */
+export class UpdateGradeBenefitsDto {
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UpdateGradeBenefitDto)
+  1?: UpdateGradeBenefitDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UpdateGradeBenefitDto)
+  2?: UpdateGradeBenefitDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UpdateGradeBenefitDto)
+  3?: UpdateGradeBenefitDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => UpdateGradeBenefitDto)
+  4?: UpdateGradeBenefitDto;
+}
+
+/**
+ * PUT /admin/ai-usage — AI 사용량 3층 정책(B221) 수정.
+ * 전부 optional — 부분 변경 시 나머지는 현재 값 유지.
+ */
+export class UpdateAiUsageDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  reportReviewPerUserDay?: number;
+
+  /** 0~0.9. 소수라 IsInt 를 걸지 않는다. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  reservePctForEntitled?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  peakFactor?: number;
 }

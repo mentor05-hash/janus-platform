@@ -58,9 +58,11 @@ import { TasksModule } from './modules/tasks/tasks.module';
 import { GuardianPlanModule } from './modules/guardian-plan/guardian-plan.module';
 import { SearchModule } from './modules/search/search.module';
 import { AcademyFinderModule } from './modules/academy-finder/academy-finder.module';
+import { QuotaModule } from './common/quota/quota.module';
 
 @Module({
   imports: [
+    QuotaModule, // 유료 AI·SFU 일 사용량 조회(상한은 각 어댑터가 강제)
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnv,

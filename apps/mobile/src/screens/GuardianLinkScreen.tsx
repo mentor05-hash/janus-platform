@@ -138,6 +138,11 @@ export function GuardianLinkScreen({ onBack, onLinked }: { onBack?: () => void; 
                 {l.relation ? <Text style={s.rowRel}> · {l.relation}</Text> : null}
               </Text>
               <Text style={s.rowStatus}>{LINK_STATUS[l.status] ?? l.status}</Text>
+              {/* 막다른 길로 보이지 않게 다음 행동을 알려준다 — 거절·해제는 끝이 아니라 대기다(O124).
+                  숫자는 API 의 RELINK_COOLDOWN_DAYS·RELINK_MAX_ATTEMPTS 및 웹 문구와 짝. */}
+              {(l.status === 'rejected' || l.status === 'revoked') ? (
+                <Text style={s.rowStatus}>7일 뒤 같은 아이디로 다시 신청할 수 있어요(최대 3회). 더 빨리 연결하려면 센터 관리자에게 문의해 주세요.</Text>
+              ) : null}
             </View>
           ))
         )}

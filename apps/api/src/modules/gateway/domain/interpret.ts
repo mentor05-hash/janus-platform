@@ -135,7 +135,27 @@ export function normalizeLlmResult(raw: Partial<GatewayInterpretation> | null | 
   };
 }
 
-/** 일 호출 상한 판정(순수) — count 는 incr 후 값. */
-export function withinDailyBudget(count: number, limit: number): boolean {
-  return Number.isFinite(count) && count <= Math.max(0, limit);
+/**
+ * 관문 LLM 실패 사유 분류(순수) — 규칙 폴백 시 무엇 때문인지 정직하게 남기기 위한 것.
+ *
+ * 일 상한은 어댑터(`QuotaLlmProvider`, 용도 `gateway`)가 단일 소스로 센다.
+ * 상한 도달도 예외로 올라오므로, 그냥 두면 **예산 사건이 '모델 오류'로 기록된다** —
+ * 운영자가 원인을 잘못 짚게 되므로 여기서 구분한다.
+ *
+ * (예전에는 서비스가 자체 카운터를 돌려 `withinDailyBudget` 으로 판정했다. 어댑터 상한이
+ *  생기면서 같은 경로에 상한이 둘이 되어 실효값과 운영자가 보는 값이 갈라졌고,
+ *  카운터를 어댑터 하나로 모으며 그 함수는 제거했다.)
+ */
+export function classifyGatewayLlmFailure(
+  e: unknown,
+): 'daily_cap' | 'unconfigured' | 'llm_error' {
+  const err = e as { getResponse?: () => unknown; message?: string };
+  // 어댑터가 던지는 상한 초과 — { error: { code: 'AI_QUOTA_EXCEEDED' } }
+  if (typeof err?.getResponse === 'function') {
+    const body = err.getResponse() as { error?: { code?: string } } | undefined;
+    if (body?.error?.code === 'AI_QUOTA_EXCEEDED') return 'daily_cap';
+  }
+  const msg = err?.message ?? '';
+  if (msg.includes('구성되지') || msg.includes('지원하지')) return 'unconfigured';
+  return 'llm_error';
 }
