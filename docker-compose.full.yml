@@ -47,6 +47,11 @@ services:
       NODE_ENV: local
       PORT: "3000"
       API_PREFIX: /api/v1
+      # 화이트라벨 — 약관·개인정보처리방침(legal.content.ts)이 ENV 로만 브랜드 값을 받는다.
+      # branding.config.json 은 웹·모바일 생성파일용이라 API 에는 안 닿는다 → 여기서 전달.
+      # BRANDING_COMPANY 는 법인 확정 전이라 비워 둔다(코드 기본값 '○○(주)' 유지).
+      BRANDING_APP_NAME: ${BRANDING_APP_NAME:-야누스}
+      BRANDING_CONTACT_EMAIL: ${BRANDING_CONTACT_EMAIL:-privacy@ianuspath.com}
       # connection_limit: 예약 advisory-lock 직렬화 시 대기 요청도 커넥션을 점유하므로 여유 확보.
       #   pool_timeout: 풀 대기 상한(초). 초과분은 서비스에서 우아한 409 로 안내. (postgres max=100)
       DATABASE_URL: postgresql://janus:janus_local_pw@postgres:5432/janus?connection_limit=30&pool_timeout=20
