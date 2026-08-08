@@ -4,6 +4,13 @@
 -- psql 로 바로 주입 가능. 더미 로그인 7종 · 공통 비번: dev-password!
 -- 사용: docker compose ... exec -T postgres psql -U janus -d janus < prisma/seed-base.sql
 -- 멱등 아님 — 빈 DB 1회 주입 권장.
+--
+-- ⚠ 공개 데모에 쓰지 말 것: 이 파일은 **SQL 이라 ENV 를 읽지 못한다**. 아래 해시는 전부
+--   공개값 dev-password! 이므로, 이걸로 주입하면 관리자 계열(admin01·hq01·master01·hr01)이
+--   공개 비번으로 열린다. 공개 주소에 붙이는 DB 는 관리자 비번 분리를 지원하는 경로로 시드할 것:
+--     JANUS_DEMO_ADMIN_PW='...' npm run seed          (ts-node 있는 환경)
+--     JANUS_DEMO_ADMIN_PW='...' npm run seed:prod     (컨테이너 — build:seed 산출물)
+--   근거·대상 목록: apps/api/src/config/demo-admin-accounts.ts
 -- =====================================================================
 BEGIN;
 SET session_replication_role = replica;  -- FK/트리거 우회(주입 순서 무관)

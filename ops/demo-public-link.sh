@@ -112,7 +112,13 @@ for id in student01 paidall teacher01 guardian01; do
   printf '  %-11s %s/login?u=%s&p=dev-password%%21\n' "$id" "$FIXED_WEB" "$id"
 done
 echo
-echo "  전 계정 공통 비밀번호: dev-password!"
+echo "  위 체험 계정 공통 비밀번호: dev-password!"
+if [ -n "${JANUS_DEMO_ADMIN_PW:-}" ]; then
+  echo "  관리자 계열(admin01·hq01·master01·hr01)은 분리 비번으로 시드됨 — 공통 비번으로 열리지 않는다."
+else
+  echo "  ⚠ 관리자 계열(admin01·hq01·master01·hr01)도 같은 공개 비번이다 — 공개 주소라면"
+  echo "     JANUS_DEMO_ADMIN_PW 를 주고 재시드할 것(apps/api/src/config/demo-admin-accounts.ts)."
+fi
 echo
 echo "● Funnel 상태"
 # 먼저 변수로 받는다 — `... | grep -q` 는 첫 매치에서 grep 이 끝나며 tailscale 이 SIGPIPE 로

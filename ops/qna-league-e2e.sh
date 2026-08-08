@@ -4,7 +4,11 @@
 set -euo pipefail
 API="${API:-http://localhost:3000/api/v1}"
 PW="${PW:-dev-password!}"
-login() { curl -s -X POST "$API/auth/login" -H 'Content-Type: application/json' -d "{\"loginId\":\"$1\",\"password\":\"$PW\"}" | jq -r '.data.accessToken // .accessToken // empty'; }
+# 공개 데모처럼 관리자 계열 비번을 분리한 환경(JANUS_DEMO_ADMIN_PW 로 시드)에서는 ADMIN_PW 를 준다.
+# 미설정이면 PW 와 동일 — CI·로컬은 아무것도 바뀌지 않는다.
+ADMIN_PW="${ADMIN_PW:-$PW}"
+pw_for() { case "$1" in admin01|hq01|master01|hr01) printf '%s' "$ADMIN_PW";; *) printf '%s' "$PW";; esac; }
+login() { curl -s -X POST "$API/auth/login" -H 'Content-Type: application/json' -d "{\"loginId\":\"$1\",\"password\":\"$(pw_for "$1")\"}" | jq -r '.data.accessToken // .accessToken // empty'; }
 auth() { local t="$1"; shift; curl -s -H "Authorization: Bearer $t" "$@"; }
 
 echo "▶ api 헬스 대기(재빌드 직후 워밍업)…"
