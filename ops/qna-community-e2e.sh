@@ -9,6 +9,13 @@ API="${API:-http://localhost:3000/api/v1}"
 PW="${PW:-dev-password!}"
 # 공개 데모처럼 관리자 계열 비번을 분리한 환경(JANUS_DEMO_ADMIN_PW 로 시드)에서는 ADMIN_PW 를 준다.
 # 미설정이면 PW 와 동일 — CI·로컬은 아무것도 바뀌지 않는다.
+# ADMIN_PW 미지정이면 루트 .env 의 JANUS_DEMO_ADMIN_PW 를 쓴다 — 공개 데모용으로 관리자 계열
+# 비번을 분리 시드한 기기에서 이 스크립트를 단독 실행해도 "AD 로그인 실패"로 죽지 않게.
+if [ -z "${ADMIN_PW:-}" ]; then
+  _envf="$(cd "$(dirname "$0")/.." && pwd)/.env"
+  [ -f "$_envf" ] && ADMIN_PW="$(sed -n 's/^JANUS_DEMO_ADMIN_PW=//p' "$_envf" | head -1)"
+  unset _envf
+fi
 ADMIN_PW="${ADMIN_PW:-$PW}"
 pw_for() { case "$1" in admin01|hq01|master01|hr01) printf '%s' "$ADMIN_PW";; *) printf '%s' "$PW";; esac; }
 OWNER="${OWNER:-student01}"   # 질문 작성자·채택자(학생 필수 — accept 는 @Roles student)

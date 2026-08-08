@@ -115,6 +115,10 @@ for id in student01 paidall teacher01 guardian01; do
 done
 echo
 echo "  위 체험 계정 공통 비밀번호: dev-password!"
+# 값은 보통 셸이 아니라 루트 .env 에 있다 — 거기까지 봐야 거짓 경보가 안 난다.
+if [ -z "${JANUS_DEMO_ADMIN_PW:-}" ] && [ -f .env ]; then
+  JANUS_DEMO_ADMIN_PW="$(sed -n 's/^JANUS_DEMO_ADMIN_PW=//p' .env | head -1)"
+fi
 if [ -n "${JANUS_DEMO_ADMIN_PW:-}" ]; then
   echo "  관리자 계열(admin01·hq01·master01·hr01)은 분리 비번으로 시드됨 — 공통 비번으로 열리지 않는다."
 else
