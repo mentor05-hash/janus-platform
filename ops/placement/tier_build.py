@@ -28,7 +28,7 @@
 
 빌드 시 ENV(전부 선택 — 미설정이면 플레이스홀더/무해 동작):
   JANUS_ALLOWED_HOSTS    쉼표(또는 공백) 구분 허용 호스트. `*.` 로 시작하면 그 도메인 + 모든 하위 도메인.
-                         예: "ianuspath.com,www.ianuspath.com,*.janus-public.pages.dev"
+                         예: "ianuspath.com,www.ianuspath.com,*.ianuspath.pages.dev"
                          (와일드카드는 Pages 미리보기 `<해시>.<프로젝트>.pages.dev` 용)
                          미설정 → 미러 감지 비활성(스니펫은 들어가되 런타임 no-op).
   JANUS_CANONICAL_ORIGIN 원본 주소. 예: "https://ianuspath.com"
