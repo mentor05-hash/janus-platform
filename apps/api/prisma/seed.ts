@@ -13,6 +13,13 @@ import { join } from 'node:path';
 import * as bcrypt from 'bcryptjs';
 import { Client } from 'pg';
 import { PRICING_DEFAULTS, CLASSIFY_LIMITS } from '../src/config/constants';
+import {
+  DEMO_ADMIN_LOGIN_IDS,
+  DEMO_ADMIN_PW_ENV,
+  DEMO_DEFAULT_PW,
+  demoAdminPassword,
+  isDemoAdminAccount,
+} from '../src/config/demo-admin-accounts';
 
 // .env 의 DATABASE_URL 을 가볍게 로드(ts-node 는 자동 로드 안 함).
 function resolveDatabaseUrl(): string {
@@ -54,8 +61,18 @@ const ID = {
 };
 
 // 더미 계정 공통 개발 비밀번호(로컬 전용). 모든 더미 계정이 이 값으로 로그인.
-const DEV_PASSWORD = 'dev-password!';
+const DEV_PASSWORD = DEMO_DEFAULT_PW;
 const DUMMY_PW_HASH = bcrypt.hashSync(DEV_PASSWORD, 10);
+
+// 관리자 콘솔 계열만 다른 비밀번호로 시드하는 탈출구(공개 데모용). ENV 미설정이면 위 기본값 그대로 —
+// CI·로컬은 아무것도 바뀌지 않는다. 근거·주의사항은 src/config/demo-admin-accounts.ts 참조.
+const ADMIN_SPLIT_PW = demoAdminPassword();
+const ADMIN_PW_HASH = ADMIN_SPLIT_PW ? bcrypt.hashSync(ADMIN_SPLIT_PW, 10) : DUMMY_PW_HASH;
+
+/** 이 계정에 심을 비밀번호 해시. 관리자 계열 + ENV 설정 시에만 분리 해시. */
+function pwHashFor(loginId: string): string {
+  return ADMIN_SPLIT_PW && isDemoAdminAccount(loginId) ? ADMIN_PW_HASH : DUMMY_PW_HASH;
+}
 
 async function main() {
   const client = new Client({ connectionString: resolveDatabaseUrl() });
@@ -182,7 +199,7 @@ async function main() {
         `INSERT INTO account (id, role, center_id, login_id, pw_hash, name, status)
          VALUES ($1,$2,$3,$4,$5,$6,'approved')
          ON CONFLICT (id) DO UPDATE SET pw_hash = EXCLUDED.pw_hash, status = 'approved'`,
-        [id, role, ID.center, loginId, DUMMY_PW_HASH, name],
+        [id, role, ID.center, loginId, pwHashFor(loginId), name],
       );
     }
 
@@ -230,7 +247,7 @@ async function main() {
         `INSERT INTO account (id, role, center_id, login_id, pw_hash, name, status)
          VALUES ($1,'teacher',$2,$3,$4,$5,'approved')
          ON CONFLICT (id) DO UPDATE SET pw_hash = EXCLUDED.pw_hash, status = 'approved'`,
-        [tid, ID.center, loginId, DUMMY_PW_HASH, name],
+        [tid, ID.center, loginId, pwHashFor(loginId), name],
       );
       await client.query(
         `INSERT INTO teacher_profile (account_id, center_id, subjects, grade, career, teacher_category)
@@ -267,7 +284,7 @@ async function main() {
       `INSERT INTO account (id, role, center_id, login_id, pw_hash, name, status)
        VALUES ($1,'admin',NULL,'hq01',$2,'본사관리자','approved')
        ON CONFLICT (id) DO UPDATE SET pw_hash = EXCLUDED.pw_hash, center_id = NULL, status='approved'`,
-      [ID.acHq, DUMMY_PW_HASH],
+      [ID.acHq, pwHashFor('hq01')],
     );
     await client.query(
       `INSERT INTO staff_profile (account_id, staff_role, center_id, perm_level)
@@ -279,7 +296,7 @@ async function main() {
       `INSERT INTO account (id, role, center_id, login_id, pw_hash, name, status)
        VALUES ($1,'admin',NULL,'master01',$2,'마스터관리자','approved')
        ON CONFLICT (id) DO UPDATE SET pw_hash = EXCLUDED.pw_hash, center_id = NULL, status='approved'`,
-      [ID.acMaster, DUMMY_PW_HASH],
+      [ID.acMaster, pwHashFor('master01')],
     );
     await client.query(
       `INSERT INTO staff_profile (account_id, staff_role, center_id, perm_level)
@@ -310,7 +327,7 @@ async function main() {
         `INSERT INTO account (id, role, center_id, login_id, pw_hash, name, status)
          VALUES ($1,'student',$2,$3,$4,$5,'approved')
          ON CONFLICT (id) DO UPDATE SET pw_hash = EXCLUDED.pw_hash, status='approved'`,
-        [id, ID.center, loginId, DUMMY_PW_HASH, name],
+        [id, ID.center, loginId, pwHashFor(loginId), name],
       );
       await client.query(
         `INSERT INTO student_profile (account_id, center_id, membership_grade_id)
@@ -362,6 +379,11 @@ async function main() {
     await client.query('COMMIT');
     console.log('✔ seed: 완료 (센터1 · 등급4 · 요금정책5 · 한도1 · 더미계정5)');
     console.log(`  로그인 더미: student01 / teacher01 / admin01 / hr01 / guardian01 (PW: ${DEV_PASSWORD})`);
+    if (ADMIN_SPLIT_PW) {
+      console.log(
+        `  ⚠ 관리자 계열(${DEMO_ADMIN_LOGIN_IDS.join(' / ')})은 ${DEMO_ADMIN_PW_ENV} 값으로 분리 시드됨 — 위 공통 PW 로는 로그인되지 않는다.`,
+      );
+    }
   } catch (e) {
     await client.query('ROLLBACK');
     throw e;
