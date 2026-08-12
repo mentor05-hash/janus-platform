@@ -357,7 +357,9 @@ async function main() {
       [ID.acStudent],
     );
 
-    // 선생님 근무표 — 매일(일~토) 09:00–18:00
+    // 선생님 근무표 — 매일(일~토) 08:00–24:00
+    // 데모용으로 일부러 넓다. 좁히면 "저녁에 시험해보려니 예약 자체가 안 된다"가 반복된다
+    // (실서비스 기본값이 아니라 데모 시드값이다 — 현실적인 근무표는 seed-sim-schedules.mjs 쪽).
     // env 는 그 시간대에 가능한 상담 모드를 정한다(O119③). 생략하면 consult-modes 의 보수적
     // 기본값 'etc' = ['chat'] 로 해석되어 **데모에서 화상(zoom)·필기공유(hand) 예약 슬롯이 0개**가 된다
     // (교집합이라 선생님·학생 양쪽 다 있어야 한다). 데모는 전 기능을 보여야 하므로 'home'(전 모드).
@@ -370,13 +372,13 @@ async function main() {
       await client.query(
         `INSERT INTO work_schedule (teacher_id, recurring_template, weekly_overrides, pre_book_horizon_days)
          VALUES ($1, $2::jsonb, '[]'::jsonb, 30)`,
-        [ID.acTeacher, JSON.stringify(weekdayWindows('09:00', '18:00'))],
+        [ID.acTeacher, JSON.stringify(weekdayWindows('08:00', '24:00'))],
       );
     }
-    // 학생 체류시간 — 매일 09:00–22:00
+    // 학생 체류시간 — 매일 08:00–24:00 (선생님 창과 같게 — 교집합이 좁아지면 슬롯이 사라진다)
     await client.query(`UPDATE student_profile SET stay_time = $2::jsonb WHERE account_id = $1`, [
       ID.acStudent,
-      JSON.stringify(weekdayWindows('09:00', '22:00')),
+      JSON.stringify(weekdayWindows('08:00', '24:00')),
     ]);
 
     await client.query('COMMIT');
