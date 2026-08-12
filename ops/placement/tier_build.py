@@ -477,6 +477,7 @@ def build(src, tier, cfg, out_dir):
         spans = measure.literal_spans(html, measure.MEASURE_FLOOR)
         m['max_literal_bytes'] = max((s[3] for s in spans), default=0)
         m['max_opaque_run'] = measure.max_opaque_run(html)
+        m['expanded_bytes'] = measure.expanded_bytes(html)   # 사전 압축 밀수 — 풀어서 잰다
         viol += measure.enforce_file(m, budget)
 
         # G5 — 입력이 큰데 줄지 않았다면 삭감이 통째로 no-op 이었다는 뜻이다. 이번 사고의 직접 방어선.

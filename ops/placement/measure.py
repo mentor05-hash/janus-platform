@@ -24,8 +24,10 @@
 
 임계값 재측정: `python3 ops/placement/measure.py --report <파일|디렉토리>…`
 """
+import base64
 import gzip
 import json
+import lzma
 import os
 import re
 import sys
@@ -154,6 +156,55 @@ def max_opaque_run(text):
     return best
 
 
+# ── 사전 압축 밀수 탐지 ─────────────────────────────────────────────────────
+# gzip 바이트를 '정보량'의 프록시로 쓰면, **이미 압축된 데이터**에 속는다 — gzip 이 더 줄이지 못하므로
+# 작아 보인다. 실측(2026-08-12 레드팀): 269.5KB 페이로드를 lzma+base64 로 넣은 18.3KB 산출물이
+# 질량 게이트를 통과했다. 청크 크기를 바꿔도(76/24/12자) 압축비는 1.31~1.32 로 거의 불변이라
+# 알파벳·런길이 기반 임계는 잘게 쪼개면 뚫린다.
+# 그래서 **풀어서 잰다**: base64 덩어리를 디코드해 보고, 그 결과가 실제로 압축 해제되면
+# 압축 해제된 크기를 질량에 더한다. 무작위 텍스트는 압축 해제에 실패하므로 오탐이 사실상 없다.
+_BLOCK = re.compile(r'<(script|style)\b[^>]*>(.*?)</\1>', re.S | re.I)
+_B64_ONLY = re.compile(r'[^A-Za-z0-9+/=]')
+
+
+def _inflated_len(raw):
+    """raw 가 알려진 압축 포맷이면 해제 후 길이, 아니면 0. (0 = 압축물이 아님 → 밀수로 보지 않는다)"""
+    import bz2
+    import zlib
+    for fn in (lzma.decompress, bz2.decompress,
+               lambda d: zlib.decompress(d),
+               lambda d: zlib.decompress(d, -15),
+               lambda d: gzip.decompress(d)):
+        try:
+            out = fn(raw)
+            if len(out) > len(raw):
+                return len(out)
+        except Exception:
+            continue
+    return 0
+
+
+def expanded_bytes(text):
+    """산출물이 **실제로 담고 있는** 정보량(사전 압축분을 푼 크기의 합).
+
+    구분자(따옴표·쉼표·개행)를 제거하고 보므로 청크 분할이 무력화된다.
+    압축 해제에 성공한 것만 센다 — 평범한 JS 를 base64 로 오독해도 해제가 실패해 0 이 된다.
+    """
+    total = 0
+    for m in _BLOCK.finditer(text):
+        cand = _B64_ONLY.sub('', m.group(2))
+        if len(cand) < 512:
+            continue
+        try:
+            raw = base64.b64decode(cand + '=' * (-len(cand) % 4), validate=False)
+        except Exception:
+            continue
+        if len(raw) < 256:
+            continue
+        total += _inflated_len(raw)
+    return total
+
+
 def measure_bytes(b):
     lines = b.split(b'\n')
     return {
@@ -179,6 +230,7 @@ def measure_file(path):
     if t is None:
         m['max_literal_bytes'] = 0
         m['max_opaque_run'] = 0
+        m['expanded_bytes'] = 0
         m['binary'] = True
         return m
     m['binary'] = False
@@ -188,6 +240,7 @@ def measure_file(path):
     spans = literal_spans(t, MEASURE_FLOOR)
     m['max_literal_bytes'] = max((s[3] for s in spans), default=0)
     m['max_opaque_run'] = max_opaque_run(t)
+    m['expanded_bytes'] = expanded_bytes(t)
     return m
 
 
@@ -254,6 +307,11 @@ def enforce_file(m, budget):
     lit = st.get('strip_literal_over_bytes')
     if lit and m.get('max_literal_bytes', 0) >= lit:
         out.append('삭감되지 않은 대입 리터럴 %s ≥ %s (%s)' % (_kb(m['max_literal_bytes']), _kb(lit), m.get('rel') or m.get('path')))
+    exp = m.get('expanded_bytes', 0)
+    if exp and (m['bytes'] + exp) > f['max_bytes']:
+        out.append('실효 질량 %s(= 파일 %s + 사전압축 해제분 %s) > 상한 %s — 압축 밀수 (%s)'
+                   % (_kb(m['bytes'] + exp), _kb(m['bytes']), _kb(exp), _kb(f['max_bytes']),
+                      m.get('rel') or m.get('path')))
     opq = st.get('max_opaque_run')
     if opq and m.get('max_opaque_run', 0) > opq:
         out.append('연속 인코딩 문자열 %d자 > %d (압축 밀수 의심 · %s)' % (m['max_opaque_run'], opq, m.get('rel') or m.get('path')))

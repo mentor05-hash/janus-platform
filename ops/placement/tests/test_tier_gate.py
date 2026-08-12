@@ -117,6 +117,37 @@ def main():
             leaked = [f for f in files_in(d) if f.endswith(('.html', '.htm'))]
             check('%s: 산출물 미기록(유출본 없음)' % form, not leaked, str(leaked))
 
+    # ── 2-b) 사전 압축 밀수 (2026-08-12 레드팀 실측 우회) ──
+    # gzip 을 정보량 프록시로 쓰면 **이미 압축된 데이터**에 속는다. 대입이 아닌 블록에 넣으면
+    # 삭감도 안 닿고, 청킹하면 opaque_run 도 피한다. 실측: 269.5KB 페이로드가 18.3KB 산출물로 통과했다.
+    print('\n[2-b] 사전 압축 밀수 — 풀어서 재면 잡힌다(청크 크기 무관)')
+    import base64 as _b64, lzma as _lzma
+    rows = ['["합성대%04d","합성학과%03d",%d,%.2f]' % (i % 400, i % 120, 200 + i % 200, 60 + (i % 39))
+            for i in range(6000)]
+    _payload = ('[' + ','.join(rows) + ']').encode()
+    _blob = _b64.b64encode(_lzma.compress(_payload, preset=9)).decode()
+    for chunk in (76, 24, 12):
+        with tempfile.TemporaryDirectory() as tmp:
+            body = '\n'.join(_blob[i:i + chunk] for i in range(0, len(_blob), chunk))
+            html = ('<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>t</title></head>'
+                    '<body><h1>합성</h1><script type="text/plain" id="z">\n' + body +
+                    '\n</script></body></html>')
+            src = os.path.join(tmp, 'm.html')
+            open(src, 'w', encoding='utf-8').write(html)
+            rc, log, d = build_free(tmp, src)
+            check('밀수 %d자 청크: 빌드 차단' % chunk, rc != 0, 'rc=%d' % rc)
+            check('밀수 %d자 청크: 산출물 미기록' % chunk,
+                  not [f for f in files_in(d) if f.endswith('.html')])
+        # 빌드를 우회해 배치해도 검증기가 잡아야 한다
+        with tempfile.TemporaryDirectory() as tmp:
+            d = os.path.join(tmp, 'free')
+            os.makedirs(d)
+            body = '\n'.join(_blob[i:i + chunk] for i in range(0, len(_blob), chunk))
+            open(os.path.join(d, 'leak.html'), 'w', encoding='utf-8').write(
+                '<html><body><script type="text/plain">\n' + body + '\n</script></body></html>')
+            rc, log = run([VERIFY, d, '--tier', 'free', '--config', CONFIG])
+            check('밀수 %d자 청크: 검증도 차단' % chunk, rc != 0, 'rc=%d' % rc)
+
     # ── 3) 검증기 독립성: 다른 경로로 만들어진 유출본도 검증에서 걸린다 ──
     print('\n[3] 검증기 독립 — 빌드를 우회해 만든 유출본을 잡는다')
     with tempfile.TemporaryDirectory() as tmp:
