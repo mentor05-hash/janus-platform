@@ -37,6 +37,14 @@
 import argparse, hashlib, json, os, re, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+import measure  # 측정·예산 판정의 단일 구현 — 삭감기와 검증기가 다른 판단을 할 수 없게 한다
+
+
+class BudgetExceeded(Exception):
+    """질량 예산 위반. 산출물을 쓰지 않고 비-0 으로 끝낸다."""
+
+
 REPO_ROOT = os.path.dirname(os.path.dirname(HERE))  # ops/placement → repo 루트
 
 
@@ -399,11 +407,25 @@ def build(src, tier, cfg, out_dir):
     with open(src, encoding='utf-8') as f:
         html = f.read()
 
+    src_bytes = len(html.encode('utf-8'))
+    # G0 — 계약 존재. publishable 미선언·예산 부재·HARD 초과는 여기서 예외(관대한 기본값 없음).
+    budget = measure.load_budget(cfg, tier)
+
     html, n_regions = mask_regions(html, levels, tier)
-    n_assign = 0
+    # G1 — 삭감 두 경로를 **병행**한다(택일이 아니다).
+    #   (a) 이름 기반: 알려진 페이로드. 크기 임계 아래의 작은 것도 확실히 지운다.
+    #   (b) 크기 기반: 이름을 모르는 페이로드. 2026-08-12 위음성의 근본 수정 —
+    #       (a) 만 있을 때 실마스터에 그 이름이 0건이라 아무것도 안 지워졌다.
+    # G2 — 균형 스캔이 끝을 못 찾으면 measure.Unparseable 이 위로 던져져 빌드가 죽는다(조용한 통과 없음).
+    n_named = 0
     for name in tconf.get('strip_assignments', []):
         html, ok = strip_assignment(html, name)
-        n_assign += 1 if ok else 0
+        n_named += 1 if ok else 0
+    n_assign = 0
+    if budget:
+        html, stripped = measure.strip_large_literals(
+            html, budget['structure']['strip_literal_over_bytes'])
+        n_assign = len(stripped)
 
     html = inject(html, flags_script(tier, tconf['flags']), 'body_start')
     html = inject_before_body_end(html, watermark_html(cfg['watermark'], tconf['label']))
@@ -441,16 +463,60 @@ def build(src, tier, cfg, out_dir):
             notes.append('A7 건너뜀(캘린더 파일 없음)')
 
     dst_dir = os.path.join(out_dir, tier)
-    os.makedirs(dst_dir, exist_ok=True)
     base = os.path.basename(src)
     dst = os.path.join(dst_dir, base)
-    with open(dst, 'w', encoding='utf-8') as f:
-        f.write(html)
+    out_bytes = html.encode('utf-8')
+
+    # ── 질량 게이트 — 통과 전에는 **한 바이트도 디스크에 쓰지 않는다** ──────────────
+    # 현행(2026-08-12 이전)은 유출된 파일을 먼저 쓰고 성공 메시지를 냈다. 그러면 그 파일이 그대로 배포된다.
+    if budget:
+        viol = []
+        # G3·G4 — 산출물 자체의 질량·구조. 이름이 아니라 결과를 잰다.
+        m = measure.measure_bytes(out_bytes)
+        m['rel'] = base
+        spans = measure.literal_spans(html, measure.MEASURE_FLOOR)
+        m['max_literal_bytes'] = max((s[3] for s in spans), default=0)
+        m['max_opaque_run'] = measure.max_opaque_run(html)
+        viol += measure.enforce_file(m, budget)
+
+        # G5 — 입력이 큰데 줄지 않았다면 삭감이 통째로 no-op 이었다는 뜻이다. 이번 사고의 직접 방어선.
+        inp = budget.get('input') or {}
+        if src_bytes >= inp.get('large_master_bytes', 262144):
+            frac = len(out_bytes) / float(src_bytes)
+            if frac > inp.get('max_retained_fraction', 0.05):
+                viol.append('잔존률 %.2f%% > 상한 %.2f%% — 입력 %.1fKB 대비 삭감이 거의 일어나지 않았다'
+                            % (frac * 100, inp['max_retained_fraction'] * 100, src_bytes / 1024))
+
+        # G6 — 세트 질량(이미 있는 파일 + 이번 산출물). 확장자 무관·재귀라 사이드카·분할 적재도 합산된다.
+        if os.path.isdir(dst_dir):
+            s = measure.measure_set(dst_dir)
+            existing = [f for f in s['per_file'] if f['rel'] != base]
+            s['files'] = len(existing) + 1
+            s['bytes'] = sum(f['bytes'] for f in existing) + m['bytes']
+            s['gzip_bytes'] = sum(f['gzip_bytes'] for f in existing) + m['gzip_bytes']
+            viol += measure.enforce_set(s, budget)
+
+        if viol:
+            print('  [%-10s] ❌ 질량 예산 위반 — 산출물을 쓰지 않았다' % tier, file=sys.stderr)
+            for v in viol:
+                print('             · ' + v, file=sys.stderr)
+            print('             (영역 %d · 이름삭감 %d · 크기삭감 %d · 입력 %.1fKB → 산출 %.1fKB)'
+                  % (n_regions, n_named, n_assign, src_bytes / 1024, len(out_bytes) / 1024), file=sys.stderr)
+            raise BudgetExceeded(tier)
+
+    os.makedirs(dst_dir, exist_ok=True)
+    # 원자적 기록 — 부분 기록된 파일이 배포 대상으로 남지 않게.
+    tmp = dst + '.tmp'
+    with open(tmp, 'wb') as f:
+        f.write(out_bytes)
+    os.replace(tmp, dst)
     if tconf.get('build_probe'):
         write_build_manifest(dst_dir, rt.get('build_probe', {}).get('manifest_name', 'janus-build.json'),
                              build_id, tier)
-    print('  [%-10s] %s  (영역 제거 %d · 페이로드 제거 %d · %.1fKB)' %
-          (tier, dst, n_regions, n_assign, len(html) / 1024))
+    print('  [%-10s] %s  (영역 %d · 이름삭감 %d · 크기삭감 %d · %.1fKB)' %
+          (tier, dst, n_regions, n_named, n_assign, len(out_bytes) / 1024))
+    if budget:
+        print(measure.format_set_report(measure.measure_set(dst_dir), budget))
     if notes:
         print('             ' + ' · '.join(notes))
     return dst
@@ -473,11 +539,21 @@ def main():
         print('!! --tier 또는 --all 필요', file=sys.stderr)
         sys.exit(2)
     print('티어 빌드:', a.src, '→', a.out)
+    failed = []
     for t in tiers:
         if t not in cfg['tiers']:
             print('!! 알 수 없는 티어:', t, file=sys.stderr)
             sys.exit(2)
-        build(a.src, t, cfg, a.out)
+        try:
+            build(a.src, t, cfg, a.out)
+        except (BudgetExceeded, measure.Unparseable, ValueError) as e:
+            # 한 티어가 막혀도 나머지는 계속 빌드하되, 프로세스는 반드시 비-0 으로 끝난다.
+            if not isinstance(e, BudgetExceeded):
+                print('  [%-10s] ❌ %s: %s' % (t, type(e).__name__, e), file=sys.stderr)
+            failed.append(t)
+    if failed:
+        print('\n❌ 실패 티어: %s — 산출물을 쓰지 않았다. 배포 금지.' % ', '.join(failed), file=sys.stderr)
+        sys.exit(2)
     print('완료. 무료판 배포 전 반드시: python3 ops/placement/tier_verify.py', os.path.join(a.out, 'free'))
 
 
