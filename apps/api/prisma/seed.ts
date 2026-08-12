@@ -358,8 +358,11 @@ async function main() {
     );
 
     // 선생님 근무표 — 매일(일~토) 09:00–18:00
-    const weekdayWindows = (start: string, end: string) =>
-      Object.fromEntries(['0', '1', '2', '3', '4', '5', '6'].map((d) => [d, [{ start, end }]]));
+    // env 는 그 시간대에 가능한 상담 모드를 정한다(O119③). 생략하면 consult-modes 의 보수적
+    // 기본값 'etc' = ['chat'] 로 해석되어 **데모에서 화상(zoom)·필기공유(hand) 예약 슬롯이 0개**가 된다
+    // (교집합이라 선생님·학생 양쪽 다 있어야 한다). 데모는 전 기능을 보여야 하므로 'home'(전 모드).
+    const weekdayWindows = (start: string, end: string, env = 'home') =>
+      Object.fromEntries(['0', '1', '2', '3', '4', '5', '6'].map((d) => [d, [{ start, end, env }]]));
     const wsExists = await client.query(`SELECT 1 FROM work_schedule WHERE teacher_id = $1 LIMIT 1`, [
       ID.acTeacher,
     ]);

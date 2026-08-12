@@ -4,13 +4,21 @@
 //   node prisma/seed-sim-schedules.mjs        # → prisma/seed-sim-schedules.sql
 //   npm run seed:sim:schedules --workspace apps/api   # 위 SQL 을 DB 에 적용
 //
-// 형식: recurring_template / stay_time = { "0".."6": [{start,end}] }  (0=일 … 6=토, 다중 구간 가능)
+// 형식: recurring_template / stay_time = { "0".."6": [{start,end,env}] }  (0=일 … 6=토, 다중 구간 가능)
 // 주의: 대상 계정(simt*/sims*)이 없으면 해당 UPDATE 는 0건(무해). 페르소나 시드가 먼저 필요.
+//
+// env — 그 시간대에 가능한 상담 모드(O119③). 생략하면 consult-modes 의 보수적 기본값 'etc' = ['chat'] 라
+// 화상(zoom)·필기공유(hand) 슬롯이 0개가 된다. 모드는 **선생님 창 × 학생 창의 교집합**이므로 양쪽 다 필요.
+//   home ['video','voice','chat','whiteboard'] · academy ['voice','chat','whiteboard'](이어폰)
+//   study/school ['chat','whiteboard'](소리 불가) · transit ['voice','chat'](판서 불가)
+// 여기선 일부러 섞어 둔다 — 시뮬 로스터의 목적이 현실적인 분포다. 화상이 되는 학생은 집에서 붙는
+// 주말집중·평일야간 계열뿐이고, 학원 상주 학생은 음성까지만 된다. 전원 화상이 필요한 시험이라면
+// 아래 P[].env 를 'home' 으로 바꾸고 재생성할 것.
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-const w = (start, end) => ({ start, end });
+const w = (start, end, env = 'home') => ({ start, end, env });
 const D = (obj) => JSON.stringify(obj);
 
 // ── 선생님 근무(유형별) ──
@@ -29,14 +37,16 @@ const teachers = {
 };
 
 // ── 학생 상담가능(체류) 분류 7종 → sims001~040 순환 배정 ──
+//  env: 학원 상주 계열은 academy(이어폰 — 음성까지), 학교 시간대는 school(소리 불가),
+//       집에서 붙는 주말집중·평일야간만 home(화상 가능). label 은 생성 SQL 주석에 남는다.
 const P = [
-  { name: '종일', t: { 1: [w('09:00', '22:00')], 2: [w('09:00', '22:00')], 3: [w('09:00', '22:00')], 4: [w('09:00', '22:00')], 5: [w('09:00', '22:00')] } },
-  { name: '오전반', t: { 1: [w('09:00', '13:00')], 2: [w('09:00', '13:00')], 3: [w('09:00', '13:00')], 4: [w('09:00', '13:00')], 5: [w('09:00', '13:00')] } },
-  { name: '오후반', t: { 1: [w('13:00', '18:00')], 2: [w('13:00', '18:00')], 3: [w('13:00', '18:00')], 4: [w('13:00', '18:00')], 5: [w('13:00', '18:00')] } },
-  { name: '저녁반', t: { 1: [w('17:00', '22:00')], 2: [w('17:00', '22:00')], 3: [w('17:00', '22:00')], 4: [w('17:00', '22:00')], 5: [w('17:00', '22:00')] } },
-  { name: '학교+학원분할', t: { 1: [w('08:00', '12:00'), w('16:00', '20:00')], 2: [w('08:00', '12:00'), w('16:00', '20:00')], 3: [w('08:00', '12:00'), w('16:00', '20:00')], 4: [w('08:00', '12:00'), w('16:00', '20:00')], 5: [w('08:00', '12:00'), w('16:00', '20:00')] } },
-  { name: '주말집중', t: { 6: [w('09:00', '18:00')], 0: [w('09:00', '18:00')], 3: [w('18:00', '22:00')] } },
-  { name: '평일야간', t: { 1: [w('19:00', '22:00')], 2: [w('19:00', '22:00')], 3: [w('19:00', '22:00')], 4: [w('19:00', '22:00')], 5: [w('19:00', '22:00')] } },
+  { name: '종일', env: 'academy', t: { 1: [w('09:00', '22:00', 'academy')], 2: [w('09:00', '22:00', 'academy')], 3: [w('09:00', '22:00', 'academy')], 4: [w('09:00', '22:00', 'academy')], 5: [w('09:00', '22:00', 'academy')] } },
+  { name: '오전반', env: 'academy', t: { 1: [w('09:00', '13:00', 'academy')], 2: [w('09:00', '13:00', 'academy')], 3: [w('09:00', '13:00', 'academy')], 4: [w('09:00', '13:00', 'academy')], 5: [w('09:00', '13:00', 'academy')] } },
+  { name: '오후반', env: 'academy', t: { 1: [w('13:00', '18:00', 'academy')], 2: [w('13:00', '18:00', 'academy')], 3: [w('13:00', '18:00', 'academy')], 4: [w('13:00', '18:00', 'academy')], 5: [w('13:00', '18:00', 'academy')] } },
+  { name: '저녁반', env: 'academy', t: { 1: [w('17:00', '22:00', 'academy')], 2: [w('17:00', '22:00', 'academy')], 3: [w('17:00', '22:00', 'academy')], 4: [w('17:00', '22:00', 'academy')], 5: [w('17:00', '22:00', 'academy')] } },
+  { name: '학교+학원분할', env: 'school+academy', t: { 1: [w('08:00', '12:00', 'school'), w('16:00', '20:00', 'academy')], 2: [w('08:00', '12:00', 'school'), w('16:00', '20:00', 'academy')], 3: [w('08:00', '12:00', 'school'), w('16:00', '20:00', 'academy')], 4: [w('08:00', '12:00', 'school'), w('16:00', '20:00', 'academy')], 5: [w('08:00', '12:00', 'school'), w('16:00', '20:00', 'academy')] } },
+  { name: '주말집중', env: 'home', t: { 6: [w('09:00', '18:00', 'home')], 0: [w('09:00', '18:00', 'home')], 3: [w('18:00', '22:00', 'home')] } },
+  { name: '평일야간', env: 'home', t: { 1: [w('19:00', '22:00', 'home')], 2: [w('19:00', '22:00', 'home')], 3: [w('19:00', '22:00', 'home')], 4: [w('19:00', '22:00', 'home')], 5: [w('19:00', '22:00', 'home')] } },
 ];
 
 const out = [];
@@ -44,7 +54,7 @@ out.push('-- 시뮬 페르소나 근무·상담가능 시간 다양화 (생성�
 out.push('-- 적용: npm run seed:sim:schedules --workspace apps/api');
 out.push('-- 대상 계정이 없으면 각 UPDATE 는 0건(무해).');
 out.push('');
-out.push('-- 선생님 근무(정규/파트/컨설/대학생멘토)');
+out.push('-- 선생님 근무(정규/파트/컨설/대학생멘토) — env=home(전 모드): 상담 선생님은 화상이 가능해야 한다');
 for (const [lid, tpl] of Object.entries(teachers)) {
   out.push(`UPDATE work_schedule SET recurring_template = '${D(tpl)}'::jsonb WHERE teacher_id = (SELECT id FROM account WHERE login_id='${lid}');`);
 }
@@ -53,7 +63,7 @@ out.push('-- 학생 상담가능(체류)시간 7종 순환 (sims001~sims040)');
 for (let i = 1; i <= 40; i++) {
   const lid = `sims${String(i).padStart(3, '0')}`;
   const p = P[(i - 1) % P.length];
-  out.push(`UPDATE student_profile SET stay_time = '${D(p.t)}'::jsonb WHERE account_id = (SELECT id FROM account WHERE login_id='${lid}');  -- ${p.name}`);
+  out.push(`UPDATE student_profile SET stay_time = '${D(p.t)}'::jsonb WHERE account_id = (SELECT id FROM account WHERE login_id='${lid}');  -- ${p.name} (env=${p.env})`);
 }
 out.push('');
 
