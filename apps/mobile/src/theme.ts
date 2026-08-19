@@ -1,5 +1,5 @@
 /**
- * 모바일 디자인 토큰 — 야누스(Janus) 디자인 시스템 (시안 번들 2026-07-13 추출).
+ * 모바일 디자인 토큰 — 야누스(IANUS) 디자인 시스템 (시안 번들 2026-07-13 추출).
  * 단일 소스: packages/brand/tokens.json → scripts/apply-branding.mjs 가
  * branding.generated.ts 의 TOKENS 로 주입. 라이트/다크 런타임 전환 지원.
  * CTA 위계: 골드 채움=핵심 전환(화면당 1개) · 블루 채움=주요 액션 · 회색=탐색 보조.

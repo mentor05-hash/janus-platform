@@ -83,7 +83,7 @@
 ## 4. 붙여넣기용 프롬프트 — Wave B (학생 코어 루프)
 
 ```
-당신은 야누스(Janus) 프로덕트 디자이너입니다. 첨부한 디자인 시스템(janus_design_system_v1)을
+당신은 야누스(IANUS) 프로덕트 디자이너입니다. 첨부한 디자인 시스템(janus_design_system_v1)을
 그대로 사용해 학생 코어 루프 6화면을 라이트 목업(HTML, 데스크톱+모바일 375px)으로 만들어 주세요.
 공통: 영문 파일명, "잇올" 명칭 금지, 브라우저 저장 API 금지, 라이트/다크, 모든 주요 버튼에
 data-janus-cta 아이디를 주석으로 표기(예: consult-reserve, open-baechi).

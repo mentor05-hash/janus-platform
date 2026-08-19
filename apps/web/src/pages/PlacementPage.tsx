@@ -166,7 +166,7 @@ export function PlacementPage() {
         {/* 워터마크·면책 */}
         <p style={{ marginTop: 30, fontSize: 11.5, lineHeight: 1.7, color: 'var(--caption)', textAlign: 'center' }}>
           위 표는 <b>예시 데이터</b>입니다 — 실제 지원 판단에 사용하지 마세요. 무단 캡처·재배포 금지.<br />
-          야누스 배치표는 참고 자료이며 최종 지원 결정과 결과의 책임은 지원자 본인에게 있습니다. © 2026 JANUS
+          야누스 배치표는 참고 자료이며 최종 지원 결정과 결과의 책임은 지원자 본인에게 있습니다. © 2026 IANUS
         </p>
       </main>
     </div>

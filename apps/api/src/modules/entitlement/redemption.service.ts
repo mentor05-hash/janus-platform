@@ -11,7 +11,7 @@ const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 function randomCode(): string {
   const pick = (n: number) => Array.from({ length: n }, () => ALPHABET[crypto.randomInt(ALPHABET.length)]).join('');
-  return `JANUS-${pick(4)}-${pick(4)}`;
+  return `IANUS-${pick(4)}-${pick(4)}`;
 }
 
 /**

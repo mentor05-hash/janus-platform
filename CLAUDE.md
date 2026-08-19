@@ -5,7 +5,7 @@
 
 ## 1. 프로젝트
 
-**야누스(Janus)** — "미래를 여는 문". 진단(배치표·수준진단) → 처방(커리큘럼) → 실행(Q&A·상담·과외·클리닉·강의) → 통과의 전환 관문 플랫폼. 이 repo는 구 잇올(1:1 멘토링 플랫폼) 모노레포를 승계한 **janus-platform**(private)이다 — 코드베이스(NestJS API·React web·RN mobile·realtime-rooms·packages)는 그대로, 브랜드·문서 체계만 야누스로 전환 중.
+**야누스(IANUS)** — "미래를 여는 문". 진단(배치표·수준진단) → 처방(커리큘럼) → 실행(Q&A·상담·과외·클리닉·강의) → 통과의 전환 관문 플랫폼. 이 repo는 구 잇올(1:1 멘토링 플랫폼) 모노레포를 승계한 **janus-platform**(private)이다 — 코드베이스(NestJS API·React web·RN mobile·realtime-rooms·packages)는 그대로, 브랜드·문서 체계만 야누스로 전환 중.
 
 ## 2. 문서 체계 (서열 순 — 충돌 시 상위가 이기고 하위를 고친다)
 
