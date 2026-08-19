@@ -18,7 +18,7 @@ interface Section {
 
 const SECTIONS: Record<IntroKey, Section> = {
   baechi: {
-    eyebrow: '입시 배치표 · JANUS',
+    eyebrow: '입시 배치표 · IANUS',
     title: '실측으로 판단하는 지원 가능선',
     lead: '발표 컷이 아니라 작년 실제 합격자 분포로 봅니다. 표준점수·백분위·등급 중 편한 것으로 넣으면, 야누스가 환산해 안정·적정·소신·상향 네 구간으로 정리해줘요.',
     features: [
@@ -34,7 +34,7 @@ const SECTIONS: Record<IntroKey, Section> = {
     note: '구간별 대표 학과는 무료 · 실측 컷·검색·전체 학과는 회원부터.',
   },
   qna: {
-    eyebrow: '질문·답변 · JANUS',
+    eyebrow: '질문·답변 · IANUS',
     title: '막힌 한 문제, 그 자리에서 풀립니다',
     lead: '선생님 1:1 답변과 무료 커뮤니티, 두 갈래로. 급한 질문은 강제배정 SLA로 빠르게, 가벼운 질문은 커뮤니티에서 전원이 함께 — AI 1차 초안이 먼저 방향을 잡아줍니다.',
     features: [
@@ -49,7 +49,7 @@ const SECTIONS: Record<IntroKey, Section> = {
     ],
   },
   lecture: {
-    eyebrow: '강좌 · JANUS',
+    eyebrow: '강좌 · IANUS',
     title: '필요한 지점만, 짧고 정확하게',
     lead: '전 범위를 훑는 강의가 아니라, 지금 막힌 개념·유형을 겨냥한 강좌. 진단에서 드러난 약점과 연결해 무엇을 들을지까지 안내합니다.',
     features: [
@@ -62,7 +62,7 @@ const SECTIONS: Record<IntroKey, Section> = {
     ],
   },
   consult: {
-    eyebrow: '1:1 상담 · JANUS',
+    eyebrow: '1:1 상담 · IANUS',
     title: '데이터를 사람이 읽어드립니다',
     lead: '배치표·진단이 만든 근거를 놓고, 전문 상담자와 직접 이야기합니다. 화상·채팅으로 예약하고, 상담 기록은 다음 단계로 이어집니다.',
     features: [
@@ -75,7 +75,7 @@ const SECTIONS: Record<IntroKey, Section> = {
     ],
   },
   services: {
-    eyebrow: '서비스 전체 · JANUS',
+    eyebrow: '서비스 전체 · IANUS',
     title: '진단에서 통과까지, 하나의 관문',
     lead: '실력진단·배치표·질문답변·강좌·상담·클리닉이 따로 놀지 않고 한 흐름으로 이어집니다. 지금 어디에 있든, 다음 한 걸음을 야누스가 안내합니다.',
     features: [

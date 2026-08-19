@@ -263,7 +263,7 @@ const page = (s) => {
 
 <section class="block alt">
   <div class="wrap">
-    <h2>야누스과 이렇게 연결됩니다</h2>
+    <h2>야누스와 이렇게 연결됩니다</h2>
     <p class="sub">계정 하나로, 상담과 끊김 없이 이어집니다</p>
     <div class="connect reveal"><span class="k" aria-hidden="true">🔗</span><p>${s.link}</p></div>
   </div>
@@ -287,7 +287,7 @@ ${s.extra || ''}
   </div>
 </section>
 
-<footer><div class="wrap"><span>© 2026 야누스(Janus) · 입시 멘토링 · 상담 플랫폼</span><span>서비스 상태는 준비 상황에 따라 변경될 수 있습니다.</span></div></footer>
+<footer><div class="wrap"><span>© 2026 야누스(IANUS) · 입시 멘토링 · 상담 플랫폼</span><span>서비스 상태는 준비 상황에 따라 변경될 수 있습니다.</span></div></footer>
 
 <script>
 (function(){

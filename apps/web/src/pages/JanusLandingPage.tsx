@@ -192,7 +192,7 @@ export function JanusLandingPage() {
           {/* 슬라이드 1 — 관문(딥 포탈) */}
           {slide === 0 && (
             <div style={{ width: '100%', textAlign: 'center', padding: '46px 0 60px' }}>
-              <div style={{ fontFamily: 'var(--j-font-mono)', fontSize: 12, letterSpacing: '.18em', color: '#8fb8de', marginBottom: 16 }}>미래를 여는 문 · JANUS</div>
+              <div style={{ fontFamily: 'var(--j-font-mono)', fontSize: 12, letterSpacing: '.18em', color: '#8fb8de', marginBottom: 16 }}>미래를 여는 문 · IANUS</div>
               <h1 style={{ margin: 0, fontSize: 'clamp(32px, 4.6vw, 52px)', fontWeight: 800, letterSpacing: '-.035em', lineHeight: 1.18, color: '#fff' }}>무엇을 준비하고 있나요?</h1>
               <p style={{ margin: '14px auto 24px', fontSize: 17, lineHeight: 1.65, color: '#c3d2e6', maxWidth: 560 }}>
                 한 줄이면 됩니다. 야누스가 지난 입시 데이터를 읽어, 지금의 당신에게 맞는 길을 엽니다.
@@ -466,7 +466,7 @@ export function JanusLandingPage() {
         </div>
         <div style={{ maxWidth: 1180, margin: '0 auto', padding: '12px 20px 26px', borderTop: '1px solid var(--line-soft)', fontSize: 11, lineHeight: 1.8, color: 'var(--caption)' }}>
           (주)야누스에듀 · 대표 000 · 서울특별시 000구 000로 00 · 사업자등록번호 000-00-00000 · 통신판매업신고 2026-서울000-0000 · 고객센터 <b className="mono">1600-0000</b> (평일 10:00~18:00)<br />
-          © 2026 JANUS EDU. All rights reserved. · 등록번호·수치는 예시입니다.
+          © 2026 IANUS EDU. All rights reserved. · 등록번호·수치는 예시입니다.
         </div>
       </footer>
 

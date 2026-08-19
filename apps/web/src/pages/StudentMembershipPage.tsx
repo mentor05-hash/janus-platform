@@ -72,7 +72,7 @@ export function StudentMembershipPage() {
       {/* 이용권 코드(수강권) 등록 */}
       <Card title="이용권 코드 등록" style={{ marginTop: 16, maxWidth: 620 }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <input className="input" value={redeemCode} placeholder="JANUS-XXXX-XXXX"
+          <input className="input" value={redeemCode} placeholder="IANUS-XXXX-XXXX"
             onChange={(e) => setRedeemCode(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') redeem(); }}
             style={{ flex: '1 1 220px', textTransform: 'uppercase', letterSpacing: '.05em' }} />
           <Button disabled={busy || !redeemCode.trim()} onClick={redeem}>등록</Button>
