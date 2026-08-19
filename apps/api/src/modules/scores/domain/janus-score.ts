@@ -1,7 +1,9 @@
 /**
  * janus_score 변환(순수) — O43 규약(v22 키 동결) + 배치표 핸드오프(2026-07-14) C1 계약.
  * 키: { gye, nb | (kor,mat,tam1,tam2), eng, han } — gye∈{이과,문과} · nb=전국누백 · 표점 4종과 nb 중 택1.
- * 확장 필드(하위호환 추가만 허용): mode('std'|'nb'), period, source(근거 배지용).
+ * 확장 필드(하위호환 추가만 허용): mode('std'|'nb'), period, source(근거 배지용),
+ *   est('gachaejeom' — 가채점 추정치. **부재가 기본**이라 모르는 소비자는 영향이 없다.
+ *   있으면 배치표·리포트가 면책 문구를 함께 낸다 — 추정치를 실측처럼 보이게 두지 않는다).
  * 스펙: docs/janus_score_변환스펙_v1_2026-07-07.md (§5 검증 — 위반 필드는 무시).
  */
 
@@ -30,6 +32,8 @@ export interface JanusScore {
   han?: number;
   period: string;
   source: string;
+  /** 가채점 추정치 표시(O226). 없으면 실채점·일반 — 기존 소비자 동작 불변. */
+  est?: 'gachaejeom';
 }
 
 /* 과목명 별칭 — OCR·수동 입력의 표기 편차 흡수 */
@@ -80,6 +84,28 @@ export function parseNb(raw: unknown): number | null {
 }
 
 /** 최신 리포트 → janus_score. 산출 불가(성적 없음)면 null — API 는 404 NO_SCORE. */
+/**
+ * 과목 항목 → janus_score 키 배정. **단일 구현**이다 — 가채점 입력(원점수)과 toJanusScore 가
+ * 다른 규칙으로 과목을 고르면 "입력한 탐구1"과 "배치표가 읽은 탐구1"이 달라진다.
+ * used 집합으로 탐1·탐2 중복 배정을 막는 규칙이 여기 한 곳에만 있어야 하는 이유다.
+ */
+export function assignSubjects(
+  items: JanusScoreItem[],
+): Record<
+  'kor' | 'mat' | 'tam1' | 'tam2' | 'eng' | 'han',
+  JanusScoreItem | null
+> {
+  const used = new Set<string>();
+  return {
+    kor: pick(items, 'kor', used),
+    mat: pick(items, 'mat', used),
+    tam1: pick(items, 'tam1', used),
+    tam2: pick(items, 'tam2', used),
+    eng: pick(items, 'eng', used),
+    han: pick(items, 'han', used),
+  };
+}
+
 export function toJanusScore(
   report: JanusScoreReport | null | undefined,
 ): JanusScore | null {
@@ -89,18 +115,16 @@ export function toJanusScore(
   const gye: JanusScore['gye'] =
     gyeRaw === '이과' || gyeRaw === '문과' ? gyeRaw : null;
 
-  const used = new Set<string>();
-  const kor = pick(report.items, 'kor', used);
-  const mat = pick(report.items, 'mat', used);
-  const tam1 = pick(report.items, 'tam1', used);
-  const tam2 = pick(report.items, 'tam2', used);
-  const eng = pick(report.items, 'eng', used);
-  const han = pick(report.items, 'han', used);
+  const { kor, mat, tam1, tam2, eng, han } = assignSubjects(report.items);
+
+  // §5 검증 — 아는 값만 싣는다. 오타·미래 값은 조용히 무시(필드 부재 = 기존 동작).
+  const estRaw = (pl as { est?: unknown }).est;
 
   const base = {
     gye,
     period: report.period,
     source: report.source,
+    ...(estRaw === 'gachaejeom' ? { est: 'gachaejeom' as const } : {}),
     // eng/han = 절대평가 등급 1~9 (§5)
     ...(intIn(eng?.grade ?? eng?.score, 1, 9) != null
       ? { eng: intIn(eng?.grade ?? eng?.score, 1, 9)! }

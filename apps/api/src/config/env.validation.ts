@@ -97,6 +97,12 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
+  // 가채점 환산표(O226) — ops/placement/gachaejeom_convert.py 산출 JSON. JANUS_DATA_DIR 로컬 전용.
+  // 미설정이면 POST /scores/me 의 mode=raw 가 400 으로 거절한다(조용한 폴백 금지).
+  JANUS_GACHAEJEOM_TABLE?: string;
+
+  @IsOptional()
+  @IsString()
   SSO_JWT_SECRET?: string; // 크로스서비스 SSO 시크릿(O42) — rooms 와 분리, 미설정 시 dev 기본값
 
   @IsOptional()

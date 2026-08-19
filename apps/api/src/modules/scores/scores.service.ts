@@ -7,6 +7,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import * as XLSX from 'xlsx';
+import * as fs from 'node:fs';
+import { ConfigService } from '@nestjs/config';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AccountRole } from '../../config/enums';
@@ -16,7 +18,19 @@ import { LLM_PROVIDER } from '../llm/llm.types';
 import type { LlmProvider, ScoreOcrResult } from '../llm/llm.types';
 import { SchoolRecordGuardService } from '../guard/school-record-guard.service';
 import { GuardianConsentService } from '../guardian-consent/guardian-consent.service';
-import { parseNb, toJanusScore } from './domain/janus-score';
+import { assignSubjects, parseNb, toJanusScore } from './domain/janus-score';
+import {
+  convertRaw,
+  GachaejeomError,
+  RELATIVE_KEYS,
+  ABSOLUTE_KEYS,
+} from './domain/gachaejeom';
+import type {
+  ConvertedScores,
+  GachaejeomTable,
+  RawInput,
+  SubjectKey,
+} from './domain/gachaejeom';
 import { toJson } from '../../common/prisma/json';
 import { toText, toTrimmedText } from '../../common/text/to-text';
 import {
@@ -46,7 +60,8 @@ type MyScoreInput = {
   period: string;
   examType?: string;
   note?: string;
-  mode: 'std' | 'nb';
+  /** 'raw' = 가채점 원점수(O226) — 환산표로 추정 표준점수를 만들어 저장한다. */
+  mode: 'std' | 'nb' | 'raw';
   gye?: '문과' | '이과' | null;
   nb?: number | null;
   items: ItemInput[];
@@ -79,6 +94,7 @@ export class ScoresService {
     private readonly audit: AuditService,
     private readonly guard: SchoolRecordGuardService,
     private readonly guardianConsent: GuardianConsentService,
+    private readonly config: ConfigService,
   ) {}
 
   private assertAdmin(actor: AuthUser) {
@@ -88,6 +104,131 @@ export class ScoresService {
   }
   private isHq(actor: AuthUser) {
     return actor.role === AccountRole.ADMIN && !actor.centerId;
+  }
+
+  /**
+   * 가채점 환산표 로드 — `JANUS_GACHAEJEOM_TABLE`(P2 산출 JSON, JANUS_DATA_DIR 로컬 전용).
+   *
+   * 요청마다 mtime 을 보고 바뀌었을 때만 다시 읽는다. 수능 당일에는 표가 **갱신될 수 있다**
+   * (19:15 검증 후 보정 계수를 고쳐 재생성). 기동 시 한 번만 읽으면 그 갱신이 반영되지 않고,
+   * 그걸 20:00 에 알게 된다.
+   *
+   * 미설치면 null 을 돌려준다 — 호출부가 400 으로 **명시적으로 거절**한다. 조용히
+   * 무보정 값으로 넘어가면 추정치가 실측처럼 저장된다.
+   */
+  private gachaejeomCache: { mtimeMs: number; table: GachaejeomTable } | null =
+    null;
+
+  private readGachaejeomTable(): GachaejeomTable | null {
+    const file = this.config.get<string>('JANUS_GACHAEJEOM_TABLE');
+    if (!file) return null;
+    let mtimeMs: number;
+    try {
+      mtimeMs = fs.statSync(file).mtimeMs;
+    } catch {
+      return null; // 미배치 환경(개발·CI)
+    }
+    if (this.gachaejeomCache && this.gachaejeomCache.mtimeMs === mtimeMs) {
+      return this.gachaejeomCache.table;
+    }
+    try {
+      const table = JSON.parse(
+        fs.readFileSync(file, 'utf8'),
+      ) as GachaejeomTable;
+      this.gachaejeomCache = { mtimeMs, table };
+      return table;
+    } catch (e) {
+      this.logger.error(
+        `가채점 환산표를 읽지 못했습니다(${file}): ${String(e)}`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * 가채점 원점수 → 저장할 항목·placement.
+   *
+   * 원점수를 **버리지 않고** placement.raw 에 남긴다. 12/11 실채점 표가 오면 같은 원점수로
+   * 다시 환산해야 하는데, 표준점수만 남기면 그때 되돌릴 수 없다.
+   */
+  private convertGachaejeom(
+    items: ItemInput[],
+    gye: '문과' | '이과' | null | undefined,
+  ) {
+    const table = this.readGachaejeomTable();
+    if (!table) {
+      throw new BadRequestException({
+        code: 'GACHAEJEOM_TABLE_UNAVAILABLE',
+        message:
+          '가채점 환산표가 준비되지 않았습니다. 표준점수·전국누백으로 입력하거나 잠시 후 다시 시도하세요.',
+      });
+    }
+    const assigned = assignSubjects(
+      items.map((i) => ({
+        subject: String(i.subject ?? ''),
+        score: i.score == null ? null : Number(i.score),
+        grade: i.grade ?? null,
+      })),
+    );
+    const raw: RawInput = {};
+    for (const k of [...RELATIVE_KEYS, ...ABSOLUTE_KEYS] as SubjectKey[]) {
+      const it = assigned[k];
+      if (it && it.score != null) raw[k] = it.score;
+    }
+    if (!Object.keys(raw).length) {
+      throw new BadRequestException({
+        code: 'GACHAEJEOM_NO_RAW',
+        message: '가채점 원점수가 없습니다. 과목별 원점수를 입력하세요.',
+      });
+    }
+
+    let converted: ConvertedScores;
+    try {
+      converted = convertRaw(table, raw);
+    } catch (e) {
+      if (e instanceof GachaejeomError) {
+        throw new BadRequestException({
+          code: 'GACHAEJEOM_CONVERT_FAILED',
+          message: e.message,
+        });
+      }
+      throw e;
+    }
+
+    // 저장 항목: 상대평가는 추정 표준점수, 절대평가는 추정 등급. 이름은 입력 그대로 둔다.
+    const outItems: ItemInput[] = [];
+    for (const k of RELATIVE_KEYS) {
+      const c = converted.subjects[k];
+      const src = assigned[k];
+      if (!c || !src) continue;
+      outItems.push({
+        subject: src.subject,
+        score: c.std ?? null,
+        maxScore: 200,
+      });
+    }
+    for (const k of ABSOLUTE_KEYS) {
+      const c = converted.subjects[k];
+      const src = assigned[k];
+      if (!c || !src) continue;
+      outItems.push({
+        subject: src.subject,
+        score: null,
+        grade: c.grade == null ? null : String(c.grade),
+      });
+    }
+
+    const placement: Record<string, unknown> = {
+      gye: gye ?? null,
+      source: 'self',
+      est: 'gachaejeom',
+      raw,
+      disclaimer: converted.disclaimer,
+    };
+    if (converted.uncorrected.length)
+      placement.uncorrected = converted.uncorrected;
+
+    return { items: outItems, placement, converted };
   }
 
   /** 학생 upsert 성적표 + 과목 교체(멱등). */
@@ -185,11 +326,31 @@ export class ScoresService {
       throw new BadRequestException(
         '기간을 입력하세요(예: 2026-9월 모의고사).',
       );
-    const placement: Record<string, unknown> = {
+    let placement: Record<string, unknown> = {
       gye: dto.gye ?? null,
       source: 'self',
     };
-    if (dto.mode === 'nb' && dto.nb != null) placement.nb = dto.nb;
+    let items = dto.items;
+    let estimated: {
+      complete: boolean;
+      disclaimer: string;
+      uncorrected: SubjectKey[];
+    } | null = null;
+
+    if (dto.mode === 'raw') {
+      // 가채점(O226) — 원점수를 추정 표준점수로 바꿔 저장하고, 원점수는 placement.raw 에 남긴다.
+      const c = this.convertGachaejeom(dto.items, dto.gye);
+      items = c.items;
+      placement = c.placement;
+      estimated = {
+        complete: c.converted.complete,
+        disclaimer: c.converted.disclaimer,
+        uncorrected: c.converted.uncorrected,
+      };
+    } else if (dto.mode === 'nb' && dto.nb != null) {
+      placement.nb = dto.nb;
+    }
+
     const report = await this.upsertReport(
       user,
       user.id,
@@ -198,7 +359,7 @@ export class ScoresService {
         period: dto.period,
         examType: dto.examType ?? '수능/모의',
         note: dto.note,
-        items: dto.items,
+        items,
         placement,
       },
       'self',
@@ -211,7 +372,12 @@ export class ScoresService {
     } catch {
       linkable = false;
     }
-    return { ok: true, reportId: report.id, linkable };
+    return {
+      ok: true,
+      reportId: report.id,
+      linkable,
+      ...(estimated ? { estimated } : {}),
+    };
   }
 
   /** 학생 자가 입력 프리필 — 최신 자가 리포트(모드·계열·과목·세부과목). */
@@ -683,6 +849,8 @@ export class ScoresService {
   async goalCandidateReport(user: AuthUser, mode: GapMode, myGrade?: number) {
     const candidates = await this.listGoalCandidates(user, mode);
     let myValue: number;
+    // 가채점 추정치 여부(O226) — 있으면 리포트가 면책을 함께 낸다.
+    let est: 'gachaejeom' | null = null;
     let gye: '이과' | '문과' | null = null;
     if (mode === 'susi') {
       if (myGrade == null)
@@ -692,12 +860,15 @@ export class ScoresService {
         });
       myValue = myGrade;
       try {
-        gye = (await this.janusScore(user)).gye;
+        const js = await this.janusScore(user);
+        gye = js.gye;
+        est = js.est ?? null;
       } catch {
         /* 성적 없어도 진행 */
       }
     } else {
       const js = await this.janusScore(user); // 성적 없으면 NO_SCORE
+      est = js.est ?? null;
       if (js.nb == null)
         throw new BadRequestException({
           code: 'NO_NB',
@@ -775,6 +946,15 @@ export class ScoresService {
       mode,
       myValue,
       gye,
+      /**
+       * 가채점 추정치 표시(O226 · 계약 §9). 실채점이면 null 이라 기존 화면은 그대로다.
+       * 추정치를 실측처럼 보이게 두지 않는다 — 수능 당일 이 리포트가 지원 판단에 쓰인다.
+       */
+      est,
+      estNotice:
+        est === 'gachaejeom'
+          ? '가채점 기반 추정치입니다. 실채점 결과와 차이가 있을 수 있습니다.'
+          : null,
       unit:
         sample?.unit ??
         (mode === 'susi'
@@ -1199,18 +1379,24 @@ export class ScoresService {
       }
       // 수시는 내신 등급 입력으로 진행 — 계열(gye)만 성적에서 가져오되 없으면 null.
       let gye: '이과' | '문과' | null = null;
+      let est: 'gachaejeom' | null = null;
       // catch 는 **성적 부재(NO_SCORE)만** 삼킨다 — 인가 실패를 함께 뭉개면 게이트가 조용히 사라진다.
       try {
-        gye = (await this.janusScore(actor, targetId)).gye;
+        const js = await this.janusScore(actor, targetId);
+        gye = js.gye;
+        est = js.est ?? null;
       } catch (e) {
         if (!(e instanceof NotFoundException)) throw e;
       }
-      const susi = buildGapReport({
-        mode: 'susi',
-        gye,
-        myValue: opts.myGrade,
-        target,
-      });
+      const susi = this.markEstimated(
+        buildGapReport({
+          mode: 'susi',
+          gye,
+          myValue: opts.myGrade,
+          target,
+        }),
+        est,
+      );
       await this.archiveReport(targetId, susi);
       return susi;
     }
@@ -1225,15 +1411,32 @@ export class ScoresService {
     }
     // 회차 변동성(O108) — 정시만. 수시 등급은 매 요청 입력값이라 비교할 이력이 없다.
     const recent = await this.recentNbValues(targetId);
-    const jeongsi = buildGapReport({
-      mode: 'jeongsi',
-      gye: js.gye,
-      myValue: js.nb,
-      target,
-      recent,
-    });
+    const jeongsi = this.markEstimated(
+      buildGapReport({
+        mode: 'jeongsi',
+        gye: js.gye,
+        myValue: js.nb,
+        target,
+        recent,
+      }),
+      js.est,
+    );
     await this.archiveReport(targetId, jeongsi);
     return jeongsi;
+  }
+
+  /** 가채점 산출이면 리포트에 표시를 얹는다(O226). 엔진은 성적의 출처를 모르므로 서비스가 붙인다. */
+  private markEstimated<T extends { est?: 'gachaejeom'; estNotice?: string }>(
+    report: T,
+    est: 'gachaejeom' | null | undefined,
+  ): T {
+    if (est !== 'gachaejeom') return report;
+    return {
+      ...report,
+      est,
+      estNotice:
+        '가채점 기반 추정치입니다. 실채점 결과와 차이가 있을 수 있습니다.',
+    };
   }
 
   // ── janus_report 이력(append-only) ──

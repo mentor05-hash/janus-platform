@@ -52,6 +52,14 @@ export interface JanusReport {
   kind: 'gap';
   version: 'v1';
   mode: GapMode;
+  /**
+   * 산출의 바탕이 가채점 추정치인가(O226 · janus_score 계약 §9). **부재가 기본**이라
+   * 기존 이력·소비자와 호환된다. 값이 있으면 화면은 estNotice 를 함께 보여야 한다 —
+   * 수능 당일 이 리포트가 지원 판단에 쓰이는데 추정치를 실측처럼 두면 안 된다.
+   * 엔진(buildGapReport)은 이 필드를 만들지 않는다 — 성적의 출처는 서비스만 안다.
+   */
+  est?: 'gachaejeom';
+  estNotice?: string;
   unit: { label: string; suffix: string };
   generatedFor: { gye: '이과' | '문과' | null; value: number };
   target: GapTarget;

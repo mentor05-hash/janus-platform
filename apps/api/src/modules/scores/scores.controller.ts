@@ -66,7 +66,8 @@ class MyScoreDto {
   @IsString() @MaxLength(40) period!: string;
   @IsOptional() @IsString() @MaxLength(20) examType?: string;
   @IsOptional() @IsString() @MaxLength(200) note?: string;
-  @IsIn(['std', 'nb']) mode!: 'std' | 'nb';
+  /** 'raw' = 가채점 원점수(O226) — 서버가 환산표로 추정 표준점수를 만든다. */
+  @IsIn(['std', 'nb', 'raw']) mode!: 'std' | 'nb' | 'raw';
   @IsOptional() @IsIn(['문과', '이과']) gye?: '문과' | '이과' | null;
   @IsOptional() @IsNumber() @Min(0.01) @Max(99.99) nb?: number | null;
   @IsArray()

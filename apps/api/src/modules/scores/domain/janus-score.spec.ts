@@ -1,4 +1,8 @@
-import { buildJanusScoreParams, toJanusScore } from './janus-score';
+import {
+  assignSubjects,
+  buildJanusScoreParams,
+  toJanusScore,
+} from './janus-score';
 
 const item = (
   subject: string,
@@ -139,5 +143,69 @@ describe('buildJanusScoreParams (v22 URL 키 불변)', () => {
     });
     expect(q).toContain('nb=1.5');
     expect(q).not.toContain('kor=');
+  });
+});
+
+describe('est — 가채점 표시(O226 · C1 하위호환 확장)', () => {
+  const std = [
+    item('국어', 131),
+    item('수학', 135),
+    item('탐구1', 65),
+    item('탐구2', 64),
+  ];
+
+  it('placement.est=gachaejeom → est 를 싣는다', () => {
+    const r = toJanusScore({
+      period: '2027-수능',
+      source: 'self',
+      placement: { gye: '이과', est: 'gachaejeom' },
+      items: std,
+    });
+    expect(r?.est).toBe('gachaejeom');
+  });
+
+  it('est 가 없으면 필드 자체가 없다 — 모르는 소비자의 동작이 바뀌지 않는다', () => {
+    const r = toJanusScore({
+      period: '2027-수능',
+      source: 'self',
+      placement: { gye: '이과' },
+      items: std,
+    });
+    expect(r).not.toBeNull();
+    expect('est' in (r as object)).toBe(false);
+  });
+
+  it('아는 값만 싣는다 — 오타·미래 값은 무시(§5 검증)', () => {
+    for (const bad of ['gachejeom', 'silchaejeom', 1, true, null, {}]) {
+      const r = toJanusScore({
+        period: '2027-수능',
+        source: 'self',
+        placement: { gye: '이과', est: bad },
+        items: std,
+      });
+      expect('est' in (r as object)).toBe(false);
+    }
+  });
+
+  it('nb 모드에서도 est 가 실린다 — 표현 모드와 추정 여부는 직교한다', () => {
+    const r = toJanusScore({
+      period: '2027-수능',
+      source: 'self',
+      placement: { gye: '문과', nb: 1.53, est: 'gachaejeom' },
+      items: [],
+    });
+    expect(r?.mode).toBe('nb');
+    expect(r?.est).toBe('gachaejeom');
+  });
+});
+
+describe('assignSubjects — 단일 구현(가채점 입력과 배치표가 같은 과목을 골라야 한다)', () => {
+  it('탐1·탐2 중복 배정을 막는다', () => {
+    const a = assignSubjects([item('과학', 65), item('사회', 64)]);
+    expect(a.tam1?.subject).toBe('과학');
+    expect(a.tam2?.subject).toBe('사회');
+  });
+  it('없는 과목은 null', () => {
+    expect(assignSubjects([item('국어', 100)]).mat).toBeNull();
   });
 });

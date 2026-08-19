@@ -245,6 +245,13 @@ python3 ops/placement/gachaejeom_convert.py \
 - 뒤집힌 환산표·어긋난 등급컷·범위 밖 값은 **예외로 죽는다.** 19:30 에 "이상하지만 통과"는 가장 비싼 실패다.
 - 기저·보정 파일은 `JANUS_DATA_DIR` 로컬 전용 — repo 반입 금지(C6). 테스트는 합성 픽스처만 쓴다.
 
+**플랫폼 접합(O226)**: 산출 JSON 의 경로를 API 에 `JANUS_GACHAEJEOM_TABLE` 로 물리면
+`POST /scores/me` 의 `mode: 'raw'`(가채점 원점수)가 열린다. 서버가 이 표로 추정 표준점수를 만들고
+`janus_score.est='gachaejeom'` 을 실어 배치표가 면책을 낼 수 있게 한다. 표의 **과목 키는 janus_score
+키**(`kor`·`mat`·`tam1`·`tam2`·`eng`·`han`)를 쓴다 — 이름을 두 벌로 유지하면 매핑이 어긋나는 날이 온다.
+표가 없으면 API 는 400 으로 거절한다(조용한 폴백 금지). 계약 상세는
+`docs/janus_score_변환스펙_v1_2026-07-07.md` §9.
+
 **회귀**(CI `tier-build` 잡 편입):
 
 ```bash
