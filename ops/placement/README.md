@@ -184,6 +184,74 @@ node ops/placement/tests/gate_negative_sim.mjs  # 게이트 음성 대조 — �
 - **마스터 준비(권장)**: 상위-티어 전용 데이터/UI 를 `<!--JANUS-TIER:LEVEL-->…<!--/JANUS-TIER-->`(LEVEL=member|paid|consultant)로 감싸 두면 티어 분리가 깔끔하다. 대형 데이터 배열은 `const __JANUS_CUTS__=…`처럼 이름을 `strip_assignments`에 등록하면 무료판에서 값이 `[]`/`{}`로 비워진다.
 - **합성 테스트**: `ops/placement/fixtures/master_sample.html`(가짜 데이터·저작권 없음)로 빌드→검증 E2E 가 통과한다(무료판 통과·회원판은 데이터 보유로 검증 실패=공개 불가 확인). 실제 마스터는 이 픽스처 자리에 로컬 경로만 바꿔 물린다.
 
+### 2-1-2. 수능 당일 파이프라인 (N4 — 가채점) `pipeline_run.sh`
+
+수능 종료 17:40 → 업체 가채점 19:00 → **우리 창은 19:30~20:00, 30분**이다. 그 30분에
+사람이 판단할 일을 남기지 않는 것이 이 스크립트의 목적이다.
+
+```bash
+# 리허설(합성 8MB 마스터를 그 자리에서 만들어 전 과정을 태운다)
+ops/placement/pipeline_run.sh --mode dry-run
+
+# 당일
+JANUS_ALLOWED_HOSTS="ianuspath.com,www.ianuspath.com,*.ianuspath.pages.dev" \
+JANUS_CANONICAL_ORIGIN="https://ianuspath.com" \
+ops/placement/pipeline_run.sh --mode gachaejeom \
+  --data-dir "$JANUS_DATA_DIR" --master <마스터.html> \
+  --base <전년도_환산표.json> --difficulty <당해년_등급컷.json> --target-year 2027
+```
+
+단계: 0 선검사 · 1 환산표(P2) · 2 마스터(데이터트랙) · 3 티어빌드 · 4 티어검증 ·
+5 청정검증 · 6 배포 · 7 사이드카 · 8 실측 · 9 결산(단계별 소요시간).
+
+⚠ **0단계가 이 스크립트의 존재 이유다.** 드라이런은 통과하는데 당일에 죽는 경로가 실재한다 —
+픽스처에는 `JANUS-TIER` 센티넬이 있고 **실마스터에는 0건**이기 때문이다(2026-08-08 실측).
+그래서 빌드 전에 센티넬부터 세고, 0 이면 즉시 죽는다. 4단계까지 갔다가 죽으면 남은 시간이 없다.
+
+0단계가 막는 것:
+
+| 검사 | 놓치면 |
+|---|---|
+| 센티넬 0건 | 4단계 `tier_verify` 에서 죽는다 — 19:55 에 알게 된다 |
+| **마스터가 환산표보다 오래됨** | 오늘 만든 환산표가 반영되지 않은 배치표가 나간다(가장 흔한 실수) |
+| 환산표 JSON 무효 | 3단계에서 죽는다 |
+| `JANUS_ALLOWED_HOSTS` 미설정 | A6 미러 감지가 런타임 no-op — 경고만(배포는 진행) |
+
+**이 스크립트는 마스터를 만들지 않는다.** 마스터 생성(`gen_jeongmil.cjs`·`build_janus_edition_v2.py`)은
+배치표 독립 트랙 몫이고, 후자는 CLI 도 없이 cwd 상대경로로 동작한다. 파이프라인은
+`--master-cmd` 로 그 명령을 위임받거나, 이미 만들어진 마스터를 **검사하고 배포한다**.
+
+### 2-1-3. 가채점 환산 `gachaejeom_convert.py` (N4-P2)
+
+수능 당일 19:00 에 손에 있는 것은 **업체 추정 등급컷**뿐이다. 실채점 표준점수 분포는
+12/11 에야 나온다. 그래서 없는 분포를 지어내지 않고 있는 것 둘을 잇는다:
+
+1. 전년도 실측 환산표(원점수 → 표준점수·백분위) — 기저
+2. 당해년 추정 등급컷(원점수) — 보정
+
+같은 등급의 컷은 **같은 실력 지점**이다. 두 원점수를 짝지어 구간선형 사상을 만들면
+"올해 원점수 R 은 작년 척도로 몇 점인가"가 나오고, 거기서 기저의 표준점수·백분위를 읽는다.
+등급컷 사이는 선형 보간이다 — 가진 정보가 그 이상을 허락하지 않으므로 그 이상을 주장하지 않는다.
+
+```bash
+python3 ops/placement/gachaejeom_convert.py \
+  --base <전년도_환산표.json> --difficulty <당해년_등급컷.json> \
+  --target-year 2027 --out <가채점_환산표.json>
+```
+
+- 보정 미제공 시 **보정하지 않는다**(항등) + 산출에 `caveat` 를 남긴다. 없는 것을 지어내지 않는다.
+- 영어·한국사는 `type: absolute` — 등급컷만 쓴다.
+- 산출의 `disclaimer`("가채점 기반 추정치입니다…")는 **선택 필드가 아니다.** 배치표·리포트에 그대로 실린다.
+- 뒤집힌 환산표·어긋난 등급컷·범위 밖 값은 **예외로 죽는다.** 19:30 에 "이상하지만 통과"는 가장 비싼 실패다.
+- 기저·보정 파일은 `JANUS_DATA_DIR` 로컬 전용 — repo 반입 금지(C6). 테스트는 합성 픽스처만 쓴다.
+
+**회귀**(CI `tier-build` 잡 편입):
+
+```bash
+python3 ops/placement/tests/test_gachaejeom_convert.py   # 역검증·난이도 방향·조용한 실패 금지
+python3 ops/placement/tests/test_pipeline_gate.py        # 센티넬 음성 대조(빌드 전에 죽는가)
+```
+
 ## 2-2. 격차 리포트 목표컷 실연동 (N29)
 
 웹 `/placement/gap`(격차 리포트)이 목표 학과의 지원가능선(70%컷)을 **수동 입력 대신 검색**으로 채우게 하려면:
