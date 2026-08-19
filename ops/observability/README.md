@@ -31,7 +31,7 @@ docker compose -f docker-compose.observability.yml up -d
 **Alertmanager**(http://localhost:9093) 포함 — Prometheus 가 여기로 경보 전송(그룹핑·억제). 통지 채널은 미구성(`alertmanager.yml` receivers 에 slack/webhook 추가 시 실통지).
 
 ## 대시보드
-Grafana 에 **"Janus — API Overview"** 자동 프로비저닝(Dashboards → Janus 폴더). 패널: 서비스 up·요청량(route)·p95 지연·에러율·이벤트루프·메모리.
+Grafana 에 **"IANUS — API Overview"** 자동 프로비저닝(Dashboards → IANUS 폴더). 패널: 서비스 up·요청량(route)·p95 지연·에러율·이벤트루프·메모리.
 추가는 `grafana/provisioning/dashboards/*.json` 에 넣으면 30초 내 반영.
 
 ## 프로덕션 전환 시

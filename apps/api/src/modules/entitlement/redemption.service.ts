@@ -19,7 +19,7 @@ function randomCode(): string {
       { length: n },
       () => ALPHABET[crypto.randomInt(ALPHABET.length)],
     ).join('');
-  return `JANUS-${pick(4)}-${pick(4)}`;
+  return `IANUS-${pick(4)}-${pick(4)}`;
 }
 
 /**
