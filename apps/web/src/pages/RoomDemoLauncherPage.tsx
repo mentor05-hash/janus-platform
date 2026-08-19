@@ -52,8 +52,12 @@ export function RoomDemoLauncherPage() {
 
       {health === 'down' && (
         <div style={{ background: '#fbeae7', border: '1px solid #f0cfc9', color: '#a64b37', borderRadius: 10, padding: '10px 14px', fontSize: 13, marginBottom: 16 }}>
-          ⚠ 룸 서비스(<code>{demo?.url}</code>)에 브라우저가 접속하지 못했습니다. 이 상태면 /room 화면이 열려도 "연결 중"에서 멈춥니다.
-          같은 기기에서 <code>localhost:8080</code> 으로 접속했는지, <code>realtime-rooms</code> 컨테이너가 떠 있는지 확인하세요.
+          ⚠ 룸 서비스(<code>{demo?.url}</code>) 헬스 확인에 실패했습니다.
+          {' '}<b>다만 이 점검만 실패하고 채팅·음성은 되는 경우가 있습니다</b> — 광고·추적 차단 확장이 교차 도메인
+          {' '}<code>fetch</code> 만 막고 WebSocket 은 통과시키기 때문입니다. 아래 링크를 열어 실제로 연결되는지 먼저 확인해 보세요.
+          {' '}그래도 "연결 중"에서 멈춘다면: <code>realtime-rooms</code> 컨테이너 기동 여부,
+          {' '}공개 배포라면 위 주소가 실제로 열려 있는지(<code>{demo?.url}</code>/api/rt/v1/health),
+          {' '}로컬이라면 <code>localhost:8080</code> 으로 접속했는지 확인하세요.
         </div>
       )}
       {err && (

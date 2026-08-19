@@ -226,6 +226,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - uses: actions/setup-python@v5      # gzip 크기가 판정에 쓰이므로 버전 고정(재현성)
+        with:
+          python-version: '3.12'
       - name: 입시 캘린더 생성물 동기화 검사 (A7)
         run: node packages/exam-calendar/scripts/gen-events.mjs --check
       - name: 무료판 빌드
@@ -243,6 +246,11 @@ jobs:
       # 통과만 보는 검사는 게이트가 죽어도 통과하므로 음성 대조를 반드시 함께 돌린다.
       - name: 검증 게이트 음성 대조 (일부러 망가뜨린 빌드)
         run: node ops/placement/tests/gate_negative_sim.mjs
+      # 2026-08-12 위음성 회귀 — 합성 대용량 마스터로 질량 게이트의 음성/양성 경로를 실제로 태운다.
+      # 기존 소형 픽스처(2.5KB)로는 어떤 상한도 건드리지 못해 "초록인데 아무것도 검증 안 함"이 된다.
+      # 두 회귀는 서로 다른 것을 본다: 음성 대조는 '게이트가 살아있나', 질량 회귀는 '상한이 실제로 걸리나'.
+      - name: 티어 게이트 회귀 (합성 대용량 · 질량 예산)
+        run: python3 ops/placement/tests/test_tier_gate.py
 
   web:
     name: Web (typecheck · unit)

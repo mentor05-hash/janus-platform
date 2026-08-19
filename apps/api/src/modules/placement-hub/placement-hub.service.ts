@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import * as zlib from 'node:zlib';
 import { CACHE_PROVIDER } from '../../common/cache/cache.types';
 import type { CacheProvider } from '../../common/cache/cache.types';
 import type { AuthUser } from '../../common/decorators/current-user.decorator';
@@ -60,6 +61,14 @@ export interface HubTable {
 @Injectable()
 export class PlacementHubService {
   private readonly logger = new Logger('PlacementHub');
+
+  /**
+   * 무티켓(무료) 서빙의 질량 상한 — `ops/placement/tiers.config.json` 의 `tiers.free.publish.file` 과 동일값.
+   * 이름·플래그가 아니라 **크기**로 판정한다: manifest 의 tier 오표기·누락으로 저작권 마스터가
+   * 무인증 공개되는 경로를 닫는다(2026-08-12 · 위음성 수정과 같은 원리).
+   */
+  private static readonly FREE_SERVE_MAX_BYTES = 163_840;
+  private static readonly FREE_SERVE_MAX_GZIP = 49_152;
 
   /** 유료(비무료) 파일 열람 일일 상한(계정당) — 전 탭 자동 스크래핑 이상행동 차단(O76). */
   private static readonly FILE_DAY_CAP = 40;
@@ -326,7 +335,32 @@ export class PlacementHubService {
         message: '파일이 데이터 디렉토리에 없습니다.',
       });
     }
-    if (!viewer) return { html: buf, updated: entry.updated }; // 무료판 — 원문 그대로
+    // 무료(무티켓) 공개는 **티어 빌드 산출물 규격 안에서만** 허용한다.
+    // 이 게이트가 없으면 manifest 의 tier 를 'paid'→'free' 로 한 글자 바꾸거나, tier 키를 빠뜨린
+    // 새 표를 추가하는 것만으로 저작권 마스터 전량(실측 5~13MB)이 무인증 공개된다 —
+    // `isFree` 판정이 `!entry.tier` 를 free 로 보기 때문에 **기본값이 fail-open** 이다.
+    // 상한은 ops/placement/tiers.config.json 의 tiers.free.publish.file 과 같은 값(2026-08-12 실측 근거).
+    // 현재 유일한 무료 항목(gap-report, 2.6KB)은 61배 여유로 통과한다.
+    if (!viewer) {
+      const gz =
+        buf.length <= PlacementHubService.FREE_SERVE_MAX_BYTES
+          ? zlib.gzipSync(buf, { level: 6 }).length
+          : Number.MAX_SAFE_INTEGER; // 원시 초과면 압축 계산 없이 즉시 거부
+      if (
+        buf.length > PlacementHubService.FREE_SERVE_MAX_BYTES ||
+        gz > PlacementHubService.FREE_SERVE_MAX_GZIP
+      ) {
+        this.logger.error(
+          `무료 서빙 차단(질량 초과): ${slug} — ${buf.length}B / gzip ${gz === Number.MAX_SAFE_INTEGER ? '미측정' : gz}B`,
+        );
+        throw new ForbiddenException({
+          code: 'HUB_FREE_OVERSIZE',
+          message:
+            '이 표는 무료 공개 규격을 초과합니다 — 관리자에게 문의하세요.',
+        });
+      }
+      return { html: buf, updated: entry.updated }; // 무료판 — 원문 그대로
+    }
     // per-user 워터마크(가시 오버레이+지문 주석) + 서빙 감사 — 유출 억지·귀속(O76)
     const html = injectWatermark(
       buf.toString('utf8'),

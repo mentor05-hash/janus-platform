@@ -15,7 +15,7 @@ const DEMO = process.env.EXPO_PUBLIC_DEMO_MODE === 'true';
 // 모바일 지원 역할(관리자·HR은 웹 콘솔). 탭하면 아이디·비번 자동 채움.
 const ROLES = [
   { label: '학생', id: 'student01' },
-  { label: '선생님', id: 'lt1' },
+  { label: '선생님', id: 'teacher01' },
   { label: '학부모', id: 'guardian01' },
 ];
 

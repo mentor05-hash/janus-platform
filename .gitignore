@@ -58,3 +58,7 @@ admission-data.json
 targets.json
 placement-hub/
 !ops/placement/targets.example.json
+# ⚠ 위 `placement-hub/` 는 **어느 깊이의 동명 디렉토리든** 잡는다 — API 소스 모듈까지 그림자에 든다.
+#   기존 파일은 추적 중이라 무해하지만, 그 모듈에 새 파일을 만들면 git status 에도 안 뜨고 조용히 누락된다
+#   (실측 2026-08-12). 데이터 차단은 유지하되 소스는 되살린다.
+!apps/api/src/modules/placement-hub/

@@ -1,0 +1,24 @@
+# 배치표 허브 데이터 **범위 축소** 오버레이 — 공개 터널을 열 때 권장.
+#
+#   docker compose -f docker-compose.full.yml -f docker-compose.hub.yml up -d api
+#
+# 배경: 루트 `.env` 의 `JANUS_DATA_DIR_HOST` 때문에 full.yml 단독 기동만으로도 20_data **전체**가
+# `/data/janus` 에 읽기전용으로 들어간다(raw/ merged/ seed/ internal/ dist_restricted/
+# kice-originals/ 포함). 허브가 실제로 읽는 건 `placement-hub/` 뿐이므로, 이 오버레이는
+# 베이스 마운트를 빈 폴더로 덮고 `placement-hub/` 만 다시 붙인다 → 컨테이너 안에 나머지는 없다.
+#
+# 노출 면(허브 서비스가 강제 — 이 오버레이와 무관하게 항상 적용):
+#   · manifest.json 허용목록 밖의 파일은 어떤 경로로도 나가지 않는다(+ 경로탈출 재검사).
+#   · tier=free 표(격차 리포트)는 로그인 없이 공개. tier=paid 표는 로그인 + 티어/상품권한 통과 +
+#     1회용 티켓 + per-user 워터마크 + 감사로그 + 계정당 일일 40회 상한.
+#   · audience=internal 자료는 컨설턴트(관리자)만 — 상품 권한으로도 열리지 않는다.
+#
+# 전제: 겹쳐 붙일 마운트지점이 미리 있어야 한다(읽기전용 마운트 안에는 docker 가 폴더를 못 만든다).
+#   mkdir -p janus-data/placement-hub      # 빈 폴더 — janus-data/ 는 .gitignore 대상
+services:
+  api:
+    volumes:
+      # 같은 target(/data/janus)을 덮어써 20_data 전체 마운트를 무력화(./janus-data = 빈 폴더).
+      - ./janus-data:/data/janus:ro
+      # 허브가 읽는 하위만 실제 데이터로.
+      - ${JANUS_HUB_DIR_HOST:-${HOME}/janus/20_data/placement-hub}:/data/janus/placement-hub:ro

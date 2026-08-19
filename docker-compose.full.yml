@@ -9,6 +9,7 @@
 # 전원 비밀번호: Itall-2026!(시뮬), dev-password!(기본 더미).
 services:
   postgres:
+    restart: always
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: janus
@@ -25,6 +26,7 @@ services:
       retries: 20
 
   redis:
+    restart: always
     image: redis:7-alpine
     ports:
       - "6379:6379"
@@ -35,6 +37,7 @@ services:
       retries: 20
 
   api:
+    restart: always
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -44,6 +47,11 @@ services:
       NODE_ENV: local
       PORT: "3000"
       API_PREFIX: /api/v1
+      # 화이트라벨 — 약관·개인정보처리방침(legal.content.ts)이 ENV 로만 브랜드 값을 받는다.
+      # branding.config.json 은 웹·모바일 생성파일용이라 API 에는 안 닿는다 → 여기서 전달.
+      # BRANDING_COMPANY 는 법인 확정 전이라 비워 둔다(코드 기본값 '○○(주)' 유지).
+      BRANDING_APP_NAME: ${BRANDING_APP_NAME:-야누스}
+      BRANDING_CONTACT_EMAIL: ${BRANDING_CONTACT_EMAIL:-privacy@ianuspath.com}
       # connection_limit: 예약 advisory-lock 직렬화 시 대기 요청도 커넥션을 점유하므로 여유 확보.
       #   pool_timeout: 풀 대기 상한(초). 초과분은 서비스에서 우아한 409 로 안내. (postgres max=100)
       DATABASE_URL: postgresql://janus:janus_local_pw@postgres:5432/janus?connection_limit=30&pool_timeout=20
@@ -96,6 +104,7 @@ services:
   # 화이트라벨 실시간 룸 서비스 — 채팅·화이트보드·음성. 예약 도메인과 절연된 독립 배포 단위.
   #   로컬 데모는 같은 postgres 의 'rooms' 스키마에 격리. 실서비스는 ROOMS_DATABASE_URL 을 전용 클러스터로.
   realtime-rooms:
+    restart: always
     build:
       context: .
       dockerfile: apps/realtime-rooms/Dockerfile
@@ -121,6 +130,7 @@ services:
       - rooms_storage:/data/rooms-storage         # 첨부 영속화
 
   web:
+    restart: always
     build:
       context: .
       dockerfile: apps/web/Dockerfile
@@ -137,6 +147,7 @@ services:
   # 학생·학부모용 모바일(expo-web 정적). 사전 빌드된 apps/mobile/dist 를 nginx 로 서빙.
   #   빌드 전: cd apps/mobile && EXPO_PUBLIC_API_BASE=/api/v1 npx expo export -p web
   mobile:
+    restart: always
     build:
       context: .
       dockerfile: apps/mobile/Dockerfile.web
