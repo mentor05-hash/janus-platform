@@ -10,6 +10,15 @@ API="${API:-http://localhost:3000/api/v1}"
 HEALTH="${API}/health"   # 전역 prefix(/api/v1) 하위 — GET /api/v1/health
 DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# 관리자 계열 비번 분리 환경 대응 — 공개 데모용으로 JANUS_DEMO_ADMIN_PW 를 주고 시드하면
+# admin01·hq01·master01·hr01 이 dev-password! 로는 안 열린다. 각 스크립트는 ADMIN_PW 를
+# 받게 돼 있으므로 여기서 한 번만 채워 준다(루트 .env 에 값이 있으면 자동, 없으면 무변화).
+if [ -z "${ADMIN_PW:-}" ] && [ -f "$DIR/../.env" ]; then
+  _pw="$(sed -n 's/^JANUS_DEMO_ADMIN_PW=//p' "$DIR/../.env" | head -1)"
+  [ -n "$_pw" ] && { export ADMIN_PW="$_pw"; echo "▶ 관리자 분리 비번 감지(.env) — ADMIN_PW 주입"; }
+  unset _pw
+fi
+
 # 1) API 헬스 대기(최대 60초) — 부팅·마이그레이션 워밍 대응.
 echo "▶ API 헬스 대기: $HEALTH"
 for i in $(seq 1 60); do

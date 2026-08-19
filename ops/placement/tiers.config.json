@@ -45,7 +45,28 @@
       "access_log": true,
       "build_probe": true,
       "mirror_guard": true,
-      "exam_dday": true
+      "exam_dday": true,
+      "publishable": true,
+      "publish": {
+        "_justification": "2026-08-12 실측(measure.py --report). 삭감 후 껍데기 최대 88.7KB(gzip 26.9KB, susi-v6) + 주입분 약 9KB → 정상 최대치 약 98KB. file 상한은 그 1.6배. 사고 사례(삭감 0건 산출물 8.0MB·gzip 1.15MB)는 상한의 50배·24배라 여유와 무관하게 걸린다. 잔존률 실측 0.70~0.99% → max_retained_fraction 0.05 는 최악 대비 5배 여유. 재측정: python3 ops/placement/measure.py --report <파일|디렉토리>",
+        "file": {
+          "max_bytes": 163840,
+          "max_gzip_bytes": 49152
+        },
+        "set": {
+          "max_bytes": 458752,
+          "max_gzip_bytes": 147456,
+          "max_files": 12
+        },
+        "structure": {
+          "strip_literal_over_bytes": 8192,
+          "max_opaque_run": 256
+        },
+        "input": {
+          "large_master_bytes": 262144,
+          "max_retained_fraction": 0.05
+        }
+      }
     },
     "member": {
       "label": "회원판",
@@ -57,7 +78,8 @@
         "recPerBand": 999
       },
       "strip_assignments": [],
-      "access_log": false
+      "access_log": false,
+      "publishable": false
     },
     "paid": {
       "label": "유료판",
@@ -69,7 +91,8 @@
         "recPerBand": 999
       },
       "strip_assignments": [],
-      "access_log": false
+      "access_log": false,
+      "publishable": false
     },
     "consultant": {
       "label": "컨설턴트판",
@@ -82,11 +105,12 @@
         "consultantTools": true
       },
       "strip_assignments": [],
-      "access_log": false
+      "access_log": false,
+      "publishable": false
     }
   },
   "verify": {
-    "_comment": "티어별 검증. tiers.{t}.forbidden=그 판에 있으면 안 되는 패턴, required=반드시 있어야 하는 표식. free=저작권 원천·컷·상위티어 전부 부재(공개판). member=상위(유료/컨설턴트) 전용만 부재(회원 데이터는 정상 보유 — 비공개 게이트 뒤). 실제 마스터용 원천 파일명 토큰은 free·member 공통 방어선.",
+    "_comment": "티어별 검증. tiers.{t}.forbidden=그 판에 있으면 안 되는 패턴, required=반드시 있어야 하는 표식. free=저작권 원천·컷·상위티어 전부 부재(공개판). member=상위(유료/컨설턴트) 전용만 부재(회원 데이터는 정상 보유 — 비공개 게이트 뒤). 실제 마스터용 원천 파일명 토큰은 free·member 공통 방어선. ⚠ 2026-08-12: forbidden 목록은 **보조 게이트**다(차단은 하되 이것만 믿지 않는다). 이 목록의 11개 토큰이 실마스터에 한 건도 없어서, 저작권 데이터 전량이 든 산출물이 \"✅ 통과\"로 나온 위음성이 있었다. 배포를 막는 권한은 tiers.{t}.publish 의 질량 예산(measure.py)에만 있다. 유출 사고의 대응은 이 목록에 토큰을 추가하는 것이 아니라 예산을 다시 재는 것이다.",
     "tiers": {
       "free": {
         "forbidden": [
@@ -108,8 +132,7 @@
           "[야누스 A4]",
           "[야누스 A6]",
           "[야누스 A7]"
-        ],
-        "require_stripping": true
+        ]
       },
       "member": {
         "forbidden": [
@@ -142,7 +165,6 @@
           "__JANUS_TIER"
         ]
       }
-    },
-    "_structural": "require_stripping: 빌드가 실제로 제거한 영역/페이로드가 0 이면 실패시킨다. 금지 토큰 목록은 마스터가 그 이름을 쓸 때만 걸리는 2차 방어라, 센티넬이 없는 마스터에서는 \"아무것도 안 지웠는데 통과\"가 나온다(2026-07-31 실측)."
+    }
   }
 }

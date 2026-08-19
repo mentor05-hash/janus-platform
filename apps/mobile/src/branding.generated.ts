@@ -7,8 +7,8 @@ export const branding = {
   "logoMark": "門",
   "tagline": "미래를 여는 문 — 진단·처방·실행의 전환 관문",
   "company": "○○(주)",
-  "contactEmail": "privacy@REPLACE",
-  "supportEmail": "support@REPLACE",
+  "contactEmail": "privacy@ianuspath.com",
+  "supportEmail": "support@ianuspath.com",
   "colors": {
     "primary": "#2F6FB3",
     "primaryDark": "#24405F",
@@ -23,9 +23,9 @@ export const branding = {
   },
   "urls": {
     "apiBase": "http://localhost:3000/api/v1",
-    "webOrigin": "",
-    "privacyUrl": "https://REPLACE/privacy",
-    "termsUrl": "https://REPLACE/terms"
+    "webOrigin": "https://demo.ianuspath.com",
+    "privacyUrl": "https://demo.ianuspath.com/privacy",
+    "termsUrl": "https://demo.ianuspath.com/terms"
   }
 } as const;
 export const APP_NAME = "야누스";

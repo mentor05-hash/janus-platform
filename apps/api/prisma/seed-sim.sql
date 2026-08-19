@@ -9,7 +9,7 @@ DECLARE
   c1 UUID := '00000000-0000-4000-8000-0000000000c1';
   c2 UUID := '00000000-0000-4000-8000-0000000000c2';
   c3 UUID := '00000000-0000-4000-8000-0000000000c3';
-  cal JSONB := (SELECT jsonb_object_agg(d, jsonb_build_array(jsonb_build_object('start','09:00','end','22:00')))
+  cal JSONB := (SELECT jsonb_object_agg(d, jsonb_build_array(jsonb_build_object('start','08:00','end','24:00','env','home')))
                 FROM unnest(ARRAY['0','1','2','3','4','5','6']) d);
   uid UUID; cen UUID; grd TEXT;
 BEGIN

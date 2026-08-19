@@ -1,117 +1,114 @@
 # -*- coding: utf-8 -*-
-"""티어별 산출 검증 — 티어에 맞지 않는 데이터가 물리적으로 부재함을 grep 으로 증빙(접합계약 C4/C6).
+"""티어별 산출 검증 — **질량 예산**이 배포 가부를 판정한다(접합계약 C4/C6).
 
-검사(config.verify.tiers[tier]):
-  1) forbidden 패턴이 하나라도 있으면 실패.
-     · free : 저작권 원천·컷 수치 + 상위(회원/유료/컨설턴트) 전용 전부 부재(공개판·W2 D1 ✅기준).
-     · member: 상위(유료/컨설턴트) 전용만 부재 — 회원 데이터는 정상 보유(비공개 게이트 뒤).
-  2) required 표식(워터마크·티어 플래그)이 모두 있어야 통과.
-하나라도 실패하면 비-0 종료 → 배포 파이프라인/CI 에서 자동 차단.
+## 2026-08-12 이전의 이 파일은 위음성이었다
 
-사용: python3 ops/placement/tier_verify.py <파일 또는 디렉토리> [--tier free|member|paid|consultant] [--config ...]
+예전 판정은 `forbidden` 문자열 목록의 부재만 봤다. 그 11개 토큰이 전부 합성 픽스처용 리터럴이라
+실마스터에는 한 건도 없었고, 그래서 **저작권 데이터 8MB 를 통째로 담은 산출물이 "✅ 통과"로 나왔다.**
+금지목록은 목록에 없는 것을 조용히 통과시킨다 — 대응은 토큰 추가가 아니라 판정 근거의 교체다.
+
+## 지금의 판정
+
+  1) **질량 예산(차단)** — tiers.{t}.publish 의 file·set 상한. 빌드의 자기보고를 믿지 않고
+     산출물에서 **재계산**한다. 확장자 무관·재귀라 사이드카(.json)·분할 적재도 합산된다.
+  2) **구조(차단)** — 삭감되지 않은 대입 리터럴, base64/lzma 밀수 흔적.
+  3) `required` 표식(차단) — 워터마크·티어 플래그·A4/A6/A7.
+  4) `forbidden`(**보조 게이트 — 차단**) — 알려진 토큰의 검출. 단 성공 시 패턴별 "✅ 부재 확인"을 찍지 않는다
+     — 그 11줄이 "다 검사했다"는 착시를 줬고, 실제로는 실마스터에 한 건도 안 걸리는 목록이었다.
+     **이 목록만 믿지 않는다**: 차단의 주력은 (1) 질량 예산이다.
+
+publishable 미선언·publish 예산 부재·HARD 초과는 전부 **exit 2** — 설정 누락은 '검사 없음'이 아니라 '통과 불가'.
+
+사용: python3 ops/placement/tier_verify.py <디렉토리|파일> [--tier free] [--config ...]
 """
-import argparse, json, os, re, sys
+import argparse, json, os, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-
-
-BUILD_MARKER = re.compile(r'<!--JANUS-BUILD:(\{.*?\})-->', re.DOTALL)
-
-
-def read_build_marker(html):
-    """tier_build 가 남긴 제거 통계를 읽는다. 없으면 None."""
-    m = BUILD_MARKER.search(html)
-    if not m:
-        return None
-    try:
-        return json.loads(m.group(1))
-    except ValueError:
-        return None
-
-
-def iter_html(target):
-    if os.path.isfile(target):
-        yield target
-    elif os.path.isdir(target):
-        for root, _dirs, files in os.walk(target):
-            for fn in files:
-                if fn.lower().endswith('.html'):
-                    yield os.path.join(root, fn)
+sys.path.insert(0, HERE)
+import measure
 
 
 def main():
-    ap = argparse.ArgumentParser(description='무료판 저작권 부재 검증')
-    ap.add_argument('target', help='검증할 무료판 HTML 파일 또는 디렉토리(예: dist-tier/free)')
+    ap = argparse.ArgumentParser(description='티어 산출물 검증(질량 예산 + 구조 + 필수 표식)')
+    ap.add_argument('target', help='검증할 퍼블리시 디렉토리(예: dist-tier/free) 또는 단일 파일')
     ap.add_argument('--tier', default='free')
     ap.add_argument('--config', default=os.path.join(HERE, 'tiers.config.json'))
     a = ap.parse_args()
     with open(a.config, encoding='utf-8') as f:
         cfg = json.load(f)
-    vcfg = cfg['verify']
-    tiers = vcfg.get('tiers')
-    if tiers is not None:
-        tconf = tiers.get(a.tier)
-        if tconf is None:
-            print('!! 알 수 없는 티어:', a.tier, file=sys.stderr)
-            sys.exit(2)
-        forbidden = tconf.get('forbidden', [])
-        required = tconf.get('required', [])
-    else:  # 구 스키마 호환
-        forbidden = vcfg.get('forbidden', [])
-        required = vcfg.get('required_free', []) if a.tier == 'free' else []
 
-    files = list(iter_html(a.target))
-    if not files:
-        print('!! 검증 대상 HTML 없음:', a.target, file=sys.stderr)
+    try:
+        budget = measure.load_budget(cfg, a.tier)
+    except ValueError as e:
+        print('!! 예산 설정 오류:', e, file=sys.stderr)
         sys.exit(2)
 
-    ok = True
-    for path in files:
+    vt = ((cfg.get('verify') or {}).get('tiers') or {}).get(a.tier) or {}
+    forbidden, required = vt.get('forbidden', []), vt.get('required', [])
+
+    if not os.path.exists(a.target):
+        print('!! 대상 없음:', a.target, file=sys.stderr)
+        sys.exit(2)
+    if budget and os.path.isfile(a.target):
+        # 공개 티어는 '세트' 단위로만 판정한다 — 파일 하나만 보면 사이드카·분할 적재를 못 본다.
+        print('!! 공개 티어(%s)는 디렉토리로 검증해야 한다(세트 질량 판정 불가):' % a.tier, a.target, file=sys.stderr)
+        sys.exit(2)
+
+    s = measure.measure_set(a.target) if os.path.isdir(a.target) else None
+    if s is not None and s['files'] == 0:
+        print('!! 검증 대상 파일 없음:', a.target, file=sys.stderr)
+        sys.exit(2)
+
+    blocking, lint = [], []
+
+    confirmed = []
+
+    # ── 1·2) 파일별 질량·구조 ────────────────────────────────────────────────
+    if budget and s:
+        for m in s['per_file']:
+            blocking += measure.enforce_file(m, budget)
+        blocking += measure.enforce_set(s, budget)
+
+    # ── 3·4) 텍스트 표식 ─────────────────────────────────────────────────────
+    targets = [m['path'] for m in s['per_file']] if s else [a.target]
+    html_targets = [p for p in targets if p.lower().endswith(('.html', '.htm', '.xhtml'))]
+    for path in html_targets:
         with open(path, encoding='utf-8', errors='replace') as f:
             html = f.read()
-        print('· 검증:', path)
-
-        # ── 구조 검사(1차 방어) ────────────────────────────────────────────
-        # 금지 토큰 목록은 **마스터가 그 이름을 쓸 때만** 걸린다. 센티넬도 strip 대상도 없는
-        # 마스터는 아무것도 제거되지 않은 채 토큰도 없으므로 목록만으로는 초록이 난다.
-        # 그래서 "빌드가 실제로 무엇을 제거했는가"를 먼저 본다.
-        marker = read_build_marker(html)
-        if marker is None:
-            print('  ❌ 빌드 마커 없음 — 무엇이 제거됐는지 증명할 수 없어 통과시키지 않는다')
-            print('     (tier_build.py 로 다시 빌드할 것)')
-            ok = False
-        else:
-            removed = int(marker.get('regions_removed', 0)) + int(marker.get('payloads_stripped', 0))
-            print('  · 빌드 마커: 영역 %s · 페이로드 %s · %s→%s bytes'
-                  % (marker.get('regions_removed'), marker.get('payloads_stripped'),
-                     marker.get('src_bytes'), marker.get('masked_bytes')))
-            if marker.get('tier') != a.tier:
-                print('  ❌ 티어 불일치: 마커=%s, 검증=%s' % (marker.get('tier'), a.tier))
-                ok = False
-            if tconf.get('require_stripping') and removed == 0:
-                print('  ❌ 제거 0건 — 이 티어는 상위 데이터가 물리적으로 빠져야 한다.')
-                print('     마스터에 JANUS-TIER 센티넬이 없거나 strip_assignments 대상이 없다는 뜻이다.')
-                print('     이 상태로 배포하면 원본이 그대로 공개된다(금지 토큰이 안 걸려도 마찬가지).')
-                ok = False
-
-        # ── 토큰 검사(2차 방어) ────────────────────────────────────────────
+        rel = os.path.relpath(path, a.target) if s else path
         for pat in forbidden:
             if pat in html:
-                cnt = html.count(pat)
-                print('  ❌ 금지 패턴 검출: "%s" ×%d' % (pat, cnt))
-                ok = False
-            else:
-                print('  ✅ 부재 확인: "%s"' % pat)
+                # 차단한다. 다만 성공 시 "✅ 부재 확인" 을 패턴마다 찍지는 않는다 —
+                # 그 11줄이 "다 검사했다"는 착시를 줬고, 실제로는 실마스터에 한 건도 안 걸리는 목록이었다.
+                blocking.append('금지 패턴 검출: "%s" ×%d (%s)' % (pat, html.count(pat), rel))
         for req in required:
             if req in html:
-                print('  ✅ 필수 표식 존재: "%s"' % req)
+                # 양성 경로도 소리내어 말한다 — 침묵을 통과로 읽으면 게이트가 죽어도 초록이다(O211).
+                # 음성 대조 시뮬(tests/gate_negative_sim.mjs)이 이 줄의 존재를 기준선으로 쓴다.
+                confirmed.append('필수 표식 존재: "%s"' % req)
             else:
-                print('  ❌ 필수 표식 누락: "%s"' % req)
-                ok = False
+                blocking.append('필수 표식 누락: "%s" (%s)' % (req, rel))
 
-    ptext = '공개 배포 가능(저작권·상위티어 부재)' if a.tier == 'free' else f'{a.tier} 판 정합(상위티어 데이터 부재)'
-    print('\n결과:', f'✅ 통과 — {ptext}' if ok else '❌ 실패 — 부적합')
-    sys.exit(0 if ok else 1)
+    # ── 출력 ────────────────────────────────────────────────────────────────
+    print('· 대상:', a.target, '· 티어:', a.tier)
+    if budget and s:
+        print(measure.format_set_report(s, budget))
+    elif not budget:
+        print('  (publishable=false — 질량 예산 없음. 이 티어는 공개 배포 대상이 아니다.)')
+    for c in confirmed:
+        print('  ✅ ' + c)
+    for w in lint:
+        print('  ⚠ ' + w)
+    for b in blocking:
+        print('  ❌ ' + b)
+
+    if blocking:
+        print('\n결과: ❌ 실패 — 배포 금지')
+        sys.exit(1)
+    print('\n결과: ✅ 통과 —', '공개 배포 가능(질량 예산·구조·표식)' if budget else '%s 판 정합' % a.tier)
+    if lint:
+        print('       (린트 경고 %d건 — 차단 사유는 아니다)' % len(lint))
+    sys.exit(0)
 
 
 if __name__ == '__main__':

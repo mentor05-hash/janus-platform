@@ -1,5 +1,9 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
+import {
+  DEMO_DEFAULT_PW,
+  demoPasswordFor,
+} from '../../src/config/demo-admin-accounts';
 
 /**
  * 데모 계정 **단일 정본** + 로그인 헬퍼.
@@ -12,7 +16,14 @@ import request from 'supertest';
  *
  * 정본은 `apps/api/prisma/seed-base.sql` 과 `docs/접속_주소_정리.md` 다. 새 스펙은 문자열을 박지 말고 여기서 import 한다.
  */
-export const DEMO_PW = 'dev-password!';
+export const DEMO_PW = DEMO_DEFAULT_PW;
+
+/**
+ * 이 계정의 비밀번호. 보통은 `DEMO_PW` 하나지만, 공개 데모처럼 `JANUS_DEMO_ADMIN_PW` 를 준
+ * 환경에서는 관리자 계열만 값이 다르다(`src/config/demo-admin-accounts.ts`).
+ * CI 는 ENV 를 주지 않으므로 전 계정 `DEMO_PW` — 기존 스펙 동작은 그대로다.
+ */
+export const pwFor = (loginId: string): string => demoPasswordFor(loginId);
 
 /** 시드 계정 아이디 — seed-base.sql 기준. (구 `hqadmin`·`hq1`·`t1` 은 폐기됐다.) */
 export const ACCOUNTS = {
@@ -34,7 +45,7 @@ export const ACCOUNTS = {
 export async function login(
   app: INestApplication,
   loginId: string,
-  password: string = DEMO_PW,
+  password: string = pwFor(loginId),
 ): Promise<string> {
   const res = await request(app.getHttpServer())
     .post('/api/v1/auth/login')
