@@ -251,6 +251,13 @@ jobs:
       # 두 회귀는 서로 다른 것을 본다: 음성 대조는 '게이트가 살아있나', 질량 회귀는 '상한이 실제로 걸리나'.
       - name: 티어 게이트 회귀 (합성 대용량 · 질량 예산)
         run: python3 ops/placement/tests/test_tier_gate.py
+      # 가채점 환산(N4-P2) — 역검증(등급컷이 같으면 기저와 일치)과 난이도 방향이 핵심이다.
+      - name: 가채점 환산 회귀 (역검증 · 난이도 방향)
+        run: python3 ops/placement/tests/test_gachaejeom_convert.py
+      # 파이프라인 선검사(N4-P1) — 드라이런이 통과했다고 수능 당일이 통과하지 않는다.
+      # 센티넬 없는 마스터가 **빌드 전에** 죽는지를 본다(실마스터의 실제 상태가 그렇다).
+      - name: 파이프라인 선검사 회귀 (센티넬 음성 대조)
+        run: python3 ops/placement/tests/test_pipeline_gate.py
 
   web:
     name: Web (typecheck · unit)

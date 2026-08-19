@@ -47,7 +47,7 @@ def make_rows(target_bytes, rnd):
     return '[' + ','.join(rows) + ']'
 
 
-def build(form, mb, seed):
+def build(form, mb, seed, sentinel=0):
     rnd = random.Random(seed)
     payload = make_rows(int(mb * 1024 * 1024), rnd)
     small = '{"a":%d,"b":"%s"}' % (rnd.randint(1, 99), 'x' * 900)   # 1KB 미만 — 삭감 대상 아님
@@ -69,6 +69,16 @@ def build(form, mb, seed):
         body = '<script type="application/json" id="p">{"z":"%s"}</script>' % blob
     else:
         raise SystemExit('알 수 없는 --form: %s' % form)
+    if sentinel:
+        # 정상적으로 태깅된 마스터를 흉내낸다 — 파이프라인 드라이런처럼 "삭감이 실제로 일어나는"
+        # 대용량 입력이 필요한 쪽에서 쓴다. 기본값 0 은 기존 동작(센티넬 0건 = 사고 조건 재현) 그대로다.
+        regions = []
+        for i in range(sentinel):
+            lvl = ('member', 'paid', 'consultant')[i % 3]
+            regions.append(
+                '<!--JANUS-TIER:%s--><div class="upper-%d">%s</div><!--/JANUS-TIER-->'
+                % (lvl, i, ('상위 티어 전용 표 %d · ' % i) * 400))
+        body = body + ''.join(regions)
     return HEAD + body + TAIL
 
 
@@ -78,12 +88,17 @@ def main():
     ap.add_argument('--form', default='assign', choices=['assign', 'window', 'json', 'b64chunk', 'b64json'])
     ap.add_argument('--mb', type=float, default=2.0)
     ap.add_argument('--seed', type=int, default=20260812)
+    ap.add_argument('--sentinel', type=int, default=0,
+                    help='JANUS-TIER 상위티어 영역을 N개 넣는다(기본 0 = 사고 조건 재현). '
+                         '정상 태깅된 대용량 마스터가 필요한 테스트용.')
     a = ap.parse_args()
-    html = build(a.form, a.mb, a.seed)
+    html = build(a.form, a.mb, a.seed, a.sentinel)
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     with open(a.out, 'w', encoding='utf-8') as f:
         f.write(html)
-    print('생성: %s (%s · %.1fKB)' % (a.out, a.form, len(html.encode('utf-8')) / 1024))
+    print('생성: %s (%s · %.1fKB%s)'
+          % (a.out, a.form, len(html.encode('utf-8')) / 1024,
+             (' · 센티넬 %d영역' % a.sentinel) if a.sentinel else ''))
 
 
 if __name__ == '__main__':
